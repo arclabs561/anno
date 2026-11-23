@@ -4704,17 +4704,23 @@ mod tests {
         );
         assert!(
             result.provenance.policy_cohort_key.is_some(),
-            "candidate coverage must include a pre-load failure cohort"
+            "the failed attempt must remain attributable to its policy cohort"
         );
         assert!(matches!(
             result.provenance.runtime.scheduling,
             EvaluationScheduling::NotRun { .. }
         ));
-        let entries = evaluator
-            .history()
-            .expect("history initialized")
-            .load_all()
-            .expect("read persisted history");
+        let history = evaluator.history().expect("history initialized");
+        let cohort = result.provenance.policy_cohort_key.as_deref().unwrap();
+        assert!(history
+            .cell_observation_counts_for_policy_cohort(cohort)
+            .unwrap()
+            .is_empty());
+        assert!(history
+            .dataset_observation_counts_for_policy_cohort(cohort)
+            .unwrap()
+            .is_empty());
+        let entries = history.load_all().expect("read persisted history");
         assert!(entries.iter().any(|entry| {
             entry.muxer_run_id.as_deref() == Some("missing-cache-muxer-run")
                 && entry.observation_id.as_deref() == Some(observation_id)

@@ -6,11 +6,11 @@
 /// `Model::par_extract_batch` on a shared model reference.
 ///
 /// ```sh
-/// cargo run --example batch
-/// cargo run --example batch --features parallel   # uses rayon
+/// cargo run -p anno --no-default-features --example batch
+/// cargo run -p anno --no-default-features --example batch --features parallel   # uses rayon
 /// ```
 ///
-/// Example output:
+/// Output with either offline command:
 ///
 /// ```text
 /// Doc 1: 2 entities
@@ -18,10 +18,10 @@
 ///   Paris [LOC]
 /// Doc 2: 2 entities
 ///   Alan Turing [PER]
-///   Bletchley Park [ORG]
+///   Bletchley Park [LOC]
 /// Doc 3: 2 entities
 ///   Grace Hopper [PER]
-///   COBOL [misc]
+///   COBOL [ORG]
 /// ```
 fn main() {
     let docs = [
@@ -30,7 +30,13 @@ fn main() {
         "Grace Hopper helped develop COBOL.",
     ];
 
+    #[cfg(not(feature = "parallel"))]
     let results = anno::extract_batch(&docs);
+    #[cfg(feature = "parallel")]
+    let results = {
+        use anno::{Model, StackedNER};
+        StackedNER::default().par_extract_batch(&docs, None)
+    };
 
     for (i, result) in results.iter().enumerate() {
         match result {

@@ -15,7 +15,14 @@ anno = "0.14"
 Install the CLI:
 
 ```bash
-cargo install anno-cli
+cargo install anno-cli --locked
+```
+
+For the English heuristic and pattern examples, this smaller build includes
+the Readability HTML extractor and skips the ONNX runtime.
+
+```bash
+cargo install anno-cli --locked --no-default-features --features extractor-readability
 ```
 
 Single-text scoring with `anno eval` works in the standard CLI. Add
@@ -60,6 +67,21 @@ range `8..23`. The document includes the exact text used for extraction. Keep
 your source document ID and revision alongside this file. For a compact entity
 list use `--format json`. [Offset and provenance contract](CONTRACT.md)
 
+## CLI: redact a document
+
+`anno extract --threshold` filters which entities appear in the extraction
+result. To produce a copy of the text with structured PII replaced, use the
+offline privacy command.
+
+```console
+$ anno privacy --model pattern --action redact --text "Send a message to sample@example.org. Reference 123-45-6789."
+Send a message to [CONTACT_1]. Reference [ID_NUMBER_1].
+```
+
+For a UTF-8 file, use `--input ./note.txt` in place of `--text`. The command
+prints the redacted text by default. Add `--output ./redacted.txt` to write it
+to a file.
+
 ## CLI: relation extraction
 
 Extract typed `(head, relation, tail)` triples with a `RelationCapable` backend:
@@ -77,10 +99,11 @@ anno extract --extract-relations --model gliner-multitask \
 
 ## CLI: coreference
 
-Link pronouns to their referents:
+Group repeated mentions in a single document. With the smaller CLI build,
+the output includes a coreference track for the two mentions of “Curie”.
 
 ```bash
-anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
 ```
 
 ## CLI: batch processing
@@ -102,7 +125,8 @@ Only deterministic backends use the result cache: `pattern`, `heuristic`,
 `minimal`, and `heuristic-fr`. Runs using model weights, remote services, or
 coreference bypass it. Entries live under `{cache_dir}/results/v2/`; the cache
 key includes the document, CLI build, and extraction settings.
-`anno cache clear --confirm` deletes the result cache.
+`anno cache clear --confirm` deletes the entire CLI cache directory, including
+any models and batch results stored there.
 
 ## CLI: cross-document clustering
 

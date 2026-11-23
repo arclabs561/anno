@@ -622,9 +622,34 @@ impl Model for HeuristicNER {
                 continue;
             }
 
+            let mut repeats_organization = false;
             while i < words.len() {
                 let w = words[i];
                 let w_clean = w.trim_start_matches(|c: char| !c.is_alphanumeric());
+
+                // A parenthesized short form is its own candidate, even when
+                // followed by a comma. Keep embedded qualifiers in "Acme (UK) Ltd".
+                let parenthesized = w.strip_prefix('(').and_then(|rest| {
+                    rest.trim_end_matches([',', '.', ';', ':', '!', '?'])
+                        .strip_suffix(')')
+                });
+                if parenthesized
+                    .is_some_and(|alias| is_acronym_word(alias) || (i > 0 && words[i - 1] == alias))
+                    && !words.get(i + 1).is_some_and(|next| {
+                        ORG_SUFFIX.contains(&next.trim_end_matches(',').to_lowercase().as_str())
+                    })
+                {
+                    if i == start_idx {
+                        repeats_organization = i > 0
+                            && parenthesized == Some(words[i - 1])
+                            && entities.last().is_some_and(|previous| {
+                                previous.entity_type == EntityType::Organization
+                                    && previous.end() == words_with_pos[i - 1].2
+                            });
+                        i += 1;
+                    }
+                    break;
+                }
 
                 // Check if word ends with closing parenthesis - implies end of group
                 // Also check for sentence boundaries (. ! ?) unless it's a known suffix like Inc. or Mr.
@@ -802,8 +827,11 @@ impl Model for HeuristicNER {
             // Classify based on minimal rules
             // Use cleaned span for classification to avoid punctuation noise
             let clean_span_words: Vec<&str> = entity_text.split_whitespace().collect();
-            let (entity_type, confidence, reason) =
-                classify_minimal(&clean_span_words, &words, start_idx);
+            let (entity_type, confidence, reason) = if repeats_organization {
+                (EntityType::Organization, 0.65, "repeated_org_short_form")
+            } else {
+                classify_minimal(&clean_span_words, &words, start_idx)
+            };
 
             // Skip low-confidence and filtered entities
             if confidence >= self.threshold && confidence > 0.0 {

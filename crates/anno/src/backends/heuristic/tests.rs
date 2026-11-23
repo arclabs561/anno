@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn parenthesized_aliases_have_independent_source_spans() {
+    let ner = HeuristicNER::new();
+    for (text, names) in [
+        (
+            "The Department of Commerce (Commerce) seeks public comment.",
+            vec!["Department of Commerce", "Commerce"],
+        ),
+        (
+            "🦊 Federal Communications Commission (FCC), Mary Jones said.",
+            vec!["Federal Communications Commission", "FCC"],
+        ),
+        ("Acme (UK) Ltd announced results.", vec!["Acme (UK) Ltd"]),
+    ] {
+        let entities = ner.extract_entities(text, None).unwrap();
+        for name in names {
+            let start = text[..text.rfind(name).unwrap()].chars().count();
+            let end = start + name.chars().count();
+            assert!(
+                entities
+                    .iter()
+                    .any(|entity| entity.entity_type == EntityType::Organization
+                        && entity.text == name
+                        && entity.start() == start
+                        && entity.end() == end),
+                "missing {name:?} at {start}..{end} in {entities:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn colon_separates_speaker_and_utterance_names() {
     let text = "Zoë Martin: Mary Jones spoke.\nMary Jones: I listened.\nDr. Lin: Indeed.";
     let entities = HeuristicNER::new().extract_entities(text, None).unwrap();
