@@ -392,3 +392,15 @@ anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
 ```
 
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
+
+For an English mention-proposal experiment, run the same sampler command with
+`ANNO_COREF_GOLD=0 ANNO_COREF_ENGLISH_PRONOUNS=1` and a separate decision file.
+This supplies the entity resolver with NER proposals plus exact source spans from
+Anno's English pronoun detector. Existing NER types take precedence on matching
+spans. Compare proposal coverage, correct and extra links, link precision and
+corpus CoNLL F1 on the same documents. Repeated pronouns, quoted tokens and
+complementizers such as “that” can introduce false links. External tests on
+literary prose found a substantial pair-precision loss for the simple resolver.
+The sampler keeps a separate history cohort for this opt-in research mode.
+Gold mentions and raw-text FCoref runs have their own mention sources and reject
+the additional proposals.

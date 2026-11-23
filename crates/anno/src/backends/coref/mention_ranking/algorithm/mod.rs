@@ -121,6 +121,30 @@ impl MentionRankingCoref {
 
         Ok(clusters)
     }
+    /// Add source-detected pronominal mentions to existing entity proposals in document order.
+    ///
+    /// Exact span matches retain their original entity, including its type and confidence.
+    /// New proposals have a neutral mention type. The configured pronoun detector uses
+    /// English by default and can also admit non-referential words such as complementizers.
+    pub fn supplement_with_pronouns(&self, text: &str, entities: &mut Vec<Entity>) -> Result<()> {
+        let mut seen: HashSet<_> = entities.iter().map(|e| (e.start(), e.end())).collect();
+        for mention in self.detect_mentions(text)? {
+            if mention.mention_type == MentionType::Pronominal
+                && seen.insert((mention.start, mention.end))
+            {
+                entities.push(Entity::new(
+                    &mention.text,
+                    crate::EntityType::custom("mention", crate::EntityCategory::Misc),
+                    mention.start,
+                    mention.end,
+                    1.0,
+                ));
+            }
+        }
+        entities.sort_by_key(|e| (e.start(), e.end()));
+        Ok(())
+    }
+
     /// Detect mentions using NER or heuristics.
     fn detect_mentions(&self, text: &str) -> Result<Vec<RankedMention>> {
         let mut mentions = Vec::new();
@@ -1352,6 +1376,29 @@ mod tests {
                 .map(|c| c.len())
         });
         assert!(r.is_ok(), "resolve panicked on 'İ saw him'");
+    }
+
+    #[test]
+    fn supplement_preserves_exact_entity_and_source_character_offsets() {
+        let text = "İpek saw him. She smiled.";
+        let mut entities = vec![Entity::new("She", crate::EntityType::Person, 14, 17, 0.8)];
+        let detector = MentionRankingCoref::new();
+        detector
+            .supplement_with_pronouns(text, &mut entities)
+            .unwrap();
+        detector
+            .supplement_with_pronouns(text, &mut entities)
+            .unwrap();
+        assert_eq!(entities.len(), 2);
+        assert_eq!(
+            (
+                entities[0].text.as_str(),
+                entities[0].start(),
+                entities[0].end()
+            ),
+            ("him", 9, 12)
+        );
+        assert_eq!(entities[1].entity_type, crate::EntityType::Person);
     }
 
     #[test]

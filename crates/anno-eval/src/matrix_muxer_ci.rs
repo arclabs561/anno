@@ -690,6 +690,15 @@ fn in_ci() -> bool {
     std::env::var("GITHUB_ACTIONS").is_ok()
 }
 
+fn matrix_predicted_mentions() -> crate::eval::task_evaluator::CorefPredictedMentions {
+    use crate::eval::task_evaluator::CorefPredictedMentions;
+    if mh::env_bool("ANNO_COREF_ENGLISH_PRONOUNS", false) {
+        CorefPredictedMentions::NerWithEnglishPronouns
+    } else {
+        CorefPredictedMentions::BackendDefault
+    }
+}
+
 fn matrix_uses_gold_mentions() -> bool {
     std::env::var("ANNO_COREF_GOLD")
         .ok()
@@ -2180,6 +2189,7 @@ fn select_backends(
                                                     max_examples,
                                                     cached_only,
                                                     matrix_uses_gold_mentions(),
+                                                    matrix_predicted_mentions(),
                                                 )
                                                 .and_then(|key| {
                                                     h.cell_observation_counts_for_policy_cohort(
@@ -2944,6 +2954,7 @@ fn choose_datasets_for_run(
                             Some(max_examples_per_dataset()),
                             require_cached,
                             matrix_uses_gold_mentions(),
+                            matrix_predicted_mentions(),
                         )?;
                         history
                             .dataset_observation_counts_for_policy_cohort(&key)
@@ -4253,6 +4264,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         confidence_intervals: false,
         custom_coref_resolver: None,
         coref_use_gold_mentions: matrix_uses_gold_mentions(),
+        coref_predicted_mentions: matrix_predicted_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {
@@ -4768,6 +4780,7 @@ fn test_matrix_sweep_all_backends_once() {
         confidence_intervals: false,
         custom_coref_resolver: None,
         coref_use_gold_mentions: matrix_uses_gold_mentions(),
+        coref_predicted_mentions: matrix_predicted_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {

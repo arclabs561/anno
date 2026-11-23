@@ -26,6 +26,7 @@ pub struct TaskEvalConfigBuilder {
     temporal_stratification: bool,
     confidence_intervals: bool,
     coref_use_gold_mentions: bool,
+    coref_predicted_mentions: crate::eval::task_evaluator::CorefPredictedMentions,
 }
 
 #[cfg(feature = "eval")]
@@ -132,6 +133,15 @@ impl TaskEvalConfigBuilder {
         self
     }
 
+    /// Select the source of predicted mentions for entity-based coreference evaluation.
+    pub fn with_coref_predicted_mentions(
+        mut self,
+        policy: crate::eval::task_evaluator::CorefPredictedMentions,
+    ) -> Self {
+        self.coref_predicted_mentions = policy;
+        self
+    }
+
     /// Build the configuration.
     pub fn build(self) -> crate::eval::task_evaluator::TaskEvalConfig {
         crate::eval::task_evaluator::TaskEvalConfig {
@@ -148,6 +158,7 @@ impl TaskEvalConfigBuilder {
             confidence_intervals: self.confidence_intervals,
             custom_coref_resolver: None,
             coref_use_gold_mentions: self.coref_use_gold_mentions,
+            coref_predicted_mentions: self.coref_predicted_mentions,
         }
     }
 }
@@ -168,6 +179,7 @@ impl Default for TaskEvalConfigBuilder {
             temporal_stratification: false,
             confidence_intervals: true,
             coref_use_gold_mentions: false,
+            coref_predicted_mentions: Default::default(),
         }
     }
 }
