@@ -25,6 +25,7 @@ impl Encoder {
         config_path: &Path,
         device: &Device,
     ) -> crate::Result<Self> {
+        super::check_device(device)?;
         let cfg_str = std::fs::read_to_string(config_path).map_err(|e| {
             crate::Error::Backend(format!(
                 "encoder config read {}: {e}",
@@ -63,6 +64,7 @@ impl Encoder {
     /// into the `encoder.` prefix; this constructor calls `DebertaV2Model::load`
     /// directly on the provided VarBuilder.
     pub fn from_var_builder(vb: VarBuilder<'_>, config: &DebertaV2Config) -> crate::Result<Self> {
+        super::check_device(vb.device())?;
         let model = DebertaV2Model::load(vb, config).map_err(|e| {
             crate::Error::Backend(format!("encoder DebertaV2Model::load (vb): {e}"))
         })?;

@@ -24,7 +24,7 @@
 //! 2. Run the demo (downloads fastino/gliner2-multi-v1 on first run, ~280 MB):
 //!
 //!    ```bash
-//!    cargo run --release -p anno --features gliner2-fastino-candle \
+//!    cargo run --release -p anno --features gliner2-fastino-candle-cuda \
 //!        --example gliner2_candle_lora_demo
 //!    ```
 //!
@@ -33,12 +33,11 @@
 //!    ```bash
 //!    GLINER2_ADAPTER_A=./my_legal_adapter \
 //!    GLINER2_ADAPTER_B=./my_medical_adapter \
-//!    cargo run --release -p anno --features gliner2-fastino-candle \
+//!    cargo run --release -p anno --features gliner2-fastino-candle-cuda \
 //!        --example gliner2_candle_lora_demo
 //!    ```
 //!
-//! Total runtime on CPU: ~3-5 minutes (model load + 4 inference passes).
-//! On GPU (with `gliner2-fastino-candle-cuda` feature): ~30 seconds.
+//! On Apple Silicon, use the `gliner2-fastino-candle-metal` feature.
 
 #![cfg(feature = "gliner2-fastino-candle")]
 
