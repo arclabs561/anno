@@ -24,18 +24,26 @@ One statistical alternative to the current threshold-and-union resolver is to ch
 
 ## What the namesake fixture shows
 
-On revision `2017c44`, the offline English heuristic pipeline recorded `mention-ranking` as the completed coreference backend and added two tracks. It found exact spans for three of the six mentions with annotated membership. Only “Finch” and “She” shared a predicted track on those exact spans. A second predicted track joined two “Noor” surname fragments inside the two full names. The fixture supplies no separate membership label for either fragment. [Namesake fixture](../../testdata/grounded/namesakes.json)
+Two offline runs used the same ONNX-enabled anno CLI at `d232e80`, identical UTF-8 input and the heuristic NER model. The grounded run receipts identify which coreference backend completed. One used native mention-ranking. The other used the CPU FP32 export of `biu-nlp/f-coref` at revision `e91dfff12879495d882ba9460d0c5d5dd44ade59` with ONNX Runtime 1.24.2. The original checkpoint and all four exported files matched the workflow's pinned hashes. Each backend published two tracks. Exact spans below count all pipeline signals, including untracked NER detections. [Namesake fixture](../../testdata/grounded/namesakes.json) · [Model export and checksums](../../.github/workflows/fcoref-cli.yml)
 
-| Method | Correct links | False merges | Missed links | Correct nonlinks |
-|---|---:|---:|---:|---:|
-| Offline pipeline, exact source spans | 1 | 0 | 5 | 9 |
-| Casefolded surface equality, supplied gold spans | 1 | 1 | 5 | 8 |
+| Method | Exact assigned spans | Correct links | False merges | Missed links | Correct nonlinks |
+|---|---:|---:|---:|---:|---:|
+| Native mention-ranking pipeline | 3/6 | 1 | 0 | 5 | 9 |
+| Pinned F-coref pipeline | 4/6 | 0 | 0 | 6 | 9 |
+| Casefolded surface equality, supplied gold spans | 6/6 supplied | 1 | 1 | 5 | 8 |
 
-The denominator is the 15 unordered pairs among six assigned mentions, with six positive and nine negative pairs. Unmatched endpoints receive no predicted link. The seventh mention has unknown membership and is excluded. Surface equality joined the two pilot descriptions correctly and the two namesakes incorrectly. Only the first row includes detection errors. Neither row estimates performance on a population. The replay used no neural checkpoint.
+The denominator is the 15 unordered pairs among six assigned mentions, with six positive and nine negative pairs. A pair receives a predicted link when both exact spans occur in one emitted track. The seventh mention has unknown membership and is excluded. The native resolver linked “Finch” to “She”. Its other track joined two surname fragments outside the exact gold spans. Surface equality joined the two pilot descriptions correctly and the two namesakes incorrectly.
+
+F-coref linked “Dr. Léa Noor (alias Finch)” to “She” and “A different Léa Noor, the pilot” to “The pilot”. Both first spans are wider than the gold highlights. The two edges therefore remain unjudged under this boundary rule, and precision on the restricted pair set is undefined. This example motivates annotating compact highlights and accepted referring expressions separately before judging association on either. A single document cannot rank the two models.
+
+To reproduce, build the CLI with ONNX support, extract the source without a trailing newline and run it once with each model-path setting. Start in a working directory without a fallback model and check the resulting `coref_run.backend`. The `--model` option selects NER in both runs.
 
 ```sh
 jq -j .text testdata/grounded/namesakes.json > /tmp/anno-namesakes.txt
-ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 anno pipeline --files /tmp/anno-namesakes.txt --model heuristic --coref --format grounded
+ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 FCOREF_MODEL_PATH=/nonexistent \
+  anno pipeline --files /tmp/anno-namesakes.txt --model heuristic --coref --format grounded
+ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 FCOREF_MODEL_PATH="$FCOREF_MODEL_DIR" \
+  anno pipeline --files /tmp/anno-namesakes.txt --model heuristic --coref --format grounded
 ```
 
 ## A comparison that could change the design
