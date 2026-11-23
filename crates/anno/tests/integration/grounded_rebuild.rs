@@ -130,6 +130,10 @@ fn exhausted_allocations_leave_rebuilt_documents_round_trippable() {
     }))
     .is_err());
     assert!(doc.try_add_track(Track::new(0, "empty")).is_err());
+    assert!(doc
+        .merge_tracks(&[TrackId::ZERO, TrackId::new(1)])
+        .is_none());
+    assert_eq!(doc.merge_tracks(&[TrackId::ZERO]), Some(TrackId::ZERO));
     assert!(catch_unwind(AssertUnwindSafe(|| doc.add_identity(Identity::new(0, "Jo")))).is_err());
     assert_eq!(serde_json::to_value(&doc).unwrap(), before);
     assert!(reload(&doc).unwrap().invariants_hold());

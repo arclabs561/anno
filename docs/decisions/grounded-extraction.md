@@ -26,6 +26,8 @@ For publication costs, hold source byte length and existing annotation density f
 
 ## Decisions to revisit
 
+[Track association and uncertainty](track-association.md) connects the existing resolver scores to probabilistic record linkage, learned antecedents and competing track hypotheses. It describes how to evaluate a change to the scoring contract.
+
 | Decision | Evidence required to change it |
 |---|---|
 | Retain the current coreference threshold. In one four-document English namesake panel, raising the antecedent margin left all held-out predictions unchanged. Both settings found 14 of 24 exact target mentions. Only eight of 26 known-distinct target pairs had both boundaries proposed exactly. | Freeze an independently labeled panel that exercises the targeted false merge, report mention-boundary misses and pair errors separately, and agree a caller latency target before selecting a new default. Multilingual benchmarking needs language-specific examples and explicit singleton and boundary policies. [CRAC shared task](https://arxiv.org/abs/2605.21369) |

@@ -766,6 +766,71 @@ mod tests {
     }
 
     #[test]
+    fn corpus_merge_updates_local_owner_and_drops_retired_imported_references() {
+        let mut document = GroundedDocument::new("d", "Ada Ada");
+        let mut inputs = Vec::new();
+        for offset in [0, 4] {
+            let signal = document.add_signal(Signal::new(
+                0,
+                Location::text(offset, offset + 3),
+                "Ada",
+                "PERSON",
+                0.9,
+            ));
+            let mut track = Track::new(0, "Ada");
+            track.add_signal(signal, 0);
+            inputs.push(document.add_track(track));
+        }
+        let refs: Vec<_> = inputs
+            .iter()
+            .map(|&id| document.track_ref(id).unwrap())
+            .collect();
+        let mut owner = Identity::new(0, "local Ada");
+        owner.source = Some(IdentitySource::CrossDocCoref {
+            track_refs: refs.clone(),
+        });
+        owner.minimum_pair_similarity = Some(crate::Confidence::ONE);
+        let owner_id = document.add_identity(owner);
+        for &id in &inputs {
+            document.link_track_to_identity(id, owner_id);
+        }
+        let mut other = GroundedDocument::new("other", "");
+        let mut imported = Identity::new(0, "imported Ada");
+        imported.source = Some(IdentitySource::Hybrid {
+            track_refs: refs,
+            kb_name: "catalog".into(),
+            kb_id: "ada".into(),
+        });
+        let imported_id = other.add_identity(imported);
+
+        let mut corpus = Corpus::new();
+        corpus.add_document(document);
+        corpus.add_document(other);
+        let merged = corpus.merge_tracks("d", &inputs).unwrap();
+        let doc = corpus.get_document("d").unwrap();
+        let owner = doc.identity_for_track(merged).unwrap();
+        assert_eq!(owner.id, owner_id);
+        assert_eq!(
+            owner.source.as_ref().unwrap().track_refs(),
+            &[doc.track_ref(merged).unwrap()]
+        );
+        assert_eq!(owner.minimum_pair_similarity, None);
+        assert_eq!(
+            corpus
+                .get_document("other")
+                .unwrap()
+                .get_identity(imported_id)
+                .unwrap()
+                .source,
+            Some(IdentitySource::KnowledgeBase {
+                kb_name: "catalog".into(),
+                kb_id: "ada".into()
+            })
+        );
+        assert!(corpus.current_coref_clusters().is_empty());
+    }
+
+    #[test]
     fn importing_a_shared_hybrid_refreshes_live_and_persisted_refs() {
         let mut corpus = Corpus::new();
         let first = add_track_doc(&mut corpus, "a", "Ada");
