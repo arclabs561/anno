@@ -3,7 +3,7 @@ import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_wikigold
+from check_matrix_outcomes import RANDOM_TASKS, check, check_temporal_smoke, check_wikigold
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -73,6 +73,15 @@ class CoverageTest(unittest.TestCase):
             self.assertFalse(check_wikigold([]))
             for mutation in ({"primary_f1": 0.0}, {"backend": "crf"}, {"cost_units": 0}):
                 self.assertFalse(check_wikigold([json.dumps(row | mutation)]))
+
+    def test_temporal_fixture_requires_the_positive_and_negative_documents(self):
+        row = dict(outcome("temporal", examples=2), dataset="TimexRecognitionSentenceOriginal",
+                   backend="pattern", primary_f1=1.0)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertTrue(check_temporal_smoke([json.dumps(row)]))
+            for change in ({"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
+                           {"slice": "ner.lang=en"}, {"dataset": "WikiGold"}):
+                self.assertFalse(check_temporal_smoke([json.dumps(row | change)]))
 
     def test_reports_first_decision_and_matching_observation(self):
         decision = {"strategy": "worst-first", "chosen": "heuristic", "slice": "ner",

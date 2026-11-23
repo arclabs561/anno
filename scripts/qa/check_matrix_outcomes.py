@@ -36,27 +36,29 @@ def outcomes(lines, decisions=None):
         yield task if strategy == "random" else strategy, row
 
 
-def check_wikigold(lines, bootstrap=False):
+def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
-        if (
-            lane == "ner"
-            and row.get("backend") == "heuristic"
-            and row.get("dataset") == "WikiGold"
-            and row["hard_junk"] is False
-            and row["cost_units"] == (5 if bootstrap else 1)
-            and type(row.get("primary_f1")) in (float, int)
-            and math.isfinite(row["primary_f1"])
-            and (bootstrap or row["primary_f1"] == 1.0)
-        ):
-            if bootstrap:
-                print(f"Cold-start WikiGold baseline: heuristic, 5 examples, F1 {row['primary_f1']:.4f}.")
-            else:
-                print("Offline sampler scored all labeled spans correctly on the fixture.")
+        score = row.get("primary_f1")
+        if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
+                and not row["hard_junk"] and row["cost_units"] == examples
+                and type(score) in (float, int) and math.isfinite(score)
+                and (not exact or score == 1.0)):
+            print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
-    print("Unexpected WikiGold baseline result." if bootstrap else "Unexpected offline fixture result.", file=sys.stderr)
+    print(f"Unexpected fixed sample result for {task} / {dataset} / {backend}.", file=sys.stderr)
     return False
+
+
+def check_wikigold(lines, bootstrap=False):
+    return check_fixed_sample(lines, task="ner", dataset="WikiGold", backend="heuristic",
+                              examples=5 if bootstrap else 1, exact=not bootstrap)
+
+
+def check_temporal_smoke(lines):
+    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+                              backend="pattern", examples=2, exact=True)
 
 
 def check(lines, report=False):
@@ -137,13 +139,19 @@ if __name__ == "__main__":
     parser.add_argument("log", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--bootstrap", action="store_true", help="require five real WikiGold examples")
-    mode.add_argument("--smoke", action="store_true", help="require the exact offline fixture result")
+    mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
+    mode.add_argument("--temporal-smoke", action="store_true",
+                      help="require two scored temporal documents and perfect fixture F1")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            passed = (check_wikigold(stream, args.bootstrap) if args.smoke or args.bootstrap
-                      else check(stream, args.report))
+            if args.temporal_smoke:
+                passed = check_temporal_smoke(stream)
+            elif args.smoke or args.bootstrap:
+                passed = check_wikigold(stream, args.bootstrap)
+            else:
+                passed = check(stream, args.report)
             sys.exit(0 if passed else 1)
     except (OSError, ValueError) as error:
         sys.exit(str(error))

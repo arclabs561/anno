@@ -90,7 +90,9 @@ the same cohort. Each retry retains its own sampling receipt.
 Both kinds of run measure five examples per dataset from a local cache. A
 checksum-pinned public WikiGold corpus supplies a real input even after cache
 eviction. A cold default-branch run records a heuristic baseline on that corpus.
-The synthetic offline fixture uses separate storage. Worst-first runs before
+The synthetic offline checks use separate storage. A temporal check scores two
+authored sentences with the pattern backend: one contains a date and one has no
+TIMEX span. Event and signal labels do not count as temporal gold. Worst-first runs before
 the four randomized task controls (NER, relation extraction, intra-document
 coreference, and temporal extraction). On the default branch, a named control
 may fetch data when that task's local cache is empty. The job summary links
