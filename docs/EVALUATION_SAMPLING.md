@@ -49,7 +49,8 @@ still be evaluated from their original row text and annotations. [Pinned test sp
 Default-branch CI verifies the pinned public file and scores all 390 sentences with the
 pattern backend. The check requires a finite score and the full sentence count. Its receipt
 is archived separately from the five-example adaptive history. PRs exercise the two-sentence
-offline temporal fixture.
+offline temporal fixture. For paired model comparisons that include date-free documents, use the
+[34-document contrast panel](../scripts/qa/fixtures/timex-contrast/README.md).
 
 ## Choose a mode
 
@@ -377,4 +378,13 @@ Gold JSONL records may carry their source `text`, `source_sha256`, and a documen
 
 `anno dataset eval --dataset gap --task coref` reports an unweighted mean of document CoNLL F1 scores. It compares exact character spans and keeps supplied singleton chains. A document with no gold or predicted mentions contributes zero CoNLL F1. A dataset with one perfectly resolved two-mention chain and one correctly empty document therefore scores 0.50.
 
-The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection.
+The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection. The resolver receives the spans in document order and any type attached to each mention. On corpora with many singletons, report correct links and total gold links alongside CoNLL F1. A system that places every mention in a separate chain can score well on B³ and CEAF-e while recovering zero links.
+
+The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. To compare the modes on the full PreCo validation split, run the same cached command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`:
+
+```sh
+anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
+  --fixed-backend coref_resolver --require-cached --max-examples 500 --runs 1 --seed-base 42
+```
+
+Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.

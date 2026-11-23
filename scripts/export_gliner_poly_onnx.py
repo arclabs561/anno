@@ -134,6 +134,55 @@ def verify_with_onnxruntime(onnx_path: str | Path, input_dict: dict) -> list:
     return sess.run(None, feed)
 
 
+def export_inventory(directory: Path) -> dict:
+    """Describe the two supported label interfaces and every referenced weight file."""
+    import onnx
+
+    def tensors(message):
+        if isinstance(message, onnx.TensorProto):
+            yield message
+            return
+        for field, value in message.ListFields():
+            if field.message_type is not None:
+                for child in [value] if hasattr(value, "ListFields") else value:
+                    yield from tensors(child)
+
+    main = onnx.load(str(directory / "model.onnx"), load_external_data=False)
+    inputs = {value.name for value in main.graph.input}
+    graphs = [main]
+    if "labels_embeddings" in inputs:
+        label_input = "embeddings"
+        encoder = onnx.load(str(directory / "label_encoder.onnx"), load_external_data=False)
+        if "labels_embeddings" not in {v.name for v in encoder.graph.output}:
+            raise ValueError("Label graph has no labels_embeddings output")
+        graphs.append(encoder)
+    elif "labels_input_ids" in inputs:
+        label_input = "token_ids"
+    else:
+        raise ValueError("Unsupported label inputs for GLiNER bi-encoder")
+    external = set()
+    for graph in graphs:
+        for tensor in tensors(graph):
+            if tensor.data_location == onnx.TensorProto.EXTERNAL:
+                location = next((e.value for e in tensor.external_data if e.key == "location"), "")
+                path = Path(location)
+                if not location or path.is_absolute() or ".." in path.parts or any(c in location for c in "\\:"):
+                    raise ValueError("Invalid relative external data location")
+                external.add(location)
+    for file in [*external, "tokenizer.json", "label_tokenizer.json"]:
+        if not (directory / file).is_file():
+            raise ValueError(f"Missing GLiNER bi-encoder export asset: {file}")
+    return {"schema_version": 1, "label_input": label_input, "external_data": sorted(external)}
+
+
+def write_export_inventory(directory: Path) -> None:
+    import tempfile
+    inventory = export_inventory(directory)
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False) as out:
+        json.dump(inventory, out)
+    Path(out.name).replace(directory / "anno_poly_export.json")
+
+
 def quantize_model(onnx_path: Path, output_path: Path) -> None:
     """Apply INT8 dynamic quantization to an ONNX model."""
     log(f"Quantizing {onnx_path.name}...")
@@ -185,6 +234,9 @@ def try_library_export(model_id: str, output_dir: Path, quantize: bool) -> bool:
         if onnx_path.exists():
             log("Strategy 1 succeeded.")
             check_onnx_model(onnx_path)
+            save_tokenizer(model, output_dir)
+            get_label_tokenizer(model).backend_tokenizer.save(str(output_dir / "label_tokenizer.json"))
+            export_inventory(output_dir)
             return True
         else:
             log(f"Strategy 1: export_to_onnx returned {result} but model.onnx not found.")
@@ -208,6 +260,7 @@ def _build_wrapper_class():
     """
     import torch
     import torch.nn as nn
+    from inspect import signature
 
     class GLiNERPolyONNXWrapper(nn.Module):
         """
@@ -223,6 +276,11 @@ def _build_wrapper_class():
             self.gliner_model = gliner_model
             self.model = gliner_model.model
             self.mode = mode
+            # GLiNER 0.2.30 shortened the PyTorch keyword; the exported ABI stays stable.
+            self.embedding_arg = (
+                "labels_embeds" if "labels_embeds" in signature(self.model.forward).parameters
+                else "labels_embeddings"
+            )
 
         def forward(self, *args):
             if self.mode == "main":
@@ -250,7 +308,7 @@ def _build_wrapper_class():
                 text_lengths=text_lengths,
                 span_idx=span_idx,
                 span_mask=span_mask,
-                labels_embeddings=labels_embeddings,
+                **{self.embedding_arg: labels_embeddings},
             )
             if hasattr(output, "logits"):
                 return output.logits
@@ -265,7 +323,15 @@ def _build_wrapper_class():
 
         def _forward_label_encoder(self, labels_input_ids, labels_attention_mask):
             """Forward pass for the label encoder only."""
-            # Find the label encoder sub-module
+            # Both GLiNER 0.2.16 and 0.2.30 use this path in encode_labels(),
+            # including the trained projection and pooling used by the scorer.
+            rep_layer = getattr(self.model, "token_rep_layer", None)
+            if hasattr(rep_layer, "encode_labels"):
+                return rep_layer.encode_labels(
+                    input_ids=labels_input_ids, attention_mask=labels_attention_mask
+                )
+
+            # Other model variants expose the label encoder as a module.
             if hasattr(self.model, "label_encoder"):
                 label_encoder = self.model.label_encoder
             elif hasattr(self.model, "entity_encoder"):
@@ -361,18 +427,16 @@ def _make_dummy_inputs_manual(
 
     num_words = len(text_words)
 
-    # Build prompt: [CLS] <<ENT>> type1 <<ENT>> type2 ... <<SEP>> word1 word2 ... [SEP]
-    entity_prompt = " ".join(f"<<ENT>> {et}" for et in entity_types)
-    full_text = " ".join(text_words)
-    prompt = f"{entity_prompt} <<SEP>> {full_text}"
-
-    encoding = hf_tokenizer(prompt, return_tensors="pt", padding=True)
-    input_ids = encoding["input_ids"]  # [1, seq_len]
-    attention_mask = encoding["attention_mask"]  # [1, seq_len]
-    seq_len = input_ids.shape[1]
-
-    # Approximate words_mask (zeros -- the model infers word boundaries internally)
-    words_mask = torch.zeros(1, seq_len, dtype=torch.long)
+    # Match GLiNER's BaseBiEncoderProcessor: labels are encoded separately.
+    encoding = hf_tokenizer(text_words, is_split_into_words=True, return_tensors="pt")
+    input_ids = encoding["input_ids"]
+    attention_mask = encoding["attention_mask"]
+    mask = []
+    previous = None
+    for word in encoding.word_ids():
+        mask.append(word + 1 if word is not None and word != previous else 0)
+        previous = word
+    words_mask = torch.tensor([mask], dtype=torch.long)
     text_lengths = torch.tensor([[num_words]], dtype=torch.long)
 
     # Span tensors
@@ -478,6 +542,27 @@ def export_main_model(gliner_model, output_dir: Path, dummy_inputs: dict, labels
     return onnx_path
 
 
+def get_label_tokenizer(gliner_model):
+    # Find the label tokenizer
+    label_tokenizer = None
+    if hasattr(gliner_model, "data_processor"):
+        label_tokenizer = (getattr(gliner_model.data_processor, "labels_tokenizer", None)
+                           or getattr(gliner_model.data_processor, "label_tokenizer", None))
+    if label_tokenizer is None:
+        label_tokenizer = getattr(gliner_model, "label_tokenizer", None)
+    if label_tokenizer is None and hasattr(gliner_model, "config"):
+        from transformers import AutoTokenizer
+
+        cfg = gliner_model.config
+        label_model_name = getattr(cfg, "labels_encoder", None) or getattr(cfg, "entity_encoder", None)
+        if label_model_name:
+            label_tokenizer = AutoTokenizer.from_pretrained(label_model_name)
+    if label_tokenizer is None:
+        raise RuntimeError("Cannot find label tokenizer on the model.")
+
+    return label_tokenizer
+
+
 def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Path:
     """Export the label encoder (sentence-transformer) to a separate ONNX file."""
     import torch
@@ -492,22 +577,10 @@ def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Pat
 
     dummy_labels = ["person", "organization", "location"]
 
-    # Find the label tokenizer
-    label_tokenizer = None
-    if hasattr(gliner_model, "data_processor"):
-        label_tokenizer = getattr(gliner_model.data_processor, "label_tokenizer", None)
-    if label_tokenizer is None:
-        label_tokenizer = getattr(gliner_model, "label_tokenizer", None)
-    if label_tokenizer is None and hasattr(gliner_model, "config"):
-        from transformers import AutoTokenizer
+    label_tokenizer = get_label_tokenizer(gliner_model)
 
-        cfg = gliner_model.config
-        label_model_name = getattr(cfg, "labels_encoder", None) or getattr(cfg, "entity_encoder", None)
-        if label_model_name:
-            label_tokenizer = AutoTokenizer.from_pretrained(label_model_name)
-    if label_tokenizer is None:
-        raise RuntimeError("Cannot find label tokenizer on the model.")
-
+    # Keep the native split export usable without fetching a second tokenizer.
+    label_tokenizer.backend_tokenizer.save(str(output_dir / "label_tokenizer.json"))
     encoding = label_tokenizer(
         dummy_labels,
         return_tensors="pt",
@@ -744,38 +817,26 @@ def try_manual_export(
         model, model_id, output_dir, entity_types, labels_embeddings.shape, max_width
     )
 
-    # 7. Verify with ONNX Runtime
-    log("Verifying exports with ONNX Runtime...")
-    width_error: Exception | None = None
-    try:
-        # Verify label encoder
-        label_input_np = {
-            "labels_input_ids": np.array([[1, 2, 3, 0]], dtype=np.int64),
-            "labels_attention_mask": np.array([[1, 1, 1, 0]], dtype=np.int64),
-        }
-        label_outputs = verify_with_onnxruntime(label_onnx, label_input_np)
-        log(f"Label encoder output shape: {label_outputs[0].shape}")
+    # Exercise the same handoff as Rust: use the exported label graph's output
+    # as the main graph's input. A numerically wrong label projection invalidates
+    # a transfer even when both graphs accept the tensors independently.
+    from tokenizers import Tokenizer
 
-        # Verify main model
-        main_input_np = {}
-        for k, v in dummy_inputs.items():
-            if isinstance(v, torch.Tensor):
-                main_input_np[k] = v.numpy()
-        main_input_np["labels_embeddings"] = labels_embeddings.numpy()
-        main_outputs = verify_with_onnxruntime(main_onnx, main_input_np)
-        log(f"Main model output shape: {main_outputs[0].shape}")
-        try:
-            _check_runtime_span_width(main_outputs[0], dummy_inputs, max_width)
-        except RuntimeError as error:
-            width_error = error
-    except Exception as e:
-        log(f"ONNX Runtime verification failed (non-fatal): {e}")
-        traceback.print_exc(file=sys.stderr)
-
-    # A graph that only scores single-word spans is worse than a regex
-    # baseline; refuse to ship it when verification had the evidence.
-    if width_error is not None:
-        raise width_error
+    tokenizer = Tokenizer.from_file(str(output_dir / "label_tokenizer.json"))
+    tokenizer.enable_padding()
+    encodings = tokenizer.encode_batch(entity_types)
+    label_inputs = {
+        "labels_input_ids": np.array([enc.ids for enc in encodings], dtype=np.int64),
+        "labels_attention_mask": np.array([enc.attention_mask for enc in encodings], dtype=np.int64),
+    }
+    embeddings = verify_with_onnxruntime(label_onnx, label_inputs)[0]
+    np.testing.assert_allclose(embeddings, labels_embeddings.detach().cpu().numpy(), rtol=1e-3, atol=1e-4)
+    main_inputs = {
+        k: v.detach().cpu().numpy() for k, v in dummy_inputs.items() if isinstance(v, torch.Tensor)
+    }
+    main_inputs["labels_embeddings"] = embeddings
+    logits = verify_with_onnxruntime(main_onnx, main_inputs)[0]
+    _check_runtime_span_width(logits, dummy_inputs, max_width)
 
     # 8. Optional quantization
     if quantize:
@@ -842,10 +903,16 @@ def main():
             "'auto' tries library first then falls back to manual (default: auto)"
         ),
     )
+    parser.add_argument("--inventory-only", action="store_true",
+                        help="Inspect an existing export and write its offline sampler inventory.")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if args.inventory_only:
+        write_export_inventory(output_dir)
+        return
+    (output_dir / "anno_poly_export.json").unlink(missing_ok=True)
 
     if args.max_width < 12:
         log(
@@ -886,6 +953,7 @@ def main():
             print(f"\nExport rejected: {error}", file=sys.stderr)
             sys.exit(1)
         print("\n" + "=" * 60)
+        write_export_inventory(output_dir)
         print("Export complete.")
         print(f"Output directory: {output_dir}")
         print()
@@ -897,8 +965,8 @@ def main():
             else:
                 print(f"  {f.name}/")
         print()
-        print("Usage with anno (once GLiNERPoly backend is implemented):")
-        print(f"  GLINER_POLY_MODEL_PATH={output_dir} anno extract --model gliner-poly 'Your text'")
+        print("Usage with anno:")
+        print(f"  GLINER_POLY_MODEL_PATH={output_dir} anno extract --model gliner-poly --text 'Your text'")
         print("=" * 60)
     else:
         print("\nExport failed. See errors above.", file=sys.stderr)

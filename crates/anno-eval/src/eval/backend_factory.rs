@@ -696,8 +696,10 @@ impl BackendFactory {
                 "w2ner",
                 "gliner_multitask",
                 "gliner_pii",
-                "gliner_poly",
             ]);
+            if anno::backends::gliner_poly::GLiNERPoly::local_export_available() {
+                backends.push("gliner_poly");
+            }
 
             // Optional backends that require explicit local ONNX exports.
             if anno::GLiNEROnnx::relex_entity_export_available() {

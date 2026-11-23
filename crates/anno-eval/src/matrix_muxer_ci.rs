@@ -690,6 +690,12 @@ fn in_ci() -> bool {
     std::env::var("GITHUB_ACTIONS").is_ok()
 }
 
+fn matrix_uses_gold_mentions() -> bool {
+    std::env::var("ANNO_COREF_GOLD")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
 fn matrix_require_cached() -> bool {
     // Default:
     // - CI prefers cache; opt-in download fallback via `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY`
@@ -2144,6 +2150,7 @@ fn select_backends(
                                                     seed,
                                                     max_examples,
                                                     cached_only,
+                                                    matrix_uses_gold_mentions(),
                                                 )
                                                 .and_then(|key| {
                                                     h.cell_observation_counts_for_policy_cohort(
@@ -2328,7 +2335,6 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     anno::env::load_dotenv();
     let has_hf_token = anno::env::has_hf_token();
     for b in allowed {
-        // gliner_poly is now implemented (bi-encoder ONNX export via DeBERTa + BGE).
         if b == "w2ner" && !has_hf_token {
             continue;
         }
@@ -2908,6 +2914,7 @@ fn choose_datasets_for_run(
                             seed,
                             Some(max_examples_per_dataset()),
                             require_cached,
+                            matrix_uses_gold_mentions(),
                         )?;
                         history
                             .dataset_observation_counts_for_policy_cohort(&key)
@@ -4216,9 +4223,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         temporal_stratification: false,
         confidence_intervals: false,
         custom_coref_resolver: None,
-        coref_use_gold_mentions: std::env::var("ANNO_COREF_GOLD")
-            .ok()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+        coref_use_gold_mentions: matrix_uses_gold_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {
@@ -4732,9 +4737,7 @@ fn test_matrix_sweep_all_backends_once() {
         temporal_stratification: false,
         confidence_intervals: false,
         custom_coref_resolver: None,
-        coref_use_gold_mentions: std::env::var("ANNO_COREF_GOLD")
-            .ok()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+        coref_use_gold_mentions: matrix_uses_gold_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {

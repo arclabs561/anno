@@ -407,7 +407,16 @@ Notes:
 
 - `gliner_poly` uses bi-encoder model weights (`gliner-bi-large-v1.0` family)
   even though the backend name says "poly". The `gliner-poly-*-v1.0` HF repos
-  are model cards only with no weights, per the export script's docstring.
+  are model cards only with no weights. The default checkpoint requires an ONNX
+  export. Use `export_gliner_poly_onnx.py --strategy manual` for the split graph
+  format. The exporter writes `anno_poly_export.json`, which declares whether the
+  main graph uses embedded labels or token IDs and lists external weight files.
+  Automatic evaluation checks this inventory, both tokenizers and the declared files
+  in `GLINER_POLY_MODEL_PATH`, the default cache, or the model's local Hugging Face
+  snapshot. For an older self-contained export, run the same script with
+  `--inventory-only --output DIRECTORY`. Explicit loading supports older exports
+  without an inventory. The native ONNX fixture checks label-sensitive
+  decoding and source offsets. Pretrained accuracy requires separate measurement.
 - `tplinker` exports with random weights if no `--checkpoint` is provided;
   the runtime falls back to a heuristic mode when no ONNX is present.
 - `gliner_onnx` runs `export_gliner_poly_onnx.py` automatically on first

@@ -525,22 +525,21 @@ pub fn b_cubed_score_head(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64
 // CEAF (Luo, 2005)
 // =============================================================================
 
-/// Luo's phi3: raw mention intersection count `|K cap R|`. Used for CEAF-m.
-fn ceaf_phi3(pred_chain: &CorefChain, gold_chain: &CorefChain) -> f64 {
-    let pred_spans: HashSet<SpanId> = pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-    let gold_spans: HashSet<SpanId> = gold_chain.mentions.iter().map(|m| m.span_id()).collect();
-    pred_spans.intersection(&gold_spans).count() as f64
+/// Choose the CEAF weight for a pair of chains sharing at least one mention.
+#[derive(Clone, Copy)]
+enum CeafWeight {
+    /// Phi3 is the number of distinct shared mention spans.
+    Mention,
+    /// Phi4 is the Dice coefficient of the chains.
+    Entity,
 }
 
-/// Luo's phi4: Dice coefficient `2|K cap R| / (|K| + |R|)`. Used for CEAF-e.
-fn ceaf_phi4(pred_chain: &CorefChain, gold_chain: &CorefChain) -> f64 {
-    let pred_spans: HashSet<SpanId> = pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-    let gold_spans: HashSet<SpanId> = gold_chain.mentions.iter().map(|m| m.span_id()).collect();
-    let overlap = pred_spans.intersection(&gold_spans).count();
-    if overlap > 0 {
-        (2 * overlap) as f64 / (pred_chain.len() + gold_chain.len()) as f64
-    } else {
-        0.0
+impl CeafWeight {
+    fn weight(self, shared: usize, predicted_len: usize, gold_len: usize) -> f64 {
+        match self {
+            Self::Mention => shared as f64,
+            Self::Entity => (2 * shared) as f64 / (predicted_len + gold_len) as f64,
+        }
     }
 }
 
@@ -552,11 +551,7 @@ fn ceaf_phi4(pred_chain: &CorefChain, gold_chain: &CorefChain) -> f64 {
 /// each component is solved exactly with the Hungarian (Kuhn-Munkres)
 /// algorithm. That keeps large documents, where most entities overlap with
 /// only a few others, far below the dense `O(n^3)` cost.
-fn optimal_assignment(
-    pred: &[CorefChain],
-    gold: &[CorefChain],
-    sim_fn: fn(&CorefChain, &CorefChain) -> f64,
-) -> f64 {
+fn optimal_assignment(pred: &[CorefChain], gold: &[CorefChain], weight: CeafWeight) -> f64 {
     if pred.is_empty() || gold.is_empty() {
         return 0.0;
     }
@@ -566,14 +561,32 @@ fn optimal_assignment(
     let n_pred = pred.len();
     let mut sims: HashMap<(usize, usize), f64> = HashMap::new();
     let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); n_pred + gold.len()];
-    for (i, p) in pred.iter().enumerate() {
-        for (j, g) in gold.iter().enumerate() {
-            let sim = sim_fn(p, g);
-            if sim > 0.0 {
-                sims.insert((i, j), sim);
-                adjacency[i].push(n_pred + j);
-                adjacency[n_pred + j].push(i);
+    // Index each distinct (span, gold chain) once. A shared span may belong to
+    // several chains in user-provided inputs; each chain remains a candidate.
+    let mut gold_owners: HashMap<SpanId, Vec<usize>> = HashMap::new();
+    for (j, chain) in gold.iter().enumerate() {
+        for mention in &chain.mentions {
+            let owners = gold_owners.entry(mention.span_id()).or_default();
+            if owners.last() != Some(&j) {
+                owners.push(j);
             }
+        }
+    }
+
+    for (i, chain) in pred.iter().enumerate() {
+        let mut seen_spans = HashSet::new();
+        let mut overlaps = std::collections::BTreeMap::new();
+        for span in chain.mentions.iter().map(|m| m.span_id()) {
+            if seen_spans.insert(span) {
+                for &j in gold_owners.get(&span).into_iter().flatten() {
+                    *overlaps.entry(j).or_insert(0) += 1;
+                }
+            }
+        }
+        for (j, shared) in overlaps {
+            sims.insert((i, j), weight.weight(shared, chain.len(), gold[j].len()));
+            adjacency[i].push(n_pred + j);
+            adjacency[n_pred + j].push(i);
         }
     }
 
@@ -717,7 +730,7 @@ fn max_weight_matching(weights: &[Vec<f64>]) -> f64 {
 /// ```
 #[must_use]
 pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let similarity = optimal_assignment(predicted, gold, ceaf_phi4);
+    let similarity = optimal_assignment(predicted, gold, CeafWeight::Entity);
     let precision = if !predicted.is_empty() {
         similarity / predicted.len() as f64
     } else {
@@ -757,7 +770,7 @@ pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// ```
 #[must_use]
 pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let similarity = optimal_assignment(predicted, gold, ceaf_phi3);
+    let similarity = optimal_assignment(predicted, gold, CeafWeight::Mention);
     let pred_mentions: usize = predicted.iter().map(|c| c.len()).sum();
     let gold_mentions: usize = gold.iter().map(|c| c.len()).sum();
 
@@ -2907,6 +2920,37 @@ mod tests {
                     })
                     .collect()
             })
+        }
+
+        proptest! {
+            #[test]
+            fn indexed_ceaf_matches_dense_span_intersections(
+                pred in proptest::collection::vec(proptest::collection::vec(0..8usize, 0..5), 0..5),
+                gold in proptest::collection::vec(proptest::collection::vec(0..8usize, 0..5), 0..6),
+            ) {
+                let to_chains = |groups: Vec<Vec<usize>>| {
+                    groups.into_iter().map(|spans| {
+                        CorefChain::new(spans.into_iter().map(|s| Mention::new("x", s, s + 1)).collect())
+                    }).collect::<Vec<_>>()
+                };
+                let pred = to_chains(pred);
+                let gold = to_chains(gold);
+                for mode in [CeafWeight::Mention, CeafWeight::Entity] {
+                    let weights: Vec<Vec<f64>> = pred.iter().map(|p| {
+                        let p_spans: HashSet<_> = p.mentions.iter().map(|m| m.span_id()).collect();
+                        gold.iter().map(|g| {
+                            let g_spans: HashSet<_> = g.mentions.iter().map(|m| m.span_id()).collect();
+                            let shared = p_spans.intersection(&g_spans).count();
+                            match mode {
+                                _ if shared == 0 => 0.0,
+                                CeafWeight::Mention => shared as f64,
+                                CeafWeight::Entity => 2.0 * shared as f64 / (p.len() + g.len()) as f64,
+                            }
+                        }).collect()
+                    }).collect();
+                    prop_assert!((optimal_assignment(&pred, &gold, mode) - max_weight_matching(&weights)).abs() < 1e-9);
+                }
+            }
         }
 
         // 1. F1 range: prf1(p, r) is in [0.0, 1.0] for any p, r in [0.0, 1.0].

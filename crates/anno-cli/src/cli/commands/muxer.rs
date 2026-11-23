@@ -1485,9 +1485,6 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for b in allowed {
         // Keep parity with matrix sampler harness.
-        if b == "gliner_poly" {
-            continue;
-        }
         if b == "w2ner" && !has_hf_token {
             continue;
         }

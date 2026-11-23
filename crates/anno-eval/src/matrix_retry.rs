@@ -270,7 +270,14 @@ pub(super) fn next_cell(
                     EvaluationScheduling::NotRun { .. }
                 ))
             || Some(cohort)
-                != policy_cohort_key(result.task, result.dataset, seed, max_examples, cached)
+                != policy_cohort_key(
+                    result.task,
+                    result.dataset,
+                    seed,
+                    max_examples,
+                    cached,
+                    matrix_uses_gold_mentions(),
+                )
         {
             continue;
         }

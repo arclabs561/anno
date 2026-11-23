@@ -1,0 +1,34 @@
+{"id": "retro-timex-01", "source": "constitution", "text": "The Senate shall have the sole Power to try all Impeachments.", "time_expressions": []}
+{"id": "retro-timex-02", "source": "constitution", "text": "To establish Post Offices and post Roads;", "time_expressions": []}
+{"id": "retro-timex-03", "source": "constitution", "text": "To borrow Money on the credit of the United States;", "time_expressions": []}
+{"id": "retro-timex-04", "source": "declaration", "text": "He has refused his Assent to Laws, the most wholesome and necessary for the public good.", "time_expressions": []}
+{"id": "retro-timex-05", "source": "declaration", "text": "He has affected to render the Military independent of and superior to the Civil power.", "time_expressions": []}
+{"id": "retro-timex-06", "source": "pep20", "text": "Readability counts.", "time_expressions": []}
+{"id": "retro-timex-07", "source": "pep20", "text": "In the face of ambiguity, refuse the temptation to guess.", "time_expressions": []}
+{"id": "retro-timex-08", "source": "pep20", "text": "If the implementation is easy to explain, it may be a good idea.", "time_expressions": []}
+{"id": "retro-timex-09", "source": "faraday", "text": "What diamond can shine like flame?", "time_expressions": []}
+{"id": "retro-timex-10", "source": "faraday", "text": "But how does the flame get hold of the fuel?", "time_expressions": []}
+{"id": "retro-timex-11", "source": "alice", "text": "‘Have some wine,’ the March Hare said in an encouraging tone.", "time_expressions": []}
+{"id": "retro-timex-12", "source": "alice", "text": "‘It was the BEST butter,’ the March Hare meekly replied.", "time_expressions": []}
+{"id": "retro-timex-13", "source": "crusoe", "text": "Friday told me such a boat would do very well", "time_expressions": []}
+{"id": "retro-timex-14", "source": "crusoe", "text": "Friday was my interpreter, especially to his father", "time_expressions": []}
+{"id": "retro-timex-15", "source": "declaration", "text": "In Congress, July 4, 1776", "time_expressions": [{"text": "July 4, 1776", "start_char": 13, "end_char": 25}]}
+{"id": "retro-timex-16", "source": "alice", "text": "‘Fourteenth of March, I think it was,’ he said.", "time_expressions": [{"text": "Fourteenth of March", "start_char": 1, "end_char": 20}]}
+{"id": "retro-timex-17", "source": "alice", "text": "And yesterday things went on just as usual.", "time_expressions": [{"text": "yesterday", "start_char": 4, "end_char": 13}]}
+{"id": "retro-timex-18", "source": "crusoe", "text": "for the 11th was Sunday", "time_expressions": [{"text": "11th", "start_char": 8, "end_char": 12}, {"text": "Sunday", "start_char": 17, "end_char": 23}]}
+{"id": "retro-timex-19", "source": "faraday", "text": "Here is a clever invention of some costermonger or street stander in the market-place for the shading of their candles on Saturday nights, when they are selling their greens, or potatoes, or fish.", "time_expressions": [{"text": "Saturday nights", "start_char": 122, "end_char": 137}]}
+{"id": "retro-timex-20", "source": "faraday", "text": "It owes its lustre at night-time to the very flame shining upon it.", "time_expressions": [{"text": "night-time", "start_char": 22, "end_char": 32}]}
+{"id": "retro-timex-21", "source": "authored-transit", "text": "monday: buses use the lower platform.", "time_expressions": [{"text": "monday", "start_char": 0, "end_char": 6}]}
+{"id": "retro-timex-22", "source": "authored-transit", "text": "Route 612 serves Maple Terrace.", "time_expressions": []}
+{"id": "retro-timex-23", "source": "authored-arts", "text": "Our critic gave the painting “Thursday” three stars.", "time_expressions": []}
+{"id": "retro-timex-24", "source": "authored-arts", "text": "Film club picks: Paper Moons (Friday); Little Valley (Sunday).", "time_expressions": [{"text": "Friday", "start_char": 30, "end_char": 36}, {"text": "Sunday", "start_char": 54, "end_char": 60}]}
+{"id": "retro-timex-25", "source": "authored-software", "text": "Job finished at 18:45 with exit code 0.", "time_expressions": [{"text": "18:45", "start_char": 16, "end_char": 21}]}
+{"id": "retro-timex-26", "source": "authored-software", "text": "The string “Monday” belongs in the column named alias.", "time_expressions": []}
+{"id": "retro-timex-27", "source": "authored-commerce", "text": "The Thursday Boot Company replaced the laces.", "time_expressions": []}
+{"id": "retro-timex-28", "source": "authored-commerce", "text": "Dispatch window: Tuesday through Thursday.", "time_expressions": [{"text": "Tuesday", "start_char": 17, "end_char": 24}, {"text": "Thursday", "start_char": 33, "end_char": 41}]}
+{"id": "retro-timex-29", "source": "authored-logistics", "text": "The courier is April March; her delivery date is June 12.", "time_expressions": [{"text": "June 12", "start_char": 49, "end_char": 56}]}
+{"id": "retro-timex-30", "source": "authored-logistics", "text": "PO 2026-81 ships to June Avenue.", "time_expressions": []}
+{"id": "retro-timex-31", "source": "authored-sports", "text": "The semifinal? Wednesday. The venue? Cork.", "time_expressions": [{"text": "Wednesday", "start_char": 15, "end_char": 24}]}
+{"id": "retro-timex-32", "source": "authored-sports", "text": "The midfielder is called Sunday; his sister's name is May.", "time_expressions": []}
+{"id": "retro-timex-33", "source": "authored-museum", "text": "The archive opens on 2031-09-22.", "time_expressions": [{"text": "2031-09-22", "start_char": 21, "end_char": 31}]}
+{"id": "retro-timex-34", "source": "authored-museum", "text": "Label correction: the sculptor signs her work “Friday”.", "time_expressions": []}

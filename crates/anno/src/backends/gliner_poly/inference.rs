@@ -3,6 +3,7 @@
 //! Handles model loading from HuggingFace Hub, tokenization, tensor construction,
 //! and output decoding. Follows the same patterns as `gliner_onnx::inference`.
 
+use super::export::Export;
 use super::*;
 
 /// Special token IDs for GLiNER poly-encoder models.
@@ -19,24 +20,74 @@ pub(super) const MAX_SPAN_WIDTH: usize = 12;
 
 #[cfg(feature = "onnx")]
 impl GLiNERPoly {
+    /// Is a self-contained bi-encoder export ready for offline sampling?
+    #[must_use]
+    pub fn local_export_available() -> bool {
+        Self::prepared_export_dir(crate::models::GLINER_POLY).is_some()
+    }
+
+    fn prepared_export_dir(model_name: &str) -> Option<std::path::PathBuf> {
+        if let Some(path) = std::env::var_os("GLINER_POLY_MODEL_PATH").filter(|p| !p.is_empty()) {
+            let dir = std::path::PathBuf::from(path);
+            return Export::ready(&dir).then_some(dir);
+        }
+        super::local_model_cache_candidates()
+            .into_iter()
+            .find(|dir| Export::ready(dir))
+            .or_else(|| Export::hub_dir(&hf_hub::Cache::from_env(), model_name))
+    }
+
+    fn uses_label_encoder(session: &ort::session::Session) -> Result<bool> {
+        let has = |name| session.inputs().iter().any(|input| input.name() == name);
+        if has("labels_embeddings") {
+            Ok(true)
+        } else if has("labels_input_ids") {
+            Ok(false)
+        } else {
+            Err(Error::Retrieval(
+                "GLiNER Poly graph requires a labels_embeddings or labels_input_ids input".into(),
+            ))
+        }
+    }
+
     /// Create a new poly-encoder GLiNER model.
     ///
     /// Checks the local anno cache (`~/.cache/anno/models/gliner-poly/`) first.
-    /// If not found, downloads from HuggingFace Hub.
+    /// The default checkpoint needs an ONNX export. Custom Hub models may supply ONNX directly.
     ///
     /// # Arguments
     ///
     /// * `model_name` - HuggingFace model ID
     ///   (e.g., `"knowledgator/gliner-bi-large-v1.0"`)
     pub fn new(model_name: &str) -> Result<Self> {
-        // Check local caches first (exported ONNX models live here).
+        if let Some(path) = std::env::var_os("GLINER_POLY_MODEL_PATH").filter(|p| !p.is_empty()) {
+            return Self::from_dir(path.as_ref());
+        }
+        if let Some(dir) = Self::prepared_export_dir(model_name) {
+            return Self::from_dir(&dir);
+        }
+        // Explicit callers may also load older exports with a separately cached tokenizer.
         for dir in &super::local_model_cache_candidates() {
             if dir.join("model.onnx").exists() && dir.join("tokenizer.json").exists() {
                 log::info!("[GLiNERPoly] Found local model in {}", dir.display());
                 return Self::from_dir(dir);
             }
         }
-        // Fallback: try HuggingFace Hub (only works if repo has ONNX files).
+        // The upstream default publishes PyTorch weights only. Preserve pre-exported
+        // Hub caches and custom Hub models without probing six absent files on a cold run.
+        if model_name == crate::models::GLINER_POLY {
+            use crate::backends::hf_loader::{FP32_ONNX_PATHS, QUANTIZED_ONNX_PATHS};
+            let repo = hf_hub::Cache::from_env().model(model_name.to_owned());
+            if !QUANTIZED_ONNX_PATHS
+                .iter()
+                .chain(FP32_ONNX_PATHS)
+                .any(|name| repo.get(name).is_some())
+            {
+                return Err(Error::Retrieval(
+                    "GLiNER Poly requires a prepared ONNX export. Run uv run scripts/export_gliner_poly_onnx.py --strategy manual and set GLINER_POLY_MODEL_PATH to its output directory.".into()
+                ));
+            }
+        }
         Self::with_options(model_name, true, 3, 4)
     }
 
@@ -51,10 +102,9 @@ impl GLiNERPoly {
         optimization_level: u8,
         num_threads: usize,
     ) -> Result<Self> {
-        use ort::execution_providers::CPUExecutionProvider;
-        use ort::session::builder::GraphOptimizationLevel;
-        use ort::session::Session;
+        use crate::backends::hf_loader::{create_onnx_session, OnnxSessionConfig};
 
+        let receipt = Export::read(dir)?;
         let model_path = dir.join("model.onnx");
         let tokenizer_path = dir.join("tokenizer.json");
 
@@ -71,34 +121,37 @@ impl GLiNERPoly {
             )));
         }
 
-        let opt_level = match optimization_level {
-            1 => GraphOptimizationLevel::Level1,
-            2 => GraphOptimizationLevel::Level2,
-            _ => GraphOptimizationLevel::Level3,
+        let options = || OnnxSessionConfig {
+            optimization_level,
+            num_threads,
+            use_cpu_provider: true,
+            ..Default::default()
         };
-
-        let mut builder = Session::builder()
-            .map_err(|e| Error::Retrieval(format!("ONNX session builder: {}", e)))?
-            .with_optimization_level(opt_level)
-            .map_err(|e| Error::Retrieval(format!("ONNX optimization level: {}", e)))?
-            .with_execution_providers([CPUExecutionProvider::default().build()])
-            .map_err(|e| Error::Retrieval(format!("ONNX execution providers: {}", e)))?;
-
-        if num_threads > 0 {
-            builder = builder
-                .with_intra_threads(num_threads)
-                .map_err(|e| Error::Retrieval(format!("ONNX thread config: {}", e)))?;
+        let session = create_onnx_session(&model_path, options())?;
+        let split = Self::uses_label_encoder(&session)?;
+        if receipt
+            .as_ref()
+            .is_some_and(|export| export.split() != split)
+        {
+            return Err(Error::Retrieval(
+                "GLiNER Poly label inputs differ from its export inventory".into(),
+            ));
         }
-
-        let session = builder
-            .commit_from_file(&model_path)
-            .map_err(|e| Error::Retrieval(format!("ONNX model load: {}", e)))?;
+        let label_encoder = if split {
+            Some(Mutex::new(create_onnx_session(
+                &dir.join("label_encoder.onnx"),
+                options(),
+            )?))
+        } else {
+            None
+        };
 
         let tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| Error::Retrieval(format!("Tokenizer load: {}", e)))?;
 
         // Load label tokenizer from gliner_config.json -> labels_encoder field.
-        let label_tokenizer = Self::load_label_tokenizer(dir)?;
+        let configured_encoder = Self::configured_label_encoder(&dir.join("gliner_config.json"))?;
+        let label_tokenizer = Self::load_label_tokenizer(dir, configured_encoder.as_deref())?;
 
         let is_quantized = model_path
             .file_name()
@@ -112,6 +165,8 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
+            source_only_text: split || receipt.is_some() || configured_encoder.is_some(),
+            label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
             model_name: dir.display().to_string(),
@@ -119,44 +174,38 @@ impl GLiNERPoly {
         })
     }
 
-    /// Load the label encoder's tokenizer.
-    ///
-    /// Reads `gliner_config.json` to find `labels_encoder` (e.g. `BAAI/bge-base-en-v1.5`),
-    /// then downloads that model's `tokenizer.json` from HuggingFace Hub.
-    fn load_label_tokenizer(dir: &std::path::Path) -> Result<tokenizers::Tokenizer> {
-        use hf_hub::api::sync::{Api, ApiBuilder};
-
-        let config_path = dir.join("gliner_config.json");
-        let labels_encoder_name = if config_path.exists() {
-            let config_str = std::fs::read_to_string(&config_path)
-                .map_err(|e| Error::Retrieval(format!("Read gliner_config.json: {}", e)))?;
-            let config: serde_json::Value = serde_json::from_str(&config_str)
-                .map_err(|e| Error::Retrieval(format!("Parse gliner_config.json: {}", e)))?;
-            config
-                .get("labels_encoder")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        } else {
-            None
-        };
-
-        let labels_encoder_name =
-            labels_encoder_name.unwrap_or_else(|| "BAAI/bge-base-en-v1.5".to_string());
-
-        // Check if label tokenizer is cached locally.
-        let local_label_tok = dir.join("label_tokenizer.json");
-        if local_label_tok.exists() {
-            return tokenizers::Tokenizer::from_file(&local_label_tok)
-                .map_err(|e| Error::Retrieval(format!("Label tokenizer load: {}", e)));
+    fn configured_label_encoder(config_path: &std::path::Path) -> Result<Option<String>> {
+        if !config_path.is_file() {
+            return Ok(None);
         }
+        let file = std::fs::File::open(config_path)
+            .map_err(|e| Error::Retrieval(format!("Read gliner_config.json: {e}")))?;
+        let config: serde_json::Value = serde_json::from_reader(file)
+            .map_err(|e| Error::Retrieval(format!("Parse gliner_config.json: {e}")))?;
+        Ok(config
+            .get("labels_encoder")
+            .and_then(|id| id.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned))
+    }
 
+    /// Older exports use a separately cached label tokenizer.
+    fn load_label_tokenizer(
+        dir: &std::path::Path,
+        encoder: Option<&str>,
+    ) -> Result<tokenizers::Tokenizer> {
+        let local = dir.join("label_tokenizer.json");
+        if local.is_file() {
+            return crate::backends::hf_loader::load_tokenizer(&local);
+        }
+        let labels_encoder_name = encoder.unwrap_or("BAAI/bge-base-en-v1.5");
         log::info!(
             "[GLiNERPoly] Downloading label tokenizer from {}",
             labels_encoder_name
         );
 
         let api = crate::backends::hf_loader::hf_api()?;
-        let repo = api.model(labels_encoder_name);
+        let repo = api.model(labels_encoder_name.to_owned());
         let tok_path = crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
         crate::backends::hf_loader::load_tokenizer(&tok_path)
     }
@@ -177,6 +226,9 @@ impl GLiNERPoly {
     ) -> Result<Self> {
         use crate::backends::hf_loader;
 
+        if let Some(dir) = Export::hub_dir(&hf_hub::Cache::from_env(), model_name) {
+            return Self::from_dir_with_options(&dir, optimization_level, num_threads);
+        }
         let api = hf_loader::hf_api()?;
         let repo = api.model(model_name.to_string());
 
@@ -199,19 +251,34 @@ impl GLiNERPoly {
 
         let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
 
+        let label_encoder = if Self::uses_label_encoder(&session)? {
+            let path = hf_loader::download_model_file(
+                &repo,
+                &["label_encoder.onnx", "onnx/label_encoder.onnx"],
+            )?;
+            Some(Mutex::new(hf_loader::create_onnx_session(
+                &path,
+                hf_loader::OnnxSessionConfig {
+                    optimization_level,
+                    num_threads,
+                    use_cpu_provider: true,
+                    ..Default::default()
+                },
+            )?))
+        } else {
+            None
+        };
+
         // Download label encoder tokenizer from gliner_config.json.
         let config_path = hf_loader::download_model_file(&repo, &["gliner_config.json"]).ok();
-        let labels_encoder_name = config_path
-            .as_ref()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|s: String| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|c: serde_json::Value| {
-                c.get("labels_encoder")
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "BAAI/bge-base-en-v1.5".to_string());
+        let configured_encoder = config_path
+            .as_deref()
+            .and_then(|path| Self::configured_label_encoder(path).ok().flatten());
+        let labels_encoder_name = configured_encoder
+            .as_deref()
+            .unwrap_or("BAAI/bge-base-en-v1.5");
 
-        let label_repo = api.model(labels_encoder_name.clone());
+        let label_repo = api.model(labels_encoder_name.to_owned());
         let label_tok_path = hf_loader::download_model_file(&label_repo, &["tokenizer.json"])?;
         let label_tokenizer = hf_loader::load_tokenizer(&label_tok_path)?;
 
@@ -224,6 +291,8 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
+            source_only_text: label_encoder.is_some() || configured_encoder.is_some(),
+            label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
             model_name: model_name.to_string(),
@@ -260,15 +329,28 @@ impl GLiNERPoly {
             return Ok(vec![]);
         }
 
-        let text_words: Vec<&str> = text.split_whitespace().collect();
+        let text_words: Vec<&str> = if self.source_only_text {
+            // GLiNER's Python WhitespaceTokenSplitter groups hyphenated words and
+            // emits punctuation separately (Python regex: \w+(?:[-_]\w+)*|\S).
+            static WORDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+                regex::Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S")
+                    .expect("constant word regex")
+            });
+            WORDS.find_iter(text).map(|word| word.as_str()).collect()
+        } else {
+            text.split_whitespace().collect()
+        };
         let num_text_words = text_words.len();
         if num_text_words == 0 {
             return Ok(vec![]);
         }
 
-        // Encode input following the GLiNER prompt format.
-        let (input_ids, attention_mask, words_mask) =
-            self.encode_prompt(&text_words, entity_types)?;
+        // The bi-encoder's text tokenizer sees the source words alone.
+        let (input_ids, attention_mask, words_mask) = if self.source_only_text {
+            self.encode_source_words(&text_words)?
+        } else {
+            self.encode_prompt(&text_words, entity_types)?
+        };
 
         // Generate span tensors (same layout as GLiNEROnnx).
         let (span_idx, span_mask) = Self::make_span_tensors(num_text_words);
@@ -322,17 +404,40 @@ impl GLiNERPoly {
         // Run inference.
         let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
+        let mut inputs = ort::inputs![
+            "input_ids" => input_ids_t.into_dyn(),
+            "attention_mask" => attention_mask_t.into_dyn(),
+            "words_mask" => words_mask_t.into_dyn(),
+            "text_lengths" => text_lengths_t.into_dyn(),
+            "span_idx" => span_idx_t.into_dyn(),
+            "span_mask" => span_mask_t.into_dyn(),
+        ];
+        if let Some(encoder) = &self.label_encoder {
+            let mut encoder = encoder.lock().unwrap_or_else(|e| e.into_inner());
+            let embeddings = encoder
+                .run(ort::inputs![
+                    "labels_input_ids" => labels_ids_t,
+                    "labels_attention_mask" => labels_mask_t,
+                ])
+                .map_err(|e| Error::Inference(format!("GLiNER label encoder: {e}")))?
+                .remove("labels_embeddings")
+                .ok_or_else(|| {
+                    Error::Inference("Label encoder has no labels_embeddings output".into())
+                })?;
+            inputs.push(("labels_embeddings".into(), embeddings.into()));
+        } else {
+            inputs.push(("labels_input_ids".into(), labels_ids_t.into()));
+            inputs.push(("labels_attention_mask".into(), labels_mask_t.into()));
+        }
+        // ONNX export may prune unused inputs from the traced text graph.
+        inputs.retain(|(name, _)| {
+            session
+                .inputs()
+                .iter()
+                .any(|input| input.name() == name.as_ref())
+        });
         let outputs = session
-            .run(ort::inputs![
-                "input_ids" => input_ids_t.into_dyn(),
-                "attention_mask" => attention_mask_t.into_dyn(),
-                "words_mask" => words_mask_t.into_dyn(),
-                "text_lengths" => text_lengths_t.into_dyn(),
-                "span_idx" => span_idx_t.into_dyn(),
-                "span_mask" => span_mask_t.into_dyn(),
-                "labels_input_ids" => labels_ids_t.into_dyn(),
-                "labels_attention_mask" => labels_mask_t.into_dyn(),
-            ])
+            .run(inputs)
             .map_err(|e| Error::Inference(format!("ONNX inference failed: {}", e)))?;
 
         // Decode output.
@@ -374,32 +479,64 @@ impl GLiNERPoly {
     /// Returns `(labels_input_ids, labels_attention_mask)` where each label is
     /// tokenized and padded to the same length.
     fn encode_labels(&self, entity_types: &[&str]) -> Result<(Vec<i64>, Vec<i64>)> {
-        let mut all_ids: Vec<Vec<i64>> = Vec::with_capacity(entity_types.len());
-        let mut max_len = 0;
-
-        for label in entity_types {
-            let encoding = self
-                .label_tokenizer
-                .encode(label.to_string(), true)
-                .map_err(|e| Error::Parse(format!("Label tokenizer error: {}", e)))?;
-            let ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-            max_len = max_len.max(ids.len());
-            all_ids.push(ids);
+        let encodings = self
+            .label_tokenizer
+            .encode_batch(entity_types.to_vec(), true)
+            .map_err(|e| Error::Parse(format!("Label tokenizer error: {e}")))?;
+        let max_len = encodings
+            .iter()
+            .map(|encoding| encoding.len())
+            .max()
+            .unwrap_or(0);
+        let pad_id = self
+            .label_tokenizer
+            .get_padding()
+            .map_or(0, |params| i64::from(params.pad_id));
+        let mut labels_input_ids = Vec::with_capacity(encodings.len() * max_len);
+        let mut labels_attention_mask = Vec::with_capacity(encodings.len() * max_len);
+        for encoding in encodings {
+            labels_input_ids.extend(encoding.get_ids().iter().copied().map(i64::from));
+            labels_attention_mask
+                .extend(encoding.get_attention_mask().iter().copied().map(i64::from));
+            let extra = max_len - encoding.len();
+            labels_input_ids.resize(labels_input_ids.len() + extra, pad_id);
+            labels_attention_mask.resize(labels_attention_mask.len() + extra, 0);
         }
-
-        // Pad all labels to the same length.
-        let mut labels_input_ids = Vec::with_capacity(entity_types.len() * max_len);
-        let mut labels_attention_mask = Vec::with_capacity(entity_types.len() * max_len);
-
-        for ids in &all_ids {
-            labels_input_ids.extend_from_slice(ids);
-            labels_attention_mask.extend(vec![1i64; ids.len()]);
-            let pad = max_len - ids.len();
-            labels_input_ids.extend(vec![0i64; pad]);
-            labels_attention_mask.extend(vec![0i64; pad]);
-        }
-
         Ok((labels_input_ids, labels_attention_mask))
+    }
+
+    pub(super) fn encode_source_words(
+        &self,
+        words: &[&str],
+    ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>)> {
+        let encoding = self
+            .tokenizer
+            .encode(words, true)
+            .map_err(|e| Error::Parse(format!("Text tokenizer error: {e}")))?;
+        let mut previous = None;
+        let word_mask = encoding
+            .get_word_ids()
+            .iter()
+            .map(|id| {
+                let first = if *id != previous {
+                    id.map_or(0, |i| i64::from(i) + 1)
+                } else {
+                    0
+                };
+                previous = *id;
+                first
+            })
+            .collect();
+        Ok((
+            encoding.get_ids().iter().copied().map(i64::from).collect(),
+            encoding
+                .get_attention_mask()
+                .iter()
+                .copied()
+                .map(i64::from)
+                .collect(),
+            word_mask,
+        ))
     }
 
     /// Encode prompt following the GLiNER format: word-by-word encoding.

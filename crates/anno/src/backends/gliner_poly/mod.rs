@@ -15,6 +15,10 @@
 //! - `text_lengths`: `[batch, 1]` (i64) -- number of words in each text
 //! - `span_idx`: `[batch, num_spans, 2]` (i64) -- start/end word indices per span
 //! - `span_mask`: `[batch, num_spans]` (bool) -- which spans are valid
+//!
+//! The split export sends label IDs and masks to `label_encoder.onnx`, then passes
+//! its `labels_embeddings` output to `model.onnx`. Fused graphs accept these inputs directly.
+//!
 //! - `labels_input_ids`: `[num_labels, label_seq_len]` (i64) -- tokenized entity labels
 //! - `labels_attention_mask`: `[num_labels, label_seq_len]` (i64)
 //!
@@ -38,6 +42,8 @@
 
 #![allow(unused_imports)] // EntityType used conditionally
 
+#[cfg(feature = "onnx")]
+mod export;
 #[cfg(feature = "onnx")]
 mod inference;
 
@@ -91,6 +97,9 @@ use std::sync::Mutex;
 #[cfg(feature = "onnx")]
 pub struct GLiNERPoly {
     session: Mutex<ort::session::Session>,
+    /// The repository exporter emits a separate model producing label embeddings.
+    label_encoder: Option<Mutex<ort::session::Session>>,
+    source_only_text: bool,
     /// Text tokenizer (DeBERTa-v3 vocab, ~128k tokens).
     tokenizer: std::sync::Arc<tokenizers::Tokenizer>,
     /// Label tokenizer (BGE vocab, 30522 tokens) -- separate because the bi-encoder
@@ -332,6 +341,50 @@ mod tests {
     }
 
     // ---- Tests with onnx feature enabled ----
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn split_export_routes_label_embeddings_and_preserves_source_offsets() {
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/bughunt7_data");
+        let dir = tempfile::tempdir().unwrap();
+        for file in ["model.onnx", "label_encoder.onnx"] {
+            std::fs::copy(
+                fixtures.join("gliner_poly_split").join(file),
+                dir.path().join(file),
+            )
+            .unwrap();
+        }
+        let tokenizer =
+            fixtures.join("hf_home/hub/models--bh7--gliner-span/snapshots/fixture/tokenizer.json");
+        for filename in ["tokenizer.json", "label_tokenizer.json"] {
+            std::fs::copy(&tokenizer, dir.path().join(filename)).unwrap();
+        }
+        assert!(!export::Export::ready(dir.path()));
+        std::fs::write(
+            dir.path().join(export::FILE),
+            r#"{"schema_version":1,"label_input":"embeddings","external_data":[]}"#,
+        )
+        .unwrap();
+        assert!(export::Export::ready(dir.path()));
+        let model = GLiNERPoly::from_dir(dir.path()).unwrap();
+        let (ids, attention, words) = model.encode_source_words(&["À", "John", "Smith"]).unwrap();
+        assert_eq!(ids, [3, 7, 8]);
+        assert_eq!(attention, [1, 1, 1]);
+        assert_eq!(words, [1, 2, 3]);
+        let text = "À John   Smith!";
+        for labels in [["location", "person"], ["person", "location"]] {
+            let entities = model.extract(text, &labels, 0.5).unwrap();
+            assert_eq!(entities.len(), 1);
+            let entity = &entities[0];
+            assert_eq!(entity.entity_type, EntityType::Person);
+            assert_eq!((entity.start(), entity.end()), (2, 14));
+            assert_eq!(entity.text, "John   Smith");
+        }
+        assert!(model.extract(text, &["location"], 0.5).unwrap().is_empty());
+        std::fs::remove_file(dir.path().join("label_encoder.onnx")).unwrap();
+        assert!(!export::Export::ready(dir.path()));
+        assert!(GLiNERPoly::from_dir(dir.path()).is_err());
+    }
 
     #[test]
     #[cfg(feature = "onnx")]
