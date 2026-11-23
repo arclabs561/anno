@@ -40,12 +40,15 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts
     if len(rows) == 1:
         lane, row = rows[0]
         score = row.get("primary_f1")
+        observed = row.get("structural_counts")
+        counts_match = counts is None or (isinstance(observed, dict) and all(
+            type(observed.get(key)) in (float, int) and observed[key] == value
+            for key, value in counts.items()))
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
                 and not row["hard_junk"] and row["cost_units"] == examples
                 and type(score) in (float, int) and 0 <= score <= 1
                 and (not exact or score == 1.0)
-                and (counts is None or all(
-                    row.get("structural_counts", {}).get(k) == v for k, v in counts.items()))):
+                and counts_match):
             print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
     print(f"Unexpected fixed sample result for {task} / {dataset} / {backend}.", file=sys.stderr)

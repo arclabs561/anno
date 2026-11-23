@@ -97,7 +97,9 @@ class CoverageTest(unittest.TestCase):
                                       "unmatched_predictions_overlapping_missed_gold": 0})
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertTrue(check_temporal_smoke([json.dumps(row)]))
-            for change in ({"structural_counts": {}}, {"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
+            for change in ({"structural_counts": {}}, {"structural_counts": None},
+                           {"structural_counts": row["structural_counts"] | {"matched_spans": True}},
+                           {"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
                            {"slice": "ner.lang=en"}, {"dataset": "WikiGold"}):
                 self.assertFalse(check_temporal_smoke([json.dumps(row | change)]))
 
