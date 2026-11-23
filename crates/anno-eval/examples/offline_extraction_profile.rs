@@ -2,7 +2,9 @@
 //!
 //! The profile reports strict, micro-averaged span-and-label precision, recall,
 //! and F1. It also reports the first corpus pass separately from repeated warm
-//! passes, so lazy initialization is visible.
+//! passes. Warm per-document quantiles time only successful extraction calls,
+//! excluding gold construction and scoring. Model construction is timed separately;
+//! a backend may perform additional initialization on its first extraction.
 //!
 //! ```sh
 //! cargo run -p anno-eval --example offline_extraction_profile
@@ -25,11 +27,16 @@ const WARM_PASSES: usize = 10;
 struct Profile {
     name: &'static str,
     metrics: NerEvalResults,
+    construction: Duration,
+    warm_calls: Vec<Duration>,
     first_pass: Duration,
     warm_pass_average: Duration,
 }
 
-fn evaluate<M: Model>(model: &M, examples: &[AnnotatedExample]) -> Result<NerEvalResults> {
+fn evaluate(
+    examples: &[AnnotatedExample],
+    mut extract: impl FnMut(&str) -> Result<Vec<Entity>>,
+) -> Result<NerEvalResults> {
     let mut results = NerEvalResults::new();
 
     for example in examples {
@@ -46,7 +53,7 @@ fn evaluate<M: Model>(model: &M, examples: &[AnnotatedExample]) -> Result<NerEva
                 )
             })
             .collect::<Vec<_>>();
-        let predicted = model.extract_entities(&example.text, None)?;
+        let predicted = extract(&example.text)?;
         results.merge(&evaluate_entities(&gold, &predicted));
     }
 
@@ -60,23 +67,39 @@ fn profile<M: Model>(
 ) -> Result<Profile> {
     let first_start = Instant::now();
     let model = make_model();
-    let metrics = evaluate(&model, examples)?;
+    let construction = first_start.elapsed();
+    let metrics = evaluate(examples, |text| model.extract_entities(text, None))?;
     let first_pass = first_start.elapsed();
 
+    let mut warm_calls = Vec::with_capacity(WARM_PASSES * examples.len());
     let warm_start = Instant::now();
     for _ in 0..WARM_PASSES {
         // The result is deliberately discarded: the first-pass scores above are
         // the measured quality output, while this loop measures warmed calls.
-        let _ = evaluate(&model, examples)?;
+        evaluate(examples, |text| {
+            let start = Instant::now();
+            let entities = model.extract_entities(text, None)?;
+            warm_calls.push(start.elapsed());
+            Ok(entities)
+        })?;
     }
     let warm_pass_average = warm_start.elapsed() / WARM_PASSES as u32;
+
+    warm_calls.sort_unstable();
 
     Ok(Profile {
         name,
         metrics,
+        construction,
+        warm_calls,
         first_pass,
         warm_pass_average,
     })
+}
+
+/// Nearest-rank percentile on a nonempty sorted sample, with p in 1..=100.
+fn percentile(sorted: &[Duration], p: usize) -> Duration {
+    sorted[(sorted.len() * p).div_ceil(100) - 1]
 }
 
 fn offline_stack() -> StackedNER {
@@ -164,8 +187,8 @@ fn main() -> Result<()> {
         gold_count
     );
     println!("warm_passes={WARM_PASSES}");
-    println!("| backend | P | R | F1 | first pass | warm pass average |");
-    println!("|---|---:|---:|---:|---:|---:|");
+    println!("| backend | P | R | F1 | first pass | warm pass average | constructor | warm calls | extract p50 | extract p95 |");
+    println!("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
 
     let profiles = [
         profile("regex", RegexNER::new, &examples)?,
@@ -176,15 +199,45 @@ fn main() -> Result<()> {
     for profile in profiles {
         let strict = &profile.metrics.strict;
         println!(
-            "| {} | {:.1}% | {:.1}% | {:.1}% | {:?} | {:?} |",
+            "| {} | {:.1}% | {:.1}% | {:.1}% | {:?} | {:?} | {:?} | {} | {:?} | {:?} |",
             profile.name,
             strict.precision_exact() * 100.0,
             strict.recall_exact() * 100.0,
             strict.f1_exact() * 100.0,
             profile.first_pass,
             profile.warm_pass_average,
+            profile.construction,
+            profile.warm_calls.len(),
+            percentile(&profile.warm_calls, 50),
+            percentile(&profile.warm_calls, 95),
         );
     }
 
     report_retention(&examples)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nearest_rank_percentiles_use_observed_samples() {
+        let values: Vec<_> = (1..=21).map(Duration::from_nanos).collect();
+        assert_eq!(percentile(&values, 50), Duration::from_nanos(11));
+        assert_eq!(percentile(&values, 95), Duration::from_nanos(20));
+        assert_eq!(percentile(&values[..1], 95), Duration::from_nanos(1));
+    }
+
+    #[test]
+    fn warm_calls_cover_every_document_and_keep_first_pass_scores() {
+        let examples = news_dataset();
+        let model = HeuristicNER::new();
+        let expected = evaluate(&examples, |text| model.extract_entities(text, None)).unwrap();
+        let measured = profile("heuristic", HeuristicNER::new, &examples).unwrap();
+        assert_eq!(measured.warm_calls.len(), WARM_PASSES * examples.len());
+        assert_eq!(
+            serde_json::to_value(measured.metrics.strict).unwrap(),
+            serde_json::to_value(expected.strict).unwrap()
+        );
+    }
 }
