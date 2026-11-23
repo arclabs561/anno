@@ -1816,10 +1816,9 @@ impl GroundedDocument {
 
     /// Add a track after checking all its references. An error leaves the
     /// document and the next available track ID unchanged.
-    pub fn try_add_track(&mut self, mut track: Track) -> super::error::Result<TrackId> {
+    pub fn try_add_track(&mut self, track: Track) -> super::error::Result<TrackId> {
         self.validate_track_links(&track, |_| false)?;
-        track.id = self.available_track_id()?;
-        Ok(self.insert_validated_track(track))
+        self.insert_validated_track(track)
     }
 
     fn validate_track_links(
@@ -1860,9 +1859,9 @@ impl GroundedDocument {
         Ok(self.next_track_id)
     }
 
-    fn insert_validated_track(&mut self, track: Track) -> TrackId {
-        let id = track.id;
-        debug_assert_eq!(id, self.next_track_id);
+    fn insert_validated_track(&mut self, mut track: Track) -> super::error::Result<TrackId> {
+        let id = self.available_track_id()?;
+        track.id = id;
 
         // Update signal → track index
         for signal_ref in &track.signals {
@@ -1874,7 +1873,7 @@ impl GroundedDocument {
 
         self.tracks.insert(id, track);
         self.next_track_id += 1;
-        id
+        Ok(id)
     }
 
     /// Get a track by ID.
@@ -2732,10 +2731,9 @@ impl GroundedDocument {
             member.position = u32::try_from(position).ok()?;
         }
 
-        merged.id = match track_ids {
-            [id] => *id,
-            _ => self.available_track_id().ok()?,
-        };
+        if track_ids.len() > 1 {
+            self.available_track_id().ok()?;
+        }
         Some(merged)
     }
 
@@ -2745,7 +2743,9 @@ impl GroundedDocument {
             return *id;
         }
 
-        let merged_id = self.insert_validated_track(merged);
+        let merged_id = self
+            .insert_validated_track(merged)
+            .expect("track ID capacity checked before committing the merge");
         for id in track_ids {
             self.tracks.remove(id);
             self.track_to_identity.remove(id);

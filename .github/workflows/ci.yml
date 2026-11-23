@@ -227,6 +227,14 @@ jobs:
         with:
           cache-all-crates: true
       - run: cargo test --package anno --no-default-features --lib
+      - name: Install Z3 for reviewed catalog assignments
+        run: |
+          if ! command -v z3 >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends z3
+          fi
+      - name: Verify reviewed catalog assignments
+        run: bash scripts/verification/check_reviewed_kb.sh
       - run: cargo test --package anno --lib
       # `anno::metrics`/coref helpers and the JSON-schema unit tests exist only
       # under the `analysis` and `schema` features. `clippy-extra` type-checks

@@ -226,10 +226,10 @@ fn handing_out_a_mutable_document_retires_its_outstanding_preview() {
         .preview_kb_assignment(&track, "kb", "42", "Ada")
         .unwrap();
     assert!(corpus.get_document_mut("book").is_some());
-    assert!(matches!(
-        corpus.apply_kb_assignment(preview),
-        Err(KbAssignmentError::StalePreview)
-    ));
+    let error = corpus
+        .apply_kb_assignment(preview)
+        .expect_err("mutable access must retire the preview");
+    assert!(matches!(error, KbAssignmentError::StalePreview));
     assert!(corpus.identities().is_empty());
 }
 
