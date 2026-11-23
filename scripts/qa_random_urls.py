@@ -271,7 +271,8 @@ DOCUMENT_SOURCES = [
     Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
 ]
 
-# One canonical hostname per publisher. Fixed links replay without discovery.
+# Each curated publisher has one canonical hostname and one catalog topic.
+# The topic labels the selected section, including for feeds. Fixed links replay without discovery.
 # For feeds the selected article depends on both the seed and current entries.
 CROSS_DOMAIN_SOURCES = [
     Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin", domain="science"),
@@ -789,10 +790,15 @@ def self_test() -> int:
     if unmapped:
         errors.append(f"Languages without script mapping (defaulting to Latin): {sorted(unmapped)}")
 
+    topics_by_publisher = defaultdict(set)
     for source in CROSS_DOMAIN_SOURCES:
+        topics_by_publisher[urlsplit(source.url).netloc].add(source.domain)
         if (source.domain == "unclassified" or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", source.domain)
                 or not source.url.startswith("https://")):
             errors.append(f"Cross-domain source needs a subject and HTTPS URL: {source.name}")
+    for host, topics in topics_by_publisher.items():
+        if len(topics) > 1:
+            errors.append(f"Multiple catalog topics for publisher {host}: {sorted(topics)}")
     if len({s.url for s in CROSS_DOMAIN_SOURCES}) != len(CROSS_DOMAIN_SOURCES):
         errors.append("Duplicate cross-domain catalog URL")
 
@@ -1039,7 +1045,8 @@ def main() -> int:
                                  "outcomes": outcomes}
             verified = all(outcome == "matched" for outcome in outcomes.values())
         report += "\n\n## Domain coverage\n\n" + render_coverage(receipt) + "\n"
-        verified = verified and coverage_summary(receipt)["matched"] == count
+        matched = coverage_summary(receipt)["matched"]
+        verified = verified and matched == count
         json_path.write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Round receipt written to {json_path}")
     out_path.write_text(report, encoding="utf-8")
@@ -1049,8 +1056,12 @@ def main() -> int:
     ok_count = sum(1 for r in all_results if r.status == "OK")
     total = len(all_results)
     print(f"Done: {ok_count}/{total} checks OK")
-    if cross_domain and not verified:
-        print("Input comparison incomplete or changed; see the domain coverage report.")
+    if cross_domain:
+        print(f"Verified inputs: {matched}/{count} selected sources")
+        if reference is not None:
+            counts = Counter(receipt["replay"]["outcomes"].values())
+            print(f"Reference comparison: {counts['matched']} matched, {counts['changed']} changed, "
+                  f"{counts['unverified']} unverified")
 
     return 0 if verified and ok_count == total else 1
 

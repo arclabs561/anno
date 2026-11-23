@@ -110,6 +110,15 @@ class CrossDomainSampling(unittest.TestCase):
                 self.assertEqual({s.domain for s in chosen}, {"arts", "law", "science"})
                 self.assertEqual(len(set(chosen)), len(chosen))
 
+    def test_inventory_flags_mixed_topics_on_a_publisher(self):
+        first = qa.CROSS_DOMAIN_SOURCES[0]
+        alternate = qa.Source("Different section", first.url + "-different", "cross-domain",
+                              first.lang, first.script, domain="different")
+        with patch.object(qa, "CROSS_DOMAIN_SOURCES", [first, alternate]), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(qa.self_test(), 1)
+        self.assertIn("Multiple catalog topics for publisher", output.getvalue())
+
     def test_language_only_selection_retains_the_multilingual_pool(self):
         with patch("sys.argv", ["qa", "--lang", "hi", "--no-rss", "--count", "1", "--dry-run"]), \
                 patch.object(qa, "resolve_url", side_effect=lambda source: source.url) as resolve:
@@ -143,7 +152,10 @@ class CrossDomainSampling(unittest.TestCase):
             self.assertEqual(results["replay"]["outcomes"], {s.url: "matched" for s in (fixed, feed)})
             self.assertEqual(results["backends"], ["pattern", "heuristic"])
             digest = "xxh3:0000000000000002"
-            self.assertEqual(call("--replay", receipt, "--backends", "pattern", "--output", replay), 1)
+            with contextlib.redirect_stdout(io.StringIO()) as changed:
+                self.assertEqual(call("--replay", receipt, "--backends", "pattern", "--output", replay), 1)
+            self.assertIn("Verified inputs: 2/2 selected sources", changed.getvalue())
+            self.assertIn("0 matched, 2 changed, 0 unverified", changed.getvalue())
             self.assertEqual(set(json.loads(replay.with_suffix(".json").read_bytes())["replay"]["outcomes"].values()), {"changed"})
             self.assertEqual(discover.call_count, 1)
             calls = run.call_count
