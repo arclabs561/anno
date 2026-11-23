@@ -935,6 +935,14 @@ fn extract_with_custom_types(
         let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
 
         match backend {
+            ModelBackend::GlinerPoly => {
+                let model =
+                    anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
+                        .map_err(|e| CliError::from(format!("Failed to create GLiNER Poly: {e}")))?;
+                return model
+                    .extract_with_types(text, &type_refs, threshold)
+                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {e}")));
+            }
             ModelBackend::Gliner | ModelBackend::GlinerRelex => {
                 let id = if matches!(backend, ModelBackend::GlinerRelex) {
                     anno::models::GLINER_RELEX
@@ -976,7 +984,7 @@ fn extract_with_custom_types(
     // Fallback: warn and use standard extraction
     if !quiet {
         eprintln!(
-            "{} --extract-types requires --model gliner, --model gliner_multitask, or --model nuner. Ignoring custom types.",
+            "{} --extract-types requires a zero-shot extraction backend such as gliner or gliner-poly. Ignoring custom types.",
             color("33", "warning:")
         );
     }

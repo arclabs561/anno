@@ -2335,7 +2335,6 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     anno::env::load_dotenv();
     let has_hf_token = anno::env::has_hf_token();
     for b in allowed {
-        // gliner_poly is now implemented (bi-encoder ONNX export via DeBERTa + BGE).
         if b == "w2ner" && !has_hf_token {
             continue;
         }

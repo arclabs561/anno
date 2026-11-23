@@ -208,6 +208,7 @@ def _build_wrapper_class():
     """
     import torch
     import torch.nn as nn
+    from inspect import signature
 
     class GLiNERPolyONNXWrapper(nn.Module):
         """
@@ -223,6 +224,11 @@ def _build_wrapper_class():
             self.gliner_model = gliner_model
             self.model = gliner_model.model
             self.mode = mode
+            # GLiNER 0.2.30 shortened the PyTorch keyword; the exported ABI stays stable.
+            self.embedding_arg = (
+                "labels_embeds" if "labels_embeds" in signature(self.model.forward).parameters
+                else "labels_embeddings"
+            )
 
         def forward(self, *args):
             if self.mode == "main":
@@ -250,7 +256,7 @@ def _build_wrapper_class():
                 text_lengths=text_lengths,
                 span_idx=span_idx,
                 span_mask=span_mask,
-                labels_embeddings=labels_embeddings,
+                **{self.embedding_arg: labels_embeddings},
             )
             if hasattr(output, "logits"):
                 return output.logits
@@ -265,7 +271,15 @@ def _build_wrapper_class():
 
         def _forward_label_encoder(self, labels_input_ids, labels_attention_mask):
             """Forward pass for the label encoder only."""
-            # Find the label encoder sub-module
+            # Both GLiNER 0.2.16 and 0.2.30 use this path in encode_labels(),
+            # including the trained projection and pooling used by the scorer.
+            rep_layer = getattr(self.model, "token_rep_layer", None)
+            if hasattr(rep_layer, "encode_labels"):
+                return rep_layer.encode_labels(
+                    input_ids=labels_input_ids, attention_mask=labels_attention_mask
+                )
+
+            # Other model variants expose the label encoder as a module.
             if hasattr(self.model, "label_encoder"):
                 label_encoder = self.model.label_encoder
             elif hasattr(self.model, "entity_encoder"):
@@ -361,18 +375,16 @@ def _make_dummy_inputs_manual(
 
     num_words = len(text_words)
 
-    # Build prompt: [CLS] <<ENT>> type1 <<ENT>> type2 ... <<SEP>> word1 word2 ... [SEP]
-    entity_prompt = " ".join(f"<<ENT>> {et}" for et in entity_types)
-    full_text = " ".join(text_words)
-    prompt = f"{entity_prompt} <<SEP>> {full_text}"
-
-    encoding = hf_tokenizer(prompt, return_tensors="pt", padding=True)
-    input_ids = encoding["input_ids"]  # [1, seq_len]
-    attention_mask = encoding["attention_mask"]  # [1, seq_len]
-    seq_len = input_ids.shape[1]
-
-    # Approximate words_mask (zeros -- the model infers word boundaries internally)
-    words_mask = torch.zeros(1, seq_len, dtype=torch.long)
+    # Match GLiNER's BaseBiEncoderProcessor: labels are encoded separately.
+    encoding = hf_tokenizer(text_words, is_split_into_words=True, return_tensors="pt")
+    input_ids = encoding["input_ids"]
+    attention_mask = encoding["attention_mask"]
+    mask = []
+    previous = None
+    for word in encoding.word_ids():
+        mask.append(word + 1 if word is not None and word != previous else 0)
+        previous = word
+    words_mask = torch.tensor([mask], dtype=torch.long)
     text_lengths = torch.tensor([[num_words]], dtype=torch.long)
 
     # Span tensors
@@ -495,7 +507,8 @@ def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Pat
     # Find the label tokenizer
     label_tokenizer = None
     if hasattr(gliner_model, "data_processor"):
-        label_tokenizer = getattr(gliner_model.data_processor, "label_tokenizer", None)
+        label_tokenizer = (getattr(gliner_model.data_processor, "labels_tokenizer", None)
+                           or getattr(gliner_model.data_processor, "label_tokenizer", None))
     if label_tokenizer is None:
         label_tokenizer = getattr(gliner_model, "label_tokenizer", None)
     if label_tokenizer is None and hasattr(gliner_model, "config"):
@@ -508,6 +521,8 @@ def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Pat
     if label_tokenizer is None:
         raise RuntimeError("Cannot find label tokenizer on the model.")
 
+    # Keep the native split export usable without fetching a second tokenizer.
+    label_tokenizer.backend_tokenizer.save(str(output_dir / "label_tokenizer.json"))
     encoding = label_tokenizer(
         dummy_labels,
         return_tensors="pt",
@@ -744,38 +759,26 @@ def try_manual_export(
         model, model_id, output_dir, entity_types, labels_embeddings.shape, max_width
     )
 
-    # 7. Verify with ONNX Runtime
-    log("Verifying exports with ONNX Runtime...")
-    width_error: Exception | None = None
-    try:
-        # Verify label encoder
-        label_input_np = {
-            "labels_input_ids": np.array([[1, 2, 3, 0]], dtype=np.int64),
-            "labels_attention_mask": np.array([[1, 1, 1, 0]], dtype=np.int64),
-        }
-        label_outputs = verify_with_onnxruntime(label_onnx, label_input_np)
-        log(f"Label encoder output shape: {label_outputs[0].shape}")
+    # Exercise the same handoff as Rust: use the exported label graph's output
+    # as the main graph's input. A numerically wrong label projection invalidates
+    # a transfer even when both graphs accept the tensors independently.
+    from tokenizers import Tokenizer
 
-        # Verify main model
-        main_input_np = {}
-        for k, v in dummy_inputs.items():
-            if isinstance(v, torch.Tensor):
-                main_input_np[k] = v.numpy()
-        main_input_np["labels_embeddings"] = labels_embeddings.numpy()
-        main_outputs = verify_with_onnxruntime(main_onnx, main_input_np)
-        log(f"Main model output shape: {main_outputs[0].shape}")
-        try:
-            _check_runtime_span_width(main_outputs[0], dummy_inputs, max_width)
-        except RuntimeError as error:
-            width_error = error
-    except Exception as e:
-        log(f"ONNX Runtime verification failed (non-fatal): {e}")
-        traceback.print_exc(file=sys.stderr)
-
-    # A graph that only scores single-word spans is worse than a regex
-    # baseline; refuse to ship it when verification had the evidence.
-    if width_error is not None:
-        raise width_error
+    tokenizer = Tokenizer.from_file(str(output_dir / "label_tokenizer.json"))
+    tokenizer.enable_padding()
+    encodings = tokenizer.encode_batch(entity_types)
+    label_inputs = {
+        "labels_input_ids": np.array([enc.ids for enc in encodings], dtype=np.int64),
+        "labels_attention_mask": np.array([enc.attention_mask for enc in encodings], dtype=np.int64),
+    }
+    embeddings = verify_with_onnxruntime(label_onnx, label_inputs)[0]
+    np.testing.assert_allclose(embeddings, labels_embeddings.detach().cpu().numpy(), rtol=1e-3, atol=1e-4)
+    main_inputs = {
+        k: v.detach().cpu().numpy() for k, v in dummy_inputs.items() if isinstance(v, torch.Tensor)
+    }
+    main_inputs["labels_embeddings"] = embeddings
+    logits = verify_with_onnxruntime(main_onnx, main_inputs)[0]
+    _check_runtime_span_width(logits, dummy_inputs, max_width)
 
     # 8. Optional quantization
     if quantize:
@@ -897,8 +900,8 @@ def main():
             else:
                 print(f"  {f.name}/")
         print()
-        print("Usage with anno (once GLiNERPoly backend is implemented):")
-        print(f"  GLINER_POLY_MODEL_PATH={output_dir} anno extract --model gliner-poly 'Your text'")
+        print("Usage with anno:")
+        print(f"  GLINER_POLY_MODEL_PATH={output_dir} anno extract --model gliner-poly --text 'Your text'")
         print("=" * 60)
     else:
         print("\nExport failed. See errors above.", file=sys.stderr)

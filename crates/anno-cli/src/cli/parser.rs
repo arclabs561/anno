@@ -260,7 +260,6 @@ pub enum ModelBackend {
     /// GLiNER Poly-Encoder
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-poly")]
-    #[value(hide = true)]
     GlinerPoly,
 
     // === Candle Feature Required ===
@@ -275,17 +274,6 @@ pub enum ModelBackend {
 impl ModelBackend {
     /// Create a model instance from this backend type.
     pub fn create_model(self) -> Result<Box<dyn anno::Model>, String> {
-        // Explicitly reject backends that are present for forward-compat wiring but do not
-        // implement inference today. (They remain parseable by name, but are hidden from help.)
-        #[cfg(feature = "onnx")]
-        if matches!(self, Self::GlinerPoly) {
-            return Err(
-                "GLiNER Poly (`gliner-poly`) is scaffolding only and does not implement inference yet. \
-Use `--model gliner` instead."
-                    .to_string(),
-            );
-        }
-
         #[cfg(feature = "eval")]
         {
             use anno_eval::eval::backend_factory::BackendFactory;
@@ -324,7 +312,7 @@ Use `--model gliner` instead."
                 #[cfg(feature = "onnx")]
                 Self::GlinerRelex => "gliner_relex",
                 #[cfg(feature = "onnx")]
-                Self::GlinerPoly => "gliner_poly", // rejected above; kept for exhaustiveness
+                Self::GlinerPoly => "gliner_poly",
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => "gliner_candle",
@@ -451,7 +439,9 @@ Use `--model gliner` instead."
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Use --model gliner_multitask for multi-task NER+RE.")),
                 #[cfg(feature = "onnx")]
-                Self::GlinerPoly => unreachable!("rejected above"),
+                Self::GlinerPoly => anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
+                    .map(|model| Box::new(model) as Box<dyn anno::Model>)
+                    .map_err(|err| format!("GLiNER Poly failed: {err}")),
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => anno::backends::gliner_candle::GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL)
