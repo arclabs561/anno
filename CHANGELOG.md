@@ -6,8 +6,8 @@
 
 - FCoref now returns an error for documents above its token budget. The default
   budget is 512 tokens including special tokens. To process longer documents,
-  raise `FCorefConfig::max_doc_tokens`. Existing Rust struct literals must add
-  `max_doc_tokens: Some(512)` or use `..Default::default()`. The encoder still
+  use `FCoref::from_path_with_document_budget` or
+  `FCoref::from_pretrained_with_document_budget`. The encoder still
   uses `max_segment_len` tokens per segment and scores mentions across segments.
 
 ### Changed

@@ -42,7 +42,7 @@ impl FCoref {
         if surfaces.is_empty() {
             return Ok(FCorefAnalysis::default());
         }
-        let encoding = super::encode_input(&self.tokenizer, surfaces, &self.config)?;
+        let encoding = super::encode_input(&self.tokenizer, surfaces, self.max_doc_tokens)?;
         let max_candidates =
             candidate_budget(encoding.get_attention_mask(), self.config.top_lambda);
         if max_candidates == 0 {
