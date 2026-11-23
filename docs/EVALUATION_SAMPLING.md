@@ -54,6 +54,22 @@ is archived separately from the five-example adaptive history. PRs exercise the 
 offline temporal fixture. For paired model comparisons that include date-free documents, use the
 [34-document contrast panel](../scripts/qa/fixtures/timex-contrast/README.md).
 
+### Compare temporal decoders
+
+The GLiNER multitask token-level ONNX graph scores start, end and inside independently.
+The Rust decoder follows GLiNER v0.2.16's flat, single-label selection. An exact span needs both
+ends above the threshold and every word inside at or above it. A strong start with a weak end
+can disappear entirely. [Upstream decoder](https://github.com/urchade/GLiNER/blob/a865555af53920321c4593f7c091dfc9059e9028/gliner/decoding/decoder.py#L61-L94)
+
+Two English panels show why exact boundaries and false alarms belong together. With the same
+graph, labels and threshold, correcting the decoder raised exact matches from 23 to 26 of 53
+Wikinews spans and from 14 to 18 of 40 Microsoft specification spans. The latter change gained
+six spans and lost two compact slash dates. False alarms occurred in zero of 34 gold-empty news
+sentences and three of 16 gold-empty specification cases after the correction. An additional
+English phrase-expansion rule gave no incremental gain on either panel. The 390-sentence news
+split and these now-inspected panels can be replayed as regression controls. Freeze new source
+documents before evaluating a subsequent candidate. [Prepare the independent panels](../scripts/qa/temporal_sources/README.md)
+
 ## Choose a mode
 
 `anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.
