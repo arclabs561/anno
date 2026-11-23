@@ -125,6 +125,24 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].text, "John   Smith");
         assert_eq!(out[0].entity_type, crate::EntityType::Person);
+
+        // A pre-inventory bi-encoder config still describes the source tokenizer.
+        fs::remove_file(dir.join(FILE)).unwrap();
+        fs::write(
+            dir.join("gliner_config.json"),
+            r#"{"labels_encoder":"test/labels"}"#,
+        )
+        .unwrap();
+        assert!(Export::hub_dir(&cache, id).is_none());
+        let explicit = GLiNERPoly::from_dir(&dir).unwrap();
+        assert!(explicit.source_only_text);
+        assert_eq!(
+            explicit
+                .extract("À John   Smith", &["person"], 0.5)
+                .unwrap()[0]
+                .text,
+            "John   Smith"
+        );
     }
 
     #[test]

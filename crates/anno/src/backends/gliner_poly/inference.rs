@@ -150,7 +150,8 @@ impl GLiNERPoly {
             .map_err(|e| Error::Retrieval(format!("Tokenizer load: {}", e)))?;
 
         // Load label tokenizer from gliner_config.json -> labels_encoder field.
-        let label_tokenizer = Self::load_label_tokenizer(dir)?;
+        let configured_encoder = Self::configured_label_encoder(&dir.join("gliner_config.json"))?;
+        let label_tokenizer = Self::load_label_tokenizer(dir, configured_encoder.as_deref())?;
 
         let is_quantized = model_path
             .file_name()
@@ -164,7 +165,7 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
-            source_only_text: split || receipt.is_some(),
+            source_only_text: split || receipt.is_some() || configured_encoder.is_some(),
             label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
@@ -173,40 +174,38 @@ impl GLiNERPoly {
         })
     }
 
-    /// Load the label encoder's tokenizer.
-    ///
-    /// Reads `gliner_config.json` to find `labels_encoder` (e.g. `BAAI/bge-base-en-v1.5`),
-    /// then downloads that model's `tokenizer.json` from HuggingFace Hub.
-    fn load_label_tokenizer(dir: &std::path::Path) -> Result<tokenizers::Tokenizer> {
+    fn configured_label_encoder(config_path: &std::path::Path) -> Result<Option<String>> {
+        if !config_path.is_file() {
+            return Ok(None);
+        }
+        let file = std::fs::File::open(config_path)
+            .map_err(|e| Error::Retrieval(format!("Read gliner_config.json: {e}")))?;
+        let config: serde_json::Value = serde_json::from_reader(file)
+            .map_err(|e| Error::Retrieval(format!("Parse gliner_config.json: {e}")))?;
+        Ok(config
+            .get("labels_encoder")
+            .and_then(|id| id.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned))
+    }
+
+    /// Older exports use a separately cached label tokenizer.
+    fn load_label_tokenizer(
+        dir: &std::path::Path,
+        encoder: Option<&str>,
+    ) -> Result<tokenizers::Tokenizer> {
         let local = dir.join("label_tokenizer.json");
         if local.is_file() {
             return crate::backends::hf_loader::load_tokenizer(&local);
         }
-
-        let config_path = dir.join("gliner_config.json");
-        let labels_encoder_name = if config_path.exists() {
-            let config_str = std::fs::read_to_string(&config_path)
-                .map_err(|e| Error::Retrieval(format!("Read gliner_config.json: {}", e)))?;
-            let config: serde_json::Value = serde_json::from_str(&config_str)
-                .map_err(|e| Error::Retrieval(format!("Parse gliner_config.json: {}", e)))?;
-            config
-                .get("labels_encoder")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        } else {
-            None
-        };
-
-        let labels_encoder_name =
-            labels_encoder_name.unwrap_or_else(|| "BAAI/bge-base-en-v1.5".to_string());
-
+        let labels_encoder_name = encoder.unwrap_or("BAAI/bge-base-en-v1.5");
         log::info!(
             "[GLiNERPoly] Downloading label tokenizer from {}",
             labels_encoder_name
         );
 
         let api = crate::backends::hf_loader::hf_api()?;
-        let repo = api.model(labels_encoder_name);
+        let repo = api.model(labels_encoder_name.to_owned());
         let tok_path = crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
         crate::backends::hf_loader::load_tokenizer(&tok_path)
     }
@@ -272,17 +271,14 @@ impl GLiNERPoly {
 
         // Download label encoder tokenizer from gliner_config.json.
         let config_path = hf_loader::download_model_file(&repo, &["gliner_config.json"]).ok();
-        let labels_encoder_name = config_path
-            .as_ref()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|s: String| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|c: serde_json::Value| {
-                c.get("labels_encoder")
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "BAAI/bge-base-en-v1.5".to_string());
+        let configured_encoder = config_path
+            .as_deref()
+            .and_then(|path| Self::configured_label_encoder(path).ok().flatten());
+        let labels_encoder_name = configured_encoder
+            .as_deref()
+            .unwrap_or("BAAI/bge-base-en-v1.5");
 
-        let label_repo = api.model(labels_encoder_name.clone());
+        let label_repo = api.model(labels_encoder_name.to_owned());
         let label_tok_path = hf_loader::download_model_file(&label_repo, &["tokenizer.json"])?;
         let label_tokenizer = hf_loader::load_tokenizer(&label_tok_path)?;
 
@@ -295,7 +291,7 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
-            source_only_text: label_encoder.is_some(),
+            source_only_text: label_encoder.is_some() || configured_encoder.is_some(),
             label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
