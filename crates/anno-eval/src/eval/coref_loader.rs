@@ -825,11 +825,17 @@ pub fn parse_preco_json(content: &str) -> Result<Vec<PreCoDocument>> {
             .mention_clusters
             .ok_or_else(|| Error::InvalidInput(format!("PreCo {id}: missing mention_clusters")))?;
         let mut mentions = Vec::new();
+        let mut span_owners = HashMap::new();
         for (cluster_id, cluster) in clusters.into_iter().enumerate() {
             for [sent, start, end] in cluster {
                 if start >= end || record.sentences.get(sent).is_none_or(|s| end > s.len()) {
                     return Err(Error::InvalidInput(format!(
                         "PreCo {id}: invalid mention [{sent}, {start}, {end}] in cluster {cluster_id}"
+                    )));
+                }
+                if let Some(owner) = span_owners.insert((sent, start, end), cluster_id) {
+                    return Err(Error::InvalidInput(format!(
+                        "PreCo {id}: duplicate mention [{sent}, {start}, {end}] in clusters {owner} and {cluster_id}"
                     )));
                 }
                 mentions.push((sent, start, end, cluster_id));
@@ -1827,6 +1833,29 @@ mod ecb_plus_acc {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preco_mentions_have_one_owner_but_may_nest() {
+        let outer = [0, 0, 2];
+        let inner = [0, 1, 2];
+        for (clusters, duplicate) in [
+            (vec![vec![outer], vec![inner]], false),
+            (vec![vec![outer, outer], vec![inner]], true),
+            (vec![vec![outer], vec![inner, outer]], true),
+        ] {
+            let record =
+                serde_json::json!({"sentences":[["Mayor","Jo"]], "mention_clusters":clusters});
+            let parsed = parse_preco_json(&record.to_string());
+            if duplicate {
+                assert!(parsed
+                    .unwrap_err()
+                    .to_string()
+                    .contains("duplicate mention"));
+            } else {
+                assert_eq!(parsed.unwrap()[0].mentions.len(), 2);
+            }
+        }
+    }
 
     /// GAP offsets are character offsets, so a mention ends at offset plus the
     /// name's character count, not its byte length.
