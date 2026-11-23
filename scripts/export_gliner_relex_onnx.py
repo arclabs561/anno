@@ -10,7 +10,7 @@
 # ]
 # ///
 """
-Export GLiNER-RelEx (joint NER + relation extraction) to ONNX.
+Export the entity logits of GLiNER-RelEx to ONNX for native NER.
 
 GLiNER-RelEx uses scatter-based subword pooling that requires real
 tokenized inputs for JIT tracing (random dummy inputs cause index

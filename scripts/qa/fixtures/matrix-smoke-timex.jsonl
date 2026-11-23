@@ -1,0 +1,2 @@
+{"text":"Filed 2031-04-07 after review","time_expressions":[{"text":"2031-04-07","start_char":6,"end_char":16,"type":"DATE"}],"event_expressions":[{"text":"Filed","start_char":0,"end_char":5}],"signal_expressions":[{"text":"after","start_char":17,"end_char":22}]}
+{"text":"The review finished","time_expressions":[],"event_expressions":[{"text":"finished","start_char":11,"end_char":19}],"signal_expressions":[]}

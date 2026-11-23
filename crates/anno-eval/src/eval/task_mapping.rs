@@ -404,7 +404,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
 pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
     match backend_name {
         // Regex-based backends
-        "pattern" | "RegexNER" => &[Task::NER], // Only structured entities
+        "pattern" | "RegexNER" => &[Task::NER, Task::Temporal], // Only structured entities
         "heuristic" | "HeuristicNER" => &[Task::NER],
         "stacked" | "StackedNER" => &[Task::NER],
         "crf" | "CrfNER" => &[Task::NER],
@@ -426,7 +426,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
-        "gliner_relex" | "relex" => &[Task::NER, Task::RelationExtraction],
+        "gliner_relex" | "relex" => &[Task::NER], // local entity-logit export
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
         // Multi-task backends (GLiNER multi-task implements multiple traits)
@@ -514,6 +514,9 @@ pub fn get_task_datasets(task: Task) -> Vec<DatasetId> {
 /// and ML backends, since individual pattern/heuristic backends are incomplete.
 pub fn get_task_backends(task: Task) -> Vec<&'static str> {
     let mut backends = Vec::new();
+    if task == Task::Temporal {
+        backends.push("pattern");
+    }
     for backend in [
         // Builtins
         "stacked",
@@ -675,6 +678,16 @@ mod tests {
         assert!(mapping.tasks_for_dataset("WikiGold").is_some());
         assert!(mapping.tasks_for_backend("gliner_multitask").is_some());
         assert!(mapping.backends_for_task("ner").is_some());
+    }
+
+    #[test]
+    fn relex_entity_export_is_only_sampled_for_ner() {
+        for alias in ["gliner_relex", "relex"] {
+            assert_eq!(backend_tasks(alias), &[Task::NER]);
+        }
+        let relation = get_task_backends(Task::RelationExtraction);
+        assert!(!relation.contains(&"gliner_relex"));
+        assert!(relation.contains(&"tplinker") && relation.contains(&"gliner_multitask"));
     }
 
     #[test]

@@ -333,7 +333,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "GLiNER-RelEx: joint NER + relation extraction, zero-shot",
+        description: "GLiNER-RelEx: zero-shot NER from the local entity-logit ONNX export",
         recommended_models: &[crate::models::GLINER_RELEX],
     },
 ];

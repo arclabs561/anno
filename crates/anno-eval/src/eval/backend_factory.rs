@@ -166,10 +166,15 @@ impl BackendFactory {
                 ))
             }
             #[cfg(feature = "onnx")]
-            "gliner" | "gliner_onnx" | "glineronnx" => {
+            name @ ("gliner" | "gliner_onnx" | "glineronnx" | "gliner_relex" | "relex") => {
                 use crate::DEFAULT_GLINER_MODEL;
                 use anno::backends::gliner_onnx::GLiNEROnnx;
-                let model = GLiNEROnnx::new(DEFAULT_GLINER_MODEL).map_err(|e| {
+                let (kind, id) = if matches!(name, "gliner_relex" | "relex") {
+                    ("gliner_relex", anno::models::GLINER_RELEX)
+                } else {
+                    ("gliner_onnx", DEFAULT_GLINER_MODEL)
+                };
+                let model = GLiNEROnnx::new(id).map_err(|e| {
                     model_load_error(&e, format!("Failed to create GLiNEROnnx: {e}"))
                 })?;
                 let paths = model.artifact_paths();
@@ -186,8 +191,7 @@ impl BackendFactory {
                         files.push((role.to_string(), path.clone()));
                     }
                 }
-                let receipt =
-                    artifact_receipt_from_paths("gliner_onnx", model.model_name(), None, files);
+                let receipt = artifact_receipt_from_paths(kind, model.model_name(), None, files);
                 Ok((
                     Box::new(model),
                     BackendConstructionReceipt {
@@ -385,18 +389,14 @@ impl BackendFactory {
                 "GLiNER PII requires 'onnx' feature".to_string(),
             )),
 
-            // GLiNER-RelEx (joint NER + relation extraction, zero-shot)
+            // The GLiNER-RelEx local export exposes entity logits.
             #[cfg(feature = "onnx")]
             "gliner_relex" | "relex" => {
                 use crate::backends::gliner_onnx::GLiNEROnnx;
                 GLiNEROnnx::new(anno::models::GLINER_RELEX)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        model_load_error(&e, format!(
-                            "GLiNER-RelEx model unavailable: {}\n\n\
-                             Export: uv run scripts/export_glirel_onnx.py",
-                            e
-                        ))
+                        model_load_error(&e, format!("Failed to load GLiNER-RelEx entity export: {e}"))
                     })
             }
             #[cfg(not(feature = "onnx"))]
@@ -696,11 +696,13 @@ impl BackendFactory {
                 "w2ner",
                 "gliner_multitask",
                 "gliner_pii",
-                "gliner_relex",
                 "gliner_poly",
             ]);
 
             // Optional backends that require explicit local ONNX exports.
+            if anno::GLiNEROnnx::relex_entity_export_available() {
+                backends.push("gliner_relex");
+            }
             if std::env::var("DEBERTA_MODEL_PATH").is_ok() {
                 backends.push("deberta_v3");
             }

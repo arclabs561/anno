@@ -678,9 +678,17 @@ jobs:
           ANNO_S3_CACHE: "0"
           ANNO_MAX_EXAMPLES: "1"
         run: |
+          run_sample() {
+            cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          }
           install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          run_sample
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
+
+          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/TimexRecognitionSentenceOriginal.cache"
+          export ANNO_MUXER_DECISIONS_FILE="$ANNO_CACHE_DIR/temporal-outcomes.jsonl"
+          ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
+          python3 scripts/qa/check_matrix_outcomes.py --temporal-smoke "$ANNO_MUXER_DECISIONS_FILE"
       - name: Replay adaptive selection across isolated CI histories
         run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
       - name: Restore the latest compatible default-branch checkpoint
@@ -792,6 +800,7 @@ jobs:
             ${{ runner.temp }}/muxer-decisions.jsonl
             ${{ runner.temp }}/matrix-bootstrap.jsonl
             ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
+            ${{ runner.temp }}/matrix-smoke/temporal-outcomes.jsonl
             Cargo.lock
           if-no-files-found: warn
   matrix-test-trusted:

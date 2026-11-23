@@ -14,6 +14,11 @@ The sampler is useful for three separate jobs:
 Start with the fixed panel. It makes missing model features, incompatible
 datasets, and cold caches visible before interpreting adaptive choices.
 
+In “Maya arrived Tuesday. She left Friday,” the `intra-coref` task scores
+whether “Maya” and “She” belong to the same mention chain. A grounded document
+represents that grouping as a `Track`. The `temporal` task scores the text
+spans “Tuesday” and “Friday” as time expressions.
+
 ## Inspect dataset eligibility
 
 Run `anno sampler eligibility --task ner --require-cached` before comparing policies on a local panel. Its JSON lists each registered dataset for that task, whether the standard loader sees a local cache hit, and the first policy exclusion. For a compact list of locally cached sources and why each will or will not enter selection:
@@ -26,6 +31,21 @@ anno sampler eligibility --task ner --require-cached |
 An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. When S3 cache is enabled, `require_cached` permits a remote cache lookup during execution. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time.
 
 GoogleRE provides judged entity-ID pairs and evidence snippets. The standard loader reads its snippets; `anno sampler eligibility --task re` reports `missing_relation_spans` because the span scorer needs gold character offsets for both arguments.
+
+Temporal evaluation scores distinct TIMEX start/end pairs on each original sentence. The
+pinned TIMEX test split has 390 news sentences, 592 annotations and 591 distinct spans. One
+annotation repeats an interval. Every test sentence contains a time expression, so this split cannot
+measure false alarms on sentences without one. Nested and adjacent intervals remain separate. The pattern
+baseline maps DATE and TIME spans to TIMEX. The GLiNER multi-task backend receives the label
+`time expression`. Event, signal, normalized value and temporal ordering annotations are outside
+this metric. The receipt records raw annotations, distinct gold spans, predictions, matches and
+micro F1. The generic tokenized NER view has a different denominator.
+
+Run a complete baseline with `anno dataset download --dataset TimexRecognitionSentenceOriginal`,
+then `anno sampler run --task temporal --fixed-backend pattern --require-cached --runs 1 --max-examples 390`.
+The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
+still be evaluated from their original row text and annotations. [Pinned test split](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl)
+
 
 ## Choose a mode
 
@@ -90,12 +110,16 @@ the same cohort. Each retry retains its own sampling receipt.
 Both kinds of run measure five examples per dataset from a local cache. A
 checksum-pinned public WikiGold corpus supplies a real input even after cache
 eviction. A cold default-branch run records a heuristic baseline on that corpus.
-The synthetic offline fixture uses separate storage. Worst-first runs before
+The synthetic offline checks use separate storage. A temporal check scores two
+authored sentences with the pattern backend: one contains a date and one has no
+TIMEX span. Event and signal labels do not count as temporal gold. Worst-first runs before
 the four randomized task controls (NER, relation extraction, intra-document
 coreference, and temporal extraction). On the default branch, a named control
 may fetch data when that task's local cache is empty. The job summary links
 the restored run and reports the first worst-first selection, its observed
-result, and completed or missing coverage by task.
+result, completed or missing coverage by task, and which dataset/backend pairs
+failed. The job log names the selected datasets and backends before evaluation
+starts, so an interrupted run can still identify its intended inputs.
 
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the

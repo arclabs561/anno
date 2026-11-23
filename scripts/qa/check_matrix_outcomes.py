@@ -36,27 +36,29 @@ def outcomes(lines, decisions=None):
         yield task if strategy == "random" else strategy, row
 
 
-def check_wikigold(lines, bootstrap=False):
+def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
-        if (
-            lane == "ner"
-            and row.get("backend") == "heuristic"
-            and row.get("dataset") == "WikiGold"
-            and row["hard_junk"] is False
-            and row["cost_units"] == (5 if bootstrap else 1)
-            and type(row.get("primary_f1")) in (float, int)
-            and math.isfinite(row["primary_f1"])
-            and (bootstrap or row["primary_f1"] == 1.0)
-        ):
-            if bootstrap:
-                print(f"Cold-start WikiGold baseline: heuristic, 5 examples, F1 {row['primary_f1']:.4f}.")
-            else:
-                print("Offline sampler scored all labeled spans correctly on the fixture.")
+        score = row.get("primary_f1")
+        if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
+                and not row["hard_junk"] and row["cost_units"] == examples
+                and type(score) in (float, int) and math.isfinite(score)
+                and (not exact or score == 1.0)):
+            print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
-    print("Unexpected WikiGold baseline result." if bootstrap else "Unexpected offline fixture result.", file=sys.stderr)
+    print(f"Unexpected fixed sample result for {task} / {dataset} / {backend}.", file=sys.stderr)
     return False
+
+
+def check_wikigold(lines, bootstrap=False):
+    return check_fixed_sample(lines, task="ner", dataset="WikiGold", backend="heuristic",
+                              examples=5 if bootstrap else 1, exact=not bootstrap)
+
+
+def check_temporal_smoke(lines):
+    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+                              backend="pattern", examples=2, exact=True)
 
 
 def check(lines, report=False):
@@ -64,6 +66,7 @@ def check(lines, report=False):
     completions = Counter()
     failures = Counter()
     failure_kinds = Counter()
+    failed_cells = Counter()
     decisions = []
     observed = {}
     for lane, row in outcomes(lines, decisions):
@@ -72,7 +75,11 @@ def check(lines, report=False):
             observed[(row.get("run_id"), row.get("backend"), row.get("dataset"))] = row
         if row["hard_junk"]:
             failures[lane] += 1
-            failure_kinds[row.get("fail_kind") or "unknown"] += 1
+            kind = row.get("fail_kind") or "unknown"
+            failure_kinds[kind] += 1
+            if row.get("dataset") and row.get("backend"):
+                task = row["slice"].split(".", 1)[0]
+                failed_cells[(task, row["dataset"], row["backend"], kind)] += 1
         elif row["cost_units"] > 0:
             completions[lane] += 1
 
@@ -86,6 +93,13 @@ def check(lines, report=False):
     if failure_kinds:
         print("Hard failures by recorded kind: " + ", ".join(
             f"{kind} {count}" for kind, count in sorted(failure_kinds.items())))
+
+    if failed_cells:
+        print("Hard failures by task, dataset and backend (up to 10):")
+        for (task, dataset, backend, kind), attempts_count in failed_cells.most_common(10):
+            print(f"- {task} / {dataset} / {backend}: {kind} ({attempts_count})")
+        if len(failed_cells) > 10:
+            print(f"{len(failed_cells) - 10} additional combinations are in the decision log.")
 
     if decisions:
         first = decisions[0]
@@ -125,13 +139,19 @@ if __name__ == "__main__":
     parser.add_argument("log", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--bootstrap", action="store_true", help="require five real WikiGold examples")
-    mode.add_argument("--smoke", action="store_true", help="require the exact offline fixture result")
+    mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
+    mode.add_argument("--temporal-smoke", action="store_true",
+                      help="require two scored temporal documents and perfect fixture F1")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            passed = (check_wikigold(stream, args.bootstrap) if args.smoke or args.bootstrap
-                      else check(stream, args.report))
+            if args.temporal_smoke:
+                passed = check_temporal_smoke(stream)
+            elif args.smoke or args.bootstrap:
+                passed = check_wikigold(stream, args.bootstrap)
+            else:
+                passed = check(stream, args.report)
             sys.exit(0 if passed else 1)
     except (OSError, ValueError) as error:
         sys.exit(str(error))

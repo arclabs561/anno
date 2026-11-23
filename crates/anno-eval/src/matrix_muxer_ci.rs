@@ -2338,7 +2338,10 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
         // Note: `ensemble` is intentionally treated as a baseline arm here because its default
         // constructor is composed of non-ML backends (regex + heuristic) and only adds ML-ish
         // components behind feature flags (`onnx`, `candle`, etc.).
-        if matches!(b, "stacked" | "crf" | "hmm" | "heuristic" | "ensemble") {
+        if matches!(
+            b,
+            "pattern" | "stacked" | "crf" | "hmm" | "heuristic" | "ensemble"
+        ) {
             if available.contains(b) {
                 out.push(b.to_string());
             }
@@ -4095,7 +4098,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     }
 
     let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
-    if verbose {
+    // Leave the selected inputs in the job log even if execution never returns an outcome.
+    if verbose || decisions_path().is_some() {
         eprintln!(
             "matrix-muxer: slice={} strategy={:?} seed={} per_dataset={} datasets={:?} backends={:?}",
             slice_tag_for_muxer,
@@ -4105,6 +4109,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             chosen_datasets,
             chosen_backends
         );
+    }
+    if verbose {
         let profile = std::env::var("ANNO_MUXER_PROFILE")
             .ok()
             .unwrap_or_else(|| "off".to_string());

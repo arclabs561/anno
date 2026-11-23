@@ -253,7 +253,7 @@ pub enum ModelBackend {
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-pii", alias = "pii")]
     GlinerPii,
-    /// GLiNER-RelEx: joint NER + relation extraction, zero-shot
+    /// GLiNER-RelEx: zero-shot NER from a local ONNX entity export
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-relex", alias = "relex")]
     GlinerRelex,

@@ -935,8 +935,13 @@ fn extract_with_custom_types(
         let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
 
         match backend {
-            ModelBackend::Gliner => {
-                let model = anno::GLiNEROnnx::new(anno::DEFAULT_GLINER_MODEL)
+            ModelBackend::Gliner | ModelBackend::GlinerRelex => {
+                let id = if matches!(backend, ModelBackend::GlinerRelex) {
+                    anno::models::GLINER_RELEX
+                } else {
+                    anno::DEFAULT_GLINER_MODEL
+                };
+                let model = anno::GLiNEROnnx::new(id)
                     .map_err(|e| CliError::from(format!("Failed to create GLiNER model: {}", e)))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
