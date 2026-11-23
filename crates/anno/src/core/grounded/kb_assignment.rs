@@ -1,7 +1,7 @@
 use super::{Corpus, Identity, IdentityId, Track, TrackRef};
 use crate::core::error::Error;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// Catalog fields visible on the triggering track before a reviewed assignment.
 /// The original strings are retained even for imports with a missing namespace.
@@ -83,24 +83,6 @@ pub enum KbAssignmentError {
     Corpus(#[from] Error),
 }
 
-// Allocate a token only while the corpus is being reviewed. A live preview keeps
-// its allocation alive, so a later revision can never reuse its pointer.
-#[derive(Debug, Default)]
-pub(super) struct ReviewVersion(OnceLock<Arc<()>>);
-
-impl Clone for ReviewVersion {
-    fn clone(&self) -> Self {
-        // A clone of the corpus is an independent owner, including before its first edit.
-        Self::default()
-    }
-}
-
-impl ReviewVersion {
-    pub(super) fn invalidate(&mut self) {
-        self.0.take();
-    }
-}
-
 pub(super) fn qualified_key<'a>(name: &'a str, accession: &'a str) -> Option<(&'a str, &'a str)> {
     (!name.trim().is_empty()
         && !name.trim().eq_ignore_ascii_case("unknown")
@@ -113,7 +95,7 @@ impl Corpus {
         &self,
         trigger: &TrackRef,
     ) -> Result<(&Track, Option<&Identity>), Error> {
-        let document = self.documents.get(&trigger.doc_id).ok_or_else(|| {
+        let document = self.get_document(&trigger.doc_id).ok_or_else(|| {
             Error::track_ref(format!("Document '{}' not found in corpus", trigger.doc_id))
         })?;
         let track = document.get_track(trigger.track_id).ok_or_else(|| {
@@ -175,7 +157,7 @@ impl Corpus {
         let shared = self.shared_kb_record(track, local);
         let affected_tracks = if let Some(identity) = shared {
             let mut members = Vec::new();
-            for (doc_id, document) in &self.documents {
+            for (doc_id, document) in &self.state().documents {
                 let Some(copy) = document.get_identity(identity.id) else {
                     continue;
                 };
@@ -206,7 +188,7 @@ impl Corpus {
             vec![trigger.clone()]
         };
         Ok(KbAssignmentPreview {
-            revision: Arc::clone(self.kb_review_version.0.get_or_init(Arc::default)),
+            revision: self.review_token(),
             assignment: KbAssignment {
                 trigger: trigger.clone(),
                 previous: local.map(|identity| KbAssignmentPrior {
@@ -231,12 +213,7 @@ impl Corpus {
         &mut self,
         preview: KbAssignmentPreview,
     ) -> Result<KbAssignmentReceipt, KbAssignmentError> {
-        if !self
-            .kb_review_version
-            .0
-            .get()
-            .is_some_and(|v| Arc::ptr_eq(v, &preview.revision))
-        {
+        if !self.accepts_review(&preview.revision) {
             return Err(KbAssignmentError::StalePreview);
         }
         let assignment = preview.assignment;
@@ -246,7 +223,8 @@ impl Corpus {
             &assignment.kb_id,
             &assignment.canonical_name,
         )?;
-        self.kb_review_version.invalidate();
+        // Accepting a proposal retires competing reviews even for an unchanged target.
+        self.state_mut();
         Ok(KbAssignmentReceipt {
             identity_id,
             assignment,

@@ -1,6 +1,6 @@
 use anno::coalesce::Resolver;
 use anno::core::grounded::{
-    Corpus, GroundedDocument, Identity, KbAssignmentError, Track, TrackRef,
+    Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentError, Track, TrackRef,
 };
 
 fn add_track(document: &mut GroundedDocument) -> TrackRef {
@@ -134,6 +134,35 @@ fn label_change_on_a_kb_only_identity_reaches_all_live_tracks() {
     assert_eq!(corpus.apply_kb_assignment(preview).unwrap().identity_id, id);
     assert_eq!(linked(&corpus, &first).canonical_name, "Byron");
     assert_eq!(linked(&corpus, &second).canonical_name, "Byron");
+}
+
+#[test]
+fn a_rejected_merge_and_an_unchanged_direct_link_preserve_review() {
+    let mut corpus = Corpus::new();
+    let track = add_document(&mut corpus, "letter");
+    let id = corpus.link_track_to_kb(&track, "kb", "42", "Ada").unwrap();
+    let preview = corpus
+        .preview_kb_assignment(&track, "kb", "42", "Ada")
+        .unwrap();
+    let competing = corpus
+        .preview_kb_assignment(&track, "kb", "99", "Bo")
+        .unwrap();
+
+    assert!(corpus.get_document_mut("missing").is_none());
+    assert!(corpus
+        .merge_tracks("letter", &[track.track_id, track.track_id])
+        .is_none());
+    assert_eq!(
+        corpus.link_track_to_kb(&track, "kb", "42", "Ada").unwrap(),
+        id
+    );
+
+    // Accepting a reviewed assignment consumes the approval even when the key stays the same.
+    assert_eq!(corpus.apply_kb_assignment(preview).unwrap().identity_id, id);
+    assert!(matches!(
+        corpus.apply_kb_assignment(competing),
+        Err(KbAssignmentError::StalePreview)
+    ));
 }
 
 #[test]
@@ -320,4 +349,90 @@ fn a_local_identity_matching_the_proposed_shared_record_cannot_join_during_apply
     assert_eq!(linked(&corpus, &c), &future_record);
     assert!(!corpus.is_shared_identity(linked(&corpus, &c)));
     assert_eq!(corpus.current_coref_clusters(), initial_members);
+}
+
+#[test]
+fn every_track_outside_the_reviewed_scope_keeps_its_catalog_binding() {
+    type Binding<'a> = (IdentityId, Option<(&'a str, &'a str)>, &'a str);
+
+    fn binding<'a>(corpus: &'a Corpus, track: &TrackRef) -> Option<Binding<'a>> {
+        let document = corpus.get_document(&track.doc_id).unwrap();
+        assert!(document.get_track(track.track_id).is_some());
+        document.identity_for_track(track.track_id).map(|identity| {
+            (
+                identity.id(),
+                identity.qualified_kb_ref(),
+                identity.canonical_name(),
+            )
+        })
+    }
+
+    let mut baseline = Corpus::new();
+    let first = add_document(&mut baseline, "a");
+    let peer = add_document(&mut baseline, "b");
+    Resolver::new().resolve_inter_doc_coref(&mut baseline, None, None);
+    baseline
+        .link_track_to_kb(&first, "library", "42", "Ada")
+        .unwrap();
+
+    // A second corpus identity uses the same catalog key without sharing the first identity.
+    let kb_track = add_document(&mut baseline, "c");
+    let other = baseline
+        .link_track_to_kb(&kb_track, "library", "42", "Ada")
+        .unwrap();
+    let doc = baseline.get_document_mut("c").unwrap();
+    let kb_peer = add_track(doc);
+    doc.link_track_to_identity(kb_peer.track_id, other);
+
+    // A shared local record is rebound one track at a time.
+    let mut doc = GroundedDocument::new("local", "Ada");
+    let local_track = add_track(&mut doc);
+    let local_peer = add_track(&mut doc);
+    let local = doc.add_identity(Identity::from_kb(0, "Ada", "library", "42"));
+    doc.link_track_to_identity(local_track.track_id, local);
+    doc.link_track_to_identity(local_peer.track_id, local);
+    baseline.add_document(doc);
+    let unlinked = add_document(&mut baseline, "unlinked");
+
+    // These scopes follow how the fixture was bound, independently of the API's prediction.
+    let scopes = [
+        vec![first, peer],
+        vec![kb_track, kb_peer],
+        vec![local_track],
+        vec![local_peer],
+        vec![unlinked],
+    ];
+    for scope in &scopes {
+        for trigger in scope {
+            for (catalog, key, label) in [
+                ("library", "42", "Ada"),
+                ("archive", "42", "Ada"),
+                ("library", "77", "Ada"),
+                ("library", "42", "Byron"),
+            ] {
+                let mut corpus = baseline.clone();
+                let preview = corpus
+                    .preview_kb_assignment(trigger, catalog, key, label)
+                    .unwrap();
+                assert_eq!(&preview.assignment().affected_tracks, scope);
+                let receipt = corpus.apply_kb_assignment(preview).unwrap();
+                assert_eq!(&receipt.assignment.affected_tracks, scope);
+
+                for track in scopes.iter().flatten() {
+                    if scope.contains(track) {
+                        assert_eq!(
+                            binding(&corpus, track),
+                            Some((receipt.identity_id, Some((catalog, key)), label)),
+                        );
+                    } else {
+                        assert_eq!(
+                            binding(&corpus, track),
+                            binding(&baseline, track),
+                            "trigger {trigger:?}, outside track {track:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
