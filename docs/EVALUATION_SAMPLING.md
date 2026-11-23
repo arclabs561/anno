@@ -14,6 +14,11 @@ The sampler is useful for three separate jobs:
 Start with the fixed panel. It makes missing model features, incompatible
 datasets, and cold caches visible before interpreting adaptive choices.
 
+In “Maya arrived Tuesday. She left Friday,” the `intra-coref` task scores
+whether “Maya” and “She” belong to the same mention chain. A grounded document
+represents that grouping as a `Track`. The `temporal` task scores the text
+spans “Tuesday” and “Friday” as time expressions.
+
 ## Inspect dataset eligibility
 
 Run `anno sampler eligibility --task ner --require-cached` before comparing policies on a local panel. Its JSON lists each registered dataset for that task, whether the standard loader sees a local cache hit, and the first policy exclusion. For a compact list of locally cached sources and why each will or will not enter selection:
