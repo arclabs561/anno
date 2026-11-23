@@ -1,6 +1,6 @@
 //! GLiNER token-level output is shaped [start/end/inside, 1, words, classes].
 //! This implements the public flat, single-label predict_entities defaults of GLiNER v0.2.16.
-//! Reference: https://github.com/urchade/GLiNER/blob/a865555af53920321c4593f7c091dfc9059e9028/gliner/decoding/decoder.py#L61-L94
+//! <https://github.com/urchade/GLiNER/blob/a865555af53920321c4593f7c091dfc9059e9028/gliner/decoding/decoder.py#L61-L94>
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};

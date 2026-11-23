@@ -120,9 +120,7 @@ use muxer::{
     CandidateDebug, Decision, DecisionNote, Exp3Ix, Exp3IxConfig, Exp3IxState, MabConfig,
     MabSelectionDecision, Outcome, Summary,
 };
-#[cfg(test)]
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::PathBuf;
 #[cfg(test)]
