@@ -1093,3 +1093,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+#[path = "coref_publication_rss.rs"]
+mod coref_publication_rss;
