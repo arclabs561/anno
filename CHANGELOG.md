@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.16.0]
+
 ### Changed (breaking)
 
 - Convert text spans with `Location::try_from`. Call `Location::project_text` to
@@ -10,8 +12,11 @@
   occurrences. Re-export persisted graphs before joining on these IDs.
 - Entity labels with explicit custom spelling or category overrides may now
   serialize as tagged custom types. Readers accept the earlier string format.
-- Evaluation report consumers should handle unavailable leakage, boundary and
-  type-error measurements explicitly. Older scalar report values remain readable.
+- In `anno-eval`, `ErrorSummary::{boundary_errors, type_errors}` and
+  `DataQualitySummary::leakage_detected` use `ReportedMeasurement<T>`. Match the
+  measured, unavailable, and legacy variants when reading them. Report readers
+  accept older scalar values. Code constructing a `CalibrationSummary` literal
+  must supply its new `sample` field.
 - On document replacement, obtain fresh track references from the stored
   document. Resolver-produced identities expose optional minimum pair similarity.
   Callers constructing `Identity` or `CrossDocCluster` literals should update
@@ -28,6 +33,8 @@
 - Cross-document resolution reuses unchanged assignments and preserves KB
   anchors. Use `TrackPartition::from_corpus` to score active memberships.
   Calibration and precision share one prediction-to-gold matching pass.
+- `ExtractionMethod::is_calibrated` is deprecated. To select the same predictions,
+  match `ExtractionMethod::Neural`. Evaluate calibration on observed outcomes.
 - Byte and character ranges returned by `TextSpan` constructors now select
   the same source text for partial UTF-8 characters and out-of-bounds input.
   Track merges order signals by source location. Flat and grounded validators

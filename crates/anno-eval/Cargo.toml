@@ -57,7 +57,7 @@ path = "examples/cdcr_eval.rs"
 required-features = ["eval"]
 
 [dependencies]
-anno = { path = "../anno", version = "0.15.0", default-features = false, features = [
+anno = { path = "../anno", version = "0.16.0", default-features = false, features = [
   "analysis",
 ] }
 

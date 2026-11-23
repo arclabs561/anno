@@ -5,11 +5,11 @@ start with offline heuristics; model downloads and evaluation are optional.
 
 ## Install
 
-Run `cargo add anno` for the current published release. To target the 0.15 release line, use this dependency.
+Run `cargo add anno` for the current published release. To target the 0.16 release line, use this dependency.
 
 ```toml
 [dependencies]
-anno = "0.15"
+anno = "0.16"
 ```
 
 Install the CLI:
