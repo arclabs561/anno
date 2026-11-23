@@ -156,6 +156,15 @@ class CgroupReplayTests(unittest.TestCase):
             self.assertEqual(failure["active_case"]["threads"], 2)
             self.assertIn("failed_run", failure)
 
+    def test_previous_valid_row_cannot_satisfy_the_next_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "receipt.json"
+            with self.assertRaisesRegex(RuntimeError, "different scheduled case"):
+                self.run_fixture(path, lambda *args: copy.deepcopy(self.row))
+            failure = json.loads(path.read_text())
+            self.assertEqual([row["threads"] for row in failure["runs"]], [1])
+            self.assertEqual((failure["status"], failure["active_case"]["threads"]), ("failed", 2))
+
     def test_preflight_refusal_preserves_a_failed_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "receipt.json"

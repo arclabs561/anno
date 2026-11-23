@@ -194,6 +194,8 @@ def main():
                     row = run_case(args, image, t, n, b)
                     row["repeat"] = rep + 1
                     try:
+                        if (row["threads"], row["tokens"], row["budget"]) != (t, n, b):
+                            raise RuntimeError("container row belongs to a different scheduled case")
                         verify(row, args.cpu)
                         # Ancillary Docker/model diagnostics must also be valid receipt JSON.
                         json.dumps(row, allow_nan=False)
