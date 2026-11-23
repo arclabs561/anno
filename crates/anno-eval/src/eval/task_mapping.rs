@@ -426,7 +426,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
-        "gliner_relex" | "relex" => &[Task::NER, Task::RelationExtraction],
+        "gliner_relex" | "relex" => &[Task::NER], // local entity-logit export
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
         // Multi-task backends (GLiNER multi-task implements multiple traits)
@@ -675,6 +675,16 @@ mod tests {
         assert!(mapping.tasks_for_dataset("WikiGold").is_some());
         assert!(mapping.tasks_for_backend("gliner_multitask").is_some());
         assert!(mapping.backends_for_task("ner").is_some());
+    }
+
+    #[test]
+    fn relex_entity_export_is_only_sampled_for_ner() {
+        for alias in ["gliner_relex", "relex"] {
+            assert_eq!(backend_tasks(alias), &[Task::NER]);
+        }
+        let relation = get_task_backends(Task::RelationExtraction);
+        assert!(!relation.contains(&"gliner_relex"));
+        assert!(relation.contains(&"tplinker") && relation.contains(&"gliner_multitask"));
     }
 
     #[test]

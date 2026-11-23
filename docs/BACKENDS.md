@@ -46,7 +46,7 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 | `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | WIP | `knowledgator/gliner-bi-large-v1.0` (also: `gliner-bi-small-v1.0`, `modern-gliner-bi-large-v1.0`, `modern-gliner-bi-base-v1.0`; the `gliner-poly-*-v1.0` repos are model cards only with no weights) |
 | `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
-| `gliner_relex` | GLiNER-RelEx joint NER+RE | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
+| `gliner_relex` | GLiNER-RelEx NER from a local entity-logit export | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
 
@@ -324,7 +324,11 @@ A few backends need more than a stock `optimum-cli export onnx`:
   fast-tokenizer conversion is broken in newer versions.
 - **GLiNER-RelEx**: scatter-based subword pooling, so `torch.onnx.
   export` needs a real tokenized input (random dummy inputs cause
-  index-out-of-bounds during JIT tracing).
+  index-out-of-bounds during JIT tracing). Run `uv run scripts/export_gliner_relex_onnx.py`
+  to write `model.onnx`, `gliner_config.json` and `tokenizer.json` to
+  `$HF_HOME/hub/models--knowledgator--gliner-relex-large-v1.0/onnx/`
+  (`HF_HOME` defaults to `~/.cache/huggingface`). The sampler offers this
+  model for NER when these files are present.
 - **GLiNER bi-encoder** (`gliner_poly`): produces **two** ONNX graphs --
   a text encoder and a separate label encoder for the BGE
   sentence-transformer label embeddings.
@@ -379,7 +383,7 @@ manually for that one backend.
 | `bert_onnx` | yes | `--` | hf-hub cache | `--` |
 | `gliner_candle` / `candle_ner` | yes | `--` | hf-hub cache | `--` |
 | `gliner_pii` | yes | `--` | hf-hub cache | `--` |
-| `gliner_relex` | yes (script needed only for re-export) | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
+| `gliner_relex` | local ONNX entity export required | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
 | `nuner` | yes (script needed only for unsupported variants) | `export_nuner_to_onnx.py` (delegates to `export_gliner_poly_onnx.py` for GLiNER-based variants) | hf-hub cache | `--` |
 | `gliner_poly` | no | `export_gliner_poly_onnx.py` | `~/.cache/anno/models/gliner-poly/` | (cache probe) |
 | `glirel` | no | `export_glirel_onnx.py` | `~/.cache/anno/models/glirel/` | (cache probe) |
@@ -450,7 +454,7 @@ Some models only distribute PyTorch weights. Export scripts in `scripts/` conver
 | `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |
 | `export_tplinker_onnx.py` | TPLinker | Joint entity-relation extraction |
 | `export_glirel_onnx.py` | GLiREL | Relation extraction; falls back to PyTorch weights if ONNX export fails |
-| `export_gliner_relex_onnx.py` | GLiNER-RelEx (joint NER+RE) | Dual output: entity_scores + relation_scores. Falls back to PyTorch |
+| `export_gliner_relex_onnx.py` | GLiNER-RelEx | Exports entity logits for native NER. The native relation evaluator requires a relation extractor such as `gliner_multitask` or `tplinker` |
 | `export_fcoref.py` | f-coref | Splits encoder (ONNX) from scorer heads (safetensors) |
 
 GLiNER ONNX backends (`gliner_onnx`) auto-export on first load if no ONNX file is cached. The auto-export calls `export_gliner_poly_onnx.py` via `uv run` or `python3`.

@@ -6,8 +6,62 @@ use crate::backends::inference::{
     decode_span_logits_3d, decode_span_logits_4d, decode_token_logits_4d, span_width_from_flat_len,
 };
 
+struct RelexEntityExport {
+    graph: std::path::PathBuf,
+    quantized: bool,
+    tokenizer: std::path::PathBuf,
+    config: std::path::PathBuf,
+}
+
+impl RelexEntityExport {
+    fn find(cache: &hf_hub::Cache, prefer_quantized: bool) -> Option<Self> {
+        let repo = hf_hub::Repo::model(crate::models::GLINER_RELEX.into());
+        let exported = cache.path().join(repo.folder_name()).join("onnx");
+        // The standalone exporter keeps the three files together. Also support
+        // existing HF snapshots with a graph at the root or under onnx/.
+        let snapshot = cache
+            .repo(repo)
+            .get("tokenizer.json")
+            .and_then(|p| p.parent().map(std::path::Path::to_owned));
+        for dir in std::iter::once(exported).chain(snapshot) {
+            let tokenizer = dir.join("tokenizer.json");
+            let config = dir.join("gliner_config.json");
+            if !tokenizer.is_file() || !config.is_file() {
+                continue;
+            }
+            for (quantized, paths) in [
+                (true, crate::backends::hf_loader::QUANTIZED_ONNX_PATHS),
+                (false, crate::backends::hf_loader::FP32_ONNX_PATHS),
+            ] {
+                if quantized && !prefer_quantized {
+                    continue;
+                }
+                if let Some(graph) = paths.iter().map(|p| dir.join(p)).find(|p| p.is_file()) {
+                    return Some(Self {
+                        graph,
+                        quantized,
+                        tokenizer,
+                        config,
+                    });
+                }
+            }
+        }
+        None
+    }
+}
+
 #[cfg(feature = "onnx")]
 impl GLiNEROnnx {
+    /// Whether the local GLiNER-RelEx entity graph, tokenizer and configuration
+    /// are present. Graph validity is checked by ONNX Runtime at construction.
+    pub fn relex_entity_export_available() -> bool {
+        RelexEntityExport::find(
+            &hf_hub::Cache::from_env(),
+            GLiNERConfig::default().prefer_quantized,
+        )
+        .is_some()
+    }
+
     /// Create a new GLiNER model from HuggingFace with default config.
     pub fn new(model_name: &str) -> Result<Self> {
         Self::with_config(model_name, GLiNERConfig::default())
@@ -38,20 +92,34 @@ impl GLiNEROnnx {
         let api = hf_loader::hf_api()?;
         let repo = api.model(model_name.to_string());
 
-        // Download model - try ONNX first, fall back to auto-export from PyTorch
-        let (model_path, is_quantized) =
-            hf_loader::download_onnx_model(&repo, config.prefer_quantized).or_else(|error| {
-                if hf_loader::no_downloads() {
-                    return Err(error);
-                }
-                log::info!(
+        let (model_path, is_quantized, tokenizer_path, local_config) = if model_name
+            == crate::models::GLINER_RELEX
+        {
+            let export = RelexEntityExport::find(&hf_hub::Cache::from_env(), config.prefer_quantized)
+                .ok_or_else(|| Error::FeatureNotAvailable(
+                    "GLiNER-RelEx NER requires a local ONNX entity export with tokenizer.json and gliner_config.json. Run uv run scripts/export_gliner_relex_onnx.py".into(),
+                ))?;
+            (
+                export.graph,
+                export.quantized,
+                export.tokenizer,
+                Some(export.config),
+            )
+        } else {
+            let (graph, quantized) = hf_loader::download_onnx_model(&repo, config.prefer_quantized)
+                .or_else(|error| {
+                    if hf_loader::no_downloads() {
+                        return Err(error);
+                    }
+                    log::info!(
                     "[GLiNER] No ONNX model in repo '{}', attempting auto-export from PyTorch...",
                     model_name
                 );
-                export_pytorch_to_onnx(model_name, &repo, config.prefer_quantized)
-            })?;
-
-        let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
+                    export_pytorch_to_onnx(model_name, &repo, config.prefer_quantized)
+                })?;
+            let tokenizer = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
+            (graph, quantized, tokenizer, None)
+        };
 
         let session = hf_loader::create_onnx_session(
             &model_path,
@@ -86,10 +154,10 @@ impl GLiNEROnnx {
         };
 
         // Read class_token_index from gliner_config.json (if present).
-        let (token_ent, token_sep, config_path) = match hf_loader::download_model_file(
-            &repo,
-            &["gliner_config.json"],
-        ) {
+        let config_file = local_config
+            .map(Ok)
+            .unwrap_or_else(|| hf_loader::download_model_file(&repo, &["gliner_config.json"]));
+        let (token_ent, token_sep, config_path) = match config_file {
             Ok(config_path) => {
                 let config_str = std::fs::read_to_string(&config_path).map_err(|error| {
                     Error::Retrieval(format!("read gliner_config.json: {error}"))
@@ -1632,5 +1700,47 @@ mod tests {
         let (start, end) = crate::offset::bytes_to_chars(text, 6, 10);
         let extracted: String = text.chars().skip(start).take(end - start).collect();
         assert_eq!(extracted, "🌍");
+    }
+}
+
+#[cfg(test)]
+mod relex_export_tests {
+    use super::RelexEntityExport;
+    use std::fs;
+
+    #[test]
+    fn relex_requires_a_graph_and_both_sidecars_from_one_export() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache = hf_hub::Cache::new(temp.path().into());
+        let repo = hf_hub::Repo::model(crate::models::GLINER_RELEX.into());
+        let standalone = cache.path().join(repo.folder_name()).join("onnx");
+        let snapshot = cache.repo(repo);
+        snapshot.create_ref("fixture").unwrap();
+        let root = snapshot.pointer_path("fixture");
+        fs::create_dir_all(root.join("onnx")).unwrap();
+        fs::write(root.join("model.safetensors"), b"PyTorch only").unwrap();
+        fs::write(root.join("tokenizer.json"), b"{}").unwrap();
+        fs::write(root.join("gliner_config.json"), b"{}").unwrap();
+        assert!(RelexEntityExport::find(&cache, true).is_none());
+
+        fs::create_dir_all(&standalone).unwrap();
+        fs::write(standalone.join("model.onnx"), b"graph").unwrap();
+        // Incomplete standalone exports cannot borrow unrelated snapshot sidecars.
+        assert!(RelexEntityExport::find(&cache, true).is_none());
+        fs::write(root.join("onnx/model.onnx"), b"snapshot graph").unwrap();
+        let files = RelexEntityExport::find(&cache, true).unwrap();
+        assert_eq!(files.graph, root.join("onnx/model.onnx"));
+        assert_eq!(files.config, root.join("gliner_config.json"));
+
+        fs::write(standalone.join("tokenizer.json"), b"{}").unwrap();
+        fs::write(standalone.join("gliner_config.json"), b"{}").unwrap();
+        fs::write(standalone.join("model_quantized.onnx"), b"quantized").unwrap();
+        let files = RelexEntityExport::find(&cache, true).unwrap();
+        assert_eq!(files.graph, standalone.join("model_quantized.onnx"));
+        assert_eq!(files.tokenizer, standalone.join("tokenizer.json"));
+        assert!(files.quantized);
+        let files = RelexEntityExport::find(&cache, false).unwrap();
+        assert_eq!(files.graph, standalone.join("model.onnx"));
+        assert!(!files.quantized);
     }
 }

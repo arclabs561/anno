@@ -156,6 +156,16 @@ fn cache_repo_identity(repo: &hf_hub::api::sync::ApiRepo) -> Result<hf_hub::Repo
     Ok(hf_hub::Repo::with_revision(id.into(), kind, revision))
 }
 
+#[cfg(any(feature = "onnx", test))]
+pub(crate) const QUANTIZED_ONNX_PATHS: &[&str] = &[
+    "onnx/model_quantized.onnx",
+    "model_quantized.onnx",
+    "onnx/model_int8.onnx",
+    "model_int8.onnx",
+];
+#[cfg(any(feature = "onnx", test))]
+pub(crate) const FP32_ONNX_PATHS: &[&str] = &["onnx/model.onnx", "model.onnx"];
+
 /// Try to download a quantized ONNX model, falling back to FP32.
 ///
 /// Tries quantized variants first (if `prefer_quantized` is true), then falls back
@@ -172,20 +182,14 @@ pub fn download_onnx_model(
 ) -> Result<(std::path::PathBuf, bool)> {
     if prefer_quantized {
         // Try quantized variants first
-        let quantized_candidates = [
-            "onnx/model_quantized.onnx",
-            "model_quantized.onnx",
-            "onnx/model_int8.onnx",
-            "model_int8.onnx",
-        ];
-        if let Ok(path) = download_model_file(repo, &quantized_candidates) {
+        if let Ok(path) = download_model_file(repo, QUANTIZED_ONNX_PATHS) {
             log::info!("[hf_loader] Using quantized model");
             return Ok((path, true));
         }
     }
 
     // Fall back to FP32
-    let path = download_model_file(repo, &["onnx/model.onnx", "model.onnx"])?;
+    let path = download_model_file(repo, FP32_ONNX_PATHS)?;
     if prefer_quantized {
         log::info!("[hf_loader] Using FP32 model (quantized not available)");
     }

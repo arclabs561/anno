@@ -818,7 +818,7 @@ pub mod models {
     pub const BIOMEDICAL: &str = "d4data/biomedical-ner-all";
     /// GLiNER PII Edge (60+ PII categories, zero-shot).
     pub const GLINER_PII: &str = "knowledgator/gliner-pii-edge-v1.0";
-    /// GLiNER-RelEx (joint NER + relation extraction, zero-shot).
+    /// GLiNER-RelEx checkpoint. Anno runs its locally exported entity head for NER.
     pub const GLINER_RELEX: &str = "knowledgator/gliner-relex-large-v1.0";
     /// GLiNER bi-encoder base model (HuggingFace, Feb 2026).
     ///
