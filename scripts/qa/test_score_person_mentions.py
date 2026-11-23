@@ -1,5 +1,6 @@
 import copy
 import unittest
+from typing import Any
 
 from score_person_mentions import score, source_sha256
 
@@ -7,7 +8,7 @@ from score_person_mentions import score, source_sha256
 class DualSpanTest(unittest.TestCase):
     def setUp(self):
         text = "🦊 Dr. Jo met Jo. She left. Bell rang."
-        self.doc = {"id": "d", "text": text, "people": [{"id": "A"}, {"id": "B"}],
+        self.doc: dict[str, Any] = {"id": "d", "text": text, "people": [{"id": "A"}, {"id": "B"}],
                     "mentions": [
                         {"id": "first", "person_id": "A", "highlight": [6, 8],
                          "referential_spans": [[2, 8], [6, 8]]},
@@ -16,7 +17,7 @@ class DualSpanTest(unittest.TestCase):
                         {"id": "pronoun", "person_id": "A", "highlight": [17, 20],
                          "referential_spans": [[17, 20]]}],
                     "negative_spans": [{"span": [27, 31], "kind": "object"}]}
-        self.gold = {"schema_version": 1, "offset_unit": "unicode_scalar", "documents": [self.doc]}
+        self.gold: dict[str, Any] = {"schema_version": 1, "offset_unit": "unicode_scalar", "documents": [self.doc]}
 
     def row(self, spans=(), clusters=()):
         return {"id": "d", "source_sha256": source_sha256(self.doc["text"]),
@@ -65,6 +66,15 @@ class DualSpanTest(unittest.TestCase):
         self.assertEqual(s["candidates"]["covered_mentions"], 1)
         self.assertEqual(s["local_pairs"]["covered_positive"], 0)
         self.assertEqual(s["local_pairs"]["joined_positive"], 0)
+
+    def test_shared_projected_span_keeps_distinct_clusters(self):
+        first, second, pronoun = [6, 8], [13, 15], [17, 20]
+        result = self.scores([first, second, pronoun], [[first, second], [first, pronoun]])
+        s = result["highlight"]
+        self.assertEqual(s["cluster_members"]["emitted"], 3)
+        self.assertEqual(s["local_pairs"]["joined_positive"], 1)
+        # Only first and second co-occur. A transitive merge would also link second to pronoun.
+        self.assertEqual(s["local_pairs"]["joined_negative"], 1)
 
     def test_missing_candidates_preserve_pair_denominator(self):
         s = self.scores()["referential"]

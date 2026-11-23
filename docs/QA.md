@@ -81,7 +81,7 @@ Run the offline scorer on a fully annotated person mention fixture and a source-
 python3 scripts/qa/score_person_mentions.py testdata/grounded/dual_span_people.json predictions.json
 ```
 
-Each row in the receipt's `results` array supplies the document `id`, `source_sha256` of the verbatim UTF-8 input, `mentions` with scalar `start`, `end` and `surface`, and `clusters` of scalar range pairs. Each cluster member must appear among the candidates. Documents with empty model output still need a row.
+Each row in the receipt's `results` array supplies the document `id`, `source_sha256` of the verbatim UTF-8 input, `mentions` with scalar `start`, `end` and `surface`, and `clusters` of scalar range pairs. Each cluster member must appear among the candidates. A coarse caller-supplied word may project mentions from two model clusters onto the same source span. The scorer counts that span once in selection and each pair once if its endpoints share a cluster. It preserves the original clusters without inferring links between their other members. Documents with empty model output still need a row.
 
 The scorer evaluates the same output against each gold occurrence's compact highlight and accepted referring expressions. It reports all proposed spans and the subset used in clusters. For one-to-one person selection, use `covered_mentions / emitted` for precision and `covered_mentions / gold_mentions` for recall. Several accepted ranges can cover one occurrence. An exact hit on a marked distractor counts separately from other unmatched ranges. A general coreference model can legitimately propose non-person entities outside this panel's person task.
 

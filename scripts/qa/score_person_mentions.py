@@ -6,9 +6,9 @@ source_sha256, mentions (start, end, surface) and clusters of scalar [start,end)
 pairs. The same proposed spans are tested against each annotation contract.
 """
 import argparse
+import json
 from collections import Counter
 from itertools import combinations
-import json
 from pathlib import Path
 
 from check_span_assertions import indexed, objects, source_sha256
@@ -55,7 +55,7 @@ def model_spans(doc, row):
         proposed.add(s)
     clusters = []
     if not isinstance(row["clusters"], list):
-        raise ValueError("expected an array of clusters")
+        raise TypeError("expected an array of clusters")
     for members in row["clusters"]:
         if not isinstance(members, list) or len(members) < 2:
             raise ValueError("expected a multi-mention cluster")
