@@ -62,7 +62,7 @@ safetensors = "0.8"
 half = "2"
 
 # Document-to-text extraction
-deformat = "0.15"
+deformat = "0.17.1"
 
 # Performance
 rayon = "1"

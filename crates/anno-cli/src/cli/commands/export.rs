@@ -430,7 +430,11 @@ fn file_identity(path: &Path) -> std::io::Result<same_file::Handle> {
     same_file::Handle::from_path(path)
 }
 
-fn write_output(path: &Path, content: impl AsRef<[u8]>, overwrite: bool) -> std::io::Result<()> {
+pub(super) fn write_output(
+    path: &Path,
+    content: impl AsRef<[u8]>,
+    overwrite: bool,
+) -> std::io::Result<()> {
     use std::io::Write;
     let mut staged = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
     staged.write_all(content.as_ref())?;
@@ -506,7 +510,12 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     };
     let output_content = match format {
         ExportFormat::Brat => anno::export::to_brat(content, &ext.entities, include_confidence),
-        ExportFormat::Conll => anno::export::to_conll(content, &ext.entities),
+        ExportFormat::Conll => {
+            if ext.entities.iter().any(anno::Entity::is_discontinuous) {
+                return Err("CoNLL BIO cannot represent a discontinuous mention. Use brat to preserve its segments.".into());
+            }
+            anno::export::to_conll(content, &ext.entities)
+        }
         ExportFormat::Jsonl => {
             anno::export::to_jsonl(&ext.entities, &source_label, include_confidence)
         }

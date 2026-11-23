@@ -457,16 +457,11 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // Neural coreference backends (implement CorefBackend -- text-based)
         "fcoref" | "f-coref" => &[Task::IntraDocCoref],
 
-        // Coreference backends (implement CoreferenceResolver trait)
-        //
-        // Note: the same resolver interface is used for both intra-doc and inter-doc eval in
-        // `TaskEvaluator` (it is invoked per document, and spans are offset to avoid collisions).
-        "coref_resolver" | "CorefResolver" | "SimpleCorefResolver" | "DiscourseAwareResolver" => &[
-            Task::IntraDocCoref,
-            Task::InterDocCoref,
-            Task::AbstractAnaphora,
-        ],
-        "mention_ranking" | "MentionRankingCoref" => &[Task::IntraDocCoref, Task::InterDocCoref],
+        // These resolvers link mentions within one document at a time.
+        "coref_resolver" | "CorefResolver" | "SimpleCorefResolver" | "DiscourseAwareResolver" => {
+            &[Task::IntraDocCoref, Task::AbstractAnaphora]
+        }
+        "mention_ranking" | "MentionRankingCoref" => &[Task::IntraDocCoref],
 
         _ => &[],
     }

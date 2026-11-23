@@ -17,7 +17,7 @@
 //! Cache entries are never evicted automatically; use `anno cache clear` to flush.
 
 use super::super::parser::{ModelBackend, OutputFormat};
-use super::super::utils::validate_path_component;
+use super::super::utils::{source_sha256, validate_path_component};
 use clap::Parser;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -697,6 +697,7 @@ fn doc_to_clean_json(doc: &anno::GroundedDocument, model_name: &str) -> serde_js
         "id": doc.id(),
         "model": model_name,
         "text_length": doc.text().chars().count(),
+        "source_sha256": source_sha256(doc.text()),
         "entity_count": entities.len(),
         "entities": entities,
     });
@@ -1170,6 +1171,10 @@ mod tests {
         assert_eq!(json["model"], "bert-onnx");
         assert_eq!(json["entity_count"], 1);
         assert_eq!(json["text_length"], 23);
+        assert_eq!(
+            json["source_sha256"],
+            "faf8f1b7e1e4ec1b9d15fb8f785f58ce6d885ce69300ec4b678d6c3aa7dbab05"
+        );
 
         let entity = &json["entities"][0];
         assert_eq!(entity["text"], "Alice");

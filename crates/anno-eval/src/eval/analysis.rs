@@ -222,7 +222,8 @@ impl ErrorAnalysis {
         Self::default()
     }
 
-    /// Analyze predictions against ground truth.
+    /// Analyze predictions against contiguous gold samples. A discontinuous
+    /// prediction overlaps gold only on its covered segments.
     pub fn analyze(text: &str, predicted: &[Entity], gold: &[GoldEntity]) -> Self {
         let mut analysis = Self::new();
         analysis.total_predictions = predicted.len();
@@ -241,7 +242,9 @@ impl ErrorAnalysis {
                 }
 
                 // Check for exact match
-                if pred.start() == g.start && pred.end() == g.end {
+                let predicted_span = pred.coverage();
+                let gold_span = g.coverage();
+                if !gold_span.ranges().is_empty() && predicted_span.ranges() == gold_span.ranges() {
                     if pred.entity_type == g.entity_type {
                         // Correct - not an error
                         gold_matched[i] = true;
@@ -252,7 +255,7 @@ impl ErrorAnalysis {
                     }
                 }
                 // Check for overlap
-                else if pred.start() < g.end && pred.end() > g.start {
+                else if predicted_span.overlaps(&gold_span) {
                     let error = if pred.entity_type == g.entity_type {
                         ErrorType::BoundaryError
                     } else {
@@ -291,22 +294,7 @@ impl ErrorAnalysis {
                 });
                 *analysis.counts.entry(error_type).or_insert(0) += 1;
             } else {
-                // This prediction didn't match any unmatched gold entity.
-                // Check if it would have matched a gold that was already matched
-                // by a previous prediction - if so, this is a duplicate/spurious prediction.
-                //
-                // Note: We check gold_matched[i] to see if the gold was already matched.
-                // If a gold was already matched AND this prediction matches it exactly,
-                // then this prediction is a duplicate (spurious), not a correct match.
-                let _is_duplicate = gold.iter().enumerate().any(|(i, g)| {
-                    gold_matched[i]
-                        && pred.start() == g.start
-                        && pred.end() == g.end
-                        && pred.entity_type == g.entity_type
-                });
-
-                // This prediction is spurious (either duplicate or no match)
-                // Both duplicates and non-matching predictions are spurious
+                // An unmatched prediction is spurious, including duplicate predictions.
                 let char_count = text.chars().count();
                 let context_start = pred.start().saturating_sub(20);
                 let context_end = (pred.end() + 20).min(char_count);
@@ -437,81 +425,19 @@ impl NERSignificanceTest {
         system_b: &str,
         scores_b: &[f64],
     ) -> Self {
-        assert_eq!(
-            scores_a.len(),
-            scores_b.len(),
-            "Scores must have same length"
-        );
-        let n = scores_a.len();
-
-        if n < 2 {
-            return Self {
-                system_a: system_a.to_string(),
-                system_b: system_b.to_string(),
-                mean_a: scores_a.first().copied().unwrap_or(0.0),
-                mean_b: scores_b.first().copied().unwrap_or(0.0),
-                difference: 0.0,
-                std_error: 0.0,
-                t_statistic: 0.0,
-                p_value: 1.0,
-                n,
-                significant_05: false,
-                significant_01: false,
-            };
-        }
-
-        let differences: Vec<f64> = scores_a
-            .iter()
-            .zip(scores_b.iter())
-            .map(|(a, b)| a - b)
-            .collect();
-
-        let mean_diff = differences.iter().sum::<f64>() / n as f64;
-        let mean_a = scores_a.iter().sum::<f64>() / n as f64;
-        let mean_b = scores_b.iter().sum::<f64>() / n as f64;
-
-        let variance: f64 = differences
-            .iter()
-            .map(|&d| (d - mean_diff).powi(2))
-            .sum::<f64>()
-            / (n - 1) as f64;
-        let std_diff = variance.sqrt();
-        let std_error = std_diff / (n as f64).sqrt();
-
-        let t_stat = if std_error > 0.0 {
-            mean_diff / std_error
-        } else {
-            0.0
-        };
-
-        // Approximate p-value
-        let p_value = Self::approximate_p_value(t_stat.abs(), n - 1);
-
+        let test = super::SignificanceTest::paired_t_test(scores_a, scores_b);
         Self {
-            system_a: system_a.to_string(),
-            system_b: system_b.to_string(),
-            mean_a,
-            mean_b,
-            difference: mean_diff,
-            std_error,
-            t_statistic: t_stat,
-            p_value,
-            n,
-            significant_05: p_value < 0.05,
-            significant_01: p_value < 0.01,
-        }
-    }
-
-    fn approximate_p_value(t: f64, df: usize) -> f64 {
-        let critical_05 = if df >= 30 { 1.96 } else { 2.1 };
-        let critical_01 = if df >= 30 { 2.576 } else { 2.9 };
-
-        if t < critical_05 {
-            0.10
-        } else if t < critical_01 {
-            0.03
-        } else {
-            0.005
+            system_a: system_a.to_owned(),
+            system_b: system_b.to_owned(),
+            mean_a: test.mean_a,
+            mean_b: test.mean_b,
+            difference: test.difference,
+            std_error: test.std_error,
+            t_statistic: test.t_statistic,
+            p_value: test.p_value,
+            n: test.n,
+            significant_05: test.significant_05,
+            significant_01: test.significant_01,
         }
     }
 }
@@ -566,7 +492,7 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
                 }
 
                 // Check for overlap
-                if pred.start() < gold.end && pred.end() > gold.start {
+                if pred.coverage().overlaps(&gold.coverage()) {
                     let gold_type = gold.entity_type.as_label().to_string();
                     matrix.add(&pred_type, &gold_type);
                     gold_matched[i] = true;
@@ -595,6 +521,24 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
 mod tests {
     use super::*;
     use anno::EntityType;
+
+    #[test]
+    fn discontinuous_predictions_get_no_diagnostic_credit_for_gaps() {
+        let mut prediction = Entity::new("Aé🦊B", anno::EntityType::Person, 0, 4, 1.0);
+        prediction.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![0..1, 3..4]));
+        let gap = GoldEntity::new("é🦊", anno::EntityType::Person, 1);
+        let preds = vec![prediction];
+        let golds = vec![gap];
+        let report = ErrorAnalysis::analyze("Aé🦊B", &preds, &golds);
+        assert_eq!(report.counts[&ErrorType::Spurious], 1);
+        assert_eq!(report.counts[&ErrorType::Missed], 1);
+        let whole = GoldEntity::new("Aé🦊B", anno::EntityType::Person, 0);
+        let report = ErrorAnalysis::analyze("Aé🦊B", &preds, &[whole]);
+        assert_eq!(report.counts[&ErrorType::BoundaryError], 1);
+        let matrix = build_confusion_matrix(&[(preds, golds)]);
+        assert_eq!(matrix.get("PER", "PER"), 0);
+        assert_eq!(matrix.get("MISSED", "PER"), 1);
+    }
 
     #[test]
     fn test_confusion_matrix() {

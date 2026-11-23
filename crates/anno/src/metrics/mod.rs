@@ -7,7 +7,7 @@
 //! Notes:
 //! - This is intentionally **not** the full evaluation framework. The full harness, datasets, and
 //!   reports live in the `anno-eval` crate.
-//! - The legacy feature name is `eval`; prefer enabling `analysis` (an alias).
+//! - Enable the `analysis` feature on `anno` to use this module.
 
 /// Coreference types (re-exported from `crate::core`).
 pub mod coref;

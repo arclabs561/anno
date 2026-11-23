@@ -15,8 +15,8 @@ developers or coding agents; it does not require a particular harness.
    `docs/EVALUATION_SAMPLING.md`. Keep receipts in a fresh directory:
 
    ```bash
-   REC="$PWD/.generated/anno-qa/run-001"
-   mkdir -p "$REC"
+   mkdir -p .generated/anno-qa
+   REC=$(mktemp -d "$PWD/.generated/anno-qa/run.XXXXXXXX")
    git rev-parse HEAD > "$REC/commit.txt"
    git diff > "$REC/working-tree.patch"
    cp Cargo.lock "$REC/Cargo.lock"
@@ -77,8 +77,7 @@ developers or coding agents; it does not require a particular harness.
    per-seed artifacts so a failed or minimal binary cannot pass using old JSON.
 
    ```bash
-   REC="$PWD/.generated/anno-qa/fixed-panel-001"
-   just qa-panel "$PWD/target/debug/anno" smoke "$REC"
+   just qa-panel "$PWD/target/debug/anno" smoke "$REC/fixed-panel"
    ```
 
    Run `--suite ner-baseline`, `classical-ner`, or `coref-diagnostic` only
@@ -130,6 +129,18 @@ developers or coding agents; it does not require a particular harness.
    dataset/model provenance, seeds, and measured quality. Link receipts. Stop
    when required fixed checks pass and exploratory findings are reproduced,
    fixed, or assigned an explicit follow-up with an owner and reason.
+
+### Real documents
+
+Run `just qa-random-selftest` for the offline URL checks. To exercise standards
+text, mixed-direction HTML and Japanese literature, run
+`just qa-random 3 pattern,heuristic 42 documents`. Set `ANNO` to an existing
+CLI built with URL support to skip the build. The scheduled and manually dispatched CI runs also sample two RSS
+feeds. The seed selects endpoints. For a backend comparison, verify that the
+reported text hashes match or give both backends the same captured input. Record the source, excerpt and
+exact character span when promoting a discovery to an offline CLI regression. A valid extraction
+with zero matches passes the live contract. Use labeled fixtures or evaluation
+panels to check what the extractor missed.
 
 ## Constraints
 

@@ -321,10 +321,17 @@ pub fn report(entities: &[PiiEntity]) -> PiiReport {
 /// duplicates are dropped and overlapping spans are merged into their union
 /// before replacement: dropping an overlap instead would leave the part of the
 /// longer span that extended past the shorter one in the output, which is a PII
-/// leak. Back-to-front replacement keeps character offsets valid.
+/// leak. Placeholders are numbered from right to left within each type.
+/// Empty merged spans insert a token. Offsets beyond the input consume only
+/// the available characters.
+///
+/// # Panics
+///
+/// Panics if a span's end precedes its start.
 pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
-    let mut result = text.to_string();
-    let mut type_counts: HashMap<&str, usize> = HashMap::new();
+    if entities.is_empty() {
+        return text.to_owned();
+    }
 
     // Deduplicate exact duplicates, then merge overlapping spans into their
     // union so every covered character is replaced. Sort by start ascending,
@@ -334,6 +341,7 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
     let mut merged: Vec<(usize, usize, &str)> = Vec::with_capacity(sorted.len());
     for entity in sorted {
+        assert!(entity.start <= entity.end, "PII span ends before it starts");
         match merged.last_mut() {
             Some((_, end, _)) if entity.start < *end => {
                 if entity.end > *end {
@@ -343,18 +351,24 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
             _ => merged.push((entity.start, entity.end, entity.pii_type.as_str())),
         }
     }
-    // Reverse for back-to-front replacement (so char offsets stay valid).
-    merged.reverse();
-
-    for (start, end, pii_type) in merged {
-        let count = type_counts.entry(pii_type).or_insert(0);
-        *count += 1;
-        let replacement = format!("[{}_{}]", pii_type, count);
-        // Convert char offsets to byte offsets for replace_range
-        let byte_start: usize = result.chars().take(start).map(|c| c.len_utf8()).sum();
-        let byte_end: usize = result.chars().take(end).map(|c| c.len_utf8()).sum();
-        result.replace_range(byte_start..byte_end, &replacement);
+    // Count down to preserve the historical right-to-left token numbering.
+    let mut type_counts = HashMap::<&str, usize>::new();
+    for &(_, _, pii_type) in &merged {
+        *type_counts.entry(pii_type).or_default() += 1;
     }
+
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    let mut previous_end = 0;
+    for (start, end, pii_type) in merged {
+        result.extend(chars.by_ref().take(start - previous_end));
+        chars.by_ref().take(end - start).for_each(drop);
+        let count = type_counts.get_mut(pii_type).expect("counted merged type");
+        result.push_str(&format!("[{pii_type}_{count}]"));
+        *count -= 1;
+        previous_end = end;
+    }
+    result.push_str(chars.as_str());
 
     result
 }
@@ -625,7 +639,8 @@ pub fn looks_like_address(text: &str) -> bool {
         "Terrace",
         "Ter",
     ];
-    let has_street = street_indicators.iter().any(|ind| text.contains(ind));
+    let mut words = text.split(|ch: char| !(ch.is_alphanumeric() || ch == '_'));
+    let has_street = words.clone().any(|word| street_indicators.contains(&word));
 
     let has_zip = Regex::new(r"\b\d{5}(?:-\d{4})?\b")
         .map(|re| re.is_match(text))
@@ -636,7 +651,7 @@ pub fn looks_like_address(text: &str) -> bool {
         "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
         "VA", "WA", "WV", "WI", "WY", "DC",
     ];
-    let has_state = us_states.iter().any(|s| text.contains(s));
+    let has_state = words.any(|word| us_states.contains(&word));
 
     (has_number && has_street) || (has_zip && has_state)
 }
@@ -885,6 +900,22 @@ mod tests {
         let mut reversed = entities.clone();
         reversed.reverse();
         assert_eq!(redact(text, &reversed), "[PERSON_1] called.");
+    }
+
+    #[test]
+    fn redact_preserves_numbering_and_unicode_gaps() {
+        let text = "🙂名:Zoë—Li";
+        let person = |start, end| PiiEntity {
+            text: String::new(),
+            pii_type: "PERSON".into(),
+            start,
+            end,
+            risk_level: "MEDIUM".into(),
+        };
+        assert_eq!(
+            redact(text, &[person(7, 40), person(3, 6), person(0, 0)]),
+            "[PERSON_3]🙂名:[PERSON_2]—[PERSON_1]"
+        );
     }
 
     #[test]
@@ -1369,6 +1400,18 @@ mod tests {
         }
         for text in ["1234 Elm Street", "1234 Elm Street, Springfield, IL 62704"] {
             assert!(looks_like_address(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn classify_location_requires_whole_address_indicators() {
+        for text in ["Studio 54", "Area 51 Driveway", "CANADA 12345"] {
+            let entity = Entity::new(text, EntityType::Location, 0, text.chars().count(), 0.95);
+            assert!(classify_entity(&entity).is_none(), "{text}");
+        }
+        for text in ["123 Main St.", "Chicago, IL 60601-1234"] {
+            let entity = Entity::new(text, EntityType::Location, 0, text.chars().count(), 0.95);
+            assert_eq!(classify_entity(&entity).unwrap().pii_type, "ADDRESS");
         }
     }
 

@@ -56,7 +56,7 @@ pub struct DatasetArgs {
 /// Dataset subcommand actions.
 #[derive(Subcommand, Debug)]
 pub enum DatasetAction {
-    /// List available datasets
+    /// List dataset catalog entries and standard loader support
     #[command(visible_alias = "ls")]
     List {
         /// Filter by task (ner, coref, re, el)
@@ -67,7 +67,7 @@ pub enum DatasetAction {
         #[arg(short, long)]
         domain: Option<String>,
 
-        /// Show only loadable datasets (vs full registry)
+        /// List only entries supported by the standard dataset loader
         #[arg(long)]
         loadable: bool,
 
@@ -305,7 +305,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
         } => {
             #[cfg(feature = "eval")]
             {
-                let m = model.create_model()?;
                 let ner_min_errors = min_case_errors.unwrap_or(min_errors);
                 #[cfg(feature = "eval")]
                 let coref_min_mentions = min_gold_mentions.unwrap_or(min_errors);
@@ -316,7 +315,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 #[cfg(not(feature = "eval"))]
                 let _ = (min_gold_mentions, min_gold_relations, coref_oracle_mentions);
 
-                let (name, test_cases) = if dataset == "synthetic" {
+                let (name, test_cases) = if matches!(task, EvalTask::Coref) {
+                    // Coreference uses document-level chains from its own loader below.
+                    (dataset.clone(), Vec::new())
+                } else if dataset == "synthetic" {
                     ("synthetic".to_string(), synthetic_ner_test_cases())
                 } else {
                     // Parse dataset ID
@@ -372,6 +374,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 // Route to appropriate evaluation based on task
                 match task {
                     EvalTask::Ner => {
+                        let m = model.create_model()?;
                         println!();
                         println!("Evaluating {} on {} dataset (NER)...", model.name(), name);
                         println!("  Sentences: {}", test_cases.len());
@@ -701,7 +704,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             println!("  Documents: {}", gold_docs.len());
                             println!();
 
+                            let mention_model = if coref_oracle_mentions {
+                                None
+                            } else {
+                                Some(model.create_model()?)
+                            };
                             let resolver = SimpleCorefResolver::default();
+                            let mut report_entities = Vec::new();
                             let mut all_pred_chains: Vec<Vec<anno_eval::eval::coref::CorefChain>> =
                                 Vec::new();
                             let mut all_gold_chains: Vec<&[anno_eval::eval::coref::CorefChain]> =
@@ -713,15 +722,20 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 all_gold_chains.push(&doc.chains);
 
                                 // Mentions source: model NER (default) or oracle gold mentions.
-                                let entities = if coref_oracle_mentions {
-                                    coref_doc_to_oracle_mentions(doc)
-                                } else {
-                                    m.extract_entities(text, None).unwrap_or_default()
+                                let entities = match &mention_model {
+                                    Some(detector) => detector.extract_entities(text, None).map_err(|e|
+                                        format!("Mention detection with {} failed on document {:?}: {e}", model.name(), doc.doc_id)
+                                    )?,
+                                    None => coref_doc_to_oracle_mentions(doc),
                                 };
 
                                 // Resolve coreference
-                                let pred_chains = resolver.resolve_to_chains(&entities);
-                                all_pred_chains.push(pred_chains);
+                                let resolved = resolver.resolve_entities(&entities);
+                                all_pred_chains
+                                    .push(anno_eval::eval::coref::entities_to_chains(&resolved));
+                                if html_output_path.is_some() {
+                                    report_entities.push(resolved);
+                                }
                             }
 
                             let elapsed = start_time.elapsed();
@@ -739,7 +753,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     &document_pairs,
                                 );
 
-                            println!("Results:");
+                            println!("{COREF_SCORING_POLICY}");
+                            println!("Results (mean across documents):");
                             println!("  CoNLL F1: {:.3}", results.mean.conll_f1);
                             println!(
                                 "  MUC: P={:.3} R={:.3} F1={:.3}",
@@ -796,14 +811,16 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 write_coref_error_explorer_html(
                                     output_path.as_path(),
                                     &name,
-                                    model.name(),
+                                    if coref_oracle_mentions {
+                                        "gold mentions"
+                                    } else {
+                                        model.name()
+                                    },
                                     resolver.name(),
                                     &gold_docs,
                                     &results.per_document,
                                     &selected,
-                                    m.as_ref(),
-                                    &resolver,
-                                    coref_oracle_mentions,
+                                    &report_entities,
                                 )?;
                                 println!(
                                     "{} HTML written to: {}",
@@ -822,6 +839,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         #[cfg(feature = "eval")]
                         {
                             use anno::backends::inference::RelationExtractor;
+                            let m = model.create_model()?;
                             use anno_eval::eval::loader::DatasetLoader;
                             use anno_eval::eval::relation::{
                                 evaluate_relations, RelationEvalConfig, RelationPrediction,
@@ -1697,6 +1715,10 @@ fn coref_doc_to_oracle_mentions(doc: &anno_eval::eval::coref::CorefDocument) -> 
 }
 
 #[cfg(feature = "eval")]
+const COREF_SCORING_POLICY: &str =
+    "Native CoNLL scoring matches exact character spans and retains supplied singleton chains.";
+
+#[cfg(feature = "eval")]
 #[allow(clippy::too_many_arguments)]
 fn write_coref_error_explorer_html(
     output_path: &Path,
@@ -1706,9 +1728,7 @@ fn write_coref_error_explorer_html(
     gold_docs: &[anno_eval::eval::coref::CorefDocument],
     per_doc: &[anno_eval::eval::coref_metrics::CorefEvaluation],
     selected_doc_indices: &[usize],
-    model: &dyn anno::Model,
-    resolver: &anno_eval::eval::coref_resolver::SimpleCorefResolver,
-    coref_oracle_mentions: bool,
+    predicted_entities: &[Vec<anno::Entity>],
 ) -> Result<(), String> {
     let parent = output_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = output_path
@@ -1747,19 +1767,13 @@ fn write_coref_error_explorer_html(
         fs::write(&gold_path, gold_html)
             .map_err(|e| format!("Failed to write {:?}: {}", gold_path, e))?;
 
-        // Predicted inspector (re-run NER + coref for selected docs only)
-        let entities = if coref_oracle_mentions {
-            coref_doc_to_oracle_mentions(doc)
-        } else {
-            model
-                .extract_entities(doc.text.as_str(), None)
-                .unwrap_or_default()
-        };
-        let resolved = resolver.resolve(&entities);
+        let resolved = predicted_entities
+            .get(idx)
+            .ok_or_else(|| format!("Missing scored entities for document {idx}"))?;
         let pred_gdoc = GroundedDocument::from_entities(
             format!("{dataset_name}:{doc_id}:pred"),
             doc.text.clone(),
-            &resolved,
+            resolved,
         );
         let pred_html = render_document_html(&pred_gdoc);
         let pred_filename = format!("coref_{:06}_pred.html", idx);
@@ -1803,6 +1817,7 @@ iframe{width:100%;height:82vh;border:0;background:var(--bg)}
             "<div style=\"display:flex;justify-content:space-between;align-items:center\"><h1>coref doc {idx:06} — {}</h1><span class=\"toggle\" id=\"theme-toggle\" title=\"toggle theme (auto → dark → light)\">theme: auto</span></div>",
             html_escape(&doc_id)
         ));
+        page.push_str(&format!("<p>{COREF_SCORING_POLICY}</p>"));
         page.push_str(&format!(
             "<div class=\"meta\"><b>dataset</b> {} &nbsp; <b>model</b> {} &nbsp; <b>resolver</b> {} &nbsp; <b>CoNLL F1</b> {:.3} &nbsp; <b>MUC</b> {:.3} &nbsp; <b>B³</b> {:.3} &nbsp; <b>CEAF-e</b> {:.3}</div>",
             html_escape(dataset_name),
@@ -1911,6 +1926,9 @@ code{color:var(--code)}
 </style></head><body>"##,
     );
     index.push_str("<div class=\"row\" style=\"justify-content:space-between\"><h1>coref eval explorer</h1><span class=\"toggle\" id=\"theme-toggle\" title=\"toggle theme (auto → dark → light)\">theme: auto</span></div>");
+    index.push_str(&format!(
+        "<p>{COREF_SCORING_POLICY} Each row scores one document.</p>"
+    ));
     index.push_str(&format!(
         "<div class=\"meta\"><b>model</b> {} &nbsp; <b>resolver</b> {} &nbsp; <b>dataset</b> {} &nbsp; <b>docs</b> {}</div>",
         html_escape(model_name),
@@ -2872,7 +2890,7 @@ fn run_list(
     verbose: bool,
 ) -> Result<(), String> {
     println!();
-    println!("{}", color("1;36", "Available Datasets"));
+    println!("{}", color("1;36", "Dataset Catalog"));
     println!();
 
     #[cfg(feature = "eval")]
@@ -2915,114 +2933,70 @@ fn run_list(
             }
         }
 
-        if loadable_only {
-            let task_pred = match task_filter.as_deref() {
-                Some(t) => Some(task_predicate(t)?),
-                None => None,
-            };
+        let catalog = RegistryDatasetId::all();
+        let has_loader = |id: &RegistryDatasetId| LoadableDatasetId::try_from(*id).is_ok();
+        let task = task_filter.as_deref().map(task_predicate).transpose()?;
+        let domain = domain_filter.as_deref().map(str::to_lowercase);
 
-            // Show only loadable datasets
-            let loadable_datasets: Vec<RegistryDatasetId> = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| LoadableDatasetId::try_from(*id).is_ok())
-                .collect();
+        if !loadable_only && task.is_none() && domain.is_none() && !verbose {
+            println!("  {} catalog entries", catalog.len());
             println!(
-                "  {} loadable datasets (can be downloaded and parsed):",
-                loadable_datasets.len()
+                "    Supported by the standard loader: {}",
+                catalog.iter().filter(|id| has_loader(id)).count()
+            );
+            println!(
+                "    Marked for automatic retrieval:   {}",
+                catalog
+                    .iter()
+                    .filter(|id| id.is_automatable_download())
+                    .count()
+            );
+            println!(
+                "    NER:                              {}",
+                catalog.iter().filter(|id| id.is_ner()).count()
+            );
+            println!(
+                "    Coreference:                      {}",
+                catalog.iter().filter(|id| id.is_coreference()).count()
+            );
+            println!(
+                "    Biomedical:                       {}",
+                catalog.iter().filter(|id| id.is_biomedical()).count()
             );
             println!();
-
-            for id in loadable_datasets {
-                let name = id.name();
-                if let Some(ref task_pred) = task_pred {
-                    let tasks = id.tasks_typed();
-                    if !task_pred(&tasks) {
-                        continue;
-                    }
-                }
-
+            println!("  Cache manifests identify local artifacts. Evaluation receipts record completed runs.");
+        } else {
+            let entries: Vec<_> = catalog
+                .iter()
+                .filter(|id| {
+                    (!loadable_only || has_loader(id))
+                        && task.as_ref().is_none_or(|test| test(&id.tasks_typed()))
+                        && domain
+                            .as_ref()
+                            .is_none_or(|filter| id.domain().to_lowercase().contains(filter))
+                })
+                .collect();
+            let group = if loadable_only {
+                "entries supported by the standard loader"
+            } else {
+                "catalog entries"
+            };
+            println!("  {} {group} matching the selection:", entries.len());
+            for id in entries {
                 if verbose {
-                    let citation = id.citation().unwrap_or("N/A");
-                    let license = id.license().unwrap_or("Unknown");
                     let year = id
                         .year()
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    println!("    {:<20} [{:>4}] {} ({})", name, year, citation, license);
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "----".to_string());
+                    println!(
+                        "    {:<25} [{:>4}] {} ({})",
+                        id.name(),
+                        year,
+                        id.citation().unwrap_or("N/A"),
+                        id.license().unwrap_or("Unknown")
+                    );
                 } else {
-                    println!("    {}", name);
-                }
-            }
-        } else {
-            // Show registry (full catalog)
-            let all_datasets: Vec<_> = RegistryDatasetId::all().iter().collect();
-            let loadable_count = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| LoadableDatasetId::try_from(*id).is_ok())
-                .count();
-            let automatable_count = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| id.is_automatable_download())
-                .count();
-            println!(
-                "  {} datasets in registry ({} loadable):",
-                all_datasets.len(),
-                loadable_count
-            );
-            println!();
-
-            // Group by domain if no filter
-            if domain_filter.is_none() && task_filter.is_none() {
-                // Just show counts by category
-                let ner_count = all_datasets.iter().filter(|d| d.is_ner()).count();
-                let coref_count = all_datasets.iter().filter(|d| d.is_coreference()).count();
-                let bio_count = all_datasets.iter().filter(|d| d.is_biomedical()).count();
-
-                println!("    NER datasets:           {}", ner_count);
-                println!("    Coreference datasets:   {}", coref_count);
-                println!("    Biomedical datasets:    {}", bio_count);
-                println!("    Automatable downloads:  {}", automatable_count);
-                println!();
-                println!("  Use --loadable to see only datasets with loader implementations");
-                println!("  Use --task ner/coref/re/el to filter by task");
-                println!("  Use --verbose for more details");
-            } else {
-                let task_pred = match task_filter.as_deref() {
-                    Some(t) => Some(task_predicate(t)?),
-                    None => None,
-                };
-
-                // Filter and display
-                for dataset in &all_datasets {
-                    // Apply task filter
-                    if let Some(ref task_pred) = task_pred {
-                        let tasks = dataset.tasks_typed();
-                        if !task_pred(&tasks) {
-                            continue;
-                        }
-                    }
-
-                    // Apply domain filter
-                    if let Some(ref domain) = domain_filter {
-                        let dataset_domain = dataset.domain().to_lowercase();
-                        if !dataset_domain.contains(&domain.to_lowercase()) {
-                            continue;
-                        }
-                    }
-
-                    if verbose {
-                        let citation = dataset.citation().unwrap_or("N/A");
-                        let year = dataset
-                            .year()
-                            .map(|y| y.to_string())
-                            .unwrap_or_else(|| "----".to_string());
-                        println!("    {:<25} [{:>4}] {}", dataset.name(), year, citation);
-                    } else {
-                        println!("    {}", dataset.name());
-                    }
+                    println!("    {}", id.name());
                 }
             }
         }
@@ -3081,6 +3055,11 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
             // Local datasets are allowed to have no URL (they live in-repo / on-disk).
             if access_status == anno_eval::eval::dataset_registry::DatasetAccessibility::Local {
                 // no-op
+            } else if !is_loadable && access_status.is_automatable() {
+                info.push(format!(
+                    "{}: catalog only; no standard loader or configured download URL",
+                    registry_id.name()
+                ));
             } else if access_status.is_automatable() {
                 warnings.push(format!(
                     "{}: Missing download URL but marked as automatable ({})",
@@ -3139,7 +3118,7 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
 
     // Summary
     if !issues_only {
-        println!("Checked {} datasets", datasets_to_check.len());
+        println!("Catalog entries checked: {}", datasets_to_check.len());
         println!();
     }
 
@@ -3169,8 +3148,10 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
 
     // Statistics
     if !issues_only {
-        let registry_count = RegistryDatasetId::all().len();
-        let loadable_count = LoadableDatasetId::all().len();
+        let loadable_count = datasets_to_check
+            .iter()
+            .filter(|id| LoadableDatasetId::try_from(**id).is_ok())
+            .count();
         let with_urls = datasets_to_check
             .iter()
             .filter(|d| !d.download_url().is_empty())
@@ -3183,11 +3164,10 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
             })
             .count();
 
-        println!("Statistics:");
-        println!("  Registry datasets:    {}", registry_count);
-        println!("  Loadable datasets:   {}", loadable_count);
-        println!("  With download URLs: {}", with_urls);
-        println!("  With entity types:   {}", with_entity_types);
+        println!("Checked entries:");
+        println!("  Supported by the standard loader: {}", loadable_count);
+        println!("  With download URLs:               {}", with_urls);
+        println!("  With entity types:                {}", with_entity_types);
         println!();
     }
 
