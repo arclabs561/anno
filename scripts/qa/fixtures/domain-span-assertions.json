@@ -1,0 +1,146 @@
+[
+  {
+    "id": "astronomy-occultation",
+    "domain": "astronomy",
+    "text": "The occultation is forecast for 2028-05-16. Its identifier is OBS-0516.",
+    "assertions": [
+      {"kind": "exact_span", "start": 32, "end": 42, "text": "2028-05-16", "types": ["DATE"]},
+      {"kind": "no_overlap", "start": 62, "end": 70, "text": "OBS-0516", "types": ["DATE"]}
+    ]
+  },
+  {
+    "id": "astronomy-telescope",
+    "domain": "astronomy",
+    "text": "Send a copy to nightshift@example.org. The local account is nightshift.",
+    "assertions": [
+      {"kind": "exact_span", "start": 15, "end": 37, "text": "nightshift@example.org", "types": ["EMAIL"]},
+      {"kind": "no_overlap", "start": 60, "end": 71, "text": "nightshift.", "types": ["EMAIL"]}
+    ]
+  },
+  {
+    "id": "law-filing",
+    "domain": "law",
+    "text": "Case CV-2087 was filed on 2023-11-02.",
+    "assertions": [
+      {"kind": "exact_span", "start": 26, "end": 36, "text": "2023-11-02", "types": ["DATE"]},
+      {"kind": "no_overlap", "start": 5, "end": 12, "text": "CV-2087", "types": ["DATE"]}
+    ]
+  },
+  {
+    "id": "law-filing-fee",
+    "domain": "law",
+    "text": "The filing fee is $175. The reference is fee-175.",
+    "assertions": [
+      {"kind": "exact_span", "start": 18, "end": 22, "text": "$175", "types": ["MONEY"]},
+      {"kind": "no_overlap", "start": 41, "end": 48, "text": "fee-175", "types": ["MONEY"]}
+    ]
+  },
+  {
+    "id": "health-appointment",
+    "domain": "health",
+    "text": "The clinic opens at 9:30 AM. Room B-930 handles follow-up visits.",
+    "assertions": [
+      {"kind": "exact_span", "start": 20, "end": 27, "text": "9:30 AM", "types": ["TIME"]},
+      {"kind": "no_overlap", "start": 34, "end": 39, "text": "B-930", "types": ["TIME"]}
+    ]
+  },
+  {
+    "id": "health-vaccination",
+    "domain": "health",
+    "text": "The clinic reported 82% coverage in district D82.",
+    "assertions": [
+      {"kind": "exact_span", "start": 20, "end": 23, "text": "82%", "types": ["PERCENT"]},
+      {"kind": "no_overlap", "start": 45, "end": 48, "text": "D82", "types": ["PERCENT"]}
+    ]
+  },
+  {
+    "id": "sports-batting",
+    "domain": "sports",
+    "text": "The visiting side won 75% of away games. Its training group is U17.",
+    "assertions": [
+      {"kind": "exact_span", "start": 22, "end": 25, "text": "75%", "types": ["PERCENT"]},
+      {"kind": "no_overlap", "start": 63, "end": 66, "text": "U17", "types": ["PERCENT"]}
+    ]
+  },
+  {
+    "id": "sports-fixture",
+    "domain": "sports",
+    "text": "The rescheduled race is on 2027-02-13. Its course code is R-0213.",
+    "assertions": [
+      {"kind": "exact_span", "start": 27, "end": 37, "text": "2027-02-13", "types": ["DATE"]},
+      {"kind": "no_overlap", "start": 58, "end": 64, "text": "R-0213", "types": ["DATE"]}
+    ]
+  },
+  {
+    "id": "software-maintainer",
+    "domain": "software",
+    "text": "Build alerts go to build+ci@example.org. The local git branch is build-ci.",
+    "assertions": [
+      {"kind": "exact_span", "start": 19, "end": 39, "text": "build+ci@example.org", "types": ["EMAIL"]},
+      {"kind": "no_overlap", "start": 65, "end": 73, "text": "build-ci", "types": ["EMAIL"]}
+    ]
+  },
+  {
+    "id": "software-release",
+    "domain": "software",
+    "text": "The release date is 2024-09-30. Its semantic version is v1.9.30.",
+    "assertions": [
+      {"kind": "exact_span", "start": 20, "end": 30, "text": "2024-09-30", "types": ["DATE"]},
+      {"kind": "no_overlap", "start": 56, "end": 63, "text": "v1.9.30", "types": ["DATE"]}
+    ]
+  },
+  {
+    "id": "finance-invoice",
+    "domain": "finance",
+    "text": "Invoice INV-240 charges $240 for shipping.",
+    "assertions": [
+      {"kind": "exact_span", "start": 24, "end": 28, "text": "$240", "types": ["MONEY"]},
+      {"kind": "no_overlap", "start": 8, "end": 15, "text": "INV-240", "types": ["MONEY"]}
+    ]
+  },
+  {
+    "id": "finance-yield",
+    "domain": "finance",
+    "text": "The quoted yield was 7.5% for note Y75.",
+    "assertions": [
+      {"kind": "exact_span", "start": 21, "end": 25, "text": "7.5%", "types": ["PERCENT"]},
+      {"kind": "no_overlap", "start": 35, "end": 38, "text": "Y75", "types": ["PERCENT"]}
+    ]
+  },
+  {
+    "id": "arts-conservation",
+    "domain": "arts",
+    "text": "🎨 Conservation queries go to atelier@example.org. The wall label reads atelier.",
+    "assertions": [
+      {"kind": "exact_span", "start": 29, "end": 48, "text": "atelier@example.org", "types": ["EMAIL"]},
+      {"kind": "no_overlap", "start": 71, "end": 79, "text": "atelier.", "types": ["EMAIL"]}
+    ]
+  },
+  {
+    "id": "arts-acquisition",
+    "domain": "arts",
+    "text": "The print was accessioned on 1999-07-04 under code ART-0704.",
+    "assertions": [
+      {"kind": "exact_span", "start": 29, "end": 39, "text": "1999-07-04", "types": ["DATE"]},
+      {"kind": "no_overlap", "start": 51, "end": 59, "text": "ART-0704", "types": ["DATE"]}
+    ]
+  },
+  {
+    "id": "transport-train",
+    "domain": "transport",
+    "text": "The train leaves Malmö at 8:45 PM from platform P845.",
+    "assertions": [
+      {"kind": "exact_span", "start": 26, "end": 33, "text": "8:45 PM", "types": ["TIME"]},
+      {"kind": "no_overlap", "start": 48, "end": 52, "text": "P845", "types": ["TIME"]}
+    ]
+  },
+  {
+    "id": "transport-fare",
+    "domain": "transport",
+    "text": "Bus route B12 now charges $12 for a day ticket.",
+    "assertions": [
+      {"kind": "exact_span", "start": 26, "end": 29, "text": "$12", "types": ["MONEY"]},
+      {"kind": "no_overlap", "start": 10, "end": 13, "text": "B12", "types": ["MONEY"]}
+    ]
+  }
+]

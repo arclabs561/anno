@@ -25,10 +25,19 @@ jobs:
       - name: Measure offline extraction and gold-span retention
         shell: bash
         run: |
+          cargo test --locked --release -p anno-eval --example offline_extraction_profile
           cargo run --locked --release -p anno-eval --example offline_extraction_profile -- wikigold.conll | tee profile.md
           cat profile.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            git rev-parse HEAD
+            sha256sum wikigold.conll
+            rustc -Vv
+            lscpu
+          } > environment.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: wikigold-offline-extraction
-          path: profile.md
+          path: |
+            profile.md
+            environment.txt
           if-no-files-found: error

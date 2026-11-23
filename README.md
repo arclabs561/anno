@@ -14,11 +14,11 @@ Run the example with offline backends from the repository root.
 cargo run -p anno --no-default-features --example quickstart
 ```
 
-For your own project, add anno to `Cargo.toml`.
+Run `cargo add anno` to install the current published release. This source tree targets the following dependency.
 
 ```toml
 [dependencies]
-anno = "0.14"
+anno = "0.15"
 ```
 
 ```rust,no_run

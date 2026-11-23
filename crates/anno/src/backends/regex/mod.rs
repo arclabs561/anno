@@ -230,40 +230,60 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bhttps?://[^\s<>\[\]{}|\\^`\x00-\x1f]+").expect("valid regex")
 });
 
-// In Japanese prose a parenthesized URL can run directly into the next word.
-// Mask only the matching outer delimiter while scanning for URLs. An ideographic
-// space has the same UTF-8 length, keeping both byte and character offsets intact.
+// Mask a matching outer parenthesis before scanning: Markdown and Japanese
+// prose can place another word or link immediately after it. Replacing the
+// delimiter with a space of the same UTF-8 width preserves source offsets.
 fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     let mut result = std::borrow::Cow::Borrowed(text);
-    if !text.contains('（') {
+    if !text.contains(['(', '（']) {
         return result;
     }
+    let mut wrapper = None;
     let mut depth = 0;
     for (byte, ch) in text.char_indices() {
-        match ch {
-            '（' if depth > 0 => depth += 1,
-            '（' => {
-                let rest = &text.as_bytes()[byte + ch.len_utf8()..];
-                if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
-                    rest.get(..scheme.len())
-                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
-                }) {
-                    depth = 1;
-                }
-            }
-            '）' if depth > 0 => {
+        if let Some((open, close)) = wrapper {
+            if ch == open {
+                depth += 1;
+            } else if ch == close {
                 depth -= 1;
                 if depth == 0 {
+                    let space = if close == ')' { " " } else { "　" };
                     result
                         .to_mut()
-                        .replace_range(byte..byte + ch.len_utf8(), "　");
+                        .replace_range(byte..byte + ch.len_utf8(), space);
+                    wrapper = None;
                 }
+            } else if ch.is_whitespace() {
+                wrapper = None;
             }
-            c if c.is_whitespace() => depth = 0,
-            _ => {}
+        } else if matches!(ch, '(' | '（') {
+            let rest = &text.as_bytes()[byte + ch.len_utf8()..];
+            if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
+                rest.get(..scheme.len())
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+            }) {
+                wrapper = Some((ch, if ch == '(' { ')' } else { '）' }));
+                depth = 1;
+            }
         }
     }
     result
+}
+
+// A percent escape is exactly '%' followed by two ASCII hex digits in the URL.
+fn is_url_escape(m: regex::Match<'_>, urls: &[regex::Match<'_>]) -> bool {
+    if !m.as_str().ends_with('%') {
+        return false;
+    }
+    let next = urls.partition_point(|url| url.end() <= m.start());
+    let Some(url) = urls.get(next).filter(|url| url.start() <= m.start()) else {
+        return false;
+    };
+    let after_percent = m.end() - url.start();
+    url.as_str()
+        .as_bytes()
+        .get(after_percent..after_percent + 2)
+        .is_some_and(|pair| pair.iter().all(u8::is_ascii_hexdigit))
 }
 
 static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
@@ -412,8 +432,13 @@ impl Model for RegexNER {
             }
         }
 
-        // Percentages
+        // Preserve numeric substrings before a percent-encoded octet in the address.
+        let url_input = url_text(text);
+        let urls: Vec<_> = URL.find_iter(&url_input).collect();
         for m in PERCENT.find_iter(text) {
+            if is_url_escape(m, &urls) {
+                continue;
+            }
             add_entity(m, EntityType::Percent, 0.95, "PERCENT");
         }
 
@@ -422,9 +447,7 @@ impl Model for RegexNER {
             add_entity(m, EntityType::Email, 0.98, "EMAIL");
         }
 
-        // URLs (very high confidence)
-        let urls = url_text(text);
-        for m in URL.find_iter(&urls) {
+        for m in urls {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
@@ -896,6 +919,56 @@ mod tests {
     // ========================================================================
     // URL Tests
     // ========================================================================
+
+    #[test]
+    fn url_percent_escapes_do_not_hide_the_address_or_an_outside_percentage() {
+        let url = "https://example.org/search?q=75%25%20cocoa";
+        let text = format!("🦊 {url} (12.5% of recipes)");
+        let entities = extract(&text);
+        assert!(entities.iter().any(|e| e.entity_type == EntityType::Url
+            && e.text == url
+            && e.start() == 2
+            && e.end() == 2 + url.chars().count()));
+        let percentages: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Percent)
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(percentages, ["12.5%"]);
+    }
+
+    #[test]
+    fn incomplete_or_nonhex_escape_keeps_percentage_detection() {
+        for suffix in ["", "F", "0G"] {
+            let text = format!("https://example.org/path/17%{suffix}");
+            assert!(extract(&text)
+                .iter()
+                .any(|e| e.entity_type == EntityType::Percent && e.text == "17%"));
+        }
+    }
+
+    #[test]
+    fn markdown_url_wrappers_preserve_literal_parentheses_and_source_ranges() {
+        let text = "🦊 [doc](HTTPS://example.org/guide)[ref](http://example.org/A_(B)) bare https://example.org/A_(B)";
+        let urls: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Url)
+            .map(|e| (e.start(), e.end(), e.text))
+            .collect();
+        let expected: Vec<_> = [
+            "HTTPS://example.org/guide",
+            "http://example.org/A_(B)",
+            "https://example.org/A_(B)",
+        ]
+        .iter()
+        .map(|&url| {
+            let byte = text.find(url).unwrap();
+            let start = text[..byte].chars().count();
+            (start, start + url.chars().count(), url.to_string())
+        })
+        .collect();
+        assert_eq!(urls, expected);
+    }
 
     #[test]
     fn fullwidth_url_wrappers_preserve_internal_and_unwrapped_punctuation() {

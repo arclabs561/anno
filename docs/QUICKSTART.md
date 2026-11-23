@@ -5,11 +5,11 @@ start with offline heuristics; model downloads and evaluation are optional.
 
 ## Install
 
-As a Rust library:
+Run `cargo add anno` for the current published release. To target the 0.15 release line, use this dependency.
 
 ```toml
 [dependencies]
-anno = "0.14"
+anno = "0.15"
 ```
 
 Install the CLI:
