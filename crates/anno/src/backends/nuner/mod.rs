@@ -238,13 +238,6 @@ impl Model for NuNER {
         format!("nuner-zero-{}", self.model_id)
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
-    }
-
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
         // The `ZeroShotNER` impl below is gated on `onnx`; the default `None`
         // applies when `onnx` is off.

@@ -153,8 +153,14 @@ pub struct CrossDocCluster {
     pub mentions: Vec<(String, usize)>,
     /// External knowledge base ID (if linked)
     pub kb_id: Option<String>,
+    /// Knowledge base namespace of the external ID, when supplied by the input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kb_name: Option<String>,
     /// Confidence in this clustering
     pub confidence: f64,
+    /// Lowest pairwise similarity within a corpus-resolved cluster, when measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_pair_similarity: Option<anno::Confidence>,
 }
 
 impl CrossDocCluster {
@@ -168,7 +174,9 @@ impl CrossDocCluster {
             documents: Vec::new(),
             mentions: Vec::new(),
             kb_id: None,
+            kb_name: None,
             confidence: 1.0,
+            minimum_pair_similarity: None,
         }
     }
 
@@ -242,16 +250,14 @@ impl From<&CrossDocCluster> for anno::Identity {
         Self {
             id: anno::IdentityId::new(cluster.id),
             canonical_name: cluster.canonical_name.clone(),
-            entity_type: cluster
-                .entity_type
-                .as_ref()
-                .map(|t| anno::TypeLabel::from(t.as_label())),
+            entity_type: cluster.entity_type.clone().map(anno::TypeLabel::from),
             kb_id: cluster.kb_id.clone(),
-            kb_name: None,
+            kb_name: cluster.kb_name.clone(),
             description: None,
             embedding: None,
             aliases: Vec::new(),
             confidence: anno::Confidence::new(cluster.confidence),
+            minimum_pair_similarity: cluster.minimum_pair_similarity,
             source: None, // Cannot determine source from CDCR format (no track_ids)
         }
     }
@@ -1311,6 +1317,18 @@ mod tests {
     }
 
     #[test]
+    fn cluster_projection_preserves_an_explicit_label_category_and_kb_namespace() {
+        let custom = EntityType::custom("GROUP", anno::EntityCategory::Place);
+        let mut cluster = CrossDocCluster::new(7_u64, "Acme").with_type(custom.clone());
+        cluster.kb_id = Some("42".to_owned());
+        cluster.kb_name = Some("catalog".to_owned());
+        let identity = anno::Identity::from(&cluster);
+        assert_eq!(identity.entity_type.unwrap().to_entity_type(), custom);
+        assert_eq!(identity.kb_name.as_deref(), Some("catalog"));
+        assert_eq!(identity.kb_id.as_deref(), Some("42"));
+    }
+
+    #[test]
     fn test_cdcr_metrics() {
         // Simple test case: 2 entities, 2 clusters each
         let pred = vec![CrossDocCluster {
@@ -1320,7 +1338,9 @@ mod tests {
             documents: vec!["d1".into(), "d2".into()],
             mentions: vec![("d1".into(), 0), ("d2".into(), 0)],
             kb_id: None,
+            kb_name: None,
             confidence: 1.0,
+            minimum_pair_similarity: None,
         }];
 
         let gold = vec![CrossDocCluster {
@@ -1330,7 +1350,9 @@ mod tests {
             documents: vec!["d1".into(), "d2".into()],
             mentions: vec![("d1".into(), 0), ("d2".into(), 0)],
             kb_id: None,
+            kb_name: None,
             confidence: 1.0,
+            minimum_pair_similarity: None,
         }];
 
         let metrics = CDCRMetrics::compute(&pred, &gold);

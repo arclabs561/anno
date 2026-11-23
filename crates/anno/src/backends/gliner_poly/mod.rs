@@ -142,11 +142,8 @@ impl crate::Model for GLiNERPoly {
         "Poly-Encoder GLiNER for zero-shot NER with inter-label interactions (ONNX)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
     }
 
     fn version(&self) -> String {

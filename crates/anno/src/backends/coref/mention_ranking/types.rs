@@ -598,22 +598,7 @@ impl MentionCluster {
         self.mentions
             .iter()
             .enumerate()
-            .map(|(idx, mention)| {
-                let label = match &mention.entity_type {
-                    Some(et) => crate::TypeLabel::from(et.as_label()),
-                    None => crate::TypeLabel::from(mention.mention_type.as_label()),
-                };
-                crate::Signal::new(
-                    signal_id_base + idx as u64,
-                    crate::Location::Text {
-                        start: mention.start,
-                        end: mention.end,
-                    },
-                    mention.text.clone(),
-                    label,
-                    1.0,
-                )
-            })
+            .map(|(idx, mention)| mention.to_signal(signal_id_base + idx as u64))
             .collect()
     }
 
@@ -673,7 +658,7 @@ impl RankedMention {
     #[must_use]
     pub fn to_signal(&self, signal_id: crate::SignalId) -> crate::Signal<crate::Location> {
         let label = match &self.entity_type {
-            Some(et) => crate::TypeLabel::from(et.as_label()),
+            Some(et) => crate::TypeLabel::from(et.clone()),
             None => crate::TypeLabel::from(self.mention_type.as_label()),
         };
         crate::Signal::new(
@@ -916,6 +901,23 @@ mod tests {
         mention.entity_type = Some(crate::EntityType::Person);
         let signal = mention.to_signal(crate::SignalId::ZERO);
         assert_eq!(signal.label.as_str(), "PER");
+    }
+
+    #[test]
+    fn explicit_category_survives_mention_and_cluster_projection() {
+        let entity_type = crate::EntityType::custom("DISEASE", crate::EntityCategory::Agent);
+        let entity = crate::Entity::new("fever", entity_type.clone(), 0, 5, 0.9);
+        let mention = RankedMention::from(&entity);
+        let base = crate::SignalId::new(5);
+        assert_eq!(mention.to_signal(base).label.to_entity_type(), entity_type);
+
+        let cluster = MentionCluster {
+            id: 1,
+            mentions: vec![mention],
+        };
+        let (_, signals) = cluster.to_track(base);
+        assert_eq!(signals[0].id, base);
+        assert_eq!(signals[0].label.to_entity_type(), entity_type);
     }
 
     #[test]

@@ -1,14 +1,14 @@
 //! Checked conversion from flat extraction results to a grounded document.
 
 use super::super::types::CanonicalId;
-use super::{Entity, EntityType, GroundedDocument};
+use super::{Entity, GroundedDocument};
 use std::collections::HashMap;
 
 /// Evidence in a flat entity that cannot be retained by grounded grouping.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum EntityProjectionError {
-    /// The grounded signal stores a label whose flat representation changes the type.
+    /// Legacy projection error from string-only labels. Current signals retain the type.
     #[error("entity {index} has an entity type that cannot round-trip through its signal label")]
     LabelMapping {
         /// Zero-based index in the input slice.
@@ -60,7 +60,7 @@ impl GroundedDocument {
     /// # Errors
     ///
     /// Returns the first entity with a mention type, visual span, incompatible segment
-    /// bounds, lossy type label, or conflicting KB link within its canonical group.
+    /// bounds, or conflicting KB link within its canonical group.
     pub fn try_from_entities(
         id: impl Into<String>,
         text: impl Into<String>,
@@ -80,9 +80,6 @@ impl GroundedDocument {
                     return Err(EntityProjectionError::SegmentBounds { index });
                 }
             }
-            if EntityType::from_label(entity.entity_type.as_label()) != entity.entity_type {
-                return Err(EntityProjectionError::LabelMapping { index });
-            }
             if let (Some(group), Some(kb_id)) = (entity.canonical_id, entity.kb_id.as_deref()) {
                 let (first_index, first_link) = *links.entry(group).or_insert((index, kb_id));
                 if first_link != kb_id {
@@ -101,7 +98,7 @@ impl GroundedDocument {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EntityCategory, MentionType};
+    use crate::{EntityCategory, EntityType, MentionType};
 
     fn entity(kb: Option<&str>, group: Option<CanonicalId>) -> Entity {
         let mut e = Entity::new("A", EntityType::Person, 0, 1, 0.123456789);
@@ -151,14 +148,29 @@ mod tests {
     }
 
     #[test]
-    fn checked_grouping_reports_unrepresentable_metadata() {
+    fn checked_grouping_preserves_explicit_categories_on_disk_and_in_queries() {
         let mut e = entity(None, None);
         e.entity_type = EntityType::custom("DISEASE", EntityCategory::Agent);
+        let doc = GroundedDocument::try_from_entities("d", "A", std::slice::from_ref(&e)).unwrap();
+        let saved: GroundedDocument =
+            serde_json::from_value(serde_json::to_value(doc).unwrap()).unwrap();
+        assert_eq!(saved.signals_with_label("DISEASE").len(), 1);
         assert_eq!(
-            GroundedDocument::try_from_entities("d", "A", std::slice::from_ref(&e)).unwrap_err(),
-            EntityProjectionError::LabelMapping { index: 0 }
+            saved
+                .tracks()
+                .next()
+                .unwrap()
+                .type_label()
+                .unwrap()
+                .to_entity_type(),
+            e.entity_type
         );
-        e.entity_type = EntityType::Person;
+        assert_eq!(saved.to_entities()[0].entity_type, e.entity_type);
+    }
+
+    #[test]
+    fn checked_grouping_reports_unrepresentable_metadata() {
+        let mut e = entity(None, None);
         e.visual_span = Some(crate::Span::BoundingBox {
             x: 0.0,
             y: 0.0,

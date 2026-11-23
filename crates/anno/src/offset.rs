@@ -284,7 +284,9 @@ pub struct TextSpan {
 }
 
 impl TextSpan {
-    /// Create a span from byte offsets, computing char offsets from text.
+    /// Create a span from byte offsets, clamped to the text. Nonempty ranges
+    /// expand to full UTF-8 characters. Empty or reversed input becomes empty
+    /// at the start character boundary.
     ///
     /// # Arguments
     /// * `text` - The full text (needed to compute char offsets)
@@ -303,7 +305,15 @@ impl TextSpan {
     /// ```
     #[must_use]
     pub fn from_bytes(text: &str, byte_start: usize, byte_end: usize) -> Self {
-        let (char_start, char_end) = bytes_to_chars(text, byte_start, byte_end);
+        let has_coverage = byte_start < byte_end;
+        let byte_start = text.floor_char_boundary(byte_start);
+        let byte_end = if has_coverage {
+            text.ceil_char_boundary(byte_end)
+        } else {
+            byte_start
+        };
+        let char_start = text[..byte_start].chars().count();
+        let char_end = char_start + text[byte_start..byte_end].chars().count();
         Self {
             byte_start,
             byte_end,
@@ -312,7 +322,8 @@ impl TextSpan {
         }
     }
 
-    /// Create a span from character offsets, computing byte offsets from text.
+    /// Create a span from character offsets, clamped to the text. Reversed
+    /// input becomes empty at its start.
     ///
     /// # Arguments
     /// * `text` - The full text (needed to compute byte offsets)
@@ -320,7 +331,12 @@ impl TextSpan {
     /// * `char_end` - Character offset end (exclusive)
     #[must_use]
     pub fn from_chars(text: &str, char_start: usize, char_end: usize) -> Self {
-        let (byte_start, byte_end) = chars_to_bytes(text, char_start, char_end);
+        let width = char_end.saturating_sub(char_start);
+        let mut chars = text.chars();
+        let char_start = chars.by_ref().take(char_start).count();
+        let byte_start = text.len() - chars.as_str().len();
+        let char_end = char_start + chars.by_ref().take(width).count();
+        let byte_end = text.len() - chars.as_str().len();
         Self {
             byte_start,
             byte_end,
@@ -606,98 +622,18 @@ impl OffsetMapping {
 /// - If `byte_end` falls in the middle of a multi-byte character, it maps to the next character (exclusive end)
 /// - If `byte_start` or `byte_end` are beyond the text length, they map to the end character index
 ///
-/// Uses standard library's `char_indices()` for iteration.
+/// Empty or reversed ranges remain empty at the rounded start.
 #[must_use]
 pub fn bytes_to_chars(text: &str, byte_start: usize, byte_end: usize) -> (usize, usize) {
-    if text.is_empty() {
-        return (0, 0);
-    }
-
-    let mut char_start = 0;
-    let mut found_start = false;
-    let mut last_char_idx = 0;
-    let mut last_byte_idx = 0;
-
-    for (char_idx, (byte_idx, ch)) in text.char_indices().enumerate() {
-        last_char_idx = char_idx;
-        last_byte_idx = byte_idx;
-
-        // Check if byte_start falls within this character's byte range
-        let char_byte_end = byte_idx + ch.len_utf8();
-        if !found_start {
-            if byte_idx == byte_start {
-                // Exact match at character start
-                char_start = char_idx;
-                found_start = true;
-            } else if byte_idx < byte_start && byte_start < char_byte_end {
-                // byte_start is in the middle of this character - map to character start
-                char_start = char_idx;
-                found_start = true;
-            }
-        }
-
-        // Check if byte_end falls within this character's byte range
-        if byte_idx == byte_end {
-            // Exact match at character start - char_end is exclusive, so return this char index
-            // (meaning range is [char_start, char_idx), which includes chars up to but not including char_idx)
-            return (char_start, char_idx);
-        } else if byte_idx < byte_end && byte_end < char_byte_end {
-            // byte_end is in the middle of this character - map to next character (exclusive)
-            return (char_start, char_idx + 1);
-        } else if byte_idx > byte_end {
-            // We've passed byte_end - use current character (exclusive end)
-            return (char_start, char_idx);
-        }
-    }
-
-    // Handle end of string
-    let char_count = last_char_idx + 1;
-    if !found_start {
-        // byte_start was beyond all characters or in the last character
-        if byte_start >= last_byte_idx {
-            // Check if byte_start is in the last character's range
-            if let Some(last_ch) = text.chars().last() {
-                let last_char_byte_end = last_byte_idx + last_ch.len_utf8();
-                if byte_start < last_char_byte_end {
-                    char_start = last_char_idx;
-                } else {
-                    char_start = char_count;
-                }
-            } else {
-                char_start = char_count;
-            }
-        } else {
-            // Shouldn't happen, but fallback
-            char_start = char_count;
-        }
-    }
-
-    (char_start, char_count)
+    let span = TextSpan::from_bytes(text, byte_start, byte_end);
+    (span.char_start, span.char_end)
 }
 
 /// Convert character offsets to byte offsets.
 #[must_use]
 pub fn chars_to_bytes(text: &str, char_start: usize, char_end: usize) -> (usize, usize) {
-    let mut byte_start = 0;
-    let mut byte_end = text.len();
-    let mut found_start = false;
-
-    for (char_idx, (byte_idx, _ch)) in text.char_indices().enumerate() {
-        if char_idx == char_start {
-            byte_start = byte_idx;
-            found_start = true;
-        }
-        if char_idx == char_end {
-            byte_end = byte_idx;
-            return (byte_start, byte_end);
-        }
-    }
-
-    if !found_start {
-        byte_start = text.len();
-    }
-
-    (byte_start, byte_end)
+    let span = TextSpan::from_chars(text, char_start, char_end);
+    (span.byte_start, span.byte_end)
 }
 
 /// Build an offset mapping table for efficient repeated conversions.
@@ -937,17 +873,30 @@ impl SpanConverter {
     /// Convert byte span to TextSpan.
     #[must_use]
     pub fn from_bytes(&self, byte_start: usize, byte_end: usize) -> TextSpan {
-        TextSpan {
-            byte_start,
-            byte_end,
-            char_start: self.byte_to_char(byte_start),
-            char_end: self.byte_to_char_ceil(byte_end),
-        }
+        let byte_len = if self.is_ascii {
+            self.ascii_len
+        } else {
+            self.byte_to_char.len() - 1
+        };
+        let char_start = self.byte_to_char(byte_start.min(byte_len));
+        let char_end = if byte_end > byte_start {
+            self.byte_to_char_ceil(byte_end.min(byte_len))
+        } else {
+            char_start
+        };
+        self.from_chars(char_start, char_end)
     }
 
-    /// Convert char span to TextSpan.
+    /// Convert char span to TextSpan, with the same clamping as [`TextSpan::from_chars`].
     #[must_use]
     pub fn from_chars(&self, char_start: usize, char_end: usize) -> TextSpan {
+        let char_len = if self.is_ascii {
+            self.ascii_len
+        } else {
+            self.char_to_byte.len() - 1
+        };
+        let char_start = char_start.min(char_len);
+        let char_end = char_end.min(char_len).max(char_start);
         TextSpan {
             byte_start: self.char_to_byte(char_start),
             byte_end: self.char_to_byte(char_end),
@@ -1155,6 +1104,37 @@ mod tests {
         let converter = SpanConverter::new("hello");
         assert_eq!(converter.byte_to_char(usize::MAX), 5);
         assert_eq!(converter.char_to_byte(usize::MAX), 5);
+    }
+
+    #[test]
+    fn coordinate_ranges_select_the_same_unicode_text() {
+        for text in ["", "abc", "éX🦊"] {
+            let converter = SpanConverter::new(text);
+            for start in 0..=text.len() + 2 {
+                for end in 0..=text.len() + 2 {
+                    for (direct, cached) in [
+                        (
+                            TextSpan::from_bytes(text, start, end),
+                            converter.from_bytes(start, end),
+                        ),
+                        (
+                            TextSpan::from_chars(text, start, end),
+                            converter.from_chars(start, end),
+                        ),
+                    ] {
+                        assert_eq!(direct, cached);
+                        let chars: String = text
+                            .chars()
+                            .skip(direct.char_start)
+                            .take(direct.char_len())
+                            .collect();
+                        assert_eq!(text.get(direct.byte_range()), Some(chars.as_str()));
+                        assert_eq!(direct.char_start, text[..direct.byte_start].chars().count());
+                    }
+                }
+            }
+        }
+        assert_eq!(TextSpan::from_bytes("éX", 1, 2).extract("éX"), "é");
     }
 
     #[test]

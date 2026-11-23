@@ -576,13 +576,6 @@ impl crate::Model for GLiNER2Fastino {
         "fastino-ai GLiNER2 (NER + classification, ONNX, experimental)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
-    }
-
     fn as_zero_shot(&self) -> Option<&dyn ZeroShotNER> {
         Some(self)
     }

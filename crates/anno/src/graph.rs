@@ -10,6 +10,7 @@
 //!   Used by `anno export --format graph-ntriples`.
 
 use lattix::{GraphEdge, GraphNode, Triple};
+use std::collections::HashMap;
 
 // Re-export the lattix types that `anno::graph`'s public API surface returns,
 // so callers don't need a separate `lattix` dep just to type-name what
@@ -18,91 +19,115 @@ use lattix::{GraphEdge, GraphNode, Triple};
 // by `cargo-semver-checks`).
 pub use lattix::{GraphDocument, GraphExportFormat, KnowledgeGraph};
 
-/// Convert a `GroundedDocument` into a `lattix::exchange::GraphDocument`.
-///
-/// **Note**: Relations are not currently stored in `GroundedDocument`, so this
-/// conversion only produces entity nodes and track-based edges. To include
-/// extraction-time relations, use [`entities_to_graph_document`] directly with
-/// the `Relation` slice from the extraction backend.
+/// Group the document's signals by the strongest available identity: qualified
+/// KB entry, document identity, track, or individual signal. Local IDs include
+/// the document ID; KB names and accessions are encoded independently.
+/// Grounded documents contain no extraction-time relations.
 #[must_use]
 pub fn grounded_to_graph_document(doc: &crate::GroundedDocument) -> GraphDocument {
-    let entities = doc.to_entities();
-    entities_to_graph_document(&entities, &[])
+    let mut graph = GraphDocument::new();
+    let mut node_indices = HashMap::new();
+    let document = crate::export::iri_component(doc.id());
+    for signal in doc.signals() {
+        let node_id = if let Some(identity) = doc.identity_for_signal(signal.id) {
+            match identity.qualified_kb_ref() {
+                Some((name, accession)) => format!(
+                    "kb/{}/{}",
+                    crate::export::iri_component(name),
+                    crate::export::iri_component(accession)
+                ),
+                None => format!("identity/{document}/{}", identity.id),
+            }
+        } else if let Some(track) = doc.track_for_signal(signal.id) {
+            format!("track/{document}/{}", track.id)
+        } else {
+            format!("signal/{document}/{}", signal.id)
+        };
+        add_mention(
+            &mut graph,
+            &mut node_indices,
+            &node_id,
+            signal.label(),
+            &signal.surface,
+            signal.text_offsets().map_or(0, |(start, _)| start),
+        );
+    }
+    graph
 }
 
-/// Convert entities and relations into a `lattix::exchange::GraphDocument`.
+fn add_mention(
+    graph: &mut GraphDocument,
+    node_indices: &mut HashMap<String, usize>,
+    node_id: &str,
+    label: &str,
+    surface: &str,
+    start: usize,
+) {
+    if let Some(&index) = node_indices.get(node_id) {
+        let node = &mut graph.nodes[index];
+        let count = node.properties["mentions_count"]
+            .as_u64()
+            .expect("node initialized with count");
+        node.properties
+            .insert("mentions_count".into(), (count + 1).into());
+    } else {
+        node_indices.insert(node_id.into(), graph.nodes.len());
+        graph.nodes.push(
+            GraphNode::new(node_id, label, surface)
+                .with_mentions_count(1)
+                .with_first_seen(start),
+        );
+    }
+}
+
+/// Convert a single document's flat entities and relations into a graph.
+/// Explicit KB or canonical IDs group mentions. Each unassigned mention has
+/// its own node. The flat format lacks a document ID and KB namespace, so
+/// these node IDs are local to this export. Ambiguous endpoints are omitted.
 #[must_use]
 pub fn entities_to_graph_document(
     entities: &[crate::Entity],
     relations: &[crate::Relation],
 ) -> GraphDocument {
-    let mut doc = GraphDocument::new();
-    let mut seen_nodes: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    let mut entity_to_node: std::collections::HashMap<usize, String> =
-        std::collections::HashMap::new();
-
-    let get_node_id = |e: &crate::Entity| -> String {
-        if let Some(ref kb_id) = e.kb_id {
-            return kb_id.clone();
-        }
-        if let Some(canonical_id) = e.canonical_id {
-            return format!("coref_{}", canonical_id);
-        }
-        format!(
-            "{}:{}",
-            e.entity_type.as_label().to_lowercase(),
-            uri_safe(&e.text)
-        )
-    };
-
-    for (idx, entity) in entities.iter().enumerate() {
-        let node_id = get_node_id(entity);
-
-        if let Some(&existing_idx) = seen_nodes.get(&node_id) {
-            if let Some(count) = doc.nodes[existing_idx].properties.get_mut("mentions_count") {
-                if let Some(n) = count.as_u64() {
-                    *count = serde_json::Value::from(n + 1);
-                }
-            }
-            entity_to_node.insert(idx, node_id);
-            continue;
-        }
-
-        let node = GraphNode::new(&node_id, entity.entity_type.as_label(), &entity.text)
-            .with_mentions_count(1)
-            .with_first_seen(entity.start());
-
-        seen_nodes.insert(node_id.clone(), doc.nodes.len());
-        entity_to_node.insert(idx, node_id);
-        doc.nodes.push(node);
+    let mut graph = GraphDocument::new();
+    let mut node_indices = HashMap::new();
+    let mut entity_nodes = Vec::with_capacity(entities.len());
+    for (index, entity) in entities.iter().enumerate() {
+        let node_id = if let Some(accession) = &entity.kb_id {
+            format!("flat/kb/{}", crate::export::iri_component(accession))
+        } else if let Some(canonical_id) = entity.canonical_id {
+            format!("flat/track/{canonical_id}")
+        } else {
+            format!("flat/mention/{index}")
+        };
+        add_mention(
+            &mut graph,
+            &mut node_indices,
+            &node_id,
+            entity.entity_type.as_label(),
+            &entity.text,
+            entity.start(),
+        );
+        entity_nodes.push(node_id);
     }
 
-    let mut seen_edges: std::collections::HashMap<(String, String, String), usize> =
-        std::collections::HashMap::new();
-    for relation in relations {
-        let source_node_id = get_node_id(&relation.head);
-        let target_node_id = get_node_id(&relation.tail);
-
-        if seen_nodes.contains_key(&source_node_id) && seen_nodes.contains_key(&target_node_id) {
-            let key = (
-                source_node_id.clone(),
-                target_node_id.clone(),
-                relation.relation_type.clone(),
+    let mut edge_indices: HashMap<_, usize> = HashMap::new();
+    for (relation, head, tail) in crate::export::resolved_relations(entities, relations) {
+        let source = &entity_nodes[head];
+        let target = &entity_nodes[tail];
+        let key = (source, target, &relation.relation_type);
+        if let Some(&index) = edge_indices.get(&key) {
+            let existing = &mut graph.edges[index];
+            existing.confidence = existing.confidence.max(relation.confidence.value());
+        } else {
+            edge_indices.insert(key, graph.edges.len());
+            graph.edges.push(
+                GraphEdge::new(source.as_str(), target.as_str(), &relation.relation_type)
+                    .with_confidence(relation.confidence.value()),
             );
-            if let Some(&idx) = seen_edges.get(&key) {
-                if let Some(existing) = doc.edges.get_mut(idx) {
-                    existing.confidence = existing.confidence.max(relation.confidence.value());
-                }
-            } else {
-                let edge =
-                    GraphEdge::new(&source_node_id, &target_node_id, &relation.relation_type)
-                        .with_confidence(relation.confidence.value());
-                doc.edges.push(edge);
-                seen_edges.insert(key, doc.edges.len().saturating_sub(1));
-            }
         }
     }
-    doc
+    graph
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +258,106 @@ mod tests {
 
     fn ent(text: &str, start: usize, end: usize, ty: EntityType) -> Entity {
         Entity::new(text, ty, start, end, 0.9)
+    }
+
+    #[test]
+    fn grounded_graph_scopes_kb_accessions_and_keeps_distinct_unassigned_signals() {
+        let mut doc = crate::GroundedDocument::new("d/1", "Ada Ada Ada Ada Ada Ada");
+        let mut signals = Vec::new();
+        for occurrence in 0..6 {
+            signals.push(
+                doc.add_signal_from_text_nth("Ada", "PER", 0.9, occurrence)
+                    .unwrap(),
+            );
+        }
+        for (signal, (kb, accession)) in
+            signals
+                .iter()
+                .zip([("A/B", "42"), ("A", "B/42"), ("A/B", "42"), ("B", "42")])
+        {
+            let id = doc.add_identity(crate::Identity::from_kb(0, "Ada", kb, accession));
+            let track = doc.create_track_from_signals("Ada", &[*signal]).unwrap();
+            doc.link_track_to_identity(track, id);
+        }
+
+        let graph = grounded_to_graph_document(&doc);
+        assert_eq!(graph.nodes.len(), 5);
+        assert_eq!(graph.nodes[0].id, "kb/A%2FB/42");
+        assert_eq!(graph.nodes[0].properties["mentions_count"], 2);
+        assert_eq!(graph.nodes[1].id, "kb/A/B%2F42");
+        assert_eq!(graph.nodes[2].id, "kb/B/42");
+        assert_eq!(graph.nodes[3].id, "signal/d%2F1/4");
+        assert_eq!(graph.nodes[4].id, "signal/d%2F1/5");
+    }
+
+    #[test]
+    fn grounded_graph_groups_distinct_tracks_sharing_an_unlinked_identity() {
+        let mut doc = crate::GroundedDocument::new("d", "Ada she");
+        let identity = doc.add_identity(crate::Identity::new(0, "Ada"));
+        for surface in ["Ada", "she"] {
+            let signal = doc.add_signal_from_text(surface, "PER", 0.9).unwrap();
+            let track = doc.create_track_from_signals(surface, &[signal]).unwrap();
+            doc.link_track_to_identity(track, identity);
+        }
+        let graph = grounded_to_graph_document(&doc);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].id, "identity/d/0");
+        assert_eq!(graph.nodes[0].properties["mentions_count"], 2);
+    }
+
+    #[test]
+    fn grounded_graph_keeps_unspecified_kb_namespaces_document_local() {
+        let mut entity = ent("Ada", 0, 3, EntityType::Person);
+        entity.link_to_kb("42");
+        for (doc_id, namespace) in [("one", Some("unknown")), ("two", None), ("three", Some(""))] {
+            let mut doc = crate::GroundedDocument::from_entities(
+                doc_id,
+                "Ada",
+                std::slice::from_ref(&entity),
+            );
+            let identity = doc.identities_map_mut().values_mut().next().unwrap();
+            identity.kb_name = namespace.map(str::to_owned);
+            let graph = grounded_to_graph_document(&doc);
+            assert_eq!(graph.nodes[0].id, format!("identity/{doc_id}/0"));
+        }
+    }
+
+    #[test]
+    fn flat_graph_relations_bind_by_occurrence_before_grouping() {
+        let first = ent("Ada", 0, 3, EntityType::Person);
+        let later = ent("Ada", 10, 13, EntityType::Person);
+        let mut kb = ent("Acme", 20, 24, EntityType::Organization);
+        kb.link_to_kb("coref_0");
+        let track = ent("Bob", 30, 33, EntityType::Person).with_canonical_id(0);
+        let outside = ent("Ada", 40, 43, EntityType::Person);
+        let relations = [
+            Relation::new(later.clone(), kb.clone(), "founded", 0.7),
+            Relation::new(later.clone(), kb.clone(), "founded", 0.9),
+            Relation::new(outside, kb.clone(), "founded", 0.99),
+        ];
+        let graph = entities_to_graph_document(&[first, later, kb, track], &relations);
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].source, graph.nodes[1].id);
+        assert_eq!(graph.edges[0].target, graph.nodes[2].id);
+        assert_eq!(graph.edges[0].confidence, 0.9);
+    }
+
+    #[test]
+    fn flat_graph_uses_endpoint_kb_evidence_and_skips_ambiguous_clones() {
+        let mention = ent("Ada", 0, 3, EntityType::Person);
+        let mut a = mention.clone();
+        a.link_to_kb("A");
+        let mut b = mention.clone();
+        b.link_to_kb("B");
+        let tail = ent("Bob", 10, 13, EntityType::Person);
+        let relations = [
+            Relation::new(b.clone(), tail.clone(), "meets", 0.9),
+            Relation::new(mention, tail.clone(), "ambiguous", 0.9),
+        ];
+        let graph = entities_to_graph_document(&[a, b, tail], &relations);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].source, graph.nodes[1].id);
     }
 
     #[test]

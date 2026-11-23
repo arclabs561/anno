@@ -39,49 +39,28 @@
 use super::super::entity::{EntityCategory, EntityType};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 /// A unified type label supporting both core and custom entity types.
 ///
-/// # Design Philosophy
-///
-/// Rather than having separate `EntityType` and `String` fields scattered
-/// throughout the codebase, `TypeLabel` provides a single type that:
-///
-/// 1. **Preserves type safety** for known entity types via `EntityType`
-/// 2. **Allows extensibility** for domain-specific types via `Custom`
-/// 3. **Provides consistent serialization** (always as string)
-/// 4. **Enables bidirectional conversion** with both `EntityType` and `String`
-///
-/// # Serialization
-///
-/// `TypeLabel` serializes as a string for interoperability:
-///
-/// - `Core(EntityType::Person)` → `"PER"`
-/// - `Custom("PROTEIN")` → `"PROTEIN"`
-///
-/// Deserialization attempts to parse as `EntityType` first, falling back to `Custom`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Text labels use the categories assigned by [`EntityType::from_label`].
+/// A caller-supplied [`EntityType`] retains its exact spelling and category.
+/// The wire format uses a string whenever it preserves the label, or the
+/// tagged `Custom { name, category }` form for explicit overrides.
+#[derive(Debug, Clone)]
 pub enum TypeLabel {
-    /// A core entity type from the canonical taxonomy.
+    /// An explicit taxonomy type, including custom types with a supplied category.
     Core(EntityType),
-    /// A custom domain-specific type not in the core taxonomy.
+    /// A domain label whose category can be inferred from its spelling.
     Custom(String),
 }
 
 impl TypeLabel {
-    /// Create a custom type label.
-    ///
-    /// Note: if `label` matches a known [`EntityType`] label, this returns
-    /// `TypeLabel::Core(...)` instead. Use this to keep “custom means unknown”
-    /// consistent across parsing/serde roundtrips.
+    /// Parse a label, recognizing built-in entity types and preserving domain spellings.
     #[must_use]
     pub fn custom(label: impl Into<String>) -> Self {
-        let s = label.into();
-        match EntityType::from_label(&s) {
-            EntityType::Custom { .. } => Self::Custom(s),
-            et => Self::Core(et),
-        }
+        Self::from(label.into())
     }
 
     /// Get the string representation of this label.
@@ -96,42 +75,75 @@ impl TypeLabel {
     /// Check if this is a core entity type.
     #[must_use]
     pub const fn is_core(&self) -> bool {
-        matches!(self, Self::Core(_))
+        self.as_core().is_some()
     }
 
-    /// Check if this is a custom type.
+    /// Check if this is a domain-specific type.
     #[must_use]
     pub const fn is_custom(&self) -> bool {
-        matches!(self, Self::Custom(_))
+        !self.is_core()
     }
 
-    /// Try to get the core entity type, if this is one.
+    /// Borrow the underlying built-in entity type, when present.
     #[must_use]
     pub const fn as_core(&self) -> Option<&EntityType> {
         match self {
+            Self::Core(EntityType::Custom { .. }) | Self::Custom(_) => None,
             Self::Core(et) => Some(et),
-            Self::Custom(_) => None,
         }
     }
 
-    /// Convert to a core entity type with Misc category for customs.
-    ///
-    /// Use [`Self::to_entity_type_with_category`] if you have category information.
+    /// Return the category declared by the taxonomy or supplied by the caller.
+    #[must_use]
+    pub fn category(&self) -> EntityCategory {
+        match self {
+            Self::Core(et) => et.category(),
+            Self::Custom(s) => EntityType::from_label(s).category(),
+        }
+    }
+
+    /// Recover the entity type, retaining custom spelling and category.
     #[must_use]
     pub fn to_entity_type(&self) -> EntityType {
         match self {
             Self::Core(et) => et.clone(),
-            Self::Custom(s) => EntityType::custom(s.clone(), EntityCategory::Misc),
+            Self::Custom(s) => EntityType::custom(s, self.category()),
         }
     }
 
-    /// Convert to a core entity type with explicit category for customs.
+    /// Use the supplied category for a domain label. Built-in categories are fixed.
     #[must_use]
     pub fn to_entity_type_with_category(&self, category: EntityCategory) -> EntityType {
-        match self {
-            Self::Core(et) => et.clone(),
-            Self::Custom(s) => EntityType::custom(s.clone(), category),
+        match self.as_core() {
+            Some(et) => et.clone(),
+            None => EntityType::custom(self.as_str(), category),
         }
+    }
+}
+
+// The two public variants can express the same domain type. Equality is
+// semantic so direct construction agrees with conversion and deserialization.
+impl PartialEq for TypeLabel {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Core(left), Self::Core(right)) => left == right,
+            (Self::Custom(left), Self::Custom(right)) => left == right,
+            (Self::Core(EntityType::Custom { name, category }), Self::Custom(label))
+            | (Self::Custom(label), Self::Core(EntityType::Custom { name, category })) => {
+                name == label && *category == EntityType::from_label(label).category()
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TypeLabel {}
+
+impl Hash for TypeLabel {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Category overrides with the same name can share a hash bucket.
+        self.is_core().hash(state);
+        self.as_str().hash(state);
     }
 }
 
@@ -155,10 +167,8 @@ impl From<EntityType> for TypeLabel {
 
 impl From<&str> for TypeLabel {
     fn from(s: &str) -> Self {
-        // `EntityType::from_str` is infallible (unknown labels become `Custom`), so
-        // treat `Custom { .. }` as a custom label here to preserve the distinction.
         match EntityType::from_label(s) {
-            EntityType::Custom { .. } => Self::Custom(s.to_string()),
+            EntityType::Custom { .. } => Self::Custom(s.to_owned()),
             et => Self::Core(et),
         }
     }
@@ -188,24 +198,34 @@ impl FromStr for TypeLabel {
     }
 }
 
-// Custom serialization: always serialize as string
 impl Serialize for TypeLabel {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(self.as_str())
+        if Self::from(self.as_str()) == *self {
+            serializer.serialize_str(self.as_str())
+        } else {
+            self.to_entity_type().serialize(serializer)
+        }
     }
 }
 
-// Custom deserialization: parse string, try Core first then Custom
 impl<'de> Deserialize<'de> for TypeLabel {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        Ok(Self::from(s))
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Label(String),
+            Explicit(EntityType),
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Label(s) => Self::from(s),
+            Wire::Explicit(et) => Self::from(et),
+        })
     }
 }
 
@@ -254,18 +274,46 @@ mod tests {
             TypeLabel::Core(EntityType::Person),
             TypeLabel::Core(EntityType::Organization),
             TypeLabel::custom("UNKNOWN_TYPE_XYZ"),
-            // If a label is known to the ontology, it is canonicalized to Core.
             TypeLabel::custom("PROTEIN"),
         ];
 
         for label in labels {
             let json = serde_json::to_string(&label).unwrap();
             let parsed: TypeLabel = serde_json::from_str(&json).unwrap();
-            // Note: roundtrip may not be exact for Core types due to CoNLL format
-            // "PER" parses back to Person, which matches
-            if label.is_custom() {
-                assert_eq!(label, parsed);
-            }
+            assert_eq!(label, parsed);
+        }
+    }
+
+    #[test]
+    fn custom_categories_survive_all_construction_paths() {
+        let group = EntityType::from_label("GROUP");
+        let typed = TypeLabel::from(group.clone());
+        let parsed = TypeLabel::from("GROUP");
+        assert!(typed.is_custom());
+        assert_eq!(typed.as_core(), None);
+        assert_eq!(parsed.to_entity_type(), group);
+        assert_eq!(typed, parsed);
+        assert_eq!(
+            std::collections::HashSet::from([typed.clone(), parsed]).len(),
+            1
+        );
+        assert_eq!(
+            serde_json::to_value(&typed).unwrap(),
+            serde_json::json!("GROUP")
+        );
+
+        for custom in [
+            EntityType::custom("DISEASE", EntityCategory::Agent),
+            EntityType::custom("PER", EntityCategory::Agent),
+            EntityType::custom("caseSensitive", EntityCategory::Creative),
+        ] {
+            let label = TypeLabel::from(custom.clone());
+            assert!(label.is_custom());
+            let json = serde_json::to_value(&label).unwrap();
+            assert!(json.get("Custom").is_some());
+            let saved: TypeLabel = serde_json::from_value(json).unwrap();
+            assert_eq!(saved, label);
+            assert_eq!(saved.to_entity_type(), custom);
         }
     }
 

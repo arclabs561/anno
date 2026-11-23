@@ -4,6 +4,19 @@
 
 ### Changed (breaking)
 
+- Convert text spans with `Location::try_from`. Call `Location::project_text` to
+  intentionally discard a hybrid span's visual geometry. [Migration](docs/LOCATION.md)
+- `GraphDocument` node IDs now distinguish KB namespaces, tracks and individual
+  occurrences. Re-export persisted graphs before joining on these IDs.
+- Entity labels with explicit custom spelling or category overrides may now
+  serialize as tagged custom types. Readers accept the earlier string format.
+- Evaluation report consumers should handle unavailable leakage, boundary and
+  type-error measurements explicitly. Older scalar report values remain readable.
+- On document replacement, obtain fresh track references from the stored
+  document. Resolver-produced identities expose optional minimum pair similarity.
+  Callers constructing `Identity` or `CrossDocCluster` literals should update
+  them for the new fields, or use the constructors.
+
 - FCoref now returns an error for documents above its token budget. The default
   budget is 512 tokens including special tokens. To process longer documents,
   use `FCoref::from_path_with_document_budget` or
@@ -11,6 +24,16 @@
   uses `max_segment_len` tokens per segment and scores mentions across segments.
 
 ### Changed
+
+- Cross-document resolution reuses unchanged assignments and preserves KB
+  anchors. Use `TrackPartition::from_corpus` to score active memberships.
+  Calibration and precision share one prediction-to-gold matching pass.
+- Byte and character ranges returned by `TextSpan` constructors now select
+  the same source text for partial UTF-8 characters and out-of-bounds input.
+  Track merges order signals by source location. Flat and grounded validators
+  agree on discontinuous surfaces.
+- A model's zero-shot, relation and discontinuous capability flags reflect the
+  operations accessible through `dyn Model` in the enabled feature configuration.
 
 - Schema 2 evaluation receipts use `provenance.runtime.scheduling` to record
   skips. The existing `not_run` strategy carries a reason of

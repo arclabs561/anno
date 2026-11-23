@@ -919,11 +919,8 @@ impl Model for W2NER {
         format!("w2ner-{}", self.config.model_id)
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            discontinuous_capable: true,
-            ..Default::default()
-        }
+    fn as_discontinuous(&self) -> Option<&dyn DiscontinuousNER> {
+        self.is_available().then_some(self)
     }
 }
 

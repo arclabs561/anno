@@ -183,7 +183,8 @@ fn test_nuner_model_metadata() {
 fn test_nuner_capabilities() {
     let ner = NuNER::new();
     let caps = ner.capabilities();
-    assert!(caps.zero_shot, "NuNER should be zero-shot capable");
+    assert_eq!(caps.zero_shot, cfg!(feature = "onnx"));
+    assert_eq!(caps.zero_shot, ner.as_zero_shot().is_some());
 }
 
 #[test]

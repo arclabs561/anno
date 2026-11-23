@@ -431,7 +431,7 @@ pub use book_scale::{
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
 
 // Cross-document coreference resolution (CDCR)
-pub use inter_doc_coref::InterDocCorefMetrics;
+pub use inter_doc_coref::{InterDocCorefMetrics, TrackPartition};
 
 pub use cdcr::{
     comprehensive_cdcr_dataset,
@@ -583,10 +583,10 @@ pub use threshold_analysis::{
 
 // Unified evaluation report (always available - uses what's enabled)
 pub use report::{
-    BiasSummary, CalibrationSummary, CoreMetrics, DataQualitySummary, DemographicBiasMetrics,
-    ErrorSummary, EvalReport, GenderBiasMetrics, LengthBiasMetrics, Priority, Recommendation,
-    RecommendationCategory, ReportBuilder, SimpleGoldEntity, TestCase,
-    TypeMetrics as ReportTypeMetrics,
+    BiasSummary, CalibrationPopulation, CalibrationSample, CalibrationSummary, CoreMetrics,
+    DataQualitySummary, DemographicBiasMetrics, ErrorSummary, EvalReport, GenderBiasMetrics,
+    LengthBiasMetrics, Priority, Recommendation, RecommendationCategory, ReportBuilder,
+    ReportedMeasurement, SimpleGoldEntity, TestCase, TypeMetrics as ReportTypeMetrics,
 };
 
 // Unified evaluation system (recommended entry point)

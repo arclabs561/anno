@@ -853,13 +853,6 @@ impl Model for TPLinker {
         "TPLinker joint entity-relation extraction (heuristic fallback)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            relation_capable: true,
-            ..Default::default()
-        }
-    }
-
     fn as_relation_extractor(&self) -> Option<&dyn crate::backends::inference::RelationExtractor> {
         Some(self)
     }
