@@ -158,3 +158,57 @@ fn map_cannot_replace_redirected_stdout() {
     assert!(!run.status.success());
     assert_eq!(std::fs::read_to_string(path).unwrap(), "sentinel");
 }
+
+#[test]
+fn map_cannot_replace_input_or_create_output_on_rejection() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("source.txt");
+    let alias = dir.path().join("linked-map.tsv");
+    let output = dir.path().join("out.txt");
+    std::fs::write(&input, INPUT).unwrap();
+    std::fs::hard_link(&input, &alias).unwrap();
+    for map in [&input, &alias] {
+        let run = Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args([
+                "privacy",
+                "--model",
+                "pattern",
+                "--action",
+                "pseudonymize",
+                "--input",
+            ])
+            .arg(&input)
+            .arg("--export-map")
+            .arg(map)
+            .arg("--output")
+            .arg(&output)
+            .env("ANNO_NO_DOWNLOADS", "1")
+            .output()
+            .unwrap();
+        assert!(!run.status.success());
+        assert!(String::from_utf8_lossy(&run.stderr).contains("--input and --export-map"));
+        assert_eq!(std::fs::read_to_string(&input).unwrap(), INPUT);
+        assert!(!output.exists());
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn explicit_stdout_pipe_receives_pseudonymized_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let map = dir.path().join("map.tsv");
+    let run = pseudonymize(std::path::Path::new("/dev/stdout"), &map, INPUT);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(run.stdout).unwrap(),
+        "Café: contact@example.com."
+    );
+    assert_eq!(
+        std::fs::read_to_string(map).unwrap(),
+        "case@example.invalid\tcontact@example.com"
+    );
+}

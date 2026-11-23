@@ -41,6 +41,7 @@ pub struct PrivacyArgs {
     pub model: ModelBackend,
 
     /// Export PII map for re-identification (with pseudonymize).
+    /// The map must be separate from both the input and the pseudonymized output.
     /// On Unix, maps use mode 0600 and symlink targets are rejected.
     /// Existing access-control lists are not changed.
     #[arg(long)]
@@ -70,9 +71,15 @@ pub enum PrivacyAction {
 
 /// Run the privacy command.
 pub fn run(args: PrivacyArgs) -> Result<(), String> {
-    // Get input text
+    let mut input_id = None;
     let text = if let Some(path) = &args.input {
-        fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?
+        let mut file = fs::File::open(path).map_err(|e| format!("Failed to open input: {e}"))?;
+        let text =
+            std::io::read_to_string(&mut file).map_err(|e| format!("Failed to read file: {e}"))?;
+        if matches!(args.action, PrivacyAction::Pseudonymize) && args.export_map.is_some() {
+            input_id = Some(same_file::Handle::from_file(file).map_err(|e| e.to_string())?);
+        }
+        text
     } else if let Some(t) = &args.text {
         t.clone()
     } else {
@@ -156,6 +163,18 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
                 .map(open_pii_map)
                 .transpose()
                 .map_err(|e| format!("Failed to open map: {e}"))?;
+            let identity =
+                |file: &fs::File| file.try_clone().and_then(same_file::Handle::from_file);
+            let map_id = map_file
+                .as_ref()
+                .map(identity)
+                .transpose()
+                .map_err(|e| e.to_string())?;
+            if let (Some(input), Some(map)) = (&input_id, &map_id) {
+                if input == map {
+                    return Err("--input and --export-map must be different files".into());
+                }
+            }
             let output = args
                 .output
                 .as_deref()
@@ -168,24 +187,26 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
                 })
                 .transpose()
                 .map_err(|e| format!("Failed to open output: {e}"))?;
-            if let Some(map) = &map_file {
-                let identity = |f: &fs::File| f.try_clone().and_then(same_file::Handle::from_file);
+            if let Some(map) = &map_id {
                 let output_id = match &output {
                     Some(file) => identity(file),
                     None => same_file::Handle::stdout(),
                 }
                 .map_err(|e| e.to_string())?;
-                let map_id = identity(map).map_err(|e| e.to_string())?;
-                if output_id == map_id {
+                if &output_id == map {
                     return Err(
                         "Pseudonymized output and --export-map must be different files".into(),
                     );
                 }
             }
             if let (Some(path), Some(mut output)) = (&args.output, output) {
+                if output.metadata().map_err(|e| e.to_string())?.is_file() {
+                    output
+                        .set_len(0)
+                        .map_err(|e| format!("Failed to truncate output: {e}"))?;
+                }
                 output
-                    .set_len(0)
-                    .and_then(|()| output.write_all(pseudonymized.as_bytes()))
+                    .write_all(pseudonymized.as_bytes())
                     .map_err(|e| format!("Failed to write: {e}"))?;
                 if !args.quiet {
                     eprintln!(
