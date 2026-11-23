@@ -427,7 +427,7 @@ impl GLiNERMultitaskOnnx {
             .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output".into()))?;
 
-        let (_, output_data) = output
+        let (_, data_slice) = output
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Extract: {}", e)))?;
         let logits: Vec<f32> = data_slice.to_vec();
