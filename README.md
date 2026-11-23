@@ -81,8 +81,8 @@ The repeated name has its own source range. Joining the words with spaces
 would lose the first mention’s newline. The model proposes links and prints
 raw mention scores. These scores are uncalibrated and cluster numbers are local
 to the document. Supply every non-whitespace token, including punctuation.
-The default document budget is 512 tokens, including special tokens. Set
-`FCorefConfig::max_doc_tokens` to accept longer documents. The encoder reads
+The default document budget is 512 tokens, including special tokens. Use
+`FCoref::from_path_with_document_budget` to accept longer documents. The encoder reads
 the document in segments and the scorer links mentions across those segments.
 
 ## CLI

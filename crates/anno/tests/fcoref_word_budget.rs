@@ -21,13 +21,13 @@ fn reference_word_mentions_cross_the_encoder_boundary() {
         serde_json::from_str(include_str!("fixtures/fcoref_word_budget.json")).unwrap();
 
     for budget in [Some(520), Some(521), None] {
-        let model = FCoref::from_path_with_config(
+        let model = FCoref::from_path_with_document_budget(
             &model_dir,
             FCorefConfig {
-                max_doc_tokens: budget,
                 num_threads: 2,
                 ..Default::default()
             },
+            budget,
         )
         .unwrap();
         let result = model.analyze_words(&text, &words);

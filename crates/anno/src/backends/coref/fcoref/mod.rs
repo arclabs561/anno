@@ -73,6 +73,8 @@ fn trimmed_mention(text: &str, span: Range<usize>) -> Option<(&str, Range<usize>
     (!mention.is_empty()).then_some((mention, start..start + mention.len()))
 }
 
+const DEFAULT_DOCUMENT_BUDGET: Option<usize> = Some(512);
+
 /// Configuration for f-coref model loading.
 #[derive(Debug, Clone)]
 pub struct FCorefConfig {
@@ -82,12 +84,6 @@ pub struct FCorefConfig {
     pub top_lambda: f32,
     /// maximum encoder segment length, not a whole-document limit.
     pub max_segment_len: usize,
-    /// maximum document tokens, including special tokens. default: `Some(512)`.
-    ///
-    /// larger documents return an error, never truncated annotations. raise this
-    /// budget to encode more segments, or use `None` to remove the document cap.
-    /// document-level scoring uses quadratic memory; bound untrusted inputs.
-    pub max_doc_tokens: Option<usize>,
     /// ONNX optimization level (1-3, default 3).
     pub optimization_level: u8,
     /// ONNX encoder threads (0 = auto). does not control the Rust scorer.
@@ -100,7 +96,6 @@ impl Default for FCorefConfig {
             max_span_length: 30,
             top_lambda: 0.25,
             max_segment_len: 512,
-            max_doc_tokens: Some(512),
             optimization_level: 3,
             num_threads: 4,
         }
@@ -108,8 +103,8 @@ impl Default for FCorefConfig {
 }
 
 impl FCorefConfig {
-    fn validate_limits(&self) -> Result<()> {
-        if self.max_segment_len == 0 || self.max_doc_tokens == Some(0) {
+    fn validate_limits(&self, max_doc_tokens: Option<usize>) -> Result<()> {
+        if self.max_segment_len == 0 || max_doc_tokens == Some(0) {
             return Err(Error::InvalidInput(
                 "coreference segment and document limits must be positive".into(),
             ));
@@ -127,6 +122,7 @@ pub struct FCoref {
     tokenizer: Arc<Tokenizer>,
     scorer: ScorerWeights,
     config: FCorefConfig,
+    max_doc_tokens: Option<usize>,
     model_path: String,
 }
 
@@ -143,8 +139,20 @@ impl FCoref {
     }
 
     /// Load with custom configuration.
-    pub fn from_path_with_config(model_path: &str, mut config: FCorefConfig) -> Result<Self> {
-        config.validate_limits()?;
+    pub fn from_path_with_config(model_path: &str, config: FCorefConfig) -> Result<Self> {
+        Self::from_path_with_document_budget(model_path, config, DEFAULT_DOCUMENT_BUDGET)
+    }
+
+    /// Load with an explicit whole-document token limit, including special tokens.
+    ///
+    /// Accepts longer documents by encoding them in segments of `config.max_segment_len`.
+    /// Use `None` for uncapped input. Document-wide scoring can require quadratic memory.
+    pub fn from_path_with_document_budget(
+        model_path: &str,
+        mut config: FCorefConfig,
+        max_doc_tokens: Option<usize>,
+    ) -> Result<Self> {
+        config.validate_limits(max_doc_tokens)?;
         let base = std::path::Path::new(model_path);
 
         // Load config.json if present (override defaults)
@@ -167,7 +175,7 @@ impl FCoref {
             }
         }
 
-        config.validate_limits()?;
+        config.validate_limits(max_doc_tokens)?;
 
         // Load encoder ONNX session (prefer quantized)
         let encoder_path = if base.join("encoder_quantized.onnx").exists() {
@@ -211,6 +219,7 @@ impl FCoref {
             tokenizer: Arc::new(tokenizer),
             scorer,
             config,
+            max_doc_tokens,
             model_path: model_path.to_string(),
         })
     }
@@ -225,8 +234,20 @@ impl FCoref {
     }
 
     /// Load from HuggingFace with custom config.
-    pub fn from_pretrained_with_config(model_id: &str, mut config: FCorefConfig) -> Result<Self> {
-        config.validate_limits()?;
+    pub fn from_pretrained_with_config(model_id: &str, config: FCorefConfig) -> Result<Self> {
+        Self::from_pretrained_with_document_budget(model_id, config, DEFAULT_DOCUMENT_BUDGET)
+    }
+
+    /// Load with an explicit whole-document token limit, including special tokens.
+    ///
+    /// Accepts longer documents by encoding them in segments of `config.max_segment_len`.
+    /// Use `None` for uncapped input. Document-wide scoring can require quadratic memory.
+    pub fn from_pretrained_with_document_budget(
+        model_id: &str,
+        mut config: FCorefConfig,
+        max_doc_tokens: Option<usize>,
+    ) -> Result<Self> {
+        config.validate_limits(max_doc_tokens)?;
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
@@ -275,7 +296,7 @@ impl FCoref {
             }
         }
 
-        config.validate_limits()?;
+        config.validate_limits(max_doc_tokens)?;
 
         // Load encoder session
         let session = hf_loader::create_onnx_session(
@@ -300,6 +321,7 @@ impl FCoref {
             tokenizer: Arc::new(tokenizer),
             scorer,
             config,
+            max_doc_tokens,
             model_path: model_id.to_string(),
         })
     }
@@ -319,7 +341,7 @@ impl FCoref {
         }
 
         // 1. Tokenize
-        let encoding = encode_input(&self.tokenizer, text, &self.config)?;
+        let encoding = encode_input(&self.tokenizer, text, self.max_doc_tokens)?;
 
         let max_candidates =
             ((encoding.len() as f32 * self.config.top_lambda).ceil() as usize).max(1);
@@ -489,9 +511,8 @@ impl FCoref {
 fn encode_input<'a>(
     tokenizer: &Tokenizer,
     text: impl Into<tokenizers::EncodeInput<'a>>,
-    config: &FCorefConfig,
+    max_doc_tokens: Option<usize>,
 ) -> Result<tokenizers::Encoding> {
-    config.validate_limits()?;
     if tokenizer.get_truncation().is_some() {
         return Err(Error::InvalidInput(
             "coreference tokenizer must not truncate input".into(),
@@ -500,7 +521,7 @@ fn encode_input<'a>(
     let encoding = tokenizer
         .encode(text, true)
         .map_err(|e| Error::Parse(format!("Tokenizer encode: {e}")))?;
-    if let Some(limit) = config.max_doc_tokens {
+    if let Some(limit) = max_doc_tokens {
         if encoding.len() > limit {
             return Err(Error::InvalidInput(format!(
                 "coreference document has {} tokens, exceeding max_doc_tokens {limit}",
@@ -583,7 +604,6 @@ mod tests {
         assert_eq!(config.max_span_length, 30);
         assert!((config.top_lambda - 0.25).abs() < 1e-6);
         assert_eq!(config.max_segment_len, 512);
-        assert_eq!(config.max_doc_tokens, Some(512));
         assert_eq!(config.optimization_level, 3);
         assert_eq!(config.num_threads, 4);
     }
@@ -594,13 +614,11 @@ mod tests {
             max_span_length: 15,
             top_lambda: 0.4,
             max_segment_len: 256,
-            max_doc_tokens: Some(4096),
             optimization_level: 1,
             num_threads: 2,
         };
         assert_eq!(config.max_span_length, 15);
         assert!((config.top_lambda - 0.4).abs() < 1e-6);
-        assert_eq!(config.max_doc_tokens, Some(4096));
     }
 
     fn test_tokenizer() -> Tokenizer {
@@ -632,38 +650,24 @@ mod tests {
     #[test]
     fn document_budget_counts_special_tokens_and_can_be_disabled() {
         let tokenizer = test_tokenizer();
-        let config = FCorefConfig {
-            max_doc_tokens: Some(4),
-            ..Default::default()
-        };
         assert_eq!(
-            encode_input(&tokenizer, "one two", &config).unwrap().len(),
+            encode_input(&tokenizer, "one two", Some(4)).unwrap().len(),
             4
         );
         assert!(matches!(
-            encode_input(&tokenizer, "one two three", &config),
+            encode_input(&tokenizer, "one two three", Some(4)),
             Err(Error::InvalidInput(_))
         ));
         let text = "word ".repeat(600);
-        assert!(encode_input(&tokenizer, text.as_str(), &FCorefConfig::default()).is_err());
-        let larger = FCorefConfig {
-            max_doc_tokens: Some(1024),
-            ..Default::default()
-        };
+        assert!(encode_input(&tokenizer, text.as_str(), DEFAULT_DOCUMENT_BUDGET).is_err());
         assert_eq!(
-            encode_input(&tokenizer, text.as_str(), &larger)
+            encode_input(&tokenizer, text.as_str(), Some(1024))
                 .unwrap()
                 .len(),
             602
         );
-        let unlimited = FCorefConfig {
-            max_doc_tokens: None,
-            ..Default::default()
-        };
         assert_eq!(
-            encode_input(&tokenizer, text.as_str(), &unlimited)
-                .unwrap()
-                .len(),
+            encode_input(&tokenizer, text.as_str(), None).unwrap().len(),
             602
         );
     }
@@ -677,35 +681,25 @@ mod tests {
                 ..Default::default()
             }))
             .unwrap();
-        let config = FCorefConfig {
-            max_doc_tokens: None,
-            ..Default::default()
-        };
         assert!(matches!(
-            encode_input(&tokenizer, "one two three four", &config),
+            encode_input(&tokenizer, "one two three four", None),
             Err(Error::InvalidInput(_))
         ));
     }
 
     #[test]
     fn zero_limits_fail_before_loading_or_downloading_artifacts() {
-        let configs = [
-            FCorefConfig {
-                max_doc_tokens: Some(0),
+        for (segment_len, budget) in [(512, Some(0)), (0, Some(512))] {
+            let config = FCorefConfig {
+                max_segment_len: segment_len,
                 ..Default::default()
-            },
-            FCorefConfig {
-                max_segment_len: 0,
-                ..Default::default()
-            },
-        ];
-        for config in configs {
+            };
             assert!(matches!(
-                FCoref::from_path_with_config("missing-model", config.clone()),
+                FCoref::from_path_with_document_budget("missing-model", config.clone(), budget),
                 Err(Error::InvalidInput(_))
             ));
             assert!(matches!(
-                FCoref::from_pretrained_with_config("unused-model", config),
+                FCoref::from_pretrained_with_document_budget("unused-model", config, budget),
                 Err(Error::InvalidInput(_))
             ));
         }
