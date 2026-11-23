@@ -89,6 +89,9 @@
 pub mod html_source;
 use html_source::HtmlSource;
 
+mod corpus_state;
+pub use corpus_state::Corpus;
+
 mod kb_assignment;
 pub use kb_assignment::{
     KbAssignment, KbAssignmentError, KbAssignmentPreview, KbAssignmentPrior, KbAssignmentReceipt,
@@ -1849,11 +1852,15 @@ impl GroundedDocument {
         Ok(())
     }
 
-    fn insert_validated_track(&mut self, mut track: Track) -> super::error::Result<TrackId> {
-        let id = self.next_track_id;
-        if id.get() == u64::MAX {
+    fn available_track_id(&self) -> super::error::Result<TrackId> {
+        if self.next_track_id.get() == u64::MAX {
             return Err(super::error::Error::invalid_input("track IDs exhausted"));
         }
+        Ok(self.next_track_id)
+    }
+
+    fn insert_validated_track(&mut self, mut track: Track) -> super::error::Result<TrackId> {
+        let id = self.available_track_id()?;
         track.id = id;
 
         // Update signal → track index
@@ -2684,6 +2691,11 @@ impl GroundedDocument {
     /// the identity link if all populated links agree. Returns `None` without changing
     /// the document for invalid inputs or when a required new ID is unavailable.
     pub fn merge_tracks(&mut self, track_ids: &[TrackId]) -> Option<TrackId> {
+        let merged = self.prepare_track_merge(track_ids)?;
+        Some(self.apply_track_merge(track_ids, merged))
+    }
+
+    fn prepare_track_merge(&self, track_ids: &[TrackId]) -> Option<Track> {
         let first = self.tracks.get(track_ids.first()?)?;
         let mut merged = Track::new(TrackId::ZERO, &first.canonical_surface);
         merged.entity_type = first.entity_type.clone();
@@ -2719,17 +2731,26 @@ impl GroundedDocument {
             member.position = u32::try_from(position).ok()?;
         }
 
+        if track_ids.len() > 1 {
+            self.available_track_id().ok()?;
+        }
+        Some(merged)
+    }
+
+    fn apply_track_merge(&mut self, track_ids: &[TrackId], merged: Track) -> TrackId {
         if let [id] = track_ids {
-            self.tracks.get_mut(id)?.signals = merged.signals;
-            return Some(*id);
+            self.tracks.get_mut(id).expect("validated track").signals = merged.signals;
+            return *id;
         }
 
-        let merged_id = self.insert_validated_track(merged).ok()?;
+        let merged_id = self
+            .insert_validated_track(merged)
+            .expect("track ID capacity checked before committing the merge");
         for id in track_ids {
             self.tracks.remove(id);
             self.track_to_identity.remove(id);
         }
-        Some(merged_id)
+        merged_id
     }
 
     /// Find all pairs of overlapping signals (potential duplicates or nested entities).
@@ -4815,42 +4836,23 @@ impl ProcessResult {
 // Corpus: Multi-Document Operations
 // =============================================================================
 
-/// A corpus of grounded documents for cross-document operations.
-///
-/// Enables inter-document coreference resolution and entity linking
-/// across multiple documents.
-#[derive(Debug, Clone)]
-pub struct Corpus {
-    // Invalidate outstanding reviews before returning mutable document access and on
-    // changes to bindings, records, or corpus membership (including internal writers).
-    kb_review_version: kb_assignment::ReviewVersion,
-    documents: std::collections::HashMap<String, GroundedDocument>,
-    identities: std::collections::HashMap<IdentityId, Identity>,
-    next_identity_id: IdentityId,
-}
-
 impl Corpus {
     /// Create a new empty corpus.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            kb_review_version: Default::default(),
-            documents: std::collections::HashMap::new(),
-            identities: std::collections::HashMap::new(),
-            next_identity_id: IdentityId::ZERO,
-        }
+        Self::default()
     }
 
     /// Get all identities in the corpus.
     #[must_use]
     pub fn identities(&self) -> &std::collections::HashMap<IdentityId, Identity> {
-        &self.identities
+        &self.state().identities
     }
 
     /// Get an identity by ID.
     #[must_use]
     pub fn get_identity(&self, id: IdentityId) -> Option<&Identity> {
-        self.identities.get(&id)
+        self.identities().get(&id)
     }
 
     /// Whether this document identity matches the corpus record with its ID.
@@ -4901,15 +4903,15 @@ impl Corpus {
     /// A document-local record can independently have the same numeric ID.
     pub(crate) fn update_shared_identity(&mut self, identity: Identity) {
         let id = identity.id;
-        if identity.matches_copy(self.identities.get(&id)) {
+        if identity.matches_copy(self.get_identity(id)) {
             return;
         }
-        self.kb_review_version.invalidate();
-        let previous = self
+        let state = self.state_mut();
+        let previous = state
             .identities
             .insert(id, identity.clone())
             .expect("updating an existing corpus identity");
-        for document in self.documents.values_mut() {
+        for document in state.documents.values_mut() {
             if previous.matches_copy(document.identities.get(&id)) {
                 document.identities.insert(id, identity.clone());
             }
@@ -4946,9 +4948,9 @@ impl Corpus {
             if members.is_empty()
                 && matches!(previous.source, Some(IdentitySource::CrossDocCoref { .. }))
             {
-                self.kb_review_version.invalidate();
-                self.identities.remove(id);
-                for document in self.documents.values_mut() {
+                let state = self.state_mut();
+                state.identities.remove(id);
+                for document in state.documents.values_mut() {
                     if previous.matches_copy(document.identities.get(id)) {
                         document.identities.remove(id);
                     }
@@ -4979,23 +4981,22 @@ impl Corpus {
             .next_unbound_identity_id()
             .expect("identity IDs must leave room for the next allocation");
         identity.id = id;
-        self.kb_review_version.invalidate();
-        self.identities.insert(id, identity);
-        self.next_identity_id = id + 1;
+        let state = self.state_mut();
+        state.identities.insert(id, identity);
+        state.next_identity_id = id + 1;
         id
     }
 
     fn next_unbound_identity_id(&self) -> Option<IdentityId> {
-        let mut id = self.next_identity_id;
+        let mut id = self.state().next_identity_id;
         loop {
             if id == IdentityId::new(u64::MAX) {
                 return None;
             }
             let used_by_document = self
-                .documents
-                .values()
+                .documents()
                 .any(|document| document.identities.contains_key(&id));
-            if !self.identities.contains_key(&id) && !used_by_document {
+            if !self.identities().contains_key(&id) && !used_by_document {
                 return Some(id);
             }
             id += 1;
@@ -5006,16 +5007,15 @@ impl Corpus {
         &self,
         document: &GroundedDocument,
     ) -> Option<IdentityId> {
-        let mut id = self.next_identity_id;
+        let mut id = self.state().next_identity_id;
         loop {
             if id == IdentityId::new(u64::MAX) {
                 return None;
             }
             let used_by_document = self
-                .documents
-                .values()
+                .documents()
                 .any(|existing| existing.identities.contains_key(&id));
-            if !self.identities.contains_key(&id)
+            if !self.identities().contains_key(&id)
                 && !used_by_document
                 && !document.identities.contains_key(&id)
             {
@@ -5037,8 +5037,7 @@ impl Corpus {
         track_refs: &[TrackRef],
     ) -> Option<IdentityId> {
         if track_refs.iter().any(|track_ref| {
-            self.documents
-                .get(&track_ref.doc_id)
+            self.get_document(&track_ref.doc_id)
                 .and_then(|document| document.get_track(track_ref.track_id))
                 .is_none()
         }) {
@@ -5053,15 +5052,14 @@ impl Corpus {
             .map(|track_ref| track_ref.doc_id.as_str())
             .collect();
         if document_ids.iter().any(|document_id| {
-            self.documents
-                .get(*document_id)
+            self.get_document(document_id)
                 .is_none_or(|document| document.identities.contains_key(&identity_id))
         }) {
             return None;
         }
-        self.kb_review_version.invalidate();
+        let state = self.state_mut();
         for document_id in &document_ids {
-            let document = self
+            let document = state
                 .documents
                 .get_mut(*document_id)
                 .expect("track references were validated before identity creation");
@@ -5071,10 +5069,11 @@ impl Corpus {
             );
         }
 
-        self.identities.insert(identity_id, identity);
-        self.next_identity_id = identity_id + 1;
+        state.identities.insert(identity_id, identity);
+        state.next_identity_id = identity_id + 1;
         for track_ref in track_refs {
-            self.documents
+            state
+                .documents
                 .get_mut(&track_ref.doc_id)
                 .expect("track references were validated before identity creation")
                 .link_track_to_identity(track_ref.track_id, identity_id);
@@ -5096,7 +5095,7 @@ impl Corpus {
     ///
     /// Returns an iterator over all documents.
     pub fn documents(&self) -> impl Iterator<Item = &GroundedDocument> {
-        self.documents.values()
+        self.state().documents.values()
     }
 
     /// Get a document by ID.
@@ -5104,7 +5103,7 @@ impl Corpus {
     /// Returns `None` if the document doesn't exist.
     #[must_use]
     pub fn get_document(&self, doc_id: &str) -> Option<&GroundedDocument> {
-        self.documents.get(doc_id)
+        self.state().documents.get(doc_id)
     }
 
     /// Get a mutable reference to a document by ID.
@@ -5115,9 +5114,8 @@ impl Corpus {
     /// or manually reinserting retired track IDs can rebind old handles.
     /// Returns `None` if the document doesn't exist.
     pub fn get_document_mut(&mut self, doc_id: &str) -> Option<&mut GroundedDocument> {
-        let document = self.documents.get_mut(doc_id)?;
-        self.kb_review_version.invalidate();
-        Some(document)
+        self.get_document(doc_id)?;
+        self.state_mut().documents.get_mut(doc_id)
     }
 
     /// Merge tracks in one document and reconcile references to their retired IDs.
@@ -5126,20 +5124,21 @@ impl Corpus {
     /// membership invalidates its measured pair similarity. Returns the surviving
     /// track ID, or `None` without mutation when the document or merge is invalid.
     pub fn merge_tracks(&mut self, doc_id: &str, track_ids: &[TrackId]) -> Option<TrackId> {
-        let document = self.documents.get_mut(doc_id)?;
-        let merged = document.merge_tracks(track_ids)?;
-        self.kb_review_version.invalidate();
+        let merged = self.get_document(doc_id)?.prepare_track_merge(track_ids)?;
+        let state = self.state_mut();
+        let document = state.documents.get_mut(doc_id).expect("validated document");
+        let merged = document.apply_track_merge(track_ids, merged);
         if track_ids.len() == 1 {
             return Some(merged);
         }
         let owner = document.identity_for_track(merged);
         let shared_owner = owner
-            .filter(|identity| identity.matches_copy(self.identities.get(&identity.id)))
+            .filter(|identity| identity.matches_copy(state.identities.get(&identity.id)))
             .map(|identity| identity.id);
         let owner_id = owner.map(|identity| identity.id);
         let retired: HashSet<_> = track_ids.iter().copied().collect();
         let affected: Vec<_> = self
-            .identities
+            .identities()
             .values()
             .filter(|identity| {
                 shared_owner == Some(identity.id)
@@ -5166,13 +5165,13 @@ impl Corpus {
     /// that could name a previous track receive fresh IDs; obtain new references
     /// from the stored document. Returns the document ID.
     pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
-        self.kb_review_version.invalidate();
         let mut affected = HashSet::new();
         document.corpus_managed = true;
-        let replacing = self.documents.contains_key(document.id());
-        if let Some(previous) = self.documents.get(document.id()) {
+        let previous = self.get_document(document.id());
+        let replacing = previous.is_some();
+        if let Some(previous) = previous {
             affected.extend(
-                self.identities
+                self.identities()
                     .values()
                     .filter(|identity| {
                         identity.source.as_ref().is_some_and(|source| {
@@ -5218,7 +5217,7 @@ impl Corpus {
             }
             // Shared copies are reconciled against live assignments after insertion.
             for identity in document.identities.values_mut() {
-                if identity.matches_copy(self.identities.get(&identity.id)) {
+                if self.is_shared_identity(identity) {
                     continue;
                 }
                 if let Some(refs) = identity
@@ -5242,7 +5241,7 @@ impl Corpus {
         let mut identity_ids: Vec<IdentityId> = document.identities.keys().copied().collect();
         identity_ids.sort_unstable();
         for identity_id in identity_ids {
-            let Some(corpus_identity) = self.identities.get(&identity_id).cloned() else {
+            let Some(corpus_identity) = self.get_identity(identity_id).cloned() else {
                 continue;
             };
             if corpus_identity.matches_copy(document.identities.get(&identity_id)) {
@@ -5261,8 +5260,9 @@ impl Corpus {
                 "replacement IDs are selected outside document maps"
             );
         }
+        let state = self.state_mut();
         if let Some(max_identity_id) = document.identities.keys().copied().max() {
-            self.next_identity_id = self
+            state.next_identity_id = state
                 .next_identity_id
                 .max(IdentityId::new(max_identity_id.get().saturating_add(1)));
         }
@@ -5272,7 +5272,7 @@ impl Corpus {
         } else {
             HashSet::new()
         };
-        self.documents.insert(doc_id.clone(), document);
+        state.documents.insert(doc_id.clone(), document);
         self.refresh_coref_membership(&affected.into_iter().collect::<Vec<_>>());
         if replacing {
             self.prune_local_track_refs(&doc_id, |id| replacement_ids.contains(&id), None);
@@ -5288,9 +5288,10 @@ impl Corpus {
         keep: impl Fn(TrackId) -> bool,
         merged_owner: Option<(IdentityId, TrackId)>,
     ) {
-        for doc in self.documents.values_mut() {
+        let state = self.state_mut();
+        for doc in state.documents.values_mut() {
             for identity in doc.identities.values_mut() {
-                if identity.matches_copy(self.identities.get(&identity.id)) {
+                if identity.matches_copy(state.identities.get(&identity.id)) {
                     continue;
                 }
                 let Some(refs) = identity
@@ -5418,12 +5419,6 @@ impl Corpus {
         };
         self.add_identity_for_tracks(identity, std::slice::from_ref(track_ref))
             .ok_or_else(|| Error::track_ref("could not bind identity to track"))
-    }
-}
-
-impl Default for Corpus {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
