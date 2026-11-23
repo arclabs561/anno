@@ -379,7 +379,7 @@ pub(super) fn next_cell(
         } else if !pinned_dataset_candidates(loader, &[task], cached).contains(&dataset) {
             continue;
         }
-        if dataset_is_usable(loader, dataset, cached) {
+        if check_dataset_usable(loader, dataset, cached).is_ok() {
             plan.first = Some(cell);
             break;
         }

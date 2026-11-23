@@ -718,6 +718,26 @@ jobs:
         run: |
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --bootstrap "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Score the pinned public TIMEX test split
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-timex-control.jsonl
+          ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-timex-history.jsonl
+          ANNO_HISTORY_FILE: ${{ runner.temp }}/matrix-timex-arms.json
+          ANNO_LINUCB_STATE_FILE: ${{ runner.temp }}/matrix-timex-linucb.json
+          ANNO_MATRIX_TASK: temporal
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: "42"
+          ANNO_MUXER_PIN_BACKEND: pattern
+          ANNO_MUXER_FIXED_DATASETS: TimexRecognitionSentenceOriginal
+          ANNO_MAX_EXAMPLES: "390"
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_S3_CACHE: "0"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+        run: |
+          python3 scripts/qa/prepare_matrix_timex.py
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          python3 scripts/qa/check_matrix_outcomes.py --public-timex "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
       - name: Run worst-first matrix test (+ regression detection)
         run: |
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
@@ -801,6 +821,7 @@ jobs:
             ${{ runner.temp }}/matrix-bootstrap.jsonl
             ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             ${{ runner.temp }}/matrix-smoke/temporal-outcomes.jsonl
+            ${{ runner.temp }}/matrix-timex-control.jsonl
             Cargo.lock
           if-no-files-found: warn
   matrix-test-trusted:

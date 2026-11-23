@@ -3,7 +3,6 @@
 import argparse
 from collections import Counter
 import json
-import math
 from pathlib import Path
 import sys
 
@@ -43,7 +42,7 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
         score = row.get("primary_f1")
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
                 and not row["hard_junk"] and row["cost_units"] == examples
-                and type(score) in (float, int) and math.isfinite(score)
+                and type(score) in (float, int) and 0 <= score <= 1
                 and (not exact or score == 1.0)):
             print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
@@ -142,11 +141,15 @@ if __name__ == "__main__":
     mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
     mode.add_argument("--temporal-smoke", action="store_true",
                       help="require two scored temporal documents and perfect fixture F1")
+    mode.add_argument("--public-timex", action="store_true", help="require the full pinned TIMEX test split")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            if args.temporal_smoke:
+            if args.public_timex:
+                passed = check_fixed_sample(stream, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+                                            backend="pattern", examples=390, exact=False)
+            elif args.temporal_smoke:
                 passed = check_temporal_smoke(stream)
             elif args.smoke or args.bootstrap:
                 passed = check_wikigold(stream, args.bootstrap)

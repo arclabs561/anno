@@ -3,7 +3,7 @@ import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_temporal_smoke, check_wikigold
+from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_smoke, check_wikigold
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -73,6 +73,21 @@ class CoverageTest(unittest.TestCase):
             self.assertFalse(check_wikigold([]))
             for mutation in ({"primary_f1": 0.0}, {"backend": "crf"}, {"cost_units": 0}):
                 self.assertFalse(check_wikigold([json.dumps(row | mutation)]))
+
+    def test_public_timex_requires_a_valid_f1_over_the_whole_split(self):
+        dataset = "TimexRecognitionSentenceOriginal"
+        row = dict(outcome("temporal", examples=390), backend="pattern", dataset=dataset)
+        def accepts(**changes):
+            return check_fixed_sample([json.dumps(row | changes)], task="temporal", dataset=dataset,
+                                      backend="pattern", examples=390, exact=False)
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            for score in (0, 0.10698, 1):
+                self.assertTrue(accepts(primary_f1=score))
+            for score in (-0.01, 4/3, float("nan"), float("inf"), True):
+                self.assertFalse(accepts(primary_f1=score))
+            self.assertFalse(accepts(cost_units=389))
+            self.assertFalse(accepts(hard_junk=True))
 
     def test_temporal_fixture_requires_the_positive_and_negative_documents(self):
         row = dict(outcome("temporal", examples=2), dataset="TimexRecognitionSentenceOriginal",

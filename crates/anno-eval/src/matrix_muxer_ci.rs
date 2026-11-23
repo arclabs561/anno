@@ -2699,63 +2699,105 @@ fn test_matrix_distribution_report() {
     }
 }
 
-fn coref_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
-    if !ds.is_coreference() {
-        return true;
-    }
-    if require_cached {
-        loader
-            .load_coref(ds)
-            .map(|docs| !docs.is_empty())
-            .unwrap_or(false)
+/// Probe the same reader used by the selected task and retain acquisition/parse errors.
+fn check_dataset_usable(
+    loader: &DatasetLoader,
+    ds: DatasetId,
+    require_cached: bool,
+) -> anno::Result<()> {
+    let count = if ds.is_relation_extraction() {
+        if require_cached {
+            loader.load_relation(ds)?
+        } else {
+            loader.load_or_download_relation(ds)?
+        }
+        .len()
+    } else if ds.is_coreference() {
+        if require_cached {
+            loader.load_coref(ds)?
+        } else {
+            loader.load_or_download_coref(ds)?
+        }
+        .len()
     } else {
-        loader
-            .load_or_download_coref(ds)
-            .map(|docs| !docs.is_empty())
-            .unwrap_or(false)
-    }
-}
-
-fn relation_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
-    if !ds.is_relation_extraction() {
-        return true;
-    }
-    if require_cached {
-        loader
-            .load_relation(ds)
-            .map(|docs| !docs.is_empty())
-            .unwrap_or(false)
-    } else {
-        loader
-            .load_or_download_relation(ds)
-            .map(|docs| !docs.is_empty())
-            .unwrap_or(false)
-    }
-}
-
-fn general_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
-    let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
-        return false;
+        let loadable = LoadableDatasetId::try_from(ds)?;
+        if require_cached {
+            loader.load(loadable)?
+        } else {
+            loader.load_or_download(loadable)?
+        }
+        .sentences
+        .len()
     };
-    let loaded = if require_cached {
-        loader.load(loadable)
-    } else {
-        loader.load_or_download(loadable)
-    };
-    match loaded {
-        Ok(d) => !d.sentences.is_empty(),
-        Err(_) => false,
+    if count == 0 {
+        return Err(anno::Error::InvalidInput(
+            "dataset contains no examples".into(),
+        ));
     }
+    Ok(())
 }
 
-fn dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
-    if ds.is_relation_extraction() {
-        return relation_dataset_is_usable(loader, ds, require_cached);
+// Public CI logs may be visible to people who cannot read the original data or bucket.
+// Emit only fixed categories and a parsed numeric HTTP status, never loader Display text.
+fn dataset_rejection_message(error: anno::Error) -> String {
+    let anno::Error::InvalidInput(message) = error else {
+        return mh::classify_failure_kind(&error.to_string()).into();
+    };
+    if let Some(status) = message
+        .strip_prefix("HTTP ")
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|word| word.parse::<u16>().ok())
+        .filter(|code| (100..=599).contains(code))
+    {
+        return format!("HTTP {status}");
     }
-    if ds.is_coreference() {
-        return coref_dataset_is_usable(loader, ds, require_cached);
+    let category = if message.contains("invalid peer certificate: UnknownIssuer") {
+        "TLS certificate issuer is untrusted (UnknownIssuer)"
+    } else if message.contains("checksum") {
+        "dataset checksum mismatch"
+    } else if message.starts_with("Download rejected") {
+        "download exceeds size limit"
+    } else if message.contains("not cached") {
+        "dataset missing from cache"
+    } else if message.starts_with("Missing time_expressions in TIMEX row") {
+        "TIMEX row lacks time_expressions"
+    } else if message == "dataset contains no examples" || message.contains("0 sentences") {
+        "dataset contains no examples"
+    } else if message.starts_with("S3 ") || message.contains("aws s3") {
+        "S3 cache error"
+    } else if message.contains("parse") || message.contains("JSON") {
+        "dataset parse error"
+    } else {
+        mh::classify_failure_kind(&message)
+    };
+    category.into()
+}
+
+#[test]
+fn dataset_rejections_expose_categories_without_urls_payloads_or_s3_stderr() {
+    let cache = tempfile::tempdir().unwrap();
+    let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+    let dataset = DatasetId::TimexRecognitionSentenceOriginal;
+    std::fs::write(
+        cache.path().join(dataset.cache_filename()),
+        r#"{"text":"stale"}"#,
+    )
+    .unwrap();
+    let error = check_dataset_usable(&loader, dataset, true).unwrap_err();
+    assert_eq!(
+        dataset_rejection_message(error),
+        "TIMEX row lacks time_expressions"
+    );
+
+    for (error, expected) in [
+        ("HTTP 403 downloading https://host?token=secret. Response body: private", "HTTP 403"),
+        ("Network error downloading https://host?token=secret: io: invalid peer certificate: UnknownIssuer", "TLS certificate issuer is untrusted (UnknownIssuer)"),
+        ("S3 download failed: private/path: secret", "S3 cache error"),
+        ("Failed to parse record: private corpus", "dataset parse error"),
+        ("private corpus content", "unknown"),
+    ] {
+        assert_eq!(dataset_rejection_message(anno::Error::InvalidInput(error.into())), expected);
     }
-    general_dataset_is_usable(loader, ds, require_cached)
 }
 
 #[derive(Clone, Copy)]
@@ -2885,6 +2927,7 @@ fn choose_datasets_for_run(
     scored.sort_by_key(|row| (row.0, row.1));
     let mut common = estimate.map(|policy| policy.candidates.to_vec());
     let mut chosen = Vec::new();
+    let mut rejected = Vec::new();
     for (_, _, ds) in scored {
         if chosen.len() == datasets_per_run {
             break;
@@ -2899,11 +2942,22 @@ fn choose_datasets_for_run(
         {
             continue;
         }
-        if dataset_is_usable(loader, ds, require_cached) {
-            if let Some(arms) = &mut common {
-                arms.retain(compatible);
+        match check_dataset_usable(loader, ds, require_cached) {
+            Ok(()) => {
+                if let Some(arms) = &mut common {
+                    arms.retain(compatible);
+                }
+                chosen.push(ds);
             }
-            chosen.push(ds);
+            Err(error) if rejected.len() < 3 => {
+                rejected.push((ds, dataset_rejection_message(error)));
+            }
+            Err(_) => {}
+        }
+    }
+    if chosen.is_empty() {
+        for (dataset, reason) in rejected {
+            eprintln!("matrix-muxer: dataset {dataset:?} unavailable (require_cached={require_cached}): {reason:?}");
         }
     }
     chosen
@@ -3249,30 +3303,28 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         if fixed.len() > datasets_per_run {
             fixed.truncate(datasets_per_run);
         }
-        let mut rejected: Vec<(DatasetId, &'static str)> = Vec::new();
+        let mut rejected: Vec<(DatasetId, String)> = Vec::new();
         let mut retained = Vec::new();
         for ds in fixed {
             if tasks.contains(&Task::RelationExtraction) {
                 if let Some(reason) = ds.relation_span_limitation() {
-                    rejected.push((ds, reason));
+                    rejected.push((ds, reason.into()));
                     continue;
                 }
             }
             if !tasks.iter().all(|t| dataset_tasks(ds).contains(t)) {
                 rejected.push((
                     ds,
-                    "dataset metadata does not declare the requested task(s)",
+                    "dataset metadata does not declare the requested task(s)".into(),
                 ));
                 continue;
             }
-            let ok = if require_cached_for_run {
-                dataset_is_usable(&loader, ds, true)
-                    || (try_download_on_empty && dataset_is_usable(&loader, ds, false))
-            } else {
-                dataset_is_usable(&loader, ds, false)
-            };
-            if !ok {
-                rejected.push((ds, "loader could not load or download any sentences"));
+            let mut usable = check_dataset_usable(&loader, ds, require_cached_for_run);
+            if usable.is_err() && require_cached_for_run && try_download_on_empty {
+                usable = check_dataset_usable(&loader, ds, false);
+            }
+            if let Err(error) = usable {
+                rejected.push((ds, dataset_rejection_message(error)));
                 continue;
             }
             retained.push(ds);
@@ -3280,7 +3332,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         if retained.is_empty() {
             eprintln!("matrix-muxer: no usable fixed datasets remained after filtering");
             for (ds, why) in rejected {
-                eprintln!("matrix-muxer: fixed dataset rejected: {ds:?}: {why}");
+                eprintln!("matrix-muxer: fixed dataset rejected: {ds:?}: {why:?}");
             }
             return;
         }
