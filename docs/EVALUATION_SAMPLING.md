@@ -32,6 +32,21 @@ An automatic run applies the registry's source policy before checking the cache.
 
 GoogleRE provides judged entity-ID pairs and evidence snippets. The standard loader reads its snippets; `anno sampler eligibility --task re` reports `missing_relation_spans` because the span scorer needs gold character offsets for both arguments.
 
+Temporal evaluation scores distinct TIMEX start/end pairs on each original sentence. The
+pinned TIMEX test split has 390 news sentences, 592 annotations and 591 distinct spans. One
+annotation repeats an interval. Every test sentence contains a time expression, so this split cannot
+measure false alarms on sentences without one. Nested and adjacent intervals remain separate. The pattern
+baseline maps DATE and TIME spans to TIMEX. The GLiNER multi-task backend receives the label
+`time expression`. Event, signal, normalized value and temporal ordering annotations are outside
+this metric. The receipt records raw annotations, distinct gold spans, predictions, matches and
+micro F1. The generic tokenized NER view has a different denominator.
+
+Run a complete baseline with `anno dataset download --dataset TimexRecognitionSentenceOriginal`,
+then `anno sampler run --task temporal --fixed-backend pattern --require-cached --runs 1 --max-examples 390`.
+The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
+still be evaluated from their original row text and annotations. [Pinned test split](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl)
+
+
 ## Choose a mode
 
 `anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.

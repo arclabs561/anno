@@ -2338,7 +2338,10 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
         // Note: `ensemble` is intentionally treated as a baseline arm here because its default
         // constructor is composed of non-ML backends (regex + heuristic) and only adds ML-ish
         // components behind feature flags (`onnx`, `candle`, etc.).
-        if matches!(b, "stacked" | "crf" | "hmm" | "heuristic" | "ensemble") {
+        if matches!(
+            b,
+            "pattern" | "stacked" | "crf" | "hmm" | "heuristic" | "ensemble"
+        ) {
             if available.contains(b) {
                 out.push(b.to_string());
             }

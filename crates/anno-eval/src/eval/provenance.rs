@@ -160,9 +160,11 @@ pub(crate) fn policy_cohort_key(
         max_examples,
         cached_only,
         enabled_features: &build.enabled_features,
-        // TaskEvalResult primary scoring keys and label policy are versioned as
-        // one contract until a dedicated scorer version is introduced.
-        scorer: "anno-eval-primary-score-v1",
+        scorer: if task == Task::Temporal {
+            "anno-timex-source-spans-v1"
+        } else {
+            "anno-eval-primary-score-v1"
+        },
     })
     .ok()
 }

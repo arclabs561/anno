@@ -2006,6 +2006,16 @@ impl DatasetLoader {
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
         let url = id.download_url().to_string();
+        // This corpus publishes the complete held-out split as a small, pinned JSONL file.
+        if id == DatasetId::TimexRecognitionSentenceOriginal {
+            let content = self.download_attempt(&url)?;
+            if self.compute_sha256(&content) != super::temporal_expressions::TEST_SHA256 {
+                return Err(Error::InvalidInput(
+                    "TIMEX test split checksum mismatch".into(),
+                ));
+            }
+            return Ok((content, url));
+        }
 
         fn env_single_csv(keys: &[&str]) -> Option<String> {
             for &k in keys {
@@ -3590,10 +3600,76 @@ impl DatasetLoader {
     ///   "rows": [{"row_idx": 0, "row": {"tokens": [...], "ner_tags": [...]}}, ...]
     /// }
     /// ```
+    fn hf_row_envelope(content: &str, id: DatasetId) -> Result<serde_json::Value> {
+        let parsed = serde_json::from_str::<serde_json::Value>(content);
+        if id != DatasetId::TimexRecognitionSentenceOriginal
+            || parsed
+                .as_ref()
+                .is_ok_and(|value| value.get("rows").is_some())
+        {
+            let value = parsed.map_err(|e| {
+                Error::InvalidInput(format!("Failed to parse HF API response: {e}"))
+            })?;
+            Self::validate_hf_dataset_viewer_envelope(&value)?;
+            return Ok(value);
+        }
+        // The canonical TIMEX export is JSONL. Existing Viewer caches remain usable.
+        let mut rows = Vec::new();
+        for (i, line) in content
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| !line.trim().is_empty())
+        {
+            let row: serde_json::Value = serde_json::from_str(line).map_err(|e| {
+                Error::InvalidInput(format!("Invalid TIMEX JSONL row {}: {e}", i + 1))
+            })?;
+            if row.get("time_expressions").is_none() {
+                return Err(Error::InvalidInput(format!(
+                    "Missing time_expressions in TIMEX row {}",
+                    i + 1
+                )));
+            }
+            rows.push(serde_json::json!({"row": row}));
+        }
+        Ok(serde_json::json!({"rows": rows}))
+    }
+
+    /// Read the original strings and stand-off gold; BIO cannot represent nested TIMEX spans.
+    pub(crate) fn cached_timex_sentences(
+        &self,
+        id: DatasetId,
+        expected_version: Option<&str>,
+    ) -> Result<Vec<super::temporal_expressions::TimexSentence>> {
+        if id != DatasetId::TimexRecognitionSentenceOriginal {
+            return Err(Error::InvalidInput(format!(
+                "No TIMEX span reader for {id:?}"
+            )));
+        }
+        let content = fs::read_to_string(self.cache_path_for(id))
+            .map_err(|e| Error::InvalidInput(format!("Failed to read TIMEX cache: {e}")))?;
+        if expected_version
+            .and_then(|v| v.strip_prefix("sha256:"))
+            .is_some_and(|expected| expected != self.compute_sha256(&content))
+        {
+            return Err(Error::InvalidInput(
+                "TIMEX source changed before scoring".into(),
+            ));
+        }
+        let mut envelope = Self::hf_row_envelope(&content, id)?;
+        let rows = envelope["rows"]
+            .as_array_mut()
+            .ok_or_else(|| Error::InvalidInput("Missing TIMEX rows".into()))?;
+        rows.iter_mut()
+            .enumerate()
+            .map(|(i, item)| {
+                serde_json::from_value(item["row"].take())
+                    .map_err(|e| Error::InvalidInput(format!("Invalid TIMEX row {}: {e}", i + 1)))
+            })
+            .collect()
+    }
+
     fn parse_hf_api_response(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
-        let parsed: serde_json::Value = serde_json::from_str(content)
-            .map_err(|e| Error::InvalidInput(format!("Failed to parse HF API response: {}", e)))?;
-        Self::validate_hf_dataset_viewer_envelope(&parsed)?;
+        let parsed = Self::hf_row_envelope(content, id)?;
 
         let mut sentences = Vec::new();
 
@@ -3675,7 +3751,11 @@ impl DatasetLoader {
                         .and_then(|v| v.as_array())
                         .is_some();
 
-                if has_temporal_spans && !text.is_empty() {
+                if (has_temporal_spans
+                    || (id == DatasetId::TimexRecognitionSentenceOriginal
+                        && row.get("time_expressions").is_some()))
+                    && !text.is_empty()
+                {
                     fn spans_from_array(
                         arr: Option<&Vec<serde_json::Value>>,
                     ) -> Vec<(usize, usize)> {
@@ -3876,14 +3956,27 @@ impl DatasetLoader {
         }
 
         let now = super::timestamp::now();
+        let mut metadata = id.default_metadata();
+        let mut source_url = id.download_url().to_owned();
+        if id == DatasetId::TimexRecognitionSentenceOriginal {
+            let digest = self.compute_sha256(content);
+            if digest == super::temporal_expressions::TEST_SHA256 {
+                metadata.split = Some("test".into());
+            } else {
+                // An unmanaged local fixture or older Viewer envelope may use another split.
+                source_url = id.cache_filename().into();
+                metadata.split = None;
+            }
+            metadata.version = Some(format!("sha256:{digest}"));
+        }
         Ok(LoadedDataset {
             id,
             sentences,
             loaded_at: now,
-            source_url: id.download_url().to_string(),
+            source_url,
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
-            metadata: id.default_metadata(),
+            metadata,
         })
     }
 

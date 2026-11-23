@@ -629,27 +629,24 @@ impl TaskEvaluator {
         (sampled_data, sentences_to_use)
     }
 
-    /// Deterministically cap relation evaluation by document, the unit actually scored.
+    /// Deterministically cap task-specific source rows before scoring.
     ///
     /// `max_examples = Some(0)` is an explicit empty cap, matching the generic sampler.
     /// The original document order is restored after selection so scoring and receipts do not
     /// depend on hash rank.
-    fn sample_relation_documents(
-        relation_docs: Vec<crate::eval::loader::RelationDocument>,
-        config: &TaskEvalConfig,
-    ) -> Vec<crate::eval::loader::RelationDocument> {
+    fn sample_documents<T>(documents: Vec<T>, config: &TaskEvalConfig) -> Vec<T> {
         let Some(max) = config.max_examples else {
-            return relation_docs;
+            return documents;
         };
-        if max >= relation_docs.len() {
-            return relation_docs;
+        if max >= documents.len() {
+            return documents;
         }
 
         let seed = config.seed.unwrap_or(42);
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
-        let mut indices: Vec<(usize, u64)> = (0..relation_docs.len())
+        let mut indices: Vec<(usize, u64)> = (0..documents.len())
             .map(|index| {
                 let mut hasher = DefaultHasher::new();
                 seed.hash(&mut hasher);
@@ -664,7 +661,7 @@ impl TaskEvaluator {
             .map(|(index, _)| index)
             .collect();
 
-        relation_docs
+        documents
             .into_iter()
             .enumerate()
             .filter_map(|(index, doc)| selected.contains(&index).then_some(doc))
@@ -887,7 +884,10 @@ impl TaskEvaluator {
                 confidence_intervals: input.config.confidence_intervals,
                 robustness: input.config.robustness,
                 relation_threshold: input.config.relation_threshold,
-                ner_inference: Self::ner_inference_provenance(input.effective_backend_name),
+                ner_inference: Self::ner_inference_provenance(
+                    input.task,
+                    input.effective_backend_name,
+                ),
                 scheduling: input.scheduling,
             },
             evaluated_sample: input.evaluated_sample,
@@ -989,7 +989,7 @@ impl TaskEvaluator {
         provenance
     }
 
-    fn ner_inference_provenance(backend_name: &str) -> NerInferenceProvenance {
+    fn ner_inference_provenance(task: Task, backend_name: &str) -> NerInferenceProvenance {
         let uses_evaluator_threshold = matches!(
             backend_name,
             "nuner"
@@ -999,7 +999,8 @@ impl TaskEvaluator {
                 | "gliner_candle"
                 | "gliner_poly"
                 | "universal_ner"
-        );
+        ) || (task == Task::Temporal
+            && backend_name == "gliner_multitask");
         NerInferenceProvenance {
             threshold: if uses_evaluator_threshold {
                 InferenceSettingProvenance::Known {
@@ -1331,11 +1332,7 @@ impl TaskEvaluator {
             | "gliner_candle" | "gliner_multitask" | "gliner_pii" | "gliner_relex" | "w2ner"
             | "gliner_poly" | "deberta_v3" | "albert" | "universal_ner" => true,
             // Pattern only does structured entities (not named entities)
-            "pattern" => {
-                // RegexNER only extracts: Date, Time, Money, Percent, Email, URL, Phone
-                // Not compatible with named entity datasets
-                false
-            }
+            "pattern" => dataset == DatasetId::TimexRecognitionSentenceOriginal,
             // Heuristic only does Person, Organization, Location
             "heuristic" => {
                 let supported = [
@@ -1399,7 +1396,6 @@ impl TaskEvaluator {
             Task::NER
             | Task::DiscontinuousNER
             | Task::EventExtraction
-            | Task::Temporal
             | Task::DiscourseSegmentation => {
                 let defer_label_conditioned_load = !dataset.entity_types().is_empty()
                     && matches!(
@@ -1468,6 +1464,36 @@ impl TaskEvaluator {
                     ner_label_policy: Some(label_policy),
                     construction_receipt,
                     scheduling,
+                })
+            }
+            Task::Temporal => {
+                let documents = Self::sample_documents(
+                    self.loader.cached_timex_sentences(
+                        dataset,
+                        dataset_data.metadata.version.as_deref(),
+                    )?,
+                    config,
+                );
+                let (backend, construction_receipt) =
+                    BackendFactory::create_with_provenance(backend_name)?;
+                let (metrics, gold_item_count) =
+                    super::temporal_expressions::score(&documents, &*backend)?;
+                Ok(BackendEvalOk {
+                    metrics,
+                    actual_example_count: Some(documents.len()),
+                    evaluated_sample: Some(EvaluatedSampleProvenance {
+                        schema_version: 1,
+                        unit: EvaluatedSampleUnit::Sentence,
+                        unit_count: documents.len(),
+                        gold_item_count,
+                    }),
+                    backend_display: Some(backend.name().to_string()),
+                    configured_labels: backend
+                        .as_zero_shot()
+                        .map(|_| vec![super::temporal_expressions::LABEL.to_string()]),
+                    ner_label_policy: None,
+                    construction_receipt,
+                    scheduling: EvaluationScheduling::Sequential,
                 })
             }
             Task::IntraDocCoref | Task::AbstractAnaphora => {
@@ -3120,7 +3146,7 @@ impl TaskEvaluator {
                 }
             }
         };
-        let relation_docs = Self::sample_relation_documents(relation_docs, config);
+        let relation_docs = Self::sample_documents(relation_docs, config);
 
         // Collect all gold relations
         let mut all_gold_relations: Vec<RelationGold> = Vec::new();
@@ -4543,6 +4569,52 @@ mod tests {
     }
 
     #[test]
+    fn temporal_pattern_scores_source_gold_from_both_cache_formats() {
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let id = DatasetId::TimexRecognitionSentenceOriginal;
+        let row = serde_json::json!({
+            "text":"🦊  2024-03-01",
+            "time_expressions":[{"text":"2024-03-01","start_char":3,"end_char":13}],
+            "event_expressions":[{"text":"🦊","start_char":0,"end_char":1}]
+        });
+        let viewer = serde_json::json!({"features":[], "rows":[{"row_idx":0,"row":row}], "num_rows_total":1});
+        for source in [row.to_string(), viewer.to_string()] {
+            std::fs::write(cache.path().join(id.cache_filename()), source).unwrap();
+            let report = evaluator
+                .evaluate_all(TaskEvalConfig {
+                    datasets: vec![id],
+                    tasks: vec![Task::Temporal],
+                    backends: vec!["pattern".into()],
+                    require_cached: true,
+                    ..Default::default()
+                })
+                .unwrap();
+            let cell = &report.results[0];
+            assert!(cell.success, "{:?}", cell.error);
+            assert_eq!(cell.metrics["f1"], 1.0);
+            assert_eq!(cell.metrics["gold_spans"], 1.0);
+            assert_eq!(
+                cell.provenance
+                    .evaluated_sample
+                    .as_ref()
+                    .unwrap()
+                    .gold_item_count,
+                1
+            );
+            assert_eq!(cell.provenance.dataset.source_url, id.cache_filename());
+            assert!(cell
+                .provenance
+                .dataset
+                .version
+                .as_deref()
+                .unwrap()
+                .starts_with("sha256:"));
+            assert!(cell.provenance.dataset.split.is_none());
+        }
+    }
+
+    #[test]
     fn explicitly_requested_googlere_span_scoring_is_skipped_before_loading() {
         let cache = tempfile::tempdir().unwrap();
         let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
@@ -4908,7 +4980,7 @@ mod tests {
             .loader
             .load_relation(DatasetId::CHisIEC)
             .expect("load relation fixture");
-        let expected = TaskEvaluator::sample_relation_documents(loaded, &config);
+        let expected = TaskEvaluator::sample_documents(loaded, &config);
         let expected_texts: Vec<_> = expected.iter().map(|doc| doc.text.clone()).collect();
         let expected_gold = expected
             .iter()
@@ -4917,7 +4989,7 @@ mod tests {
         assert_eq!(expected.len(), 2);
         assert_eq!(
             expected_texts,
-            TaskEvaluator::sample_relation_documents(
+            TaskEvaluator::sample_documents(
                 evaluator
                     .loader
                     .load_relation(DatasetId::CHisIEC)
@@ -5236,11 +5308,11 @@ mod tests {
     #[test]
     fn provenance_records_evaluator_supplied_zero_shot_threshold_only() {
         assert!(matches!(
-            TaskEvaluator::ner_inference_provenance("gliner_onnx").threshold,
+            TaskEvaluator::ner_inference_provenance(Task::NER, "gliner_onnx").threshold,
             InferenceSettingProvenance::Known { value } if value == serde_json::json!(0.5)
         ));
         assert!(matches!(
-            TaskEvaluator::ner_inference_provenance("bert_onnx").threshold,
+            TaskEvaluator::ner_inference_provenance(Task::NER, "bert_onnx").threshold,
             InferenceSettingProvenance::Unknown { .. }
         ));
     }
