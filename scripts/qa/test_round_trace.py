@@ -65,7 +65,9 @@ class TraceTest(unittest.TestCase):
         self.assertEqual(data[retry]["retry_of"], failed)
         self.assertEqual(report["failed_spans"], [failed])
         self.assertEqual(set(report["open_spans"]), {retry, report["trace_id"]})
-        self.assertEqual(report["agent_usage"], dict(agents=3, known_model=1, known_tokens=1,
+        self.assertEqual(report["agent_usage"], dict(agents=3, attempts=3, completed=1, errors=1,
+                                                    interrupted=0, open=1, assertion_failed=0,
+                                                    known_model=1, known_tokens=1,
                                                     known_cost=1, reported_cost_usd=0, known_input_tokens=1,
                                                     reported_input_tokens=0, known_output_tokens=1,
                                                     reported_output_tokens=2))
@@ -81,6 +83,32 @@ class TraceTest(unittest.TestCase):
         stored = self.db.read_bytes()
         for secret in (b"secret input", b"secret output", b"private-fixture", b"pathlib", b"private round prompt"):
             self.assertNotIn(secret, stored)
+
+    def test_failed_dispatch_then_completed_retry_preserves_unknown_usage(self):
+        failed = self.call("start", "--role", "oracle", "--tool", "host")
+        self.call("end", failed, "--status", "error")
+        retry = self.call("start", "--role", "oracle", "--tool", "host", "--retry-of", failed)
+        self.call("end", retry, "--status", "ok")
+        self.call("end", "round", "--status", "ok")
+        report = json.loads(self.call("report"))
+        self.assertEqual(report["agent_usage"], dict(
+            agents=2, attempts=2, completed=1, errors=1, interrupted=0, open=0, assertion_failed=0,
+            known_model=0, known_tokens=0, known_cost=0, known_input_tokens=0, known_output_tokens=0,
+            reported_cost_usd=None, reported_input_tokens=None, reported_output_tokens=None))
+        by_id = {s["id"]: s for s in report["spans"]}
+        self.assertEqual(by_id[retry]["retry_of"], failed)
+
+    def test_interrupted_and_assertion_failed_attempts_have_distinct_counts(self):
+        for outcome in ("interrupted", "assertion_failed"):
+            attempt = self.call("start", "--role", "reviewer", "--tool", "host")
+            self.call("end", attempt, "--status", outcome)
+        usage = json.loads(self.call("report"))["agent_usage"]
+        self.assertEqual(usage["attempts"], 2)
+        self.assertEqual(usage["interrupted"], 1)
+        self.assertEqual(usage["assertion_failed"], 1)
+        self.assertEqual(usage["completed"], 0)
+        self.assertEqual(usage["errors"], 0)
+        self.assertEqual(usage["open"], 0)
 
     def test_runner_reports_failure_and_missing_executable(self):
         self.call("run", "--role", "replay", "--tool", "test", "--", sys.executable,

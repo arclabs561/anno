@@ -1,6 +1,40 @@
 use super::*;
 
 #[test]
+fn explicit_sms_expansion_distinguishes_channel_from_organization() {
+    let text = "Zoë met Strategic Management Society (SMS) to discuss Short\u{a0}Message\tService (SMS), then short message service (SMS).";
+    let ner = HeuristicNER::new();
+    let entities = ner.extract_entities(text, None).unwrap();
+    for name in ["Strategic Management Society", "SMS"] {
+        let start = text[..text.find(name).unwrap()].chars().count();
+        assert!(entities.iter().any(|e| e.text == name
+            && e.entity_type == EntityType::Organization
+            && e.start() == start
+            && e.end() == start + name.chars().count()));
+    }
+    for phrase in [
+        "Short\u{a0}Message\tService (SMS)",
+        "short message service (SMS)",
+    ] {
+        let start = text[..text.find(phrase).unwrap()].chars().count();
+        let end = start + phrase.chars().count();
+        assert!(
+            entities
+                .iter()
+                .all(|e| e.start() >= end || e.end() <= start),
+            "{entities:?}"
+        );
+    }
+
+    let legal_name = "Short Message Service (SMS) Ltd";
+    assert!(ner
+        .extract_entities(legal_name, None)
+        .unwrap()
+        .iter()
+        .any(|e| { e.entity_type == EntityType::Organization && e.text == legal_name }));
+}
+
+#[test]
 fn parenthesized_aliases_have_independent_source_spans() {
     let ner = HeuristicNER::new();
     for (text, names) in [

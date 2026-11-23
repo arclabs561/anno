@@ -14,6 +14,17 @@ The sampler is useful for three separate jobs:
 Start with the fixed panel. It makes missing model features, incompatible
 datasets, and cold caches visible before interpreting adaptive choices.
 
+## Inspect dataset eligibility
+
+Run `anno sampler eligibility --task ner --require-cached` before comparing policies on a local panel. Its JSON lists each registered dataset for that task, whether the standard loader sees a local cache hit, and the first policy exclusion. For a compact list of locally cached sources and why each will or will not enter selection:
+
+```bash
+anno sampler eligibility --task ner --require-cached |
+  jq '.datasets[] | select(.locally_cached) | {dataset, eligible, exclusion}'
+```
+
+An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. When S3 cache is enabled, `require_cached` permits a remote cache lookup during execution. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time.
+
 ## Choose a mode
 
 `anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.
@@ -259,6 +270,20 @@ the sampler prefers an alternative backend when one is eligible. A sole
 eligible backend still runs. A changed error or recovery starts a new episode.
 A repeated-infrastructure retry records both observation IDs and the failure kind.
 
+### Compare detection against a known annotation fault
+
+Use the [fault comparison](../scripts/qa/compare_sampler_annotation_faults.py) with an eval-enabled CLI, Python 3.11 or newer, and a directory holding the pinned `WikiGold.cache` and `Wnut17.cache` files. The script checks both source hashes, copies them into temporary caches, and changes labels only in those copies. The WikiGold source is pinned by [the cache preparation script](../scripts/qa/prepare_matrix_wikigold.sh); the WNUT-17 input is the [upstream annotated test file](https://github.com/leondz/emerging_entities_17/blob/master/emerging.test.annotated).
+
+```bash
+python3 scripts/qa/compare_sampler_annotation_faults.py \
+  --anno "$PWD/target/debug/anno" --cache "$ANNO_CACHE_DIR/datasets" \
+  --out .generated/annotation-fault-comparison
+```
+
+The experiment removes WikiGold location labels or WNUT-17 person labels in separate trials. Each of coverage, triage, and seeded random gets three 20-example selections from the same two eligible corpora and the same starting history. Eight schedules cross both planted faults and three pre-fault histories. The sampler sees only its normal outcomes. A separate oracle compares the selected evaluation's gold count with a pristine evaluation of the same dataset and seed. Published receipts include the per-slot count differences and unchanged-corpus checks. Choose a new output directory for each run.
+
+In the initial 432 selections, coverage detected the planted loss within two slots in 39/48 trials, compared with 33/48 each for triage and random. With clean history from the corpus that later lost labels, coverage detected it by slot two in 8/16 trials versus 11/16 for each alternative. Coverage detected both kinds of faults by slot three in all 48 trials. Seven draws of the corrupted WikiGold corpus had *higher* sampled gold counts on one seed: NER stratifies by whether a sentence has any gold, so changing gold can change which sentences the seed selects. All 213 draws of the intact corpus matched their pristine controls. The endpoint measures detection of these planted data losses under this sampling policy. It does not estimate sensitivity to other defects.
+
 ## What the selector learns
 
 A test cell identifies a task, dataset and backend under a comparable evaluation configuration. The selection policy uses observations from earlier attempts to allocate a bounded test budget. The library also supports multi-arm routing, contextual selection, change monitoring and triage. Anno uses particular pieces of [muxer 0.5.3](https://docs.rs/muxer/0.5.3/muxer/) for evaluation. Production model selection remains with the caller.
@@ -310,6 +335,14 @@ A gold JSONL record has an `entities` array with `text`, `label`, `start`, and `
 
 The ordered ranges must agree with the outer bounds and the original source. The surface can join the selected pieces with spaces or preserve the exact bounding substring from a legacy record. Empty BRAT boundary markers add no covered characters. Each scored mention must cover at least one character. A missing or null `segments` field identifies a contiguous span. Entity matching compares the covered positions and label. Boundary IoU, character masking, the HTML highlights and the detailed text error counts use the same positions.
 
+Use `{"text":"quiet","entities":[]}` for a document reviewed and found to contain no entities. Every predicted entity in that document counts as a false positive. With `--metric char-masking`, every character covered by its predictions contributes to the false-positive rate over all source characters. A blank gold file has no labeled document and is rejected.
+
 Replay validates the stored signals and matches the entire source text, including whitespace. The JSON report retains the grounded document ID, the SHA-256 of the evaluated UTF-8 text, and the saved signal IDs in the matches. Model and inference time are null during replay. The grounded artifact contains source text and detected surfaces, so store it with the same access controls as the original.
 
 Gold JSONL records may carry their source `text`, `source_sha256`, and a document ID (`id`, `doc_id`, or `document_id`). The evaluator checks any supplied text or hash against its input, requires one document ID throughout the file, and checks that ID against the saved predictions. To preserve a corpus document ID, use `anno batch --stdin --model pattern --format grounded` with an input record such as `{"id":"report-v1","text":"…"}`. Legacy entity-only gold records still validate each annotated surface. Identical text from distinct revisions can be distinguished only when the records carry distinct document IDs.
+
+## Interpret coreference dataset scores
+
+`anno dataset eval --dataset gap --task coref` reports an unweighted mean of document CoNLL F1 scores. It compares exact character spans and keeps supplied singleton chains. A document with no gold or predicted mentions contributes zero CoNLL F1. A dataset with one perfectly resolved two-mention chain and one correctly empty document therefore scores 0.50.
+
+The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection.

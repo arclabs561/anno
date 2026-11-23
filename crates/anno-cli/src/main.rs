@@ -110,6 +110,7 @@ fn main() -> ExitCode {
             let text = cli.text.join(" ");
             extract::run(crate::cli::commands::ExtractArgs {
                 url: None,
+                html_source_spans: false,
                 clean: false,
                 normalize: false,
                 detect_lang: false,

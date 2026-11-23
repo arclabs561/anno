@@ -70,7 +70,7 @@ pub struct EvalArgs {
     )]
     pub gold_specs: Vec<String>,
 
-    /// Load gold annotations from JSONL file
+    /// Load gold from JSONL. Use {"entities":[]} for an annotated negative document.
     #[arg(long, value_name = "PATH")]
     pub gold_file: Option<String>,
 
@@ -133,10 +133,6 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 .to_string(),
         );
     };
-
-    if gold.is_empty() {
-        return Err("No valid gold annotations found".to_string());
-    }
 
     let offsets = anno::offset::SpanConverter::new(&text);
     let char_count = offsets.byte_to_char(text.len());

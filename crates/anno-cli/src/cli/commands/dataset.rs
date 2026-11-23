@@ -748,13 +748,27 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 .collect();
 
                             // Compute aggregate metrics
-                            let results =
-                                anno_eval::eval::coref_metrics::AggregateCorefEvaluation::compute(
+                            let (results, links) =
+                                anno_eval::eval::coref_metrics::AggregateCorefEvaluation::compute_with_link_counts(
                                     &document_pairs,
                                 );
 
                             println!("{COREF_SCORING_POLICY}");
-                            println!("Results (mean across documents):");
+                            let empty_pairs = document_pairs
+                                .iter()
+                                .filter(|(pred, gold)| {
+                                    pred.iter()
+                                        .chain(gold.iter())
+                                        .all(|chain| chain.mentions.is_empty())
+                                })
+                                .count();
+                            println!(
+                                "Within-document coreferent links: matched={} extra={} missed={}",
+                                links.matched,
+                                links.predicted - links.matched,
+                                links.gold - links.matched
+                            );
+                            println!("Results (unweighted mean across {} documents, including {} with no mentions on either side):", results.num_documents, empty_pairs);
                             println!("  CoNLL F1: {:.3}", results.mean.conll_f1);
                             println!(
                                 "  MUC: P={:.3} R={:.3} F1={:.3}",
@@ -1716,7 +1730,7 @@ fn coref_doc_to_oracle_mentions(doc: &anno_eval::eval::coref::CorefDocument) -> 
 
 #[cfg(feature = "eval")]
 const COREF_SCORING_POLICY: &str =
-    "Native CoNLL scoring matches exact character spans and retains supplied singleton chains.";
+    "Native CoNLL scoring matches exact character spans and retains supplied singleton chains. Documents with no mentions on either side score zero CoNLL F1.";
 
 #[cfg(feature = "eval")]
 #[allow(clippy::too_many_arguments)]

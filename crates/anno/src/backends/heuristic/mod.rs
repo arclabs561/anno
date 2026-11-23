@@ -584,6 +584,10 @@ impl Model for HeuristicNER {
         let mut i = 0;
         while i < words.len() {
             let word = words[i];
+            if starts_sms_channel_definition(&words[i..]) {
+                i += 4;
+                continue;
+            }
 
             // Pre-check: Clean leading punctuation before checking capitalization
             let clean_leading = word.trim_start_matches(|c: char| !c.is_alphanumeric());
@@ -624,6 +628,9 @@ impl Model for HeuristicNER {
 
             let mut repeats_organization = false;
             while i < words.len() {
+                if i > start_idx && starts_sms_channel_definition(&words[i..]) {
+                    break;
+                }
                 let w = words[i];
                 let w_clean = w.trim_start_matches(|c: char| !c.is_alphanumeric());
 
@@ -879,6 +886,23 @@ impl Model for HeuristicNER {
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities::default()
     }
+}
+
+/// An explicit English expansion identifies the messaging channel at this occurrence.
+fn starts_sms_channel_definition(words: &[&str]) -> bool {
+    let [short, message, service, alias, rest @ ..] = words else {
+        return false;
+    };
+    short.eq_ignore_ascii_case("short")
+        && message.eq_ignore_ascii_case("message")
+        && service.eq_ignore_ascii_case("service")
+        && alias.trim_end_matches([',', '.', ';', ':', '!', '?']) == "(SMS)"
+        && !rest.first().is_some_and(|next| {
+            next.starts_with(char::is_uppercase)
+                && ORG_SUFFIX
+                    .iter()
+                    .any(|suffix| next.trim_end_matches(',').eq_ignore_ascii_case(suffix))
+        })
 }
 
 /// Domain-agnostic, language-agnostic acronym check.  True when every
