@@ -87,6 +87,10 @@ ANNO_NO_DOWNLOADS=1 cargo run --locked -p anno --no-default-features --features 
 python3 scripts/qa/score_person_mentions.py "$panel" target/qa-person/predictions.json
 ```
 
+The example runs `FCoref::analyze_words` with caller-supplied word boundaries. The raw-text route used by `FCoref::resolve` tokenizes the original string and can produce different clusters, even with the same weights. Identify the inference route when reporting either result.
+
+In version 1 gold, each mention supplies `highlight_surface` and one `referential_surfaces` entry per `referential_spans` entry. Each recorded surface must equal the corresponding source slice. Every accepted referring expression contains its highlight. Each negative span supplies its own `surface` and must be distinct and disjoint from the positive mentions.
+
 Each row in the receipt's `results` array supplies the document `id`, `source_sha256` of the verbatim UTF-8 input, `mentions` with scalar `start`, `end` and `surface`, and `clusters` of scalar range pairs. Each cluster member must appear among the candidates. A coarse caller-supplied word may project mentions from two model clusters onto the same source span. The scorer counts that span once in selection and each pair once if its endpoints share a cluster. It preserves the original clusters without inferring links between their other members. Documents with empty model output still need a row.
 
 The scorer evaluates the same output against each gold occurrence's compact highlight and accepted referring expressions. It reports all proposed spans and the subset used in clusters. For one-to-one person selection, use `covered_mentions / emitted` for precision and `covered_mentions / gold_mentions` for recall. Several accepted ranges can cover one occurrence. An exact hit on a marked distractor counts separately from other unmatched ranges. A general coreference model can legitimately propose non-person entities outside this panel's person task.
