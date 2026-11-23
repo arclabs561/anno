@@ -198,6 +198,8 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
 /// starts separate text, even if it is numeric.
 /// Length and checksum checks do not establish account existence or BBAN validity.
 /// Offsets are character offsets (Unicode scalar values), consistent with [`classify_entity`].
+/// A later pattern that extends beyond an earlier detection is retained, so
+/// callers can filter by type before merging spans for replacement.
 pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
     // Recognize complete grouped IBANs before shorter numeric patterns can
     // claim a portion of the account number.
@@ -250,10 +252,8 @@ pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
                 // Convert byte offsets from regex to character offsets
                 let start = text[..m.start()].chars().count();
                 let end = text[..m.end()].chars().count();
-                let overlaps = results
-                    .iter()
-                    .any(|e: &PiiEntity| !(end <= e.start || start >= e.end));
-                if !overlaps {
+                let already_covered = results.iter().any(|e| e.start <= start && end <= e.end);
+                if !already_covered {
                     results.push(PiiEntity {
                         text: m.as_str().to_string(),
                         pii_type: pii_type.to_string(),
@@ -735,6 +735,31 @@ mod tests {
     fn email_detected() {
         let pii = scan_patterns("Contact me at bob@example.com please.");
         assert!(pii.iter().any(|p| p.pii_type == "CONTACT"));
+    }
+
+    #[test]
+    fn overlapping_email_and_ssn_remain_selectable_for_redaction() {
+        let text = "✉ e\u{301} 123-45-6789@example.org END";
+        assert_eq!(redact_patterns(text), "✉ e\u{301} [CONTACT_1] END");
+
+        let detections = scan_patterns(text);
+        for (kind, expected) in [
+            ("CONTACT", "✉ e\u{301} [CONTACT_1] END"),
+            ("ID_NUMBER", "✉ e\u{301} [ID_NUMBER_1]@example.org END"),
+        ] {
+            let selected = detections
+                .iter()
+                .filter(|hit| hit.pii_type == kind)
+                .cloned()
+                .collect::<Vec<_>>();
+            assert_eq!(redact(text, &selected), expected);
+        }
+    }
+
+    #[test]
+    fn redact_patterns_covers_extending_overlap() {
+        let text = "Call 555-123-4567 Main Street; continue.";
+        assert_eq!(redact_patterns(text), "Call [CONTACT_1]; continue.");
     }
 
     #[test]
