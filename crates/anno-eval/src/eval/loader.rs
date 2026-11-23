@@ -118,7 +118,7 @@ use std::path::PathBuf;
 /// |---------|------|--------|----------|
 /// | `GAP` | 8,908 pairs | Wikipedia | Gender-balanced pronouns |
 /// | `PreCo` | 38k docs | Reading | Includes singletons |
-/// | `LitBank` | 100 works | Literature | Literary coreference |
+/// | `LitBank` | 1 excerpt (100 works upstream) | Literature | Literary coreference |
 ///
 /// # Extending
 ///
@@ -1644,7 +1644,12 @@ impl DatasetLoader {
             Error::InvalidInput(format!("Failed to read cache {:?}: {}", cache_path, e))
         })?;
 
-        let mut dataset = self.parse_content_impl(&content, dataset_id)?;
+        let parse_content = if dataset_id == DatasetId::LitBank {
+            super::litbank::cached_content(&content, &cache_path)?
+        } else {
+            std::borrow::Cow::Borrowed(content.as_str())
+        };
+        let mut dataset = self.parse_content_impl(&parse_content, dataset_id)?;
         if dataset.sentences.is_empty() {
             return Err(Error::InvalidInput(format!(
                 "Cached dataset '{}' parsed to 0 sentences (cache_path={:?})",
@@ -1660,6 +1665,10 @@ impl DatasetLoader {
                 }
                 Self::apply_manifest_provenance(&mut dataset, entry);
             }
+        }
+        if matches!(parse_content, std::borrow::Cow::Owned(_)) {
+            dataset.metadata.version =
+                Some(format!("sha256:{}", self.compute_sha256(&parse_content)));
         }
         Ok(dataset)
     }
@@ -1841,6 +1850,12 @@ impl DatasetLoader {
             }
         }
 
+        // An old annotation-only mirror cannot supply the corresponding source text.
+        if id == DatasetId::LitBank && !content.trim_start().starts_with('{') {
+            return Err(Error::InvalidInput(
+                "LitBank mirror lacks the source text".into(),
+            ));
+        }
         // Best-effort: attempt to fetch per-dataset manifest entry.
         let manifest = self.download_manifest_entry_from_s3(bucket, id).ok();
 
@@ -2006,6 +2021,20 @@ impl DatasetLoader {
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
         let url = id.download_url().to_string();
+        if id == DatasetId::LitBank {
+            let source_url = url
+                .strip_suffix(".ann")
+                .ok_or_else(|| {
+                    Error::InvalidInput("LitBank registry URL must point to a .ann file".into())
+                })?
+                .to_owned()
+                + ".txt";
+            let annotations = self.download_attempt(&url)?;
+            let text = self.download_attempt(&source_url)?;
+            let content = super::litbank::SourcePair { text, annotations }.encode()?;
+            Self::enforce_max_download_bytes(content.len(), &url)?;
+            return Ok((content, url));
+        }
         // This corpus publishes the complete held-out split as a small, pinned JSONL file.
         if id == DatasetId::TimexRecognitionSentenceOriginal {
             let content = self.download_attempt(&url)?;
@@ -3216,7 +3245,8 @@ impl DatasetLoader {
     /// workflows and integration tests that want to exercise parsing without network I/O.
     ///
     /// It does **not** download or read from cache. For typical usage, prefer
-    /// [`DatasetLoader::load_or_download`] / [`DatasetLoader::load`].
+    /// [`DatasetLoader::load_or_download`] / [`DatasetLoader::load`]. For LitBank,
+    /// supply a JSON object with the corresponding BRAT `text` and `annotations` strings.
     pub fn parse_content_str(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         self.parse_content_impl(content, id)
     }
@@ -5213,179 +5243,15 @@ impl DatasetLoader {
         })
     }
 
-    /// Parse LitBank annotation format for NER.
-    ///
-    /// LitBank .ann format: T<id>\t<Type> <start> <end>\t<text>
-    /// Note: LitBank is primarily a coreference dataset. This parser extracts
-    /// entity mentions as NER annotations, but LitBank should be used with
-    /// `load_coref()` for proper coreference evaluation.
     fn parse_litbank(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
-        // LitBank .ann format: each line is T<id>\t<Type> <start> <end>\t<text>
-        // Extract entity mentions as NER annotations
-        let now = super::timestamp::now();
-        let mut sentences = Vec::new();
-        let mut entities: Vec<(usize, usize, String, String)> = Vec::new(); // (start, end, text, label)
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            if line.starts_with('T') {
-                // Entity annotation: T1\tPER 0 5\tAlice
-                // LitBank uses ACE-style labels like PROP_PER, NOM_LOC, PRON_FAC etc.
-                // We normalize to just the entity type (PER, LOC, ORG, GPE, FAC, VEH)
-                // Note: LitBank also has coreference chain annotations like "character_name-ID"
-                // which should be skipped for NER evaluation
-                let parts: Vec<&str> = line.split('\t').collect();
-                if parts.len() >= 3 {
-                    let type_span: Vec<&str> = parts[1].split_whitespace().collect();
-                    if type_span.len() >= 3 {
-                        let raw_label = type_span[0];
-
-                        // Valid entity types (with or without prefix)
-                        const VALID_ENTITY_TYPES: &[&str] = &[
-                            "PER",
-                            "LOC",
-                            "ORG",
-                            "GPE",
-                            "FAC",
-                            "VEH",
-                            "PERSON",
-                            "LOCATION",
-                            "ORGANIZATION",
-                        ];
-
-                        // Entity type annotations start with PROP_, NOM_, PRON_ OR are plain types
-                        let is_prefixed_entity = raw_label.starts_with("PROP_")
-                            || raw_label.starts_with("NOM_")
-                            || raw_label.starts_with("PRON_");
-                        let is_plain_entity = VALID_ENTITY_TYPES.contains(&raw_label);
-
-                        if !is_prefixed_entity && !is_plain_entity {
-                            // Skip coreference chain annotations (e.g., "jarndyce_2-73")
-                            continue;
-                        }
-
-                        // Normalize: PROP_PER -> PER, NOM_LOC -> LOC, PRON_FAC -> FAC
-                        let label = if is_prefixed_entity {
-                            raw_label.split('_').next_back().unwrap_or(raw_label)
-                        } else {
-                            raw_label
-                        };
-                        let start: usize = type_span[1].parse().unwrap_or(0);
-                        let end: usize = type_span[2].parse().unwrap_or(0);
-                        let text = parts[2];
-
-                        entities.push((start, end, text.to_string(), label.to_string()));
-                    }
-                }
-            }
-        }
-
-        if entities.is_empty() {
-            return Err(Error::InvalidInput(
-                "LitBank .ann file contains no entity annotations (T lines)".to_string(),
-            ));
-        }
-
-        // Sort entities by start position
-        entities.sort_by_key(|(start, _, _, _)| *start);
-
-        // Reconstruct text and create tokens with NER tags
-        let max_end = entities
-            .iter()
-            .map(|(_, end, _, _)| *end)
-            .max()
-            .unwrap_or(0);
-        let mut text_chars: Vec<char> = vec![' '; max_end.max(1)];
-        let mut token_starts: Vec<usize> = Vec::new();
-
-        // Fill in entity text
-        for (start, _end, text, _) in &entities {
-            let text_chars_vec: Vec<char> = text.chars().collect();
-            let _actual_end = (*start + text_chars_vec.len()).min(text_chars.len());
-            if *start < text_chars.len() {
-                for (i, ch) in text_chars_vec.iter().enumerate() {
-                    let pos = *start + i;
-                    if pos < text_chars.len() {
-                        text_chars[pos] = *ch;
-                    }
-                }
-            }
-            token_starts.push(*start);
-        }
-
-        // Note: text reconstruction is not used directly since we tokenize from entity text
-        // but we keep it for potential future use (e.g., validation)
-        let _text: String = text_chars
-            .into_iter()
-            .collect::<String>()
-            .trim()
-            .to_string();
-
-        // Create tokens with NER tags
-        // Improved approach: tokenize entity text into words and apply BIO tags
-        let mut tokens: Vec<AnnotatedToken> = Vec::new();
-
-        // Sort entities by start position for processing
-        entities.sort_by_key(|(start, _, _, _)| *start);
-
-        let mut last_end = 0usize;
-        for (start, end, entity_text, label) in &entities {
-            // Add "O" tokens for gaps between entities
-            if *start > last_end {
-                // For gaps, we can't reconstruct the actual text without the .txt file
-                // But we can estimate based on character distance
-                let gap_size = *start - last_end;
-                if gap_size > 0 {
-                    // Estimate number of words in gap (roughly 5 chars per word + space)
-                    let estimated_words = (gap_size / 6).max(1);
-                    for _ in 0..estimated_words.min(10) {
-                        // Limit gap tokens to avoid excessive placeholders
-                        tokens.push(AnnotatedToken {
-                            text: "[...]".to_string(),
-                            ner_tag: "O".to_string(),
-                        });
-                    }
-                }
-            }
-
-            // Tokenize entity text into words and apply BIO tags
-            let entity_words: Vec<&str> = entity_text.split_whitespace().collect();
-            for (i, word) in entity_words.iter().enumerate() {
-                let ner_tag = if i == 0 {
-                    format!("B-{}", label)
-                } else {
-                    format!("I-{}", label)
-                };
-                tokens.push(AnnotatedToken {
-                    text: word.to_string(),
-                    ner_tag,
-                });
-            }
-
-            last_end = *end;
-        }
-
-        if !tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens,
-                source_dataset: id,
-            });
-        }
-
-        if sentences.is_empty() {
-            return Err(Error::InvalidInput(
-                "LitBank file produced no sentences after parsing".to_string(),
-            ));
-        }
-
+        let tokens = super::litbank::SourcePair::decode(content)?.ner_tokens()?;
         Ok(LoadedDataset {
             id,
-            sentences,
-            loaded_at: now,
+            sentences: vec![AnnotatedSentence {
+                tokens,
+                source_dataset: id,
+            }],
+            loaded_at: super::timestamp::now(),
             source_url: id.download_url().to_string(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
@@ -5457,7 +5323,9 @@ impl DatasetLoader {
 
     /// Load coreference dataset, returning documents with chains.
     ///
-    /// Use this for GAP, PreCo, and LitBank datasets.
+    /// Use this for GAP, PreCo, and LitBank datasets. A LitBank cache can hold
+    /// a JSON object with the BRAT `text` and `annotations` strings, or the
+    /// original annotation file in `LitBank.cache` beside its matching `LitBank.txt`.
     pub fn load_coref(&self, id: DatasetId) -> Result<Vec<super::coref::CorefDocument>> {
         if !id.is_coreference() {
             return Err(Error::InvalidInput(format!(
@@ -5492,6 +5360,11 @@ impl DatasetLoader {
         let content = std::fs::read_to_string(&cache_path)
             .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
 
+        let content = if id == DatasetId::LitBank {
+            super::litbank::cached_content(&content, &cache_path)?
+        } else {
+            std::borrow::Cow::Borrowed(content.as_str())
+        };
         self.parse_coref_content(&content, id)
     }
 
@@ -5513,10 +5386,7 @@ impl DatasetLoader {
                 .into_iter()
                 .map(|doc| doc.to_coref_document())
                 .collect()),
-            DatasetId::LitBank => {
-                // LitBank coreference - parse .ann format for chains
-                self.parse_litbank_coref(content)
-            }
+            DatasetId::LitBank => Ok(vec![super::litbank::SourcePair::decode(content)?.coref()?]),
             DatasetId::WikiCoref => {
                 // WikiCoref uses a GAP-compatible TSV format.
                 let examples = super::coref_loader::parse_gap_tsv(content)?;
@@ -5599,199 +5469,6 @@ impl DatasetLoader {
             }
         }
         self.load_coref(id)
-    }
-
-    /// Parse LitBank for coreference chains.
-    ///
-    /// LitBank coref brat files (`coref/brat/*.ann`) list each mention twice:
-    /// once with its type label (`T1\tPROP_PER 0 4\tJohn`) and once with an
-    /// entity-id label (`T2\tjohn-1 0 4\tJohn`). Mentions sharing an entity-id
-    /// label corefer. The only R lines are `cop`/`appos`, not chains.
-    /// Files with no entity-id labels fall back to `R<id>\tCoref Arg1:T<a> Arg2:T<b>` links.
-    ///
-    /// Note: LitBank .ann files reference character offsets in corresponding .txt files.
-    /// This parser reconstructs text from mentions, but ideally should read .txt file.
-    fn parse_litbank_coref(&self, content: &str) -> Result<Vec<super::coref::CorefDocument>> {
-        use super::coref::{CorefChain, CorefDocument, Mention};
-        use std::collections::HashMap;
-
-        // LitBank .ann format includes coreference with R lines
-        // R1\tCoref Arg1:T1 Arg2:T2
-        let mut mentions: HashMap<String, Mention> = HashMap::new();
-        let mut coref_links: Vec<(String, String)> = Vec::new();
-        let mut entity_labels: HashMap<String, String> = HashMap::new();
-        let mut max_end = 0usize;
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            if line.starts_with('T') {
-                let parts: Vec<&str> = line.split('\t').collect();
-                if parts.len() >= 3 {
-                    let id = parts[0];
-                    let type_span: Vec<&str> = parts[1].split_whitespace().collect();
-                    if type_span.len() >= 3 {
-                        let start: usize = type_span[1].parse().unwrap_or(0);
-                        let end: usize = type_span[2].parse().unwrap_or(0);
-                        let text = parts[2];
-                        max_end = max_end.max(end);
-                        mentions.insert(id.to_string(), Mention::new(text, start, end));
-                        // Entity-id labels end in `-<digits>` (`jarndyce_2-73`);
-                        // type labels (`PROP_PER`) do not.
-                        let label = type_span[0];
-                        if label.rsplit_once('-').is_some_and(|(name, n)| {
-                            !name.is_empty()
-                                && !n.is_empty()
-                                && n.bytes().all(|b| b.is_ascii_digit())
-                        }) {
-                            entity_labels.insert(id.to_string(), label.to_string());
-                        }
-                    }
-                }
-            } else if line.starts_with('R') && line.contains("Coref") {
-                // R1\tCoref Arg1:T1 Arg2:T2
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 3 {
-                    let arg1 = parts[1].trim_start_matches("Arg1:");
-                    let arg2 = parts[2].trim_start_matches("Arg2:");
-                    coref_links.push((arg1.to_string(), arg2.to_string()));
-                }
-            }
-        }
-
-        if mentions.is_empty() {
-            return Err(Error::InvalidInput(
-                "LitBank file contains no mentions (T lines)".to_string(),
-            ));
-        }
-
-        // Reconstruct text from mentions by sorting by start offset
-        let mut sorted_mentions: Vec<(usize, &Mention)> =
-            mentions.values().map(|m| (m.start, m)).collect();
-        sorted_mentions.sort_by_key(|(start, _)| *start);
-
-        // Build text by inserting mentions at their offsets
-        let mut text_chars: Vec<char> = vec![' '; max_end.max(1)];
-        for (start, mention) in &sorted_mentions {
-            let mention_text: Vec<char> = mention.text.chars().collect();
-            let _end = (*start + mention_text.len()).min(text_chars.len());
-            if *start < text_chars.len() {
-                for (i, ch) in mention_text.iter().enumerate() {
-                    let pos = *start + i;
-                    if pos < text_chars.len() {
-                        text_chars[pos] = *ch;
-                    }
-                }
-            }
-        }
-        let text: String = text_chars
-            .into_iter()
-            .collect::<String>()
-            .trim()
-            .to_string();
-
-        // Build chains from links using union-find
-        let mut chains: Vec<Vec<Mention>> = Vec::new();
-        let mut mention_to_chain: HashMap<String, usize> = HashMap::new();
-
-        // With entity-id labels, each span is listed once under its id label
-        // and once under its type label: keep only the id-labelled copies and
-        // group them by label.
-        if !entity_labels.is_empty() {
-            mentions.retain(|id, _| entity_labels.contains_key(id));
-        }
-        let mut ids: Vec<&String> = mentions.keys().collect();
-        ids.sort_by_key(|id| (mentions[*id].start, mentions[*id].end, (*id).clone()));
-        let mut label_to_chain: HashMap<&str, usize> = HashMap::new();
-        for id in ids {
-            let mention = &mentions[id];
-            let idx = match entity_labels.get(id) {
-                Some(label) => *label_to_chain.entry(label.as_str()).or_insert_with(|| {
-                    chains.push(Vec::new());
-                    chains.len() - 1
-                }),
-                None => {
-                    chains.push(Vec::new());
-                    chains.len() - 1
-                }
-            };
-            chains[idx].push(mention.clone());
-            mention_to_chain.insert(id.clone(), idx);
-        }
-
-        // Then merge chains based on coref links
-        for (id1, id2) in coref_links {
-            let chain_idx = match (mention_to_chain.get(&id1), mention_to_chain.get(&id2)) {
-                (Some(&idx1), Some(&idx2)) if idx1 != idx2 => {
-                    // Merge chains
-                    let to_merge = std::mem::take(&mut chains[idx2]);
-                    chains[idx1].extend(to_merge);
-                    // Update all mentions in merged chain to point to idx1
-                    for m in &chains[idx1] {
-                        // Find mention ID by matching text and position
-                        for (mid, mref) in &mentions {
-                            if mref.text == m.text && mref.start == m.start {
-                                mention_to_chain.insert(mid.clone(), idx1);
-                            }
-                        }
-                    }
-                    idx1
-                }
-                (Some(&idx), None) => {
-                    if let Some(m) = mentions.get(&id2) {
-                        chains[idx].push(m.clone());
-                        mention_to_chain.insert(id2, idx);
-                    }
-                    idx
-                }
-                (None, Some(&idx)) => {
-                    if let Some(m) = mentions.get(&id1) {
-                        chains[idx].push(m.clone());
-                        mention_to_chain.insert(id1, idx);
-                    }
-                    idx
-                }
-                (None, None) => {
-                    let idx = chains.len();
-                    let mut chain = Vec::new();
-                    if let Some(m) = mentions.get(&id1) {
-                        chain.push(m.clone());
-                        mention_to_chain.insert(id1.clone(), idx);
-                    }
-                    if let Some(m) = mentions.get(&id2) {
-                        chain.push(m.clone());
-                        mention_to_chain.insert(id2, idx);
-                    }
-                    if !chain.is_empty() {
-                        chains.push(chain);
-                    }
-                    idx
-                }
-                (Some(&idx), Some(_)) => idx,
-            };
-            let _ = chain_idx; // Used above
-        }
-
-        // Filter empty chains and convert
-        let coref_chains: Vec<CorefChain> = chains
-            .into_iter()
-            .filter(|c| !c.is_empty())
-            .enumerate()
-            .map(|(i, mentions)| CorefChain::with_id(mentions, i as u64))
-            .collect();
-
-        if coref_chains.is_empty() {
-            return Err(Error::InvalidInput(
-                "LitBank file contains no coreference chains".to_string(),
-            ));
-        }
-
-        // Create document with reconstructed text
-        let doc = CorefDocument::new(&text, coref_chains);
-        Ok(vec![doc])
     }
 
     // =========================================================================
@@ -9207,45 +8884,33 @@ Blackburn NNP I-NP I-PER
     }
 
     #[test]
-    fn test_parse_litbank_ner_improved() {
-        // Test improved LitBank NER parser with word-level tokenization
-        let sample_ann = "T1\tPER 0 5\tAlice\nT2\tPER 10 14\tBob\nT3\tORG 20 28\tMicrosoft";
-
-        let loader = DatasetLoader::new().unwrap();
-        let result = loader.parse_litbank(sample_ann, DatasetId::LitBank);
-        assert!(result.is_ok(), "parse_litbank should succeed");
-
-        let dataset = result.unwrap();
-        assert!(!dataset.sentences.is_empty(), "Should have sentences");
-
-        // Check that entities are tokenized into words (not just single tokens)
-        let sentence = &dataset.sentences[0];
-        let entity_tokens: Vec<_> = sentence
+    fn litbank_flat_bio_preserves_outside_words_and_projects_outer_mentions() {
+        let pair = crate::eval::litbank::SourcePair {
+            text: "At dawn Éva from Paris left .".into(),
+            annotations: "T1\tNOM_PER 8 22\tÉva from Paris\nT2\tPROP_GPE 17 22\tParis".into(),
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let ds = loader
+            .parse_content_str(&pair.encode().unwrap(), DatasetId::LitBank)
+            .unwrap();
+        let got: Vec<_> = ds.sentences[0]
             .tokens
             .iter()
-            .filter(|t| t.ner_tag.starts_with("B-") || t.ner_tag.starts_with("I-"))
+            .map(|t| (t.text.as_str(), t.ner_tag.as_str()))
             .collect();
-
-        // Should have at least the entity tokens (Alice, Bob, Microsoft)
-        assert!(
-            entity_tokens.len() >= 3,
-            "Should have at least 3 entity tokens, got {}",
-            entity_tokens.len()
+        assert_eq!(
+            got,
+            [
+                ("At", "O"),
+                ("dawn", "O"),
+                ("Éva", "B-PER"),
+                ("from", "I-PER"),
+                ("Paris", "I-PER"),
+                ("left", "O"),
+                (".", "O")
+            ]
         );
-
-        // Check BIO tagging is correct (B- for first word, I- for subsequent words)
-        let mut found_b_tag = false;
-        for token in &sentence.tokens {
-            if token.ner_tag.starts_with("B-") {
-                found_b_tag = true;
-                // First word of entity should be B-
-                assert!(
-                    token.ner_tag.starts_with("B-"),
-                    "First word of entity should have B- tag"
-                );
-            }
-        }
-        assert!(found_b_tag, "Should have at least one B- tag");
     }
 
     #[test]
@@ -10932,36 +10597,57 @@ CEO,O
     mod bughunt_high {
         use super::*;
 
-        /// LitBank coref brat files (dbamman/litbank coref/brat/*.ann) encode chains in
-        /// the T-line label: `T12\tjarndyce_2-73 0 12\ttext` — mentions sharing the
-        /// `-73` suffix corefer. The only R lines are `cop`/`appos`. The parser looks
-        /// for R lines containing "Coref", finds none, and returns every T line
-        /// (each span appears twice: once as PROP_PER etc., once as name-ID) as its
-        /// own singleton chain. Gold therefore has zero coreference links.
         #[test]
-        fn litbank_coref_chains_come_from_entity_id_labels() {
-            let ann = "T1\tPROP_PER 0 4\tJohn\n\
-                       T2\tJohn-1 0 4\tJohn\n\
-                       T3\tPRON_PER 10 12\the\n\
-                       T4\tJohn-1 10 12\the\n\
-                       T5\tPROP_PER 20 24\tMary\n\
-                       T6\tMary-2 20 24\tMary\n\
-                       R1\tappos Arg1:T1 Arg2:T3\n";
+        fn litbank_named_pair_resolves_explicit_links_and_rejects_bad_offsets() {
+            let dir = tempfile::tempdir().unwrap();
+            let loader =
+                crate::eval::coref_loader::CorefLoader::with_cache_dir(dir.path()).unwrap();
+            let path = dir.path().join("book.ann");
+            std::fs::write(path.with_extension("txt"), "Anne left . She returned .").unwrap();
+            let ann = "T1\tPROP_PER 0 4\tAnne\nT2\tPRON_PER 12 15\tShe\nR1\tCoref Arg1:T1 Arg2:T2";
+            std::fs::write(&path, ann).unwrap();
+            let doc = loader.load_litbank_from_path(&path).unwrap();
+            assert_eq!(doc.doc_id.as_deref(), Some("book"));
+            assert_eq!(doc.chains.len(), 1);
+            assert_eq!(doc.chains[0].mentions.len(), 2);
+            for bad in ["-1 4", "0 90", "0 1;2 4", "3 1"] {
+                std::fs::write(&path, ann.replace("0 4", bad)).unwrap();
+                assert!(loader.load_litbank_from_path(&path).is_err());
+            }
+        }
+
+        #[test]
+        fn litbank_cached_pair_preserves_source_and_type_only_singletons() {
             let dir = tempfile::tempdir().unwrap();
             let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
-            std::fs::write(dir.path().join(DatasetId::LitBank.cache_filename()), ann).unwrap();
+            let path = dir.path().join(DatasetId::LitBank.cache_filename());
+            let ann = "T1\tPROP_PER 5 8\tÉva\nT2\tEva-1 5 8\tÉva\nT3\tEva-1 18 21\tshe\nT4\tNOM_FAC 24 28\thome\nR1\tappos Arg1:T1 Arg2:T4";
+            let text = " ö / Éva said yes she : home .\n";
+            std::fs::write(&path, ann).unwrap();
+            let err = loader.load_coref(DatasetId::LitBank).unwrap_err();
+            assert!(err.to_string().contains("LitBank.txt"));
+            std::fs::write(path.with_extension("txt"), text).unwrap();
             let docs = loader.load_coref(DatasetId::LitBank).unwrap();
-            let chains: Vec<Vec<(usize, usize)>> = docs[0]
+            assert_eq!(docs[0].text, text);
+            assert!(docs[0].includes_singletons);
+            let spans: Vec<Vec<_>> = docs[0]
                 .chains
                 .iter()
                 .map(|c| c.mentions.iter().map(|m| (m.start, m.end)).collect())
                 .collect();
-            let mention_count: usize = chains.iter().map(|c| c.len()).sum();
-            assert_eq!(mention_count, 3, "each span must appear once: {chains:?}");
-            assert!(
-                chains.iter().any(|c| c.len() == 2),
-                "John/he chain (label suffix -1) missing: {chains:?}"
+            assert_eq!(spans, [vec![(5, 8), (18, 21)], vec![(24, 28)]]);
+            let id = LoadableDatasetId::try_from(DatasetId::LitBank).unwrap();
+            assert_eq!(
+                loader.load(id).unwrap().sentences[0]
+                    .tokens
+                    .last()
+                    .unwrap()
+                    .text,
+                "."
             );
+            std::fs::write(path.with_extension("txt"), text.replace("Éva", "Eve")).unwrap();
+            assert!(loader.load_coref(DatasetId::LitBank).is_err());
+            assert!(loader.load(id).is_err());
         }
 
         /// GermEval 2014 (registry format "CoNLL") is a 4-column TSV:

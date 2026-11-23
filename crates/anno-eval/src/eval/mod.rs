@@ -288,6 +288,7 @@ pub mod history;
 mod history_clock;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
+mod litbank;
 pub mod loader;
 mod matching;
 pub mod metrics;

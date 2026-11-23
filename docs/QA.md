@@ -43,6 +43,12 @@ The same command accepts a matrix slot's receipt directory. To time agent calls 
 
 #For an equal-budget comparison on public, labeled text across ten domains, prepare [the domain fixtures](DOMAIN_QA.md).
 
+## Score a LitBank book or cohort
+
+The registry selector `LitBank` downloads one pinned *Bleak House* excerpt. Its score describes one book. The upstream collection has 100 excerpts. For a cohort, record the upstream revision and the selected filenames, then call `CorefLoader::load_litbank_from_path` once per `coref/brat/*_brat.ann`. Keep each same-stem `.txt` beside its annotations. The loader returns the exact source and document-local gold chains, including singletons. Report the number of books, mentions and gold links with the result. [LitBank corpus and license](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8)
+
+For an older local cache containing raw annotations in `LitBank.cache`, place the matching source beside it as `LitBank.txt`. An annotation-only cache returns an error naming the missing path. New downloads store both files together as one JSON object. Flat NER uses the leftmost outer mention when labels nest.
+
 ## Check what a negative span means
 
 Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.

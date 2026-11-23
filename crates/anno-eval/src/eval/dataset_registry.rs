@@ -1758,7 +1758,7 @@ define_datasets! {
     LitBank {
         name: "LitBank",
         description: "Literary coreference. 100 public-domain English fiction works (1719-1922) with ACE-style entities.",
-        url: "https://raw.githubusercontent.com/dbamman/litbank/master/coref/brat/1023_bleak_house_brat.ann",
+        url: "https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann",
         entity_types: ["PER", "LOC", "ORG", "GPE", "FAC", "VEH"],
         language: "en",
         domain: "literature",
@@ -1768,11 +1768,11 @@ define_datasets! {
         year: 2019,
         format: "BRAT",
         annotation_scheme: "Standoff",
-        size_hint: "100 novels, ~2k tokens each",
-        notes: "Focus on character coreference; includes event coref; public domain texts",
+        size_hint: "Registry sample: 1 book excerpt. Upstream corpus: 100 works, ~2k tokens each.",
+        notes: "The registry downloads one paired Bleak House excerpt. Legacy LitBank.cache annotations require the matching LitBank.txt beside them. Flat NER uses leftmost outermost mentions.",
         splits: ["all"],
         tasks: ["ner", "coref", "event_coref"],
-        expected_docs: 100,
+        expected_docs: 1,
         categories: [coref, literary],
     },
     ECBPlus {
