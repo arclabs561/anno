@@ -103,7 +103,16 @@ model artifact version, or provider/device placement.
 resolver in each document’s optional `coref_backend` field. `fcoref` identifies the
 neural model and `mention-ranking` the heuristic fallback. Successful runs record
 the backend even when they produce zero tracks. Documents without a recorded
-coreference run omit this field.
+successful coreference run omit this field.
+
+The optional `coref_run` object describes the latest reported invocation. A
+`completed` result includes the producing `backend` and `tracks_added`, even
+when that count is zero. On `failed` results, `last_failure` identifies the
+terminal backend and stage. Either outcome can include `prior_failures` in
+attempt order. Each failure identifies a backend and the stage (`load`,
+`inference`, or `invalid_output`). A failed retry preserves the earlier
+successful `coref_backend`. Older documents can have a producer without an
+attempt report.
 
 ### Speaker-attributed first person
 
