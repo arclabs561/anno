@@ -16,6 +16,8 @@ use std::collections::HashMap;
 #[cfg(feature = "onnx")]
 use std::sync::Mutex;
 
+mod token_decoder;
+
 // ONNX Backend
 // =============================================================================
 
@@ -240,10 +242,9 @@ impl GLiNERMultitaskOnnx {
             .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output".into()))?;
 
-        let (_, data_slice) = output
+        let (_, output_data) = output
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Extract tensor: {}", e)))?;
-        let output_data: Vec<f32> = data_slice.to_vec();
 
         let shape: Vec<i64> = match output.dtype() {
             ort::value::ValueType::Tensor { shape, .. } => shape.iter().copied().collect(),
@@ -259,109 +260,17 @@ impl GLiNERMultitaskOnnx {
         let mut entities = Vec::new();
         let num_words = text_words.len();
 
-        // Token-level model: shape [position, batch, num_words, num_classes]
-        // where position = 3 for BIO tagging (B=0, I=1, O=2)
+        // The pinned token-level export returns start, end and inside logits.
         if shape.len() == 4 && shape[0] == 3 && shape[1] == 1 {
-            let out_num_words = shape[2] as usize;
-            let num_classes = shape[3] as usize;
-            let word_class_size = out_num_words * num_classes;
-
-            // BIO decoding: find B-type starts, extend with I-type
-            // Output shape [BIO=3, batch=1, words, classes] flattened to [BIO * batch * words * classes]
-            // BIO dimension: 0=Begin, 1=Inside, 2=Outside
-            let b_offset = 0_usize; // Begin logits start at offset 0
-            let i_offset = word_class_size; // Inside logits start after B (1 * word_class_size)
-
-            #[allow(clippy::needless_range_loop)] // class_idx used for multiple array accesses
-            for class_idx in 0..num_classes.min(entity_types.len()) {
-                let mut current_start: Option<(usize, f32)> = None; // (word_idx, score)
-
-                for word_idx in 0..out_num_words.min(num_words) {
-                    // B logit at BIO dimension 0
-                    let b_idx = b_offset + word_idx * num_classes + class_idx;
-                    // I logit at BIO dimension 1
-                    let i_idx = i_offset + word_idx * num_classes + class_idx;
-
-                    let b_logit = if b_idx < output_data.len() {
-                        output_data[b_idx]
-                    } else {
-                        -100.0
-                    };
-                    let i_logit = if i_idx < output_data.len() {
-                        output_data[i_idx]
-                    } else {
-                        -100.0
-                    };
-
-                    let b_score = 1.0 / (1.0 + (-b_logit).exp());
-                    let i_score = 1.0 / (1.0 + (-i_logit).exp());
-
-                    if b_score >= threshold {
-                        // End any existing entity
-                        if let Some((start_word, avg_score)) = current_start.take() {
-                            let end_word = word_idx - 1;
-                            if start_word <= end_word && end_word < num_words {
-                                let span_text = text_words[start_word..=end_word].join(" ");
-                                let (start, end) = word_span_to_char_offsets(
-                                    text, text_words, start_word, end_word,
-                                );
-                                let entity_type = map_entity_type(entity_types[class_idx]);
-                                entities.push(Entity::new(
-                                    span_text,
-                                    entity_type,
-                                    start,
-                                    end,
-                                    avg_score as f64,
-                                ));
-                            }
-                        }
-                        // Start new entity
-                        current_start = Some((word_idx, b_score));
-                    } else if i_score >= threshold && current_start.is_some() {
-                        // Continue entity - update score
-                        if let Some((start_word, score)) = current_start {
-                            current_start = Some((start_word, (score + i_score) / 2.0));
-                        }
-                    } else if current_start.is_some() {
-                        // End entity
-                        if let Some((start_word, avg_score)) = current_start.take() {
-                            let end_word = word_idx - 1;
-                            if start_word <= end_word && end_word < num_words {
-                                let span_text = text_words[start_word..=end_word].join(" ");
-                                let (start, end) = word_span_to_char_offsets(
-                                    text, text_words, start_word, end_word,
-                                );
-                                let entity_type = map_entity_type(entity_types[class_idx]);
-                                entities.push(Entity::new(
-                                    span_text,
-                                    entity_type,
-                                    start,
-                                    end,
-                                    avg_score as f64,
-                                ));
-                            }
-                        }
-                    }
-                }
-
-                // Handle entity at end of text
-                if let Some((start_word, avg_score)) = current_start.take() {
-                    let end_word = out_num_words.min(num_words) - 1;
-                    if start_word <= end_word {
-                        let span_text = text_words[start_word..=end_word].join(" ");
-                        let (start, end) =
-                            word_span_to_char_offsets(text, text_words, start_word, end_word);
-                        let entity_type = map_entity_type(entity_types[class_idx]);
-                        entities.push(Entity::new(
-                            span_text,
-                            entity_type,
-                            start,
-                            end,
-                            avg_score as f64,
-                        ));
-                    }
-                }
-            }
+            let spans = token_decoder::decode(
+                output_data,
+                shape[2] as usize,
+                shape[3] as usize,
+                num_words,
+                entity_types.len(),
+                threshold,
+            );
+            entities = token_entities(text, text_words, entity_types, spans);
         }
         // Span-level model: shape [batch, num_words, max_width, num_classes]
         else if shape.len() == 4 && shape[0] == 1 {
@@ -518,7 +427,7 @@ impl GLiNERMultitaskOnnx {
             .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output".into()))?;
 
-        let (_, data_slice) = output
+        let (_, output_data) = output
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Extract: {}", e)))?;
         let logits: Vec<f32> = data_slice.to_vec();
@@ -639,3 +548,43 @@ impl GLiNERMultitaskOnnx {
 }
 
 // =============================================================================
+
+fn token_entities(
+    text: &str,
+    words: &[&str],
+    entity_types: &[&str],
+    spans: Vec<token_decoder::WordSpan>,
+) -> Vec<Entity> {
+    let converter = crate::offset::SpanConverter::new(text);
+    spans
+        .into_iter()
+        .map(|span| {
+            let (start, end) = word_span_to_char_offsets(text, words, span.start, span.end);
+            let surface = &text[converter.char_to_byte(start)..converter.char_to_byte(end)];
+            Entity::new(
+                surface,
+                map_entity_type(entity_types[span.class]),
+                start,
+                end,
+                f64::from(span.score),
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_entities_preserve_source_unicode_whitespace_and_repeated_words() {
+        let text = "é  é\t\u{2003}今";
+        let words: Vec<_> = text.split_whitespace().collect();
+        let spans =
+            token_decoder::decode(&[-2., 2., -2., -2., -2., 2., -2., 2., 2.], 3, 1, 3, 1, 0.5);
+        let entities = token_entities(text, &words, &["time expression"], spans);
+        assert_eq!(entities.len(), 1);
+        assert_eq!((entities[0].start(), entities[0].end()), (3, 7));
+        assert_eq!(entities[0].text, "é\t\u{2003}今");
+    }
+}
