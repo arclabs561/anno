@@ -154,6 +154,27 @@ Unicode character ranges. `start` and `end` bound the whole mention, and
 repeated mentions have the same surface. Offsets count Unicode code points,
 so a decomposed accent and its base character occupy two positions.
 
+## Verify mention JSONL against a source document
+
+For one document and one entity per JSONL row, supply the exact UTF-8 text used
+during extraction. The command checks every surface against its half-open
+Unicode character offsets and preserves the supplied type label.
+
+```sh
+anno dataset import --format jsonl --input mentions.jsonl \
+  --source-text post.txt --output checked.jsonl
+```
+
+Segmented rows may use space-joined pieces. When the gaps contain only line
+breaks, the original multiline surface also passes. The row's `source` field
+remains producer metadata. Only the file named by `--source-text` is read for
+validation. A changed passage outside all mentions can still pass, so keep the
+document ID and digest of its original bytes in your corpus manifest.
+
+A successfully processed document with no predictions has an empty JSONL file.
+Record its completion and zero mention count against the same ID and source
+digest when scoring. A missing or failed run has no measured count.
+
 ## CoNLL offsets and the original source revision
 
 By default, `anno dataset import --format conll` counts Unicode characters in

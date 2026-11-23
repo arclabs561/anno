@@ -30,7 +30,7 @@ pub struct ImportArgs {
     #[arg(short, long, default_value = "brat")]
     pub format: ExportFormat,
 
-    /// Align one CoNLL input to this original UTF-8 document for exact character offsets
+    /// Align CoNLL tokens or verify JSONL mention text and character offsets against one UTF-8 document
     #[arg(long, value_name = "PATH")]
     pub source_text: Option<PathBuf>,
 
@@ -68,6 +68,27 @@ impl SourceSegments {
 
     fn bounds(&self) -> Range<usize> {
         self.0[0].start..self.0[self.0.len() - 1].end
+    }
+
+    /// The space-joined annotation surface, and the original envelope when the
+    /// gaps contain only line breaks (as produced by the brat exporter).
+    fn surfaces<'a>(
+        &self,
+        source: &'a str,
+        bytes: &[usize],
+    ) -> Result<(String, Option<&'a str>), String> {
+        let bounds = self.bounds();
+        if bounds.end >= bytes.len() {
+            return Err("segmented span exceeds source length".into());
+        }
+        let slice = |range: &Range<usize>| &source[bytes[range.start]..bytes[range.end]];
+        let joined = self.0.iter().map(slice).collect::<Vec<_>>().join(" ");
+        let only_line_breaks = self.0.windows(2).all(|pair| {
+            slice(&(pair[0].end..pair[1].start))
+                .bytes()
+                .all(|c| matches!(c, b'\r' | b'\n'))
+        });
+        Ok((joined, only_line_breaks.then(|| slice(&bounds))))
     }
 }
 
@@ -137,8 +158,10 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         .map_err(|e| format!("Failed to inspect output: {e}"))?;
 
     let source_text = if let Some(path) = &args.source_text {
-        if !matches!(args.format, ExportFormat::Conll) || !args.input.is_file() {
-            return Err("--source-text requires a single CoNLL input file".into());
+        if !matches!(args.format, ExportFormat::Conll | ExportFormat::Jsonl)
+            || !args.input.is_file()
+        {
+            return Err("--source-text requires a single CoNLL or JSONL input file".into());
         }
         if output_exists && same_existing_file(path, &args.output)? {
             return Err(format!(
@@ -307,7 +330,7 @@ fn import_file(
     match format {
         ExportFormat::Brat => import_brat(input, include_text),
         ExportFormat::Conll => import_conll(input, source_text),
-        ExportFormat::Jsonl => import_jsonl(input),
+        ExportFormat::Jsonl => import_jsonl(input, source_text),
         ExportFormat::NTriples => import_ntriples(input),
         ExportFormat::JsonLd => import_jsonld(input),
         #[cfg(feature = "graph")]
@@ -427,26 +450,11 @@ fn import_brat_segments(
     bytes: &[usize],
 ) -> Result<(ImportedSpan, String), String> {
     let segments = SourceSegments::new(spans.split(';').map(brat_span).collect::<Result<_, _>>()?)?;
-    let bounds = segments.bounds();
-    if bounds.end >= bytes.len() {
-        return Err("brat span exceeds source length".into());
-    }
-    let slice = |range: &Range<usize>| &source[bytes[range.start]..bytes[range.end]];
-    let pieces: Vec<_> = segments.0.iter().map(slice).collect();
-    let joined = pieces.join(" ");
+    let (joined, original) = segments.surfaces(source, bytes)?;
     if !reference.is_empty() && reference != joined {
         return Err("brat reference text does not match its source spans".into());
     }
-    let only_line_breaks = segments.0.windows(2).all(|pair| {
-        slice(&(pair[0].end..pair[1].start))
-            .chars()
-            .all(|c| matches!(c, '\r' | '\n'))
-    });
-    let text = if only_line_breaks {
-        slice(&bounds).to_owned()
-    } else {
-        joined
-    };
+    let text = original.map(str::to_owned).unwrap_or(joined);
     Ok((ImportedSpan::Segmented(segments), text))
 }
 
@@ -539,49 +547,84 @@ fn import_conll(
 }
 
 /// Import from JSONL format
-fn import_jsonl(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
+fn import_jsonl(input: &Path, source: Option<&str>) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    let mut annotations = Vec::new();
+    let bytes = source.map(anno::offset::build_char_to_byte_map);
+    content
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty())
+        .map(|(index, line)| {
+            parse_jsonl_row(line, input, source.zip(bytes.as_deref()))
+                .map_err(|e| format!("JSONL line {}: {e}", index + 1))
+        })
+        .collect()
+}
 
-    for line in content.lines() {
-        if line.trim().is_empty() {
-            continue;
+fn parse_jsonl_row(
+    line: &str,
+    input: &Path,
+    source: Option<(&str, &[usize])>,
+) -> Result<ImportedAnnotation, String> {
+    let obj: serde_json::Value =
+        serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {e}"))?;
+    let span = if let Some(raw) = obj.get("segments") {
+        let ranges = serde_json::from_value(raw.clone())
+            .map_err(|e| format!("Invalid JSONL segments: {e}"))?;
+        let segments = SourceSegments::new(ranges)?;
+        let bounds = segments.bounds();
+        if obj["start"].as_u64() != Some(bounds.start as u64)
+            || obj["end"].as_u64() != Some(bounds.end as u64)
+        {
+            return Err("JSONL start/end must match the bounds of segments".into());
         }
+        ImportedSpan::Segmented(segments)
+    } else {
+        let start = obj["start"].as_u64().unwrap_or(0) as usize;
+        let end = obj["end"].as_u64().unwrap_or(0) as usize;
+        ImportedSpan::Contiguous(start..end)
+    };
 
-        let obj: serde_json::Value =
-            serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {}", e))?;
-
-        let span = if let Some(raw) = obj.get("segments") {
-            let ranges = serde_json::from_value(raw.clone())
-                .map_err(|e| format!("Invalid JSONL segments: {e}"))?;
-            let segments = SourceSegments::new(ranges)?;
-            let bounds = segments.bounds();
-            if obj["start"].as_u64() != Some(bounds.start as u64)
-                || obj["end"].as_u64() != Some(bounds.end as u64)
-            {
-                return Err("JSONL start/end must match the bounds of segments".into());
+    let text = obj["text"].as_str().unwrap_or("");
+    let label = obj["type"].as_str().unwrap_or("");
+    if let Some((original, bytes)) = source {
+        let bounds = span.bounds();
+        if obj["start"].as_u64() != Some(bounds.start as u64)
+            || obj["end"].as_u64() != Some(bounds.end as u64)
+            || bounds.start >= bounds.end
+            || bounds.end >= bytes.len()
+        {
+            return Err(
+                "expected a nonempty half-open character range within the source text".into(),
+            );
+        }
+        if label.trim().is_empty() {
+            return Err("expected a nonempty type label".into());
+        }
+        let matches = match &span {
+            ImportedSpan::Contiguous(_) => {
+                text == &original[bytes[bounds.start]..bytes[bounds.end]]
             }
-            ImportedSpan::Segmented(segments)
-        } else {
-            let start = obj["start"].as_u64().unwrap_or(0) as usize;
-            let end = obj["end"].as_u64().unwrap_or(0) as usize;
-            ImportedSpan::Contiguous(start..end)
+            ImportedSpan::Segmented(segments) => {
+                let (joined, envelope) = segments.surfaces(original, bytes)?;
+                text == joined || Some(text) == envelope
+            }
         };
-
-        annotations.push(ImportedAnnotation {
-            text: obj["text"].as_str().unwrap_or("").to_string(),
-            entity_type: obj["type"].as_str().unwrap_or("").to_string(),
-            span,
-            source: obj["source"]
-                .as_str()
-                .unwrap_or(&input.to_string_lossy())
-                .to_string(),
-            confidence: obj["confidence"].as_f64(),
-        });
+        if !matches {
+            return Err("mention text does not match its source span".into());
+        }
     }
-
-    Ok(annotations)
+    Ok(ImportedAnnotation {
+        text: text.to_owned(),
+        entity_type: label.to_owned(),
+        span,
+        source: obj["source"]
+            .as_str()
+            .unwrap_or(&input.to_string_lossy())
+            .to_owned(),
+        confidence: obj["confidence"].as_f64(),
+    })
 }
 
 // =============================================================================
@@ -950,7 +993,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ranges.jsonl");
         fs::write(&path, jsonl).unwrap();
-        let rows = import_jsonl(&path).unwrap();
+        let rows = import_jsonl(&path, None).unwrap();
         assert_eq!(rows.len(), expected.len());
         for (row, (ranges, text)) in rows.into_iter().zip(expected) {
             let ImportedSpan::Segmented(segments) = row.span else {
@@ -972,7 +1015,7 @@ mod tests {
             "segments": [{"start":1,"end":6}, {"start":8,"end":12}]
         });
         fs::write(&path, row.to_string()).unwrap();
-        let rows = import_jsonl(&path).unwrap();
+        let rows = import_jsonl(&path, None).unwrap();
         let ImportedSpan::Segmented(segments) = &rows[0].span else {
             panic!("missing segments")
         };
@@ -990,7 +1033,7 @@ mod tests {
             let mut bad = row.clone();
             bad["segments"] = invalid;
             fs::write(&path, bad.to_string()).unwrap();
-            assert!(import_jsonl(&path).is_err(), "{bad}");
+            assert!(import_jsonl(&path, None).is_err(), "{bad}");
         }
     }
 
