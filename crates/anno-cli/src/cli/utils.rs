@@ -5,7 +5,9 @@ use std::fs;
 use std::io::{self, IsTerminal, Read};
 
 use anno::backends::coref::CorefBackend;
-use anno::{GroundedDocument, Identity, IdentityId, SignalId, TrackId};
+use anno::{
+    CorefAttemptFailure, CorefRunReport, GroundedDocument, Identity, IdentityId, SignalId, TrackId,
+};
 
 #[cfg(not(any(feature = "extractor-readability", feature = "extractor-html2text")))]
 compile_error!(
@@ -384,6 +386,10 @@ pub fn load_gold_from_file(
 ///
 /// Tries neural f-coref (ONNX) first, falls back to heuristic mention-ranking.
 pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: &[SignalId]) {
+    #[cfg(feature = "onnx")]
+    let mut failures = Vec::new();
+    #[cfg(not(feature = "onnx"))]
+    let failures = Vec::new();
     // Try f-coref (neural) if ONNX model is available
     #[cfg(feature = "onnx")]
     {
@@ -401,81 +407,150 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
         ];
 
         for path in fcoref_paths.iter().flatten() {
-            if std::path::Path::new(path).join("encoder.onnx").exists() {
-                match FCoref::from_path(path) {
-                    Ok(model) => match model.resolve(text) {
-                        Ok(clusters) => {
-                            clusters_to_tracks(doc, &clusters, model.name());
-                            return;
-                        }
-                        Err(e) => {
-                            log::debug!("f-coref inference failed: {e}");
-                        }
-                    },
-                    Err(e) => {
-                        log::debug!("f-coref load failed from {path}: {e}");
-                    }
-                }
+            if std::path::Path::new(path).join("encoder.onnx").exists()
+                && try_neural_coref(doc, text, FCoref::from_path(path), &mut failures)
+            {
+                return;
             }
         }
 
-        // Also try HuggingFace cache
-        match FCoref::from_pretrained("biu-nlp/f-coref") {
-            Ok(model) => match model.resolve(text) {
-                Ok(clusters) => {
-                    clusters_to_tracks(doc, &clusters, model.name());
-                    return;
-                }
-                Err(e) => {
-                    log::debug!("f-coref inference failed: {e}");
-                }
-            },
-            Err(e) => {
-                log::debug!("f-coref not available: {e}");
-            }
+        if try_neural_coref(
+            doc,
+            text,
+            FCoref::from_pretrained("biu-nlp/f-coref"),
+            &mut failures,
+        ) {
+            return;
         }
     }
 
     // Fallback: heuristic mention-ranking
     let coref = anno::backends::coref::mention_ranking::MentionRankingCoref::new();
     match coref.resolve_into_document(text, doc) {
-        Ok(_) => doc.set_coref_backend(coref.name()),
+        Ok(tracks) => doc.record_coref_run(CorefRunReport::Completed {
+            backend: coref.name().into(),
+            tracks_added: tracks.len(),
+            prior_failures: failures,
+        }),
         Err(e) => {
             use super::output::color;
+            doc.record_coref_run(CorefRunReport::Failed {
+                last_failure: CorefAttemptFailure::Inference {
+                    backend: coref.name().into(),
+                },
+                prior_failures: failures,
+            });
             eprintln!("{} coref failed: {}", color("33", "warning:"), e);
         }
     }
 }
 
-/// Convert coreference clusters into GroundedDocument tracks.
-#[cfg(any(feature = "onnx", feature = "discourse"))]
-pub(super) fn clusters_to_tracks(
+#[cfg(feature = "onnx")]
+fn try_neural_coref(
+    doc: &mut GroundedDocument,
+    text: &str,
+    model: anno::Result<anno::backends::coref::fcoref::FCoref>,
+    failures: &mut Vec<CorefAttemptFailure>,
+) -> bool {
+    let model = match model {
+        Ok(model) => model,
+        Err(error) => {
+            log::debug!("f-coref load failed: {error}");
+            failures.push(CorefAttemptFailure::Load {
+                backend: "fcoref".into(),
+            });
+            return false;
+        }
+    };
+    let clusters = match model.resolve(text) {
+        Ok(clusters) => clusters,
+        Err(error) => {
+            log::debug!("f-coref inference failed: {error}");
+            failures.push(CorefAttemptFailure::Inference {
+                backend: model.name().into(),
+            });
+            return false;
+        }
+    };
+    match append_coref_clusters(doc, &clusters) {
+        Ok(tracks_added) => {
+            doc.record_coref_run(CorefRunReport::Completed {
+                backend: model.name().into(),
+                tracks_added,
+                prior_failures: std::mem::take(failures),
+            });
+            true
+        }
+        Err(error) => {
+            log::debug!("invalid f-coref output: {error}");
+            failures.push(CorefAttemptFailure::InvalidOutput {
+                backend: model.name().into(),
+            });
+            false
+        }
+    }
+}
+
+/// Validate all cluster shapes before mutation. Stage nonempty writes so a rejected
+/// insertion leaves earlier tracks and signals untouched for the fallback resolver.
+#[cfg(any(test, feature = "onnx", feature = "discourse"))]
+pub(super) fn append_coref_clusters(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
-    backend_name: &str,
-) {
+) -> Result<usize, String> {
+    let text_len = doc.text().chars().count();
     for cluster in clusters {
-        if cluster.mentions.len() < 2 || cluster.spans.len() != cluster.mentions.len() {
-            continue;
+        if cluster.spans.len() != cluster.mentions.len() {
+            return Err(format!(
+                "coreference cluster {} has {} mentions and {} spans",
+                cluster.id,
+                cluster.mentions.len(),
+                cluster.spans.len()
+            ));
         }
-
-        // add_signal auto-assigns IDs via next_signal_id
-        let signals = cluster.mentions.iter().zip(cluster.spans.iter()).map(
-            |(mention, &(char_start, char_end))| {
-                anno::Signal::new(
-                    0u64, // placeholder; overwritten by add_signal
-                    anno::Location::text(char_start, char_end),
-                    mention.clone(),
-                    anno::TypeLabel::from("COREF_mention"),
-                    1.0,
-                )
-            },
-        );
-
-        let new_ids = doc.add_signals(signals);
-        doc.create_track_from_signals(cluster.canonical.clone(), &new_ids);
+        if cluster
+            .spans
+            .iter()
+            .any(|&(start, end)| start >= end || end > text_len)
+        {
+            return Err(format!(
+                "coreference cluster {} has an invalid source span",
+                cluster.id
+            ));
+        }
     }
-    doc.set_coref_backend(backend_name);
+    let mut groups = clusters
+        .iter()
+        .filter(|cluster| cluster.mentions.len() >= 2)
+        .peekable();
+    if groups.peek().is_none() {
+        return Ok(0);
+    }
+    let mut staged = doc.clone();
+    let mut tracks_added = 0;
+    for cluster in groups {
+        let signals =
+            cluster
+                .mentions
+                .iter()
+                .zip(&cluster.spans)
+                .map(|(mention, &(start, end))| {
+                    anno::Signal::new(
+                        0u64,
+                        anno::Location::text(start, end),
+                        mention.clone(),
+                        anno::TypeLabel::from("COREF_mention"),
+                        1.0,
+                    )
+                });
+        let ids = staged.add_signals(signals);
+        staged
+            .create_track_from_signals(&cluster.canonical, &ids)
+            .ok_or_else(|| format!("could not attach coreference cluster {}", cluster.id))?;
+        tracks_added += 1;
+    }
+    *doc = staged;
+    Ok(tracks_added)
 }
 
 /// Attach demo KB-style identities to tracks.
@@ -666,6 +741,25 @@ pub fn get_config_dir() -> Result<std::path::PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn malformed_coref_clusters_leave_prior_document_untouched() {
+        use anno::backends::coref::resolve::CorefCluster;
+        let mut doc = anno::GroundedDocument::new("doc", "A B");
+        let good = CorefCluster {
+            id: 1,
+            canonical: "A".into(),
+            mentions: vec!["A".into(), "B".into()],
+            spans: vec![(0, 1), (2, 3)],
+        };
+        let mut bad = good.clone();
+        bad.id = 2;
+        bad.mentions.pop();
+        assert!(super::append_coref_clusters(&mut doc, &[good, bad]).is_err());
+        assert!(doc.signals().is_empty());
+        assert_eq!(doc.tracks().count(), 0);
+        assert!(doc.coref_backend().is_none());
+    }
+
     use super::*;
     #[cfg(feature = "eval")]
     use anno::{Entity, EntityType};

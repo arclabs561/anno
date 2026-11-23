@@ -1304,6 +1304,52 @@ impl Identity {
 // GroundedDocument: The Container
 // =============================================================================
 
+/// A failed backend attempt during the most recent reported coreference run.
+/// Only the backend and phase are persisted, so diagnostics cannot leak source text or paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+pub enum CorefAttemptFailure {
+    /// The model could not be loaded.
+    Load {
+        /// Stable backend name.
+        backend: String,
+    },
+    /// A backend produced clusters that could not be attached to the document.
+    InvalidOutput {
+        /// Stable backend name.
+        backend: String,
+    },
+    /// A loaded model failed to resolve the input.
+    Inference {
+        /// Stable backend name.
+        backend: String,
+    },
+}
+
+/// Outcome of one coreference invocation. Failures are ordered by attempt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum CorefRunReport {
+    /// A backend completed, including runs that created zero tracks.
+    Completed {
+        /// Successful producer.
+        backend: String,
+        /// Tracks added by this invocation.
+        tracks_added: usize,
+        /// Earlier backend attempts that failed before success.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        prior_failures: Vec<CorefAttemptFailure>,
+    },
+    /// All attempted backends failed.
+    Failed {
+        /// Terminal attempt that ended the run.
+        last_failure: CorefAttemptFailure,
+        /// Earlier failed attempts in invocation order.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        prior_failures: Vec<CorefAttemptFailure>,
+    },
+}
+
 /// Wire format for [`GroundedDocument`] — contains only the persisted fields.
 /// Internal indexes are rebuilt automatically via [`GroundedDocument::rebuild_indexes`]
 /// during deserialization.
@@ -1313,6 +1359,8 @@ struct GroundedDocumentWire {
     text: String,
     #[serde(default)]
     coref_backend: Option<String>,
+    #[serde(default)]
+    coref_run: Option<CorefRunReport>,
     signals: Vec<Signal<Location>>,
     tracks: HashMap<TrackId, Track>,
     identities: HashMap<IdentityId, Identity>,
@@ -1331,10 +1379,18 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         {
             return Err("document IDs must leave room for the next ID".into());
         }
+        let mut coref_backend = wire.coref_backend;
+        if let Some(CorefRunReport::Completed { backend, .. }) = &wire.coref_run {
+            if coref_backend.as_ref().is_some_and(|last| last != backend) {
+                return Err("coref_backend conflicts with completed coref_run".into());
+            }
+            coref_backend = Some(backend.clone());
+        }
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
-            coref_backend: wire.coref_backend,
+            coref_backend,
+            coref_run: wire.coref_run,
             signals: wire.signals,
             tracks: wire.tracks,
             identities: wire.identities,
@@ -1429,6 +1485,9 @@ pub struct GroundedDocument {
     /// Most recent successful coreference backend recorded for this document.
     #[serde(skip_serializing_if = "Option::is_none")]
     coref_backend: Option<String>,
+    /// Most recent coreference invocation with a reported outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coref_run: Option<CorefRunReport>,
     /// Level 1: Raw signals (detections)
     signals: Vec<Signal<Location>>,
     /// Level 2: Tracks (within-document coreference chains)
@@ -1465,6 +1524,7 @@ impl GroundedDocument {
             id: id.into(),
             text: text.into(),
             coref_backend: None,
+            coref_run: None,
             signals: Vec::new(),
             tracks: HashMap::new(),
             identities: HashMap::new(),
@@ -1497,6 +1557,20 @@ impl GroundedDocument {
     /// Record a successful coreference run, including a run that yielded zero tracks.
     pub fn set_coref_backend(&mut self, backend: impl Into<String>) {
         self.coref_backend = Some(backend.into());
+        self.coref_run = None;
+    }
+
+    /// Most recent reported run, absent when a producer supplied no attempt evidence.
+    pub fn coref_run(&self) -> Option<&CorefRunReport> {
+        self.coref_run.as_ref()
+    }
+
+    /// Record an invocation. A failed retry preserves the last successful producer.
+    pub fn record_coref_run(&mut self, report: CorefRunReport) {
+        if let CorefRunReport::Completed { backend, .. } = &report {
+            self.coref_backend = Some(backend.clone());
+        }
+        self.coref_run = Some(report);
     }
 
     /// Get a mutable reference to the signals vector.
