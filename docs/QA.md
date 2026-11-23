@@ -58,13 +58,18 @@ For a change to a partially passing backend, add `--baseline-predictions old.jso
 
 The required Ubuntu CLI integration job runs against local fixtures, including public-source excerpts. The additional eval-feature job exercises the loopback HTTP cases. The Python QA job tests the harness itself with fixed inputs. A separate path-filtered benchmark fetches checksum-pinned WikiGold and records corpus scores. The full 457-date NASA replay is an explicit command. Fuzzing is available locally, and a maintainer can launch the bounded mutation job from a matching branch. [CI workflow](../.github/workflows/ci.yml) · [WikiGold benchmark](../.github/workflows/bench-extraction.yml) · [Fuzz target](../fuzz/README.md)
 
-For discovery across publishers, choose an eval-enabled CLI and a bounded number of pages:
+For live discovery, `just qa-random` balances catalog topics and publishers by default. For offline exact-span assertions, `just qa-domain-spans target/debug/anno` exercises a labeled panel. The live runner needs an eval-enabled CLI.
 
 ```sh
-ANNO=target/debug/anno python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed 42 --backends pattern
+export ANNO=target/debug/anno
+python3 scripts/qa_random_urls.py --count 10 --seed 42 --backends pattern --output qa/reports/field.md
+just qa-round qa/reports/field.json 'Which selected topic still needs an independent label?'
+python3 scripts/qa_random_urls.py --replay qa/reports/field.json --output qa/reports/revisit.md
 ```
 
-The pool combines standing pages and same-publisher articles discovered from RSS or Atom feeds. The sampler visits distinct publishers within each pass and bounds feed reads. Use `--no-rss` for standing pages only. The seed reproduces the choice among unchanged candidates. Publishers can change a page, redirect a URL or stop responding. Compare backend outputs only when their rendered source hashes agree. Scheduled or manually dispatched live QA keeps the reports when some pages fail. The standard contributor path uses local inputs.
+Each pass samples distinct publishers. The next publisher is chosen from the least represented available topics. A topic describes a catalog entry. The Markdown report counts eligible, selected and verified entries alongside distinct final hosts and rendered text hashes. A source counts as verified when every requested backend reports the same final URL and text hash. Repeated content, failures and mismatches remain visible. These checks measure input coverage and output integrity. Accuracy requires independent labels.
+
+The sibling JSON receipt records the original feed or page, selected article, final URL, requested backends and rendered text hashes. Replaying a receipt revisits its selected URLs and compares them to its original successful results. A changed final URL or rendered hash, a missing baseline or an incomplete current run yields a nonzero exit. The prior receipt stays available. Live RSS/Atom entries may change between seeded selections. `--no-rss` restricts sampling to standing pages. Use `--category all` for the wider multilingual discovery pool, or select a category such as `wikipedia`. A language filter alone searches the multilingual pool; pass `--cross-domain --lang ...` to limit the topical catalog. Contributor PRs run deterministic offline checks.
 
 ## Find a dataset or add a case
 

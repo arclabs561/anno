@@ -100,6 +100,63 @@ class CrossDomainSampling(unittest.TestCase):
         self.assertEqual(len(qa.CROSS_DOMAIN_SOURCES), len({s.url for s in qa.CROSS_DOMAIN_SOURCES}))
         self.assertGreaterEqual(len({qa.urlsplit(s.url).hostname for s in qa.CROSS_DOMAIN_SOURCES}), 6)
 
+    def test_every_topic_before_reusing_a_topic_in_the_first_publisher_pass(self):
+        pool = [qa.Source(host, f"https://{host}.example/doc", "cross-domain", "en", "Latin", domain=topic)
+                for topic, hosts in [("arts", ["museum"]), ("law", ["court"]),
+                                     ("science", ["nasa", "mit", "lab", "college"])] for host in hosts]
+        for seed in range(80):
+            with self.subTest(seed=seed):
+                chosen = qa.sample_publishers(pool, 3, qa.random.Random(seed))
+                self.assertEqual({s.domain for s in chosen}, {"arts", "law", "science"})
+                self.assertEqual(len(set(chosen)), len(chosen))
+
+    def test_language_only_selection_retains_the_multilingual_pool(self):
+        with patch("sys.argv", ["qa", "--lang", "hi", "--no-rss", "--count", "1", "--dry-run"]), \
+                patch.object(qa, "resolve_url", side_effect=lambda source: source.url) as resolve:
+            self.assertEqual(qa.main(), 0)
+        self.assertEqual(resolve.call_args.args[0].lang, "hi")
+
+    def test_default_coverage_and_replay_use_captured_articles(self):
+        fixed = qa.Source("Museum", "https://museum.example/object", "cross-domain", "fr", "Latin", domain="arts")
+        feed = qa.Source("Lab", "https://lab.example/feed", "cross-domain", "en", "Latin", True, domain="science")
+        article = "https://lab.example/story"
+        digest = "xxh3:0000000000000001"
+        def extract(source, binary, url, backend, timeout, verbose):
+            return qa.RunResult(source, url, "OK", backend=backend, text_hash=digest)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", [feed, fixed]), \
+                patch.object(qa, "discover_publisher_article", return_value=article) as discover, \
+                patch.object(qa, "run_anno", side_effect=extract) as run:
+            output = qa.Path(tmp) / "discovery.md"
+            replay = qa.Path(tmp) / "replay.md"
+            def call(*args):
+                with patch("sys.argv", ["qa", "--delay", "0", *map(str, args)]):
+                    return qa.main()
+            self.assertEqual(call("--count", 2, "--seed", 42, "--backends", "pattern,heuristic", "--output", output), 0)
+            self.assertEqual(discover.call_count, 1)
+            receipt = output.with_suffix(".json")
+            rows = json.loads(receipt.read_bytes())
+            self.assertEqual(rows["eligible_sources"], {"arts": 1, "science": 1})
+            self.assertEqual({s["selected_url"] for s in rows["sources"]}, {fixed.url, article})
+            self.assertIn("1 text hashes appeared under multiple catalog topics", output.read_text())
+            self.assertEqual(call("--replay", receipt, "--output", replay), 0)
+            results = json.loads(replay.with_suffix(".json").read_bytes())
+            self.assertEqual(results["replay"]["outcomes"], {s.url: "matched" for s in (fixed, feed)})
+            self.assertEqual(results["backends"], ["pattern", "heuristic"])
+            digest = "xxh3:0000000000000002"
+            self.assertEqual(call("--replay", receipt, "--backends", "pattern", "--output", replay), 1)
+            self.assertEqual(set(json.loads(replay.with_suffix(".json").read_bytes())["replay"]["outcomes"].values()), {"changed"})
+            self.assertEqual(discover.call_count, 1)
+            calls = run.call_count
+            self.assertEqual(call("--replay", receipt, "--output", output), 1)
+            self.assertEqual(call("--count", 2, "--output", receipt), 1)
+            source = next(s for s in rows["sources"] if s["source_url"] == feed.url)
+            for address in ["https://other.example/story", "https://lab.example:8080/story",
+                            "https://lab.example@other.example/story", "https://lab.example/feed"]:
+                source["selected_url"] = address
+                receipt.write_text(json.dumps(rows))
+                self.assertEqual(call("--replay", receipt, "--output", replay), 1)
+            self.assertEqual(run.call_count, calls)
+
     def test_oversized_filtered_request_fails_before_fetch(self):
         with patch("sys.argv", ["qa", "--cross-domain", "--lang", "ja", "--count", "3"]), \
              patch.object(qa, "resolve_url") as resolve:
@@ -112,7 +169,7 @@ class CrossDomainSampling(unittest.TestCase):
 
         def extract(source, binary, url, backend, timeout, verbose):
             if source == pool[0]:
-                return qa.RunResult(source, "https://final.example/new", "OK", backend=backend, text_hash="xxh3:abc")
+                return qa.RunResult(source, "https://final.example/new", "OK", backend=backend, text_hash="xxh3:0000000000000abc")
             return qa.RunResult(source, url, "timeout", backend=backend, error_msg="timed out")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -125,7 +182,7 @@ class CrossDomainSampling(unittest.TestCase):
             self.assertEqual(calls.call_count, 2)
             report = report_path.read_text()
             for expected in ("| a.example | 1 | 0 |", "| b.example | 0 | 1 |", "https://a.example/doc",
-                             "https://final.example/new", "xxh3:abc", "timed out"):
+                             "https://final.example/new", "xxh3:0000000000000abc", "timed out"):
                 self.assertIn(expected, report)
 
     def test_cross_domain_success_requires_text_hash(self):
@@ -175,7 +232,7 @@ class PublisherFeeds(unittest.TestCase):
             return io.BytesIO(b"<rss><channel><item><link>https://news.example/entry</link></item></channel></rss>")
 
         def extract(source, binary, url, backend, timeout, verbose):
-            return qa.RunResult(source, url + "-final", "OK", backend=backend, text_hash="xxh3:123")
+            return qa.RunResult(source, url + "-final", "OK", backend=backend, text_hash="xxh3:0000000000000123")
 
         with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", pool), \
                 patch.object(qa.urllib.request, "urlopen", side_effect=fetch) as feeds, \
@@ -187,7 +244,7 @@ class PublisherFeeds(unittest.TestCase):
             self.assertEqual(feeds.call_count, 2)
             self.assertEqual(docs.call_count, 2)
             for value in (self.source.url, "](https://news.example/entry)", "https://news.example/entry-final",
-                          "xxh3:123", "empty.example | 0 | 1", "feed has no same-host"):
+                          "xxh3:0000000000000123", "empty.example | 0 | 1", "feed has no same-host"):
                 self.assertIn(value, report.read_text())
             with patch("sys.argv", ["qa", "--cross-domain", "--no-rss", "--count", "1", "--dry-run"]):
                 self.assertEqual(qa.main(), 0)

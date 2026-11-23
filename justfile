@@ -354,7 +354,7 @@ eval-results:
 # === QA Random URL Testing ===
 
 # Sample URLs with the selected backends. Set ANNO to reuse a built CLI.
-qa-random $count="10" $backends="stacked" $seed="" $category="all":
+qa-random $count="10" $backends="stacked" $seed="" $category="cross-domain":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "${ANNO:-}" ]]; then
