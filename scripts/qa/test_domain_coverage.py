@@ -72,14 +72,14 @@ class DomainScoreHandoffTest(unittest.TestCase):
         report = {"kind": "anno.qa.domain-spans", "schema_version": 1, "fixture_sha256": "a" * 64,
                   "passed": 2, "total": 3, "comparison": {"baseline_passed": 2, "gained": 1, "lost": 1},
                   "findings": [{"text": "PRIVATE_DOCUMENT"}], "domains": [
-                      {"domain": "law", "documents": 1, "exact_span": {"passed": 1, "total": 1},
+                      {"domain": "Public Health | NHS", "documents": 1, "exact_span": {"passed": 1, "total": 1},
                        "no_overlap": {"passed": 1, "total": 2},
                        "comparison": {"baseline_passed": 2, "gained": 1, "lost": 1}}]}
         with TemporaryDirectory() as tmp:
             receipt = Path(tmp) / "score.json"
             receipt.write_text(json.dumps(report))
             handoff = evidence(receipt)
-        self.assertIn("| law | 1 | 1/1 | 1/2 | 1 | 1 |", handoff)
+        self.assertIn(r"| Public Health \| NHS | 1 | 1/1 | 1/2 | 1 | 1 |", handoff)
         self.assertNotIn("PRIVATE_DOCUMENT", handoff)
         report["comparison"]["lost"] = 0
         with self.assertRaisesRegex(ValueError, "disagrees"):

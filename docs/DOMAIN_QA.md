@@ -43,6 +43,6 @@ python3 "$checker" --fixture "$fixture" --binary "$CANDIDATE" --model stacked \
     --baseline-predictions "$panel/base.jsonl" > "$panel/paired-report.json"
 ```
 
-The combined checker report lists per-domain denominators and paired gains and losses under `domains`, using the explicit `domain` field on each fixture case. Its findings identify the individual assertions that changed. Keep separate prediction/report paths when repeating the commands on `reserved.json`. The normal [round tracer](ADVERSARIAL_QA.md) can record the commands and their input/output digests.
+The combined checker report lists per-domain denominators and paired gains and losses under `domains`, using the explicit `domain` field on each fixture case. Its findings identify the individual assertions that changed. Keep separate prediction/report paths when repeating the commands on `reserved.json`. Run `just qa-round "$panel/paired-report.json" 'Which domain has paired losses?'` to pass aggregated findings to the coordinator. The normal [round tracer](ADVERSARIAL_QA.md) can record the commands and their input/output digests.
 
 The measured quantity is exact recall on selected labeled anchors. Other mentions and predictions are unjudged. Inputs with no eligible anchor are excluded, so the panel cannot estimate precision or false alarms on empty documents. A change that fails to improve these anchors may still improve a specific extraction pattern. Freeze fresh source groups before testing a repair informed by these results.

@@ -1,11 +1,16 @@
 """Summarize live web QA coverage without treating retrieval as labeled accuracy."""
 from collections import Counter, defaultdict
+import html
 import re
 from urllib.parse import urlsplit
 
 
 def _label(value):
     return isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", value) is not None
+
+
+def valid_domain_name(name):
+    return isinstance(name, str) and bool(name) and name == name.strip() and name.isprintable()
 
 
 def _host(url):
@@ -176,7 +181,7 @@ def render_domain_scores(report):
         if not isinstance(row, dict):
             raise ValueError("invalid domain summary")
         topic = row.get("domain")
-        if (topic is not None and not _label(topic)) or topic in seen:
+        if (topic is not None and not valid_domain_name(topic)) or topic in seen:
             raise ValueError("expected distinct domain identifiers in labeled QA report")
         seen.add(topic)
         docs = _count(row, "documents")
@@ -203,7 +208,10 @@ def render_domain_scores(report):
             columns.extend([str(gained), str(lost)])
         else:
             columns.extend(["—", "—"])
-        lines.append("| " + " | ".join([topic if topic is not None else "(unlabeled domain)", str(docs), *columns]) + " |")
+        # A caller can supply a display name such as "Finance | Markets".
+        name = "(unlabeled domain)" if topic is None else html.escape(topic, quote=False)
+        name = re.sub(r"([\\|`*_\[\]])", r"\\\1", name)
+        lines.append("| " + " | ".join([name, str(docs), *columns]) + " |")
     if any(totals[key] != _count(report, key) for key in ("passed", "total")):
         raise ValueError("per-domain totals disagree with report")
     if paired and any(totals[key] != _count(report["comparison"], key)

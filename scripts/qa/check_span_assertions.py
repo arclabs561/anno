@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from domain_coverage import valid_domain_name
+
 DEFAULT_FIXTURE = Path(__file__).with_name("fixtures") / "typed-span-assertions.json"
 # Built-in labels from EntityType::as_label used for assertion type sets.
 TYPES = set("PER ORG LOC DATE TIME MONEY PERCENT QUANTITY CARDINAL ORDINAL EMAIL URL PHONE".split())
@@ -47,7 +49,7 @@ def load_cases(rows, custom_types=()):
     if not cases:
         raise ValueError("empty fixture")
     for key, case in cases.items():
-        if "domain" in case and not valid_label(case["domain"]):
+        if "domain" in case and not valid_domain_name(case["domain"]):
             raise ValueError(f"{key}: expected a nonempty printable domain name")
         text = case.get("text")
         if not isinstance(text, str) or not text or not objects(case.get("assertions"), key):
