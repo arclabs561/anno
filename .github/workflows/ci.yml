@@ -639,8 +639,8 @@ jobs:
           run_sample() {
             cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           }
-          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          run_sample
+          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/AnnoNerSmoke.cache"
+          ANNO_MUXER_FIXED_DATASETS=AnnoNerSmoke run_sample
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
 
           install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexSmoke.cache"
