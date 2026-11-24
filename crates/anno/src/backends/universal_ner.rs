@@ -108,15 +108,47 @@ fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
     hasher.finish()
 }
 
+#[cfg(feature = "llm")]
+fn llm_provider(
+    config: Option<&crate::backends::llm_client::LlmConfig>,
+) -> Option<(String, &'static str)> {
+    let Some((config, endpoint)) = config.and_then(|c| Some((c, c.endpoint.as_deref()?))) else {
+        return crate::env::llm_api_key();
+    };
+    let key = config
+        .api_key
+        .as_deref()
+        .filter(|key| !key.trim().is_empty());
+    let (provider, env_key) = match endpoint {
+        "https://api.anthropic.com/v1/messages" => ("anthropic", "ANTHROPIC_API_KEY"),
+        "https://openrouter.ai/api/v1/chat/completions" => ("openrouter", "OPENROUTER_API_KEY"),
+        "https://api.groq.com/openai/v1/chat/completions" => ("groq", "GROQ_API_KEY"),
+        _ => {
+            let uri = endpoint.parse::<ureq::http::Uri>().ok()?;
+            if !matches!(uri.scheme_str(), Some("http" | "https")) || uri.host().is_none() {
+                return None;
+            }
+            return Some((key.unwrap_or_default().to_owned(), "custom"));
+        }
+    };
+    let key = key.map(str::to_owned).or_else(|| {
+        std::env::var(env_key)
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+    })?;
+    Some((key, provider))
+}
+
 /// Whether the configured LLM feature can resolve a provider for extraction.
-fn llm_provider_available() -> bool {
+fn llm_provider_available(config: Option<&crate::backends::llm_client::LlmConfig>) -> bool {
     #[cfg(feature = "llm")]
     {
-        crate::env::llm_api_key().is_some()
+        llm_provider(config).is_some()
     }
 
     #[cfg(not(feature = "llm"))]
     {
+        let _ = config;
         false
     }
 }
@@ -176,7 +208,7 @@ impl UniversalNER {
     ///
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        let llm_available = llm_provider_available();
+        let llm_available = llm_provider_available(None);
 
         Ok(Self {
             llm_available,
@@ -191,7 +223,7 @@ impl UniversalNER {
 
     /// Create with a specific LLM configuration.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        let llm_available = llm_provider_available();
+        let llm_available = llm_provider_available(Some(&config));
         Ok(Self {
             llm_available,
             config: Some(config),
@@ -387,7 +419,7 @@ Output:"#
         char_offset: usize,
         entity_types: &[&str],
     ) -> Result<Vec<Entity>> {
-        let (api_key, provider) = crate::env::llm_api_key().ok_or_else(|| {
+        let (api_key, provider) = llm_provider(self.config.as_ref()).ok_or_else(|| {
             crate::Error::FeatureNotAvailable(
                 "No LLM API key found. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, or run Ollama locally.".into(),
             )
@@ -457,6 +489,18 @@ Output:"#
                 "https://api.groq.com/openai/v1/chat/completions".to_string(),
                 default_model("llama-3.3-70b-versatile"),
                 vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            "custom" => (
+                self.config
+                    .as_ref()
+                    .and_then(|c| c.endpoint.clone())
+                    .expect("custom route has an explicit endpoint"),
+                model_for_cache.clone(),
+                if api_key.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![("Authorization", format!("Bearer {}", api_key))]
+                },
             ),
             "ollama" => {
                 let host = std::env::var("OLLAMA_HOST")
@@ -980,6 +1024,46 @@ mod tests {
     use super::*;
     use std::sync::OnceLock;
 
+    #[cfg(feature = "llm")]
+    #[test]
+    fn explicit_provider_uses_the_protocol_for_the_exact_destination() {
+        use crate::backends::llm_client::LlmConfig;
+
+        for (url, provider) in [
+            ("https://api.anthropic.com/v1/messages", "anthropic"),
+            (
+                "https://openrouter.ai/api/v1/chat/completions",
+                "openrouter",
+            ),
+            ("https://api.groq.com/openai/v1/chat/completions", "groq"),
+            ("https://example.test/v1/messages", "custom"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(url.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::default()
+            };
+            assert_eq!(
+                llm_provider(Some(&config)),
+                Some(("explicit".into(), provider))
+            );
+        }
+        let config = LlmConfig {
+            endpoint: Some("/missing-host".into()),
+            ..LlmConfig::default()
+        };
+        assert!(llm_provider(Some(&config)).is_none());
+    }
+
+    #[cfg(not(feature = "llm"))]
+    #[test]
+    fn explicit_endpoint_requires_http_feature() {
+        use crate::backends::llm_client::LlmConfig;
+        assert!(!UniversalNER::with_config(LlmConfig::ollama("fixture"))
+            .unwrap()
+            .is_available());
+    }
+
     #[test]
     fn test_universal_ner_creation() {
         let model = UniversalNER::new().unwrap();
@@ -1015,7 +1099,7 @@ mod tests {
 
         std::env::set_var("UNIVERSAL_NER_API_KEY", "dummy");
         let model2 = UniversalNER::new().unwrap();
-        assert_eq!(model2.is_available(), llm_provider_available());
+        assert_eq!(model2.is_available(), llm_provider_available(None));
     }
 
     #[test]
