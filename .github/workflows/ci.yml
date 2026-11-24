@@ -346,6 +346,11 @@ jobs:
         run: >-
           python3 scripts/qa/check_span_assertions.py --fixture scripts/qa/fixtures/domain-span-assertions.json
           --binary ./target/debug/anno --model stacked
+      - name: Replay the reviewed currency regression
+        if: runner.os == 'Linux'
+        env:
+          ANNO_BIN: ./target/debug/anno
+        run: python3 scripts/qa/replay_feedback.py replay typed_spans currency-print-spacing
       - name: Run portable CLI integration tests
         shell: bash
         run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test '*'
@@ -619,33 +624,14 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Check the offline sampler on a labeled fixture
-        env:
-          ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
-          ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-smoke/eval-results.jsonl
-          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
-          ANNO_MATRIX_TASK: ner
-          ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: "42"
-          ANNO_MUXER_PIN_BACKEND: heuristic
-          ANNO_ML_IN_MATRIX: "0"
-          ANNO_MATRIX_REQUIRE_CACHED: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
-          ANNO_NO_DOWNLOADS: "1"
-          ANNO_S3_CACHE: "0"
-          ANNO_MAX_EXAMPLES: "1"
+      - name: Check the offline sampler on labeled fixtures
         run: |
-          run_sample() {
-            cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
-          }
-          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/AnnoNerSmoke.cache"
-          ANNO_MUXER_FIXED_DATASETS=AnnoNerSmoke run_sample
-          python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
-
-          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexSmoke.cache"
-          export ANNO_MUXER_DECISIONS_FILE="$ANNO_CACHE_DIR/temporal-outcomes.jsonl"
-          ANNO_MUXER_FIXED_DATASETS=AnnoTimexSmoke ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
-          python3 scripts/qa/check_matrix_outcomes.py --temporal-smoke "$ANNO_MUXER_DECISIONS_FILE"
+          smoke="$RUNNER_TEMP/matrix-smoke"
+          mkdir -p "$smoke"
+          python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic --seed 42 --max-examples 1 --output "$smoke/outcomes.jsonl" --summary "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/check_matrix_outcomes.py --smoke "$smoke/outcomes.jsonl" >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/replay_matrix_cell.py temporal AnnoTimexSmoke pattern --seed 42 --max-examples 2 --output "$smoke/temporal-outcomes.jsonl" --summary "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/check_matrix_outcomes.py --temporal-smoke "$smoke/temporal-outcomes.jsonl" >> "$GITHUB_STEP_SUMMARY"
       - name: Replay adaptive selection across isolated CI histories
         run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
       - name: Restore the latest compatible default-branch checkpoint
@@ -676,25 +662,10 @@ jobs:
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --bootstrap "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
       - name: Score the checked-in temporal contrast fixture
-        env:
-          ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-temporal-contrast
-          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-timex-control.jsonl
-          ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-timex-history.jsonl
-          ANNO_HISTORY_FILE: ${{ runner.temp }}/matrix-timex-arms.json
-          ANNO_LINUCB_STATE_FILE: ${{ runner.temp }}/matrix-timex-linucb.json
-          ANNO_MATRIX_TASK: temporal
-          ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: "42"
-          ANNO_MUXER_PIN_BACKEND: pattern
-          ANNO_MUXER_FIXED_DATASETS: AnnoTimexContrast
-          ANNO_MAX_EXAMPLES: "34"
-          ANNO_NO_DOWNLOADS: "1"
-          ANNO_S3_CACHE: "0"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
         run: |
-          install -D scripts/qa/fixtures/timex-contrast/rows.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexContrast.cache"
-          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
-          python3 scripts/qa/check_matrix_outcomes.py --temporal-contrast "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
+          out="$RUNNER_TEMP/matrix-timex-control.jsonl"
+          python3 scripts/qa/replay_matrix_cell.py temporal AnnoTimexContrast pattern --seed 42 --max-examples 34 --output "$out" --summary "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/check_matrix_outcomes.py --temporal-contrast "$out" >> "$GITHUB_STEP_SUMMARY"
       - name: Run worst-first matrix test (+ regression detection)
         run: |
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
@@ -750,6 +721,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
+          printf 'Matrix evaluator and scorer checkout: `%s` (features `onnx,eval,discourse`).\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           touch "$ANNO_MUXER_DECISIONS_FILE"
           python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch

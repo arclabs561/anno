@@ -1,6 +1,6 @@
 # Run an adversarial QA round for Anno
 
-Use a round when a result could change what a maintainer ships, reverts, or measures next. Start with the user's operation and the evidence already available. A green panel can motivate a challenge just as readily as a failed cell.
+Use a round when a result could change what a maintainer ships, reverts, or measures next. Start in the developer’s session with the [named replay or local fixture](QA.md#run-a-check). Run the cheapest check that distinguishes the competing explanations. Ask an agent for a counterexample or an independent label when that step needs judgment. CI runs the executable checks and Muxer sampler. A brief is optional when work crosses sessions.
 
 ## Coordinator prompt
 
@@ -16,7 +16,7 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 ## Start from a rotating domain sample
 
-The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. Pass that file directly to the coordinator. The scheduled live QA job includes both the receipt and a handoff in its artifact.
+The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. A local run retains the detailed receipt for replay or an optional reviewer brief. The hosted job exports catalog coverage counts.
 
 ```sh
 just qa-round qa/reports/publishers.json 'Which selected topic needs a new source or independent labels?'
@@ -151,7 +151,7 @@ The brief reads counts and registry identifiers. Earlier receipts that contain o
 
 Record the baseline and candidate separately even when their outputs match. A count such as “3 gained, 0 lost across 175 anchors in 92 contracts” lets the next reviewer audit a claim; whole-document precision requires labels for the other mentions too. [Fixtures and dataset commands](QA.md) · [Muxer modes](EVALUATION_SAMPLING.md)
 
-The weekly and manual live QA job also scores up to eight discovery anchors per group on pinned English, Dutch, Spanish and Chinese datasets. The `live-document-qa` artifact includes the source pins and split counts in `domain-manifest.json`, the revision, backend and aggregate scores in `domain-discovery.json`, and the reviewer prompt in `labeled-round.md`. Source text, individual predictions and reserved examples stay on the ephemeral runner. Use the same fixture digest for comparisons over time. A missed anchor counts toward the reported error rate. Failure to download, verify, run or score the fixture fails the job.
+The weekly and manual live job also scores up to eight discovery examples per intent from the publisher’s Snips weather and restaurant validation sets. The shared artifact contains the source pins, split sizes and aggregate scores. Run the same panel locally for per-example inspection. Authorized local panels can cover other corpora and languages. [Source terms and commands](DOMAIN_QA.md#run-the-hosted-panel-locally)
 
 To give a minimized, reviewed counterexample a future triage slot, run its
 registered corpus oracle and retain the resulting source and producer hashes.

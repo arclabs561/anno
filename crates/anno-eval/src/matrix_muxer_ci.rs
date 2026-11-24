@@ -1090,6 +1090,14 @@ struct DecisionOutcomeLog {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ml_only_policy: Option<String>,
     slice: String,
+    // Resolved evaluator inputs for replay without the selector's state.
+    task: &'static str,
+    seed: u64,
+    max_examples: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dataset_sha256: Option<String>,
+    coref_gold: bool,
+    coref_english_pronouns: bool,
     dataset: String,
     backend: String,
     /// Optional backend display name (may include composition details).
@@ -4358,11 +4366,14 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         .expect("TaskEvaluator::new")
         .with_muxer_run_id(muxer_run_id);
 
+    let example_limit = max_examples_per_dataset();
+    let coref_gold = matrix_uses_gold_mentions();
+    let coref_predicted_mentions = matrix_predicted_mentions();
     let config = TaskEvalConfig {
         tasks,
         datasets: chosen_datasets,
         backends: chosen_backends.clone(),
-        max_examples: Some(max_examples_per_dataset()),
+        max_examples: Some(example_limit),
         seed: Some(seed),
         require_cached: require_cached_for_run,
         relation_threshold: 0.5,
@@ -4371,8 +4382,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         temporal_stratification: false,
         confidence_intervals: false,
         custom_coref_resolver: None,
-        coref_use_gold_mentions: matrix_uses_gold_mentions(),
-        coref_predicted_mentions: matrix_predicted_mentions(),
+        coref_use_gold_mentions: coref_gold,
+        coref_predicted_mentions,
     };
 
     let results = match eval.evaluate_all(config) {
@@ -4537,6 +4548,16 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     strategy: strategy_for_log,
                     ml_only_policy: ml_only_policy_for_log,
                     slice: slice_tag_for_muxer.to_string(),
+                    task: r.task.code(),
+                    seed,
+                    max_examples: example_limit,
+                    dataset_sha256: r.provenance.dataset.version.as_deref()
+                        .and_then(|v| v.strip_prefix("sha256:"))
+                        .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
+                        .map(str::to_ascii_lowercase),
+                    coref_gold,
+                    coref_english_pronouns: coref_predicted_mentions
+                        == crate::eval::task_evaluator::CorefPredictedMentions::NerWithEnglishPronouns,
                     dataset: format!("{:?}", r.dataset),
                     backend: r.backend.clone(),
                     backend_display: r.backend_display.clone(),

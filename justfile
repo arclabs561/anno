@@ -289,6 +289,10 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
 qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
 
+# Replay one named case from the working tree, with no scheduler or ledger writes.
+qa-replay $CORPUS $CASE:
+    @python3 scripts/qa/replay_feedback.py replay "$CORPUS" "$CASE"
+
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
 qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":
     python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL" --fixture "$FIXTURE"

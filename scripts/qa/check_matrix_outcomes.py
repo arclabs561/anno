@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sys
 
+from replay_matrix_cell import FIXTURES, replay_command
+
 
 RANDOM_TASKS = ("ner", "re", "intra-coref", "temporal")
 
@@ -39,6 +41,8 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
+        if dataset not in FIXTURES and (command := replay_command(row)):
+            print(f"Replay this cell: `{command}`")
         score = row.get("primary_f1")
         observed = row.get("structural_counts")
         counts_match = counts is None or (isinstance(observed, dict) and all(
@@ -86,7 +90,15 @@ def check(lines, report=False):
     failed_cells = Counter()
     decisions = []
     observed = {}
+    replay_commands = set()
+    unavailable_commands = 0
     for lane, row in outcomes(lines, decisions):
+        if report:
+            command = replay_command(row)
+            if command is None:
+                unavailable_commands += 1
+            else:
+                replay_commands.add(command)
         attempts[lane] += 1
         if lane == "worst-first":
             observed[(row.get("run_id"), row.get("backend"), row.get("dataset"))] = row
@@ -140,6 +152,16 @@ def check(lines, report=False):
             print(f"First worst-first selection: {first['slice']} / {dataset} / {backend} ({reason}, prior calls {prior_calls}) — {result}.")
     else:
         print("No worst-first selection recorded.")
+
+    if replay_commands:
+        print("Replay the resolved cells from this checkout with the CI evaluator. "
+              "External cells require the authorized dataset cache and any model assets. "
+              "A loader digest, when available, identifies the input reported by that loader.")
+        for command in sorted(replay_commands):
+            print(f"- `{command}`")
+
+    if unavailable_commands:
+        print(f"{unavailable_commands} outcome(s) lack supported replay metadata.")
 
     missing = [task for task in RANDOM_TASKS if not completions[task]]
     if missing:

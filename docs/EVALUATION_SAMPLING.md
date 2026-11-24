@@ -138,6 +138,14 @@ result, completed or missing coverage by task, and which dataset/backend pairs
 failed. The job log names the selected datasets and backends before evaluation
 starts, so an interrupted run can still identify its intended inputs.
 
+The Actions summary prints the evaluator checkout, features and a command for each recorded cell with replay coordinates. For example, replay the one-sentence checked-in NER control from the repository root:
+
+```sh
+python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic --seed 42 --max-examples 1
+```
+
+The helper stages checked-in controls in a fresh temporary cache. For an external cell, supply its authorized local dataset cache and any required model assets. The command fixes the measured task, backend, dataset, seed and example limit. A reported dataset digest checks the input version. Without a digest or pinned model weights, a rerun can establish the cell’s current score but cannot establish identity with the original inputs.
+
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the
 same seed, text, backend, and budget. Swapping which dataset scored zero must
@@ -407,6 +415,11 @@ anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
 
 ## Replay a reviewed corpus witness in a triage slot
+
+For a single developer replay use `just qa-replay typed_spans currency-print-spacing`
+or the fixed-cell command in the Actions matrix summary. The single-case command
+works on the current working tree. Use the ledger below to persist a confirmed
+outcome for future Muxer selections. [Local replay](QA.md#run-a-check)
 
 Native matrix history records which dataset/backend/task cells ran. A catalog
 operation trace instead checks a document-edit contract. Give it a separate
