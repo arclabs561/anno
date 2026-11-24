@@ -180,14 +180,16 @@ fn main() {
     let original_edition = TextEdition::new(STREAM, FIRST_EDITION, &music).unwrap();
     let new_edition = TextEdition::new(STREAM, "printed-2", &revised).unwrap();
     assert!(music_hit.citation.open(Some(&new_edition)).is_err());
-    let review = |decisions| EditorialReview {
-        authority: "archive-editor",
-        through_revision: 4,
-        decisions,
+    let review = |decisions| {
+        Some(EditorialReview {
+            authority: "archive-editor",
+            through_revision: 4,
+            decisions,
+        })
     };
     let Successor::Candidates { ranges, .. } = music_hit
         .citation
-        .successor(&original_edition, &new_edition, 0, review(&[]))
+        .successor(&original_edition, &new_edition, 0, None)
         .unwrap()
     else {
         panic!("no reviewed correspondence")

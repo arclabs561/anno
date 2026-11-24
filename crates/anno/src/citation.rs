@@ -185,7 +185,8 @@ impl TextCitation {
 
     /// Look up a correspondence in a reader-accessible edition of the same document.
     /// The caller selects the intended target. Edition names have no implicit ordering.
-    /// The latest visible decision from the selected authority wins. Without one,
+    /// Pass `None` to search without an editorial authority. With a review, the
+    /// latest visible decision from the selected authority wins. Without a decision,
     /// search literally, using up to `context_chars` scalars on each side from the
     /// original edition. A candidate search includes overlapping occurrences.
     pub fn successor<'a>(
@@ -193,7 +194,7 @@ impl TextCitation {
         original: &TextEdition<'_>,
         target: &TextEdition<'_>,
         context_chars: usize,
-        review: EditorialReview<'a>,
+        review: Option<EditorialReview<'a>>,
     ) -> Result<Successor<'a>, CitationError> {
         let span = self.verified_span(original)?;
         let next = target.locator();
@@ -203,29 +204,31 @@ impl TextCitation {
         {
             return Err(CitationError::WrongTarget);
         }
-        if review.authority.trim().is_empty() {
-            return Err(CitationError::MissingAuthority);
-        }
-        let applicable = review.decisions.iter().filter(|d| {
-            d.original == *self
-                && d.target == *next
-                && d.authority == review.authority
-                && d.revision <= review.through_revision
-        });
-        if let Some(decision) = applicable.clone().max_by_key(|d| d.revision) {
-            if applicable
-                .filter(|d| d.revision == decision.revision)
-                .any(|d| d != decision)
-            {
-                return Err(CitationError::ConflictingDecisions);
+        if let Some(review) = review {
+            if review.authority.trim().is_empty() {
+                return Err(CitationError::MissingAuthority);
             }
-            return match decision.correspondence {
-                Correspondence::Confirmed(range) => Ok(Successor::Confirmed {
-                    citation: target.cite(range)?,
-                    decision,
-                }),
-                Correspondence::Withdrawn => Ok(Successor::Withdrawn(decision)),
-            };
+            let applicable = review.decisions.iter().filter(|d| {
+                d.original == *self
+                    && d.target == *next
+                    && d.authority == review.authority
+                    && d.revision <= review.through_revision
+            });
+            if let Some(decision) = applicable.clone().max_by_key(|d| d.revision) {
+                if applicable
+                    .filter(|d| d.revision == decision.revision)
+                    .any(|d| d != decision)
+                {
+                    return Err(CitationError::ConflictingDecisions);
+                }
+                return match decision.correspondence {
+                    Correspondence::Confirmed(range) => Ok(Successor::Confirmed {
+                        citation: target.cite(range)?,
+                        decision,
+                    }),
+                    Correspondence::Withdrawn => Ok(Successor::Withdrawn(decision)),
+                };
+            }
         }
 
         let (left, right) = chars_to_bytes(

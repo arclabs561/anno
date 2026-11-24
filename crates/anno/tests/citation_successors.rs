@@ -15,12 +15,12 @@ fn review<'a>(
     decisions: &'a [SuccessorDecision],
     authority: &'a str,
     revision: u64,
-) -> EditorialReview<'a> {
-    EditorialReview {
+) -> Option<EditorialReview<'a>> {
+    Some(EditorialReview {
         authority,
         through_revision: revision,
         decisions,
-    }
+    })
 }
 
 fn decision(
@@ -202,9 +202,7 @@ fn wrong_scope_conflicting_reviews_and_invalid_ranges_fail_closed() {
     let other = TextEdition::new("secondary", "2", &doc).unwrap();
     let source = old.cite((0, 2).into()).unwrap();
     assert_eq!(
-        source
-            .successor(&old, &new, 0, review(&[], "a", 1))
-            .unwrap(),
+        source.successor(&old, &new, 0, None).unwrap(),
         candidates(&new, 0, &[(0, 2), (1, 3), (2, 4)])
     );
     assert_eq!(
