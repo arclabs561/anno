@@ -26,7 +26,7 @@
 //!
 //! | Dataset | Source | License | Entities |
 //! |---------|--------|---------|----------|
-//! | WikiGold | Wikipedia | CC-BY | PER, LOC, ORG, MISC |
+//! | WikiGold | Wikipedia | Annotations CC BY 4.0, article text subject to Wikipedia reuse terms | PER, LOC, ORG, MISC |
 //! | WNUT-17 | Social Media | Open | person, location, corporation, etc. |
 //! | MIT Movie | MIT | Research | actor, director, genre, title, etc. |
 //! | MIT Restaurant | MIT | Research | amenity, cuisine, dish, etc. |
@@ -7649,7 +7649,11 @@ mod tests {
 
         // WikiGold has known metadata
         assert_eq!(id.citation(), Some("Balasuriya et al. (2009)"));
-        assert_eq!(id.license(), Some("CC-BY-4.0"));
+        assert_eq!(
+            id.license(),
+            Some("Annotations: CC-BY-4.0; text: Wikipedia reuse terms")
+        );
+        assert_eq!(id.paper_url(), Some("https://aclanthology.org/W09-3302/"));
         assert_eq!(id.year(), Some(2009));
     }
 

@@ -22,6 +22,8 @@ cargo test --locked -p anno-cli --no-default-features --features eval,extractor-
 
 To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once. The preparation script verifies the pinned corpus digest and downloads it if needed. The panel disables dataset and model downloads. It expects a measured result from each of two backends on up to 20 examples at seed 42.
 
+The authors’ versioned Figshare release lists the manual annotations in `wikigold.conll.txt` under CC BY 4.0. Its file 9446377 is 318,530 bytes with MD5 `0c1a4f91b9ea70f84ed43f4ff62fdfd5`. The pinned Git mirror used here has those same bytes, verified locally, and the preparation script checks SHA-256 `c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f`. The underlying Wikipedia passages retain separate reuse terms, including attribution, applicable share-alike provisions and notices. Raw corpus files stay in the job-local dataset directory. [Author release](https://doi.org/10.6084/m9.figshare.5462500.v1) · [Annotation paper](https://aclanthology.org/W09-3302/) · [Wikimedia reuse terms, §7](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content)
+
 ```sh
 cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
 export ANNO_CACHE_DIR="$PWD/.generated/qa-cache"
