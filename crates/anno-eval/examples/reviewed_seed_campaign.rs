@@ -153,10 +153,10 @@ fn mutate(bytes: &[u8], round: u32) -> Vec<u8> {
     let salt = Sha256::digest(round.to_le_bytes());
     let commands = b"012345pABNLmc!r";
     let mut out = bytes.to_vec();
-    for pair in salt[..8].chunks_exact(2) {
+    for &[position, command] in salt[..8].as_chunks::<2>().0 {
         out.insert(
-            usize::from(pair[0]) % (out.len() + 1),
-            commands[usize::from(pair[1]) % commands.len()],
+            usize::from(position) % (out.len() + 1),
+            commands[usize::from(command) % commands.len()],
         );
     }
     out.truncate(harness::MAX_INPUT_BYTES);
