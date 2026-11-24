@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import unquote
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
@@ -97,6 +98,50 @@ def news_panel(path):
     return list(unique.values()), documents, license_text
 
 
+def attribution(source, provenance):
+    if source == "msrt":
+        return """Microsoft Recognizers-Text, English DateTimeModel specification.
+Copyright (c) Microsoft Corporation. All rights reserved.
+Source revision and path:
+https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/DateTime/English/DateTimeModel.json
+The full MIT copyright and permission notice accompanies this panel in LICENSE.txt.
+Anno selected examples, converted offsets and recovered original capitalization.
+inputs.jsonl contains the selected source text with annotations removed.
+"""
+
+    # The four pre-cutoff articles were identified from the selected archive
+    # datelines. All other articles in this fixed selection date to 2005–2010.
+    public_domain_articles = {"3835", "8983", "10450", "11716"}
+    notice = """NewsReader MEANTIME English v1.0. Corpus and annotations:
+© 2015, Fondazione Bruno Kessler, VU University Amsterdam, Universidad Del Pais Vasco
+Creative Commons Attribution 4.0 International. The full license is in LICENSE.txt.
+https://creativecommons.org/licenses/by/4.0/
+https://cltl.github.io/newsreader.io/results/data/wikinews/
+
+Anne-Lyse Minard, Manuela Speranza, Ruben Urizar, Begona Altuna, Marieke van Erp,
+Anneleen Schoen, and Chantal van Son (2016). MEANTIME, the NewsReader Multilingual
+Event and Time Corpus. LREC. https://aclanthology.org/L16-1699/
+
+Article text by Wikinews. Its historical text policy designates material
+published before September 25, 2005 as public domain. Later articles in this
+selection are under Creative Commons Attribution 2.5 Generic.
+https://en.wikinews.org/w/index.php?title=Wikinews:Copyright&oldid=4991371
+https://creativecommons.org/licenses/by/2.5/
+
+Anno selected and deduplicated sentence excerpts, joined source tokens with
+spaces, and converted anchored time expressions to character spans. inputs.jsonl
+omits the annotations and retains the same article text credits.
+
+Article credits by MEANTIME document ID (also embedded in the JSONL row ID):
+"""
+    for doc, record in provenance.items():
+        url = record["url"].replace("http://en.wikinews.org/", "https://en.wikinews.org/", 1)
+        title = unquote(url.split("/wiki/", 1)[1]).replace("_", " ")
+        terms = "public domain" if doc in public_domain_articles else "CC BY 2.5"
+        notice += f"{doc} | Wikinews | {title} | {terms} | {url}\n"
+    return notice
+
+
 def case_gold(text, results):
     encoded = text.encode("utf-16-le")
     gold = []
@@ -180,6 +225,7 @@ def main():
         (out / "panel.jsonl").write_bytes(panel)
         (out / "inputs.jsonl").write_bytes(inputs)
         (out / "LICENSE.txt").write_bytes(license_text)
+        (out / "NOTICE.txt").write_text(attribution(args.source, provenance), encoding="utf-8")
         (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
         # An existing nonempty directory keeps its complete, previous run.
         out.rename(args.output)

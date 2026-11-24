@@ -27,7 +27,9 @@ python3 scripts/qa/temporal_sources/prepare.py msrt ./DateTimeModel.json ./LICEN
 ```
 
 Each output directory contains model inputs (`inputs.jsonl`), separate gold (`panel.jsonl`),
-the source license and a receipt with hashes and source identifiers. For native Anno scoring,
+the upstream license (`LICENSE.txt`), attribution and changes (`NOTICE.txt`), and a receipt with
+hashes and source identifiers. Keep both text files with either JSONL when sharing it. The news
+notice lists article credits without revealing any gold spans. For native Anno scoring,
 follow the isolated-cache replay with the desired panel's `panel.jsonl` and its row count from the
 table. For per-row inference, use `inputs.jsonl` and join predictions to gold by `id`.
 [Native temporal replay](../fixtures/timex-contrast/README.md)
@@ -42,8 +44,11 @@ with single spaces, take only anchored TIMEX3 mentions and preserve the source s
 One duplicate sentence occurs in two articles and is counted once. The resulting spans comprise
 46 dates, five durations and two times. The receipt names each article, archive member and
 Wikinews source URL. Estimate uncertainty by article. These four business topics limit transfer
-to other domains. © 2015 Fondazione Bruno Kessler, VU University Amsterdam and Universidad Del
-Pais Vasco. The transformed panel is distributed under CC BY 4.0. [Minard et al., LREC 2016](https://aclanthology.org/L16-1699/) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+to other domains. The corpus and its annotations are © 2015 Fondazione Bruno Kessler, VU
+University Amsterdam and Universidad Del Pais Vasco, distributed under CC BY 4.0. The underlying
+article text is credited to Wikinews. Four articles predate September 25, 2005 and fall under its
+public-domain policy. The remaining twenty are from the CC BY 2.5 period. Each credit in the
+generated notice identifies the corresponding article and its terms. [Minard et al., LREC 2016](https://aclanthology.org/L16-1699/) · [Corpus license](https://creativecommons.org/licenses/by/4.0/) · [Wikinews copyright policy](https://en.wikinews.org/w/index.php?title=Wikinews:Copyright&oldid=4991371) · [CC BY 2.5](https://creativecommons.org/licenses/by/2.5/)
 
 **Microsoft.** The source is a human-maintained software specification. Remove repeated inputs,
 require explicit spans with matching surfaces, and sample five unique cases in each of date,
