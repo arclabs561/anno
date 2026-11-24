@@ -41,7 +41,7 @@ pub struct PipelineArgs {
     #[arg(long)]
     pub link_kb: bool,
 
-    /// Resolve document tracks across inputs. Without --coref, detections seed tracks.
+    /// Resolve tracks across inputs. General coreference also includes unmatched detections.
     /// Grounded output preserves source documents and assignments. JSON emits cluster rows.
     #[arg(long)]
     pub cross_doc: bool,
@@ -199,6 +199,13 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
             }
             #[cfg(not(feature = "discourse"))]
             resolve_coreference(&mut doc, text, &signal_ids);
+
+            let include_detections = args.cross_doc;
+            #[cfg(feature = "discourse")]
+            let include_detections = include_detections && speaker_clusters.is_none();
+            if include_detections {
+                seed_uncovered_detections(&mut doc, &signal_ids)?;
+            }
         }
 
         if args.link_kb {
@@ -238,6 +245,64 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+/// General coreference can emit a separate signal at the same source occurrence
+/// as a detection. Keep both signals and count that occurrence once in tracks.
+fn seed_uncovered_detections(
+    doc: &mut GroundedDocument,
+    original_ids: &[SignalId],
+) -> Result<(), String> {
+    use anno::{Location, Signal, Track, TrackId};
+    use std::collections::HashSet;
+
+    #[derive(Hash, Eq, PartialEq)]
+    enum Extent<'a> {
+        Single(usize, usize),
+        Multiple(&'a [(usize, usize)]),
+    }
+
+    fn occurrence(signal: &Signal) -> Option<(&str, Extent<'_>)> {
+        let extent = match &signal.location {
+            Location::Text { start, end } if start < end => Extent::Single(*start, *end),
+            Location::Discontinuous { segments } => match segments.as_slice() {
+                [] => return None,
+                &[(start, end)] => Extent::Single(start, end),
+                segments => Extent::Multiple(segments),
+            },
+            _ => return None,
+        };
+        Some((signal.surface(), extent))
+    }
+
+    let mut covered: HashSet<_> = doc
+        .signals()
+        .iter()
+        .filter(|signal| doc.track_for_signal(signal.id).is_some())
+        .filter_map(occurrence)
+        .collect();
+    let original_ids: HashSet<_> = original_ids.iter().copied().collect();
+    let mut seeds = Vec::new();
+    for signal in doc
+        .signals()
+        .iter()
+        .filter(|s| original_ids.contains(&s.id))
+    {
+        if doc.track_for_signal(signal.id).is_some()
+            || occurrence(signal).is_some_and(|key| !covered.insert(key))
+        {
+            continue;
+        }
+        let mut track = Track::new(TrackId::ZERO, signal.surface());
+        track.entity_type = Some(signal.label.clone());
+        track.add_signal(signal.id, 0);
+        seeds.push(track);
+    }
+    for track in seeds {
+        doc.try_add_track(track)
+            .map_err(|e| format!("Failed to seed a cross-document track: {e}"))?;
+    }
     Ok(())
 }
 
