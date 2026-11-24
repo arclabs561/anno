@@ -517,33 +517,38 @@ Output:"#
             .read_json()
             .map_err(|e| crate::Error::Parse(format!("LLM response parse error: {}", e)))?;
 
-        // Extract content from response
-        let content = if provider == "anthropic" {
-            json["content"][0]["text"].as_str().unwrap_or("[]")
-        } else {
-            json["choices"][0]["message"]["content"]
-                .as_str()
-                .unwrap_or("[]")
-        };
+        let content = response_text(provider, &json)?;
 
         let mut entities = if matches!(self.prompt_strategy, PromptStrategy::Compact) {
-            self.parse_compact_response(content, chunk_text, entity_types)?
+            self.parse_compact_response(&content, chunk_text, entity_types)?
         } else {
-            self.parse_llm_response(content, chunk_text)?
+            self.parse_llm_response(&content, chunk_text)?
         };
 
-        // Self-verification: re-query LLM to confirm each entity (GPT-NER strategy).
-        // Reduces hallucination at the cost of additional API calls.
-        if self.self_verify && !entities.is_empty() {
-            entities =
-                self.verify_entities(&url, &model, &headers, provider, chunk_text, entities)?;
-        }
+        // Return the extraction on verification failure, but let the next call retry it.
+        let cacheable = if self.self_verify && !entities.is_empty() {
+            if let Some(verdicts) =
+                self.verification_verdicts(&url, &model, &headers, provider, chunk_text, &entities)
+            {
+                entities = entities
+                    .into_iter()
+                    .zip(verdicts)
+                    .filter_map(|(entity, keep)| keep.then_some(entity))
+                    .collect();
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        };
 
-        // Cache the chunk-local result (before offset adjustment)
-        self.cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(key, entities.clone());
+        if cacheable {
+            self.cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(key, entities.clone());
+        }
 
         // Adjust offsets from chunk-local to document-global
         if char_offset > 0 {
@@ -560,15 +565,15 @@ Output:"#
     /// Per GPT-NER (NAACL 2025 Findings), LLMs tend to over-confidently
     /// label null inputs as entities. Verification filters hallucinations.
     #[cfg(feature = "llm")]
-    fn verify_entities(
+    fn verification_verdicts(
         &self,
         url: &str,
         model: &str,
         headers: &[(&str, String)],
         provider: &str,
         text: &str,
-        entities: Vec<Entity>,
-    ) -> Result<Vec<Entity>> {
+        entities: &[Entity],
+    ) -> Option<Vec<bool>> {
         let entity_list: Vec<String> = entities
             .iter()
             .map(|e| format!("- \"{}\" ({})", e.text, e.entity_type.as_label()))
@@ -616,23 +621,9 @@ Return ONLY the JSON array:"#,
             req = req.header(*key, value.as_str());
         }
 
-        let response = match req.send_json(body) {
-            Ok(r) => r,
-            Err(_) => return Ok(entities), // Verification failure -> keep originals
-        };
-
-        let json: serde_json::Value = match response.into_body().read_json() {
-            Ok(j) => j,
-            Err(_) => return Ok(entities),
-        };
-
-        let content = if provider == "anthropic" {
-            json["content"][0]["text"].as_str().unwrap_or("[]")
-        } else {
-            json["choices"][0]["message"]["content"]
-                .as_str()
-                .unwrap_or("[]")
-        };
+        let response = req.send_json(body).ok()?;
+        let json = response.into_body().read_json().ok()?;
+        let content = response_text(provider, &json).ok()?;
 
         // Parse boolean array
         let trimmed = content.trim();
@@ -643,16 +634,8 @@ Return ONLY the JSON array:"#,
             .trim();
         let trimmed = trimmed.strip_suffix("```").unwrap_or(trimmed).trim();
 
-        if let Ok(verdicts) = serde_json::from_str::<Vec<bool>>(trimmed) {
-            Ok(entities
-                .into_iter()
-                .zip(verdicts)
-                .filter_map(|(e, keep)| if keep { Some(e) } else { None })
-                .collect())
-        } else {
-            // Could not parse verification response -> keep all entities
-            Ok(entities)
-        }
+        let verdicts: Vec<bool> = serde_json::from_str(trimmed).ok()?;
+        (verdicts.len() == entities.len()).then_some(verdicts)
     }
 
     /// Fallback when `llm` feature is not enabled.
@@ -688,30 +671,7 @@ Return ONLY the JSON array:"#,
             key_to_type.push((k, t));
         }
 
-        let json_str = content.trim();
-        let json_str = json_str
-            .strip_prefix("```json")
-            .or_else(|| json_str.strip_prefix("```JSON"))
-            .or_else(|| json_str.strip_prefix("```"))
-            .unwrap_or(json_str)
-            .trim();
-        let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
-
-        // Find the array
-        let json_str = if json_str.starts_with('[') {
-            json_str.to_string()
-        } else if let Some(start) = json_str.find('[') {
-            if let Some(end) = json_str.rfind(']') {
-                json_str[start..=end].to_string()
-            } else {
-                return Ok(Vec::new());
-            }
-        } else {
-            return Ok(Vec::new());
-        };
-
-        let items: Vec<serde_json::Value> = serde_json::from_str(&json_str)
-            .map_err(|e| crate::Error::Parse(format!("Compact NER parse error: {}", e)))?;
+        let items = response_array(content)?;
 
         let char_count = original_text.chars().count();
         let mut entities = Vec::new();
@@ -799,42 +759,7 @@ Return ONLY the JSON array:"#,
     /// without network access.
     #[allow(dead_code)] // Used by `extract_with_llm` (when enabled) and unit tests.
     fn parse_llm_response(&self, content: &str, original_text: &str) -> Result<Vec<Entity>> {
-        // Try to extract JSON array from response. Some providers wrap responses in
-        // markdown/code fences or include extra explanation text.
-        let json_str = content.trim();
-        let json_str = json_str
-            .strip_prefix("```json")
-            .or_else(|| json_str.strip_prefix("```JSON"))
-            .or_else(|| json_str.strip_prefix("```"))
-            .unwrap_or(json_str)
-            .trim();
-        let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
-
-        let json_str = if json_str.starts_with('[') {
-            json_str.to_string()
-        } else if let Some(start) = json_str.find('[') {
-            if let Some(end) = json_str.rfind(']') {
-                json_str[start..=end].to_string()
-            } else {
-                return Err(crate::Error::Parse(format!(
-                    "UniversalNER LLM response did not contain a complete JSON array. Response begins: {:?}",
-                    json_str.chars().take(200).collect::<String>()
-                )));
-            }
-        } else {
-            return Err(crate::Error::Parse(format!(
-                "UniversalNER LLM response did not contain a JSON array. Response begins: {:?}",
-                json_str.chars().take(200).collect::<String>()
-            )));
-        };
-
-        let items: Vec<serde_json::Value> = serde_json::from_str(&json_str).map_err(|e| {
-            crate::Error::Parse(format!(
-                "UniversalNER failed to parse JSON array from LLM response: {}. Extracted JSON begins: {:?}",
-                e,
-                json_str.chars().take(200).collect::<String>()
-            ))
-        })?;
+        let items = response_array(content)?;
 
         let mut entities = Vec::new();
         for item in items {
@@ -905,6 +830,96 @@ Return ONLY the JSON array:"#,
 
         Ok(entities)
     }
+}
+
+/// Read a completed response before parsing its entity list or verification verdicts.
+#[cfg(feature = "llm")]
+fn response_text(provider: &str, json: &serde_json::Value) -> Result<String> {
+    let choice = &json["choices"][0];
+    if !json["error"].is_null() || !choice["error"].is_null() {
+        return Err(crate::Error::Inference(
+            "LLM provider returned an error".into(),
+        ));
+    }
+    let reason = if provider == "anthropic" {
+        json["stop_reason"].as_str()
+    } else {
+        choice["finish_reason"].as_str()
+    };
+    match reason {
+        Some("length" | "max_tokens" | "model_context_window_exceeded") => {
+            return Err(crate::Error::Inference("LLM response was truncated".into()));
+        }
+        Some("refusal" | "content_filter") => {
+            return Err(crate::Error::Inference(
+                "LLM response was refused or filtered".into(),
+            ));
+        }
+        Some("error" | "tool_calls" | "function_call" | "tool_use" | "pause_turn") => {
+            return Err(crate::Error::Inference(
+                "LLM did not complete the response".into(),
+            ));
+        }
+        _ => {}
+    }
+
+    let missing = || crate::Error::Parse("LLM response is missing text content".into());
+    let text = if provider == "anthropic" {
+        let mut text = String::new();
+        for block in json["content"].as_array().ok_or_else(missing)? {
+            // Thinking and tool-use blocks may precede the text blocks.
+            if matches!(block["type"].as_str(), None | Some("text")) {
+                text.push_str(block["text"].as_str().ok_or_else(missing)?);
+            }
+        }
+        text
+    } else {
+        let message = &choice["message"];
+        if message["refusal"]
+            .as_str()
+            .is_some_and(|s| !s.trim().is_empty())
+        {
+            return Err(crate::Error::Inference("LLM response was refused".into()));
+        }
+        message["content"].as_str().ok_or_else(missing)?.to_owned()
+    };
+    if text.trim().is_empty() {
+        return Err(missing());
+    }
+    Ok(text)
+}
+
+fn response_array(content: &str) -> Result<Vec<serde_json::Value>> {
+    // Try to extract JSON array from response. Some providers wrap responses in
+    // markdown/code fences or include extra explanation text.
+    let json_str = content.trim();
+    let json_str = json_str
+        .strip_prefix("```json")
+        .or_else(|| json_str.strip_prefix("```JSON"))
+        .or_else(|| json_str.strip_prefix("```"))
+        .unwrap_or(json_str)
+        .trim();
+    let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
+
+    // A JSON object or string containing an array is still the wrong top-level type.
+    let array = if json_str.starts_with(['[', '{', '"']) {
+        json_str
+    } else {
+        let start = json_str.find('[').ok_or_else(|| {
+            crate::Error::Parse("UniversalNER LLM response did not contain a JSON array".into())
+        })?;
+        let end = json_str[start..].rfind(']').ok_or_else(|| {
+            crate::Error::Parse(
+                "UniversalNER LLM response did not contain a complete JSON array".into(),
+            )
+        })?;
+        &json_str[start..=start + end]
+    };
+    serde_json::from_str(array).map_err(|e| {
+        crate::Error::Parse(format!(
+            "UniversalNER failed to parse JSON array from LLM response: {e}"
+        ))
+    })
 }
 
 impl Model for UniversalNER {
@@ -1433,4 +1448,25 @@ mod tests {
     }
 
     // Overlap-aware dedup tests are in streaming::tests (shared infra).
+    #[cfg(feature = "llm")]
+    #[test]
+    fn anthropic_response_requires_complete_text() {
+        use serde_json::json;
+        let mut response = json!({"content": [
+            {"type":"thinking","thinking":"internal"},
+            {"type":"text","text":"["}, {"type":"text","text":"]"}
+        ]});
+        assert_eq!(response_text("anthropic", &response).unwrap(), "[]");
+        for reason in [
+            "max_tokens",
+            "model_context_window_exceeded",
+            "refusal",
+            "tool_use",
+            "pause_turn",
+        ] {
+            response["stop_reason"] = json!(reason);
+            assert!(response_text("anthropic", &response).is_err());
+        }
+        assert!(response_text("anthropic", &json!({"content":[]})).is_err());
+    }
 }
