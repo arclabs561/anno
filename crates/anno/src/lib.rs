@@ -106,6 +106,7 @@ pub mod metrics;
 pub mod offset;
 /// PII detection and redaction (library-level privacy functions).
 pub mod pii;
+pub mod publication;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
