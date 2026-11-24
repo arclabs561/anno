@@ -316,3 +316,70 @@ fn native_shared_snapshot_restores_members_and_only_complete_similarity_evidence
         }
     }
 }
+
+#[test]
+fn restore_can_load_an_unbound_record_before_its_only_member() {
+    use anno::core::grounded::{IdentitySource, TrackId};
+    let reference = TrackRef {
+        doc_id: "B".into(),
+        track_id: TrackId::ZERO,
+    };
+    for hybrid in [false, true] {
+        let mut id = Identity::new(0, "Reed");
+        id.source = Some(if hybrid {
+            id.kb_name = Some("library".into());
+            id.kb_id = Some("17".into());
+            IdentitySource::Hybrid {
+                kb_name: "library".into(),
+                kb_id: "17".into(),
+                track_refs: vec![reference.clone()],
+            }
+        } else {
+            IdentitySource::CrossDocCoref {
+                track_refs: vec![reference.clone()],
+            }
+        });
+        let mut corpus = Corpus::new();
+        for doc_id in ["A", "B"] {
+            let mut payload = GroundedDocument::new(doc_id, "Reed");
+            let local = payload.add_identity(id.clone());
+            if doc_id == "B" {
+                let track = payload.add_track(Track::new(0, "Reed"));
+                payload.link_track_to_identity(track, local);
+            }
+            let req = request(doc_id, 1, true);
+            let receipt = corpus
+                .deliver_document(&req, &serde_json::to_vec(&payload).unwrap())
+                .unwrap();
+            assert_eq!(
+                corpus
+                    .get_document(&receipt.receipt().document_id)
+                    .unwrap()
+                    .identities()
+                    .count(),
+                1
+            );
+        }
+        assert_eq!(corpus.current_coref_clusters().len(), 1);
+        let members = &corpus.current_coref_clusters()[0].1;
+        assert_eq!(
+            members,
+            &[first(
+                &corpus,
+                &request("b", 1, true).corpus_document_id("B")
+            )]
+        );
+        let a = corpus
+            .get_document(&request("A", 1, true).corpus_document_id("A"))
+            .unwrap();
+        assert_eq!(
+            a.identities()
+                .next()
+                .unwrap()
+                .source()
+                .unwrap()
+                .track_refs(),
+            members
+        );
+    }
+}
