@@ -58,11 +58,21 @@ def create_database(path):
     return db
 
 
+def validate_signature(adapter, outcome, signature):
+    if outcome not in ("pass", "fail") or not isinstance(signature, str):
+        raise ValueError("invalid replay outcome or signature")
+    if outcome == "fail" and not re.fullmatch(adapter.FAIL_SIGNATURE, signature):
+        raise ValueError("unexpected replay failure signature")
+    if outcome == "pass" and signature != adapter.PASS_SIGNATURE:
+        raise ValueError("unexpected replay success signature")
+
+
 def measured(adapter, root, case):
     result = adapter.replay(root, case)
-    if result["outcome"] not in ("pass", "fail") or not isinstance(result["signature"], str):
-        raise ValueError("invalid oracle outcome")
-    if not re.fullmatch("[a-f0-9]{64}", result["producer_sha256"]):
+    if set(result) != {"outcome", "signature", "producer_sha256"}:
+        raise ValueError("unexpected oracle result fields")
+    validate_signature(adapter, result["outcome"], result["signature"])
+    if not isinstance(result["producer_sha256"], str) or not re.fullmatch("[a-f0-9]{64}", result["producer_sha256"]):
         raise ValueError("missing producer digest")
     if result["outcome"] == "fail":
         if not result["signature"] or adapter.replay(root, case) != result:
@@ -78,7 +88,12 @@ def describe(adapter, root, case):
         local = Path(module)
         if local.read_bytes() != (root / "scripts/qa" / local.name).read_bytes():
             raise ValueError("executed adapter differs from the selected checkout")
-    return adapter.describe(root, case)
+    description = adapter.describe(root, case)
+    if set(description) != {"family", "source_sha256", "oracle_sha256"}:
+        raise ValueError("unexpected oracle description fields")
+    if description["family"] != adapter.family_for_case(root, case):
+        raise ValueError("unreviewed replay family")
+    return description
 
 
 def observe(root, cache, corpus, case, selected=None):
@@ -185,13 +200,7 @@ def current_event(root, row):
     if (event["outcome"] not in ("pass", "fail") or type(event["schema_version"]) is not int
             or type(event["replays"]) is not int or event["replays"] != (2 if failed else 1)):
         raise ValueError("invalid replay confirmation")
-    signature = event["signature"]
-    if not isinstance(signature, str):
-        raise ValueError("replay signature must be a string")
-    if failed and not re.fullmatch(adapter.FAIL_SIGNATURE, signature):
-        raise ValueError("unexpected replay failure signature")
-    if not failed and signature != adapter.PASS_SIGNATURE:
-        raise ValueError("unexpected replay success signature")
+    validate_signature(adapter, event["outcome"], event["signature"])
     if (not isinstance(event["revision"], str)
             or not re.fullmatch(r"[a-f0-9]{40}(?:[a-f0-9]{24})?", event["revision"])
             or any(not isinstance(event[k], str) or not re.fullmatch(r"[a-f0-9]{64}", event[k])

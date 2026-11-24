@@ -87,13 +87,24 @@ class Feedback(unittest.TestCase):
             self.oracle.calls.append(n)
             return {
                 "outcome": "fail" if not n else "pass",
-                "signature": "x",
+                "signature": "assertion-A" if not n else "",
                 "producer_sha256": "1" * 64,
             }
 
         with patch.object(self.oracle, "replay", side_effect=flap), self.assertRaises(ValueError):
             self.record("a", "fail")
         self.assertIsNone(self.pick())
+
+    def test_observe_rejects_free_text_before_writing_a_receipt(self):
+        base = self.oracle.replay(self.root, "a")
+        for result in ({**base, "raw_text": "private"}, {**base, "signature": "private"}):
+            with patch.object(self.oracle, "replay", return_value=result), self.assertRaises(ValueError):
+                self.record("a", "pass")
+        details = dict(self.oracle.describe(self.root, "a"), raw_text="private")
+        with patch.object(self.oracle, "describe", return_value=details), self.assertRaises(ValueError):
+            self.record("a", "pass")
+        with sqlite3.connect(self.cache / rf.DB_NAME) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM observations").fetchone()[0], 0)
 
     def test_stale_selection_and_aba_rejected(self):
         self.record("a", "fail")
