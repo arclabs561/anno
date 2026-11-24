@@ -1,5 +1,6 @@
 //! Query command - Query and filter entities/clusters
 
+mod memberships;
 mod publication;
 
 use clap::{Parser, Subcommand};
@@ -16,6 +17,8 @@ use anno::{Location, Signal};
 pub enum QueryCommand {
     /// Publish or compare complete revisions of one grounded document.
     Publication(publication::PublicationArgs),
+    /// Publish derived track memberships for a complete corpus or compare two corpus editions.
+    Memberships(memberships::MembershipArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -129,8 +132,11 @@ fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
 
 /// Execute the query command.
 pub fn run(args: QueryArgs) -> Result<(), String> {
-    if let Some(QueryCommand::Publication(publication)) = args.command {
-        return publication::run(publication);
+    if let Some(command) = args.command {
+        return match command {
+            QueryCommand::Publication(args) => publication::run(args),
+            QueryCommand::Memberships(args) => memberships::run(args),
+        };
     }
     let catalog = CatalogRecord::from_args(&args.catalog_record)?;
     let input = args.input.as_deref().ok_or("missing query input")?;

@@ -17,6 +17,7 @@
 
 #![warn(missing_docs)]
 
+pub mod memberships;
 pub mod resolver;
 pub mod script;
 pub mod similarity;

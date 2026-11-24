@@ -3,7 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-cargo test --locked -p anno --no-default-features --test index_reconciliation -- --nocapture
+cargo test --locked -p anno --no-default-features --test index_reconciliation --test membership_publication -- --nocapture
+cargo test --locked -p anno-cli --no-default-features --features "eval extractor-readability" --test membership_queries
 cargo test --locked -p anno --no-default-features --example index_link_policy
 cargo run --quiet --locked -p anno --no-default-features --example index_component_repair
 cargo run --quiet --locked -p anno --no-default-features --example rag_citation
