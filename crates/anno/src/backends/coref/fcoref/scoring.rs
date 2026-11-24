@@ -247,8 +247,8 @@ pub(crate) fn score_mentions(
 /// Score antecedent pairs and return best antecedent for each mention.
 ///
 /// For each mention i, computes the coreference score with all preceding mentions j < i,
-/// and returns the highest-scoring earlier index if its score exceeds zero.
-/// Otherwise the mention points to itself (null), including ties at zero.
+/// followed by a null candidate with score zero. The first maximum wins, as in
+/// FastCoref's argmax over that ordering. A null result points to the mention itself.
 ///
 /// # Arguments
 ///
@@ -313,7 +313,7 @@ pub(crate) fn score_antecedents(
     // Add mention pair scores: score(i) + score(j) + coref(i, j)
     let mut antecedents = Vec::with_capacity(k);
     for i in 0..k {
-        let mut best_score = 0.0_f32; // null antecedent score
+        let mut best_score = f32::NEG_INFINITY;
         let mut best_ante = i; // self = null
 
         for j in 0..i {
@@ -324,7 +324,8 @@ pub(crate) fn score_antecedents(
             }
         }
 
-        antecedents.push(best_ante);
+        // FastCoref appends null last, so a real antecedent also wins at zero.
+        antecedents.push(if best_score >= 0.0 { best_ante } else { i });
     }
 
     antecedents
@@ -436,21 +437,22 @@ mod tests {
     }
 
     #[test]
-    fn antecedent_pair_must_beat_zero_to_replace_null() {
-        let positions = [0, 1];
-        let reps = Array2::zeros((2, 4));
+    fn antecedent_argmax_orders_prior_mentions_before_null() {
+        let positions = [0, 1, 2];
+        let reps = Array2::zeros((3, 4));
         let weights = dummy_scorer_weights(4);
         // With zero pair interactions the score is the sum of the two mention logits.
-        for (second, expected) in [(0.5, 1), (1.0, 1), (2.0, 0)] {
+        // Both earlier candidates have the same score for the last mention.
+        for (last, expected) in [(0.5, 2), (1.0, 0), (2.0, 0)] {
             let parents = score_antecedents(
                 &positions,
                 &positions,
-                &[-1.0, second],
+                &[-1.0, -1.0, last],
                 &reps,
                 &reps,
                 &weights,
             );
-            assert_eq!(parents, [0, expected]);
+            assert_eq!(parents, [0, 1, expected]);
         }
     }
 
