@@ -13,6 +13,7 @@ keywords = ["ner", "nlp", "extraction", "cli"]
 categories = ["command-line-utilities", "text-processing"]
 
 [dependencies]
+rusqlite = { workspace = true }
 same-file = "1"
 tempfile = "3.27.0"
 anno = { path = "../anno", version = "0.16.0", default-features = false }

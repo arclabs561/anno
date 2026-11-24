@@ -66,6 +66,22 @@ struct Revision {
     document: GroundedDocument,
 }
 
+pub(super) fn source_marker(hash: &str, revision: Option<&str>) -> Value {
+    json!({"source_sha256": hash, "source_revision": revision})
+}
+
+pub(super) fn occurrence_key(
+    document: &str,
+    hash: &str,
+    revision: Option<&str>,
+    id: u64,
+) -> Vec<String> {
+    let mut key = vec![document.into(), hash.into()];
+    key.extend(revision.map(str::to_owned));
+    key.push(id.to_string());
+    key
+}
+
 impl Revision {
     fn read(path: &Path) -> Result<Self, String> {
         let parsed = if path == Path::new("-") {
@@ -106,7 +122,7 @@ impl Revision {
         // collide with an occurrence key and is omitted from observed postings.
         rows.insert(
             Vec::new(),
-            json!({"source_sha256": hash, "source_revision": self.source_revision}),
+            source_marker(&hash, self.source_revision.as_deref()),
         );
         for signal in doc.signals() {
             let catalog_record = doc
@@ -115,9 +131,12 @@ impl Revision {
             if filter.is_some_and(|selection| Some(selection.as_ref()) != catalog_record) {
                 continue;
             }
-            let mut key = vec![doc.id().to_owned(), hash.clone()];
-            key.extend(self.source_revision.iter().cloned());
-            key.push(signal.id.to_string());
+            let key = occurrence_key(
+                doc.id(),
+                &hash,
+                self.source_revision.as_deref(),
+                signal.id.get(),
+            );
             rows.insert(key, json!({
                 "document": doc.id(),
                 "source_sha256": hash,

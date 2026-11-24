@@ -55,6 +55,38 @@ Keep `Signal`, `Track` and `Identity` as the grounded, current view. Pilot the a
 
 A deployment decision needs the caller's read-freshness budget, update distribution (including bursts, deletes and repeats), false-merge cost, available review capacity and label policy. Replay a licensed workload chronologically with burst and disconnection periods. Compare full reconciliation, bounded repair and an adaptive policy against a gold partition as well as against each other. Measure p95 time to searchable text and to corrected person results, stale postings after recovery, per-audience precision, and throughput including persistence. The synthetic timing and loss units here cannot select those budgets for a real caller.
 
+## Publish and read a coherent collection
+
+The publisher chooses the collection, source, audience, edition number and complete member list. An `anno::publication::IndexEdition` pins one exact native checkpoint per required stream. A zero-row selection still needs its checkpoint. A manifest with no members publishes an empty collection. A reader can use independent document streams when its query permits different refresh times.
+
+For example, generate two full receipts from `anno query publication`, then stage and publish a release using the SQLite subscriber. Each input file here is a grounded publication envelope containing a stream, sequence and document.
+
+```bash
+anno query publication first-document.json > first-snapshot.json
+anno query publication second-document.json > second-snapshot.json
+edition=(anno query edition --collection program --source editor --audience public)
+"${edition[@]}" manifest 12 first-snapshot.json second-snapshot.json > program-12.json
+"${edition[@]}" stage catalog.sqlite first-snapshot.json
+"${edition[@]}" stage catalog.sqlite second-snapshot.json
+"${edition[@]}" publish catalog.sqlite program-12.json
+"${edition[@]}" read catalog.sqlite 12
+```
+
+The producer can supply ordinary `--since` delta receipts to `stage`. The subscriber reconstructs the full projection, including its source marker, and checks the native fingerprint. A missing delta base can be recovered by staging the target snapshot directly. Staging can occur in any order for full snapshots. A delta requires its exact retained base. Stage scope-qualified receipts supplied by a trusted publisher. Enforce reader authorization before opening the selected audience projection.
+
+Publication verifies the required versions and inserts the manifest in one SQLite write transaction. A `waiting` result names missing checkpoints and the currently visible edition. Retry the manifest after staging the missing versions. Reading without a number returns the latest published manifest and all its members in one read transaction. Republishing a historical manifest reports the current edition. Each read includes the edition it actually returned.
+
+Retain versions needed for historical reads and replay. To release rows, pass a native checkpoint JSON file to `evict catalog.sqlite checkpoint.json`. The current edition's members remain pinned. Historical manifests and checkpoint identities remain available after row eviction. Reading an evicted edition reports the missing member until the exact full snapshot is restored. SQLite can reuse the freed pages. Keep an assertion history when a query needs to explain changes between published editions. In the fixture the direct endpoint delta for Blair is empty even though the intervening release credits Blair.
+
+The [CLI replay](../../verification/index_consumers/check_editions.py) compares 540 fresh reader processes against the publisher's bulk receipts across all 90 causal delivery orders. It also kills a writer while another process holds open the previous edition. The optional `--measure` workload stages an update to one of 250 postings in each member, publishes a second edition and recovers a new subscriber from full snapshots. One local debug build produced the following measurements. Times include CLI startup, SQLite commits and native verification. The publication interval starts with delivery of the first delta. The catch-up interval starts with delivery of the first full target snapshot.
+
+| Members | Postings per edition | Two editions of retained snapshot bodies | SQLite file | First delta to publication | Last member staged to publication | Full snapshot catch-up |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 1,000 | 579,658 B | 610,304 B | 0.259 s | 0.079 s | 0.199 s |
+| 24 | 6,000 | 3,484,988 B | 3,592,192 B | 1.444 s | 0.517 s | 1.423 s |
+
+Each figure comes from one synthetic local run. Deployments choose retention from their required historical coverage, delivery lag and storage budget.
+
 ## Reproduce
 
 From the repository root with stable Rust and Python 3.10 or newer:

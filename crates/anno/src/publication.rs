@@ -30,6 +30,9 @@
 //! # Ok::<(), anno::publication::PublicationError>(())
 //! ```
 
+mod edition;
+pub use edition::{IndexEdition, IndexEditionScope};
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -107,6 +110,12 @@ pub enum PublicationError {
     /// This delta was computed from a different state than the consumer has.
     #[error("delta predecessor differs from the stored checkpoint")]
     WrongPredecessor,
+    /// A catalog edition requires a named collection, source and audience.
+    #[error("a catalog edition requires a nonempty collection, source and audience")]
+    EmptyEditionScope,
+    /// An edition can pin only one checkpoint per required stream.
+    #[error("duplicate edition member stream: {0}")]
+    DuplicateMember(String),
     /// A projected row could not be encoded.
     #[error("could not encode publication row: {0}")]
     Encoding(#[from] serde_json::Error),
