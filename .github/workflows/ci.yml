@@ -41,46 +41,40 @@ jobs:
         run: cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
       # Keep the format-specific checks alongside the rotating topical sample.
       - name: Sample two published documents
-        run: python3 scripts/qa_random_urls.py --category documents --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/documents.md
+        run: python3 scripts/qa_random_urls.py --category documents --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output "$RUNNER_TEMP/documents.md" --public-summary "qa/reports/documents-summary.json" > "$RUNNER_TEMP/documents.log" 2>&1
       - name: Sample one article from a feed
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 scripts/qa_random_urls.py --category rss --count 1 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/feeds.md
+        run: python3 scripts/qa_random_urls.py --category rss --count 1 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output "$RUNNER_TEMP/feeds.md" --public-summary "qa/reports/feeds-summary.json" > "$RUNNER_TEMP/feeds.log" 2>&1
       - name: Sample eight catalog topics
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 scripts/qa_random_urls.py --count 8 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output qa/reports/publishers.md
-      - name: Prepare coordinator handoff
-        if: ${{ !cancelled() && hashFiles('qa/reports/publishers.json') != '' }}
-        run: |
-          python3 scripts/qa/brief_round.py qa/reports/publishers.json \
-            "Which sampled topics still need a distinct verified input or an independent label?" > qa/reports/round.md
-      - name: Score pinned discovery examples across topics and languages
+        run: python3 scripts/qa_random_urls.py --count 8 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output "$RUNNER_TEMP/publishers.md" --public-summary "qa/reports/publishers-summary.json" > "$RUNNER_TEMP/publishers.log" 2>&1
+      - name: Score publisher-licensed Snips validation inputs
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: bash
         run: |
           sources="$RUNNER_TEMP/domain-sources"
           panel="$RUNNER_TEMP/domain-panel"
           mkdir -p qa/reports
-          python3 scripts/qa/prepare_domain_fixtures.py fetch "$sources" --group all
-          python3 scripts/qa/prepare_domain_fixtures.py prepare "$sources" "$panel" --group all --per-split 8
+          python3 scripts/qa/prepare_domain_fixtures.py fetch "$sources" --group hosted
+          python3 scripts/qa/prepare_domain_fixtures.py prepare "$sources" "$panel" --group hosted --per-split 8
           rc=0
           python3 scripts/qa/check_span_assertions.py --fixture "$panel/discovery.json" \
-            --binary "$ANNO" --model stacked > "$panel/scores.json" || rc=$?
+            --binary "$ANNO" --model stacked > "$panel/scores.json" 2> "$panel/scorer.log" || rc=$?
           # An unmet labeled assertion is a measurement. Invalid inputs and execution errors fail the job.
           if (( rc > 1 )); then exit "$rc"; fi
           jq --arg revision "$GITHUB_SHA" \
             '{kind, schema_version, fixture_sha256, passed, total, domains, prediction_coverage, backend: "stacked", revision: $revision}' \
             "$panel/scores.json" > qa/reports/domain-discovery.json
           cp "$panel/manifest.json" qa/reports/domain-manifest.json
-          python3 scripts/qa/brief_round.py qa/reports/domain-discovery.json \
-            "Which source group needs a new positive or protected control?" > qa/reports/labeled-round.md
       - name: Save live QA reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: live-document-qa
           path: |
-            qa/reports/*.md
-            qa/reports/publishers.json
+            qa/reports/documents-summary.json
+            qa/reports/feeds-summary.json
+            qa/reports/publishers-summary.json
             qa/reports/domain-discovery.json
             qa/reports/domain-manifest.json
           if-no-files-found: error
