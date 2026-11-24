@@ -298,6 +298,8 @@ jobs:
         run: >-
           cargo test -p anno-cli --all-targets --no-default-features
           --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
+      - name: Test UniversalNER against loopback servers
+        run: cargo test --locked -p anno --no-default-features --features llm --test 'universal_ner_*'
       - name: Replay authored cross-document agent cases offline
         run: |
           cargo build --locked -p anno-cli --no-default-features --features "eval extractor-html2text"

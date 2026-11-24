@@ -59,7 +59,7 @@ use crate::backends::llm_prompt::{BIOSchema, CodeNERPrompt};
 use crate::offset::TextSpan;
 use crate::{Entity, EntityType, Language, Model, Result};
 
-/// Simple LRU-ish response cache keyed on (text_hash, types_hash, model).
+/// Bounded response cache for identical extraction requests.
 /// Avoids duplicate API calls for the same input.
 #[derive(Debug, Default)]
 #[cfg_attr(not(feature = "llm"), allow(dead_code))]
@@ -97,32 +97,65 @@ impl ResponseCache {
     }
 }
 
-/// Compute a simple hash for cache keys.
 #[cfg(feature = "llm")]
-fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    text.hash(&mut hasher);
-    types.hash(&mut hasher);
-    model.hash(&mut hasher);
-    hasher.finish()
+const GEMINI_CHAT_URL: &str =
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+#[cfg(feature = "llm")]
+fn llm_provider(
+    config: Option<&crate::backends::llm_client::LlmConfig>,
+) -> Option<(String, &'static str)> {
+    let Some((config, endpoint)) = config.and_then(|c| Some((c, c.endpoint.as_deref()?))) else {
+        return crate::env::llm_api_key();
+    };
+    let key = config
+        .api_key
+        .as_deref()
+        .filter(|key| !key.trim().is_empty());
+    let (provider, env_key) = match endpoint {
+        GEMINI_CHAT_URL => ("gemini", "GEMINI_API_KEY"),
+        "https://api.anthropic.com/v1/messages" => ("anthropic", "ANTHROPIC_API_KEY"),
+        "https://openrouter.ai/api/v1/chat/completions" => ("openrouter", "OPENROUTER_API_KEY"),
+        "https://api.groq.com/openai/v1/chat/completions" => ("groq", "GROQ_API_KEY"),
+        _ => {
+            let uri = endpoint.parse::<ureq::http::Uri>().ok()?;
+            if !matches!(uri.scheme_str(), Some("http" | "https")) || uri.host().is_none() {
+                return None;
+            }
+            return Some((key.unwrap_or_default().to_owned(), "custom"));
+        }
+    };
+    let key = key.map(str::to_owned).or_else(|| {
+        std::env::var(env_key)
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+    })?;
+    Some((key, provider))
+}
+
+#[cfg(feature = "llm")]
+struct LlmTarget {
+    url: String,
+    model: String,
+    headers: Vec<(&'static str, String)>,
 }
 
 /// Whether the configured LLM feature can resolve a provider for extraction.
-fn llm_provider_available() -> bool {
+fn llm_provider_available(config: Option<&crate::backends::llm_client::LlmConfig>) -> bool {
     #[cfg(feature = "llm")]
     {
-        crate::env::llm_api_key().is_some()
+        llm_provider(config).is_some()
     }
 
     #[cfg(not(feature = "llm"))]
     {
+        let _ = config;
         false
     }
 }
 
 /// Prompting strategy for LLM-based NER.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Hash)]
 pub enum PromptStrategy {
     /// Simple JSON extraction prompt (default, reliable across models).
     #[default]
@@ -176,31 +209,58 @@ impl UniversalNER {
     ///
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        let llm_available = llm_provider_available();
+        use crate::backends::llm_client::LlmConfig;
+        use std::env::{var, VarError};
 
-        Ok(Self {
-            llm_available,
-            config: None,
-            prompt_strategy: PromptStrategy::default(),
-            domain_context: None,
-            cache: Mutex::new(ResponseCache::new(256)),
-            self_verify: false,
-            max_chunk_chars: 4000,
+        let endpoint = match var("ANNO_LLM_ENDPOINT") {
+            Ok(url) => url,
+            Err(VarError::NotPresent) => return Ok(Self::from_config(None)),
+            Err(VarError::NotUnicode(_)) => {
+                return Err(crate::Error::ModelInit(
+                    "ANNO_LLM_ENDPOINT must be a UTF-8 URL".into(),
+                ));
+            }
+        };
+        Self::with_config(LlmConfig {
+            endpoint: Some(endpoint),
+            model: var("ANNO_LLM_MODEL").unwrap_or_default(),
+            api_key: var("ANNO_LLM_API_KEY").ok(),
+            ..LlmConfig::default()
         })
     }
 
-    /// Create with a specific LLM configuration.
+    /// Create with a specific LLM configuration, independent of ANNO_LLM_ENDPOINT.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        let llm_available = llm_provider_available();
-        Ok(Self {
-            llm_available,
-            config: Some(config),
+        Ok(Self::from_config(Some(config)))
+    }
+
+    fn from_config(config: Option<crate::backends::llm_client::LlmConfig>) -> Self {
+        Self {
+            llm_available: llm_provider_available(config.as_ref()),
+            config,
             prompt_strategy: PromptStrategy::default(),
             domain_context: None,
             cache: Mutex::new(ResponseCache::new(256)),
             self_verify: false,
             max_chunk_chars: 4000,
-        })
+        }
+    }
+
+    #[cfg(feature = "llm")]
+    fn cache_key(&self, text: &str, types: &[&str], model: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (
+            text,
+            types,
+            model,
+            &self.prompt_strategy,
+            &self.domain_context,
+            self.self_verify,
+        )
+            .hash(&mut hasher);
+        hasher.finish()
     }
 
     /// Set the prompting strategy.
@@ -376,6 +436,89 @@ Output:"#
         })
     }
 
+    #[cfg(feature = "llm")]
+    fn llm_target(&self, provider: &str, api_key: &str) -> Result<LlmTarget> {
+        let fallback_model = match provider {
+            "anthropic" => "claude-haiku-4-5-20251001",
+            "groq" => "llama-3.3-70b-versatile",
+            "ollama" => "llama3.2:3b",
+            "gemini" => "gemini-2.5-flash-lite",
+            "custom" => "default",
+            _ => "google/gemini-2.5-flash-lite",
+        };
+        let model = self
+            .config
+            .as_ref()
+            .map(|config| config.model.as_str())
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or(fallback_model);
+        // The built-in Google presets use OpenRouter's provider-prefixed IDs.
+        let model = if provider == "gemini" {
+            model.strip_prefix("google/").unwrap_or(model)
+        } else {
+            model
+        };
+        let (url, headers): (String, Vec<(&str, String)>) = match provider {
+            "openrouter" => (
+                "https://openrouter.ai/api/v1/chat/completions".to_string(),
+                vec![
+                    ("Authorization", format!("Bearer {}", api_key)),
+                    (
+                        "HTTP-Referer",
+                        "https://github.com/anno-rs/anno".to_string(),
+                    ),
+                    ("X-Title", "Anno NER".to_string()),
+                ],
+            ),
+            "anthropic" => (
+                "https://api.anthropic.com/v1/messages".to_string(),
+                vec![
+                    ("x-api-key", api_key.to_owned()),
+                    ("anthropic-version", "2023-06-01".to_string()),
+                ],
+            ),
+            "groq" => (
+                "https://api.groq.com/openai/v1/chat/completions".to_string(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            "custom" => (
+                self.config
+                    .as_ref()
+                    .and_then(|c| c.endpoint.clone())
+                    .expect("custom route has an explicit endpoint"),
+                if api_key.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![("Authorization", format!("Bearer {}", api_key))]
+                },
+            ),
+            "ollama" => {
+                let host = std::env::var("OLLAMA_HOST")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
+                (
+                    format!("{}/v1/chat/completions", host),
+                    vec![("Authorization", "Bearer ollama".to_string())],
+                )
+            }
+            "gemini" => (
+                GEMINI_CHAT_URL.to_owned(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            other => {
+                return Err(crate::Error::FeatureNotAvailable(format!(
+                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
+                    other
+                )));
+            }
+        };
+
+        Ok(LlmTarget {
+            url,
+            model: model.to_owned(),
+            headers,
+        })
+    }
+
     /// Extract entities from a single chunk of text.
     ///
     /// `char_offset` is the chunk's starting character offset in the original
@@ -387,29 +530,20 @@ Output:"#
         char_offset: usize,
         entity_types: &[&str],
     ) -> Result<Vec<Entity>> {
-        let (api_key, provider) = crate::env::llm_api_key().ok_or_else(|| {
+        let (api_key, provider) = llm_provider(self.config.as_ref()).ok_or_else(|| {
             crate::Error::FeatureNotAvailable(
-                "No LLM API key found. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, or run Ollama locally.".into(),
+                "No available LLM route. Check the configured endpoint and its credentials.".into(),
             )
         })?;
 
-        let default_model = |fallback: &str| -> String {
-            self.config
-                .as_ref()
-                .map_or_else(|| fallback.to_string(), |c| c.model.clone())
-        };
-
-        // Determine model name for cache key
-        let model_for_cache = match provider {
-            "openrouter" => default_model("google/gemini-2.5-flash-lite"),
-            "anthropic" => default_model("claude-haiku-4-5-20251001"),
-            "groq" => default_model("llama-3.3-70b-versatile"),
-            "ollama" => default_model("llama3.2:3b"),
-            _ => default_model("google/gemini-2.5-flash-lite"),
-        };
+        let LlmTarget {
+            url,
+            model,
+            headers,
+        } = self.llm_target(provider, &api_key)?;
 
         // Check cache first (keyed on chunk text, not full document)
-        let key = cache_key(chunk_text, entity_types, &model_for_cache);
+        let key = self.cache_key(chunk_text, entity_types, &model);
         {
             let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = cache.get(key) {
@@ -431,55 +565,6 @@ Output:"#
         let (system_msg, user_msg) = self.build_prompt(chunk_text, entity_types);
 
         let max_tokens = self.config.as_ref().map_or(1024, |c| c.max_tokens);
-
-        let (url, model, headers): (String, String, Vec<(&str, String)>) = match provider {
-            "openrouter" => (
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                default_model("google/gemini-2.5-flash-lite"),
-                vec![
-                    ("Authorization", format!("Bearer {}", api_key)),
-                    (
-                        "HTTP-Referer",
-                        "https://github.com/anno-rs/anno".to_string(),
-                    ),
-                    ("X-Title", "Anno NER".to_string()),
-                ],
-            ),
-            "anthropic" => (
-                "https://api.anthropic.com/v1/messages".to_string(),
-                default_model("claude-haiku-4-5-20251001"),
-                vec![
-                    ("x-api-key", api_key.clone()),
-                    ("anthropic-version", "2023-06-01".to_string()),
-                ],
-            ),
-            "groq" => (
-                "https://api.groq.com/openai/v1/chat/completions".to_string(),
-                default_model("llama-3.3-70b-versatile"),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            "ollama" => {
-                let host = std::env::var("OLLAMA_HOST")
-                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                (
-                    format!("{}/v1/chat/completions", host),
-                    default_model("llama3.2:3b"),
-                    vec![("Authorization", "Bearer ollama".to_string())],
-                )
-            }
-            "gemini" => (
-                // Route Gemini through OpenRouter-compatible format
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                "google/gemini-2.5-flash-lite".to_string(),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            other => {
-                return Err(crate::Error::FeatureNotAvailable(format!(
-                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
-                    other
-                )));
-            }
-        };
 
         // All providers use OpenAI-compatible format except direct Anthropic API
         let body = if provider == "anthropic" {
@@ -517,33 +602,38 @@ Output:"#
             .read_json()
             .map_err(|e| crate::Error::Parse(format!("LLM response parse error: {}", e)))?;
 
-        // Extract content from response
-        let content = if provider == "anthropic" {
-            json["content"][0]["text"].as_str().unwrap_or("[]")
-        } else {
-            json["choices"][0]["message"]["content"]
-                .as_str()
-                .unwrap_or("[]")
-        };
+        let content = response_text(provider, &json)?;
 
         let mut entities = if matches!(self.prompt_strategy, PromptStrategy::Compact) {
-            self.parse_compact_response(content, chunk_text, entity_types)?
+            self.parse_compact_response(&content, chunk_text, entity_types)?
         } else {
-            self.parse_llm_response(content, chunk_text)?
+            self.parse_llm_response(&content, chunk_text)?
         };
 
-        // Self-verification: re-query LLM to confirm each entity (GPT-NER strategy).
-        // Reduces hallucination at the cost of additional API calls.
-        if self.self_verify && !entities.is_empty() {
-            entities =
-                self.verify_entities(&url, &model, &headers, provider, chunk_text, entities)?;
-        }
+        // Return the extraction on verification failure, but let the next call retry it.
+        let cacheable = if self.self_verify && !entities.is_empty() {
+            if let Some(verdicts) =
+                self.verification_verdicts(&url, &model, &headers, provider, chunk_text, &entities)
+            {
+                entities = entities
+                    .into_iter()
+                    .zip(verdicts)
+                    .filter_map(|(entity, keep)| keep.then_some(entity))
+                    .collect();
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        };
 
-        // Cache the chunk-local result (before offset adjustment)
-        self.cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(key, entities.clone());
+        if cacheable {
+            self.cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(key, entities.clone());
+        }
 
         // Adjust offsets from chunk-local to document-global
         if char_offset > 0 {
@@ -560,15 +650,15 @@ Output:"#
     /// Per GPT-NER (NAACL 2025 Findings), LLMs tend to over-confidently
     /// label null inputs as entities. Verification filters hallucinations.
     #[cfg(feature = "llm")]
-    fn verify_entities(
+    fn verification_verdicts(
         &self,
         url: &str,
         model: &str,
         headers: &[(&str, String)],
         provider: &str,
         text: &str,
-        entities: Vec<Entity>,
-    ) -> Result<Vec<Entity>> {
+        entities: &[Entity],
+    ) -> Option<Vec<bool>> {
         let entity_list: Vec<String> = entities
             .iter()
             .map(|e| format!("- \"{}\" ({})", e.text, e.entity_type.as_label()))
@@ -616,23 +706,9 @@ Return ONLY the JSON array:"#,
             req = req.header(*key, value.as_str());
         }
 
-        let response = match req.send_json(body) {
-            Ok(r) => r,
-            Err(_) => return Ok(entities), // Verification failure -> keep originals
-        };
-
-        let json: serde_json::Value = match response.into_body().read_json() {
-            Ok(j) => j,
-            Err(_) => return Ok(entities),
-        };
-
-        let content = if provider == "anthropic" {
-            json["content"][0]["text"].as_str().unwrap_or("[]")
-        } else {
-            json["choices"][0]["message"]["content"]
-                .as_str()
-                .unwrap_or("[]")
-        };
+        let response = req.send_json(body).ok()?;
+        let json = response.into_body().read_json().ok()?;
+        let content = response_text(provider, &json).ok()?;
 
         // Parse boolean array
         let trimmed = content.trim();
@@ -643,16 +719,8 @@ Return ONLY the JSON array:"#,
             .trim();
         let trimmed = trimmed.strip_suffix("```").unwrap_or(trimmed).trim();
 
-        if let Ok(verdicts) = serde_json::from_str::<Vec<bool>>(trimmed) {
-            Ok(entities
-                .into_iter()
-                .zip(verdicts)
-                .filter_map(|(e, keep)| if keep { Some(e) } else { None })
-                .collect())
-        } else {
-            // Could not parse verification response -> keep all entities
-            Ok(entities)
-        }
+        let verdicts: Vec<bool> = serde_json::from_str(trimmed).ok()?;
+        (verdicts.len() == entities.len()).then_some(verdicts)
     }
 
     /// Fallback when `llm` feature is not enabled.
@@ -688,34 +756,12 @@ Return ONLY the JSON array:"#,
             key_to_type.push((k, t));
         }
 
-        let json_str = content.trim();
-        let json_str = json_str
-            .strip_prefix("```json")
-            .or_else(|| json_str.strip_prefix("```JSON"))
-            .or_else(|| json_str.strip_prefix("```"))
-            .unwrap_or(json_str)
-            .trim();
-        let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
-
-        // Find the array
-        let json_str = if json_str.starts_with('[') {
-            json_str.to_string()
-        } else if let Some(start) = json_str.find('[') {
-            if let Some(end) = json_str.rfind(']') {
-                json_str[start..=end].to_string()
-            } else {
-                return Ok(Vec::new());
-            }
-        } else {
-            return Ok(Vec::new());
-        };
-
-        let items: Vec<serde_json::Value> = serde_json::from_str(&json_str)
-            .map_err(|e| crate::Error::Parse(format!("Compact NER parse error: {}", e)))?;
+        let items = response_array(content)?;
 
         let char_count = original_text.chars().count();
         let mut entities = Vec::new();
 
+        let mut has_row = false;
         for item in &items {
             let arr = match item.as_array() {
                 Some(a) if a.len() >= 3 => a,
@@ -735,6 +781,7 @@ Return ONLY the JSON array:"#,
                 None => continue,
             };
 
+            has_row = true;
             if start >= end || end > char_count {
                 continue;
             }
@@ -790,6 +837,7 @@ Return ONLY the JSON array:"#,
             entities.push(entity);
         }
 
+        ensure_recognizable_rows(&items, has_row)?;
         Ok(entities)
     }
 
@@ -799,50 +847,19 @@ Return ONLY the JSON array:"#,
     /// without network access.
     #[allow(dead_code)] // Used by `extract_with_llm` (when enabled) and unit tests.
     fn parse_llm_response(&self, content: &str, original_text: &str) -> Result<Vec<Entity>> {
-        // Try to extract JSON array from response. Some providers wrap responses in
-        // markdown/code fences or include extra explanation text.
-        let json_str = content.trim();
-        let json_str = json_str
-            .strip_prefix("```json")
-            .or_else(|| json_str.strip_prefix("```JSON"))
-            .or_else(|| json_str.strip_prefix("```"))
-            .unwrap_or(json_str)
-            .trim();
-        let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
-
-        let json_str = if json_str.starts_with('[') {
-            json_str.to_string()
-        } else if let Some(start) = json_str.find('[') {
-            if let Some(end) = json_str.rfind(']') {
-                json_str[start..=end].to_string()
-            } else {
-                return Err(crate::Error::Parse(format!(
-                    "UniversalNER LLM response did not contain a complete JSON array. Response begins: {:?}",
-                    json_str.chars().take(200).collect::<String>()
-                )));
-            }
-        } else {
-            return Err(crate::Error::Parse(format!(
-                "UniversalNER LLM response did not contain a JSON array. Response begins: {:?}",
-                json_str.chars().take(200).collect::<String>()
-            )));
-        };
-
-        let items: Vec<serde_json::Value> = serde_json::from_str(&json_str).map_err(|e| {
-            crate::Error::Parse(format!(
-                "UniversalNER failed to parse JSON array from LLM response: {}. Extracted JSON begins: {:?}",
-                e,
-                json_str.chars().take(200).collect::<String>()
-            ))
-        })?;
+        let items = response_array(content)?;
 
         let mut entities = Vec::new();
-        for item in items {
-            let text = item["text"].as_str().unwrap_or("");
+        let mut has_row = false;
+        for item in &items {
+            let (Some(text), Some(end)) = (item["text"].as_str(), item["end"].as_u64()) else {
+                continue;
+            };
+            has_row = true;
             let type_str = item["type"].as_str().unwrap_or("misc");
             // Treat provided offsets as **character offsets** hints (LLMs are often wrong).
             let hint_start = item["start"].as_u64().unwrap_or(0) as usize;
-            let hint_end = item["end"].as_u64().unwrap_or(0) as usize;
+            let hint_end = end as usize;
 
             if text.is_empty() || hint_end <= hint_start {
                 continue;
@@ -903,15 +920,117 @@ Return ONLY the JSON array:"#,
             entities.push(entity);
         }
 
+        ensure_recognizable_rows(&items, has_row)?;
         Ok(entities)
     }
+}
+
+/// Read a completed response before parsing its entity list or verification verdicts.
+#[cfg(feature = "llm")]
+fn response_text(provider: &str, json: &serde_json::Value) -> Result<String> {
+    let choice = &json["choices"][0];
+    if !json["error"].is_null() || !choice["error"].is_null() {
+        return Err(crate::Error::Inference(
+            "LLM provider returned an error".into(),
+        ));
+    }
+    let reason = if provider == "anthropic" {
+        json["stop_reason"].as_str()
+    } else {
+        choice["finish_reason"].as_str()
+    };
+    match reason {
+        Some("length" | "max_tokens" | "model_context_window_exceeded") => {
+            return Err(crate::Error::Inference("LLM response was truncated".into()));
+        }
+        Some("refusal" | "content_filter") => {
+            return Err(crate::Error::Inference(
+                "LLM response was refused or filtered".into(),
+            ));
+        }
+        Some("error" | "tool_calls" | "function_call" | "tool_use" | "pause_turn") => {
+            return Err(crate::Error::Inference(
+                "LLM did not complete the response".into(),
+            ));
+        }
+        _ => {}
+    }
+
+    let missing = || crate::Error::Parse("LLM response is missing text content".into());
+    let text = if provider == "anthropic" {
+        let mut text = String::new();
+        for block in json["content"].as_array().ok_or_else(missing)? {
+            // Thinking and tool-use blocks may precede the text blocks.
+            if matches!(block["type"].as_str(), None | Some("text")) {
+                text.push_str(block["text"].as_str().ok_or_else(missing)?);
+            }
+        }
+        text
+    } else {
+        let message = &choice["message"];
+        if message["refusal"]
+            .as_str()
+            .is_some_and(|s| !s.trim().is_empty())
+        {
+            return Err(crate::Error::Inference("LLM response was refused".into()));
+        }
+        message["content"].as_str().ok_or_else(missing)?.to_owned()
+    };
+    if text.trim().is_empty() {
+        return Err(missing());
+    }
+    Ok(text)
+}
+
+// A model can propose a well-formed row whose span fails grounding. Only a
+// nonempty list with no decodable rows indicates a response format error.
+fn ensure_recognizable_rows(items: &[serde_json::Value], has_row: bool) -> Result<()> {
+    if !items.is_empty() && !has_row {
+        return Err(crate::Error::Parse(
+            "UniversalNER response contained no decodable entity rows".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn response_array(content: &str) -> Result<Vec<serde_json::Value>> {
+    // Try to extract JSON array from response. Some providers wrap responses in
+    // markdown/code fences or include extra explanation text.
+    let json_str = content.trim();
+    let json_str = json_str
+        .strip_prefix("```json")
+        .or_else(|| json_str.strip_prefix("```JSON"))
+        .or_else(|| json_str.strip_prefix("```"))
+        .unwrap_or(json_str)
+        .trim();
+    let json_str = json_str.strip_suffix("```").unwrap_or(json_str).trim();
+
+    // A JSON object or string containing an array is still the wrong top-level type.
+    let array = if json_str.starts_with(['[', '{', '"']) {
+        json_str
+    } else {
+        let start = json_str.find('[').ok_or_else(|| {
+            crate::Error::Parse("UniversalNER LLM response did not contain a JSON array".into())
+        })?;
+        let end = json_str[start..].rfind(']').ok_or_else(|| {
+            crate::Error::Parse(
+                "UniversalNER LLM response did not contain a complete JSON array".into(),
+            )
+        })?;
+        &json_str[start..=start + end]
+    };
+    serde_json::from_str(array).map_err(|e| {
+        crate::Error::Parse(format!(
+            "UniversalNER failed to parse JSON array from LLM response: {e}"
+        ))
+    })
 }
 
 impl Model for UniversalNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }
@@ -957,7 +1076,7 @@ impl ZeroShotNER for UniversalNER {
     ) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }
@@ -979,6 +1098,86 @@ impl ZeroShotNER for UniversalNER {
 mod tests {
     use super::*;
     use std::sync::OnceLock;
+
+    #[cfg(feature = "llm")]
+    #[test]
+    fn explicit_provider_uses_the_protocol_for_the_exact_destination() {
+        use crate::backends::llm_client::LlmConfig;
+
+        for (url, provider) in [
+            ("https://api.anthropic.com/v1/messages", "anthropic"),
+            (
+                "https://openrouter.ai/api/v1/chat/completions",
+                "openrouter",
+            ),
+            ("https://api.groq.com/openai/v1/chat/completions", "groq"),
+            ("https://example.test/v1/messages", "custom"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(url.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::default()
+            };
+            assert_eq!(
+                llm_provider(Some(&config)),
+                Some(("explicit".into(), provider))
+            );
+        }
+        let config = LlmConfig {
+            endpoint: Some("/missing-host".into()),
+            ..LlmConfig::default()
+        };
+        assert!(llm_provider(Some(&config)).is_none());
+    }
+
+    #[cfg(feature = "llm")]
+    #[test]
+    fn gemini_target_binds_the_key_and_native_model_to_google() {
+        use crate::backends::llm_client::LlmConfig;
+
+        let backend = UniversalNER::new().unwrap();
+        let route = backend.llm_target("gemini", "dummy").unwrap();
+        assert_eq!(
+            route.url,
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        );
+        assert_eq!(route.model, "gemini-2.5-flash-lite");
+        assert_eq!(
+            route.headers,
+            [("Authorization", "Bearer dummy".to_owned())]
+        );
+        for (configured, native) in [
+            ("google/gemini-2.5-flash", "gemini-2.5-flash"),
+            ("gemini-3.1-flash-lite", "gemini-3.1-flash-lite"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(GEMINI_CHAT_URL.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::with_model(configured)
+            };
+            let (key, provider) = llm_provider(Some(&config)).unwrap();
+            assert_eq!(provider, "gemini");
+            let route = UniversalNER::with_config(config)
+                .unwrap()
+                .llm_target(provider, &key)
+                .unwrap();
+            assert_eq!(route.url, GEMINI_CHAT_URL);
+            assert_eq!(route.model, native);
+            assert_eq!(
+                route.headers,
+                [("Authorization", "Bearer explicit".to_owned())]
+            );
+        }
+    }
+
+    #[cfg(not(feature = "llm"))]
+    #[test]
+    fn explicit_endpoint_requires_http_feature() {
+        use crate::backends::llm_client::LlmConfig;
+        assert!(!UniversalNER::with_config(LlmConfig::ollama("fixture"))
+            .unwrap()
+            .is_available());
+    }
 
     #[test]
     fn test_universal_ner_creation() {
@@ -1015,7 +1214,7 @@ mod tests {
 
         std::env::set_var("UNIVERSAL_NER_API_KEY", "dummy");
         let model2 = UniversalNER::new().unwrap();
-        assert_eq!(model2.is_available(), llm_provider_available());
+        assert_eq!(model2.is_available(), llm_provider_available(None));
     }
 
     #[test]
@@ -1433,4 +1632,25 @@ mod tests {
     }
 
     // Overlap-aware dedup tests are in streaming::tests (shared infra).
+    #[cfg(feature = "llm")]
+    #[test]
+    fn anthropic_response_requires_complete_text() {
+        use serde_json::json;
+        let mut response = json!({"content": [
+            {"type":"thinking","thinking":"internal"},
+            {"type":"text","text":"["}, {"type":"text","text":"]"}
+        ]});
+        assert_eq!(response_text("anthropic", &response).unwrap(), "[]");
+        for reason in [
+            "max_tokens",
+            "model_context_window_exceeded",
+            "refusal",
+            "tool_use",
+            "pause_turn",
+        ] {
+            response["stop_reason"] = json!(reason);
+            assert!(response_text("anthropic", &response).is_err());
+        }
+        assert!(response_text("anthropic", &json!({"content":[]})).is_err());
+    }
 }
