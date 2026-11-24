@@ -138,3 +138,37 @@ fn failed_verification_is_retried_and_complete_verdicts_are_cached() {
         },
     );
 }
+
+#[test]
+fn changing_verification_on_a_warm_model_checks_the_entities() {
+    let name = r#"[{"text":"Ada","type":"person","start":0,"end":3}]"#;
+    with_replies(
+        vec![completion(name), completion(name), completion("[false]")],
+        |model| {
+            assert_eq!(model.extract_entities("Ada", None).unwrap().len(), 1);
+            let model = model.self_verify(true);
+            assert!(model.extract_entities("Ada", None).unwrap().is_empty());
+            assert!(model.extract_entities("Ada", None).unwrap().is_empty());
+        },
+    );
+}
+
+#[test]
+fn changing_the_extraction_prompt_on_a_warm_model_uses_the_new_prompt() {
+    let name = r#"[{"text":"Ada","type":"person","start":0,"end":3}]"#;
+    with_replies(
+        vec![
+            completion(name),
+            completion("[]"),
+            completion("[[0,3,\"P\"]]"),
+        ],
+        |model| {
+            assert_eq!(model.extract_entities("Ada", None).unwrap().len(), 1);
+            let model = model.domain_context("music credits");
+            assert!(model.extract_entities("Ada", None).unwrap().is_empty());
+            let model = model.prompt_strategy(PromptStrategy::Compact);
+            assert_eq!(model.extract_entities("Ada", None).unwrap().len(), 1);
+            assert_eq!(model.extract_entities("Ada", None).unwrap().len(), 1);
+        },
+    );
+}

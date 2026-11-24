@@ -59,7 +59,7 @@ use crate::backends::llm_prompt::{BIOSchema, CodeNERPrompt};
 use crate::offset::TextSpan;
 use crate::{Entity, EntityType, Language, Model, Result};
 
-/// Simple LRU-ish response cache keyed on (text_hash, types_hash, model).
+/// Bounded response cache for identical extraction requests.
 /// Avoids duplicate API calls for the same input.
 #[derive(Debug, Default)]
 #[cfg_attr(not(feature = "llm"), allow(dead_code))]
@@ -97,17 +97,6 @@ impl ResponseCache {
     }
 }
 
-/// Compute a simple hash for cache keys.
-#[cfg(feature = "llm")]
-fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    text.hash(&mut hasher);
-    types.hash(&mut hasher);
-    model.hash(&mut hasher);
-    hasher.finish()
-}
-
 /// Whether the configured LLM feature can resolve a provider for extraction.
 fn llm_provider_available() -> bool {
     #[cfg(feature = "llm")]
@@ -122,7 +111,7 @@ fn llm_provider_available() -> bool {
 }
 
 /// Prompting strategy for LLM-based NER.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Hash)]
 pub enum PromptStrategy {
     /// Simple JSON extraction prompt (default, reliable across models).
     #[default]
@@ -201,6 +190,23 @@ impl UniversalNER {
             self_verify: false,
             max_chunk_chars: 4000,
         })
+    }
+
+    #[cfg(feature = "llm")]
+    fn cache_key(&self, text: &str, types: &[&str], model: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (
+            text,
+            types,
+            model,
+            &self.prompt_strategy,
+            &self.domain_context,
+            self.self_verify,
+        )
+            .hash(&mut hasher);
+        hasher.finish()
     }
 
     /// Set the prompting strategy.
@@ -409,7 +415,7 @@ Output:"#
         };
 
         // Check cache first (keyed on chunk text, not full document)
-        let key = cache_key(chunk_text, entity_types, &model_for_cache);
+        let key = self.cache_key(chunk_text, entity_types, &model_for_cache);
         {
             let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = cache.get(key) {
