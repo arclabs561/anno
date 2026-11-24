@@ -12,9 +12,10 @@ import sqlite3
 import subprocess
 
 import replay_reviewed_kb
+import replay_typed_spans
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTERS = {"reviewed_kb": replay_reviewed_kb}
+ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans}
 DB_NAME = "replay-feedback.db"
 
 
@@ -56,11 +57,22 @@ def measured(adapter, root, case):
     return result
 
 
+def describe(adapter, root, case):
+    # --repo can point to another checkout. Never associate one adapter's code with
+    # another checkout's revision, even when both contain a seed with the same name.
+    module = getattr(adapter, "__file__", None)
+    if module:
+        local = Path(module)
+        if local.read_bytes() != (root / "scripts/qa" / local.name).read_bytes():
+            raise ValueError("executed adapter differs from the selected checkout")
+    return adapter.describe(root, case)
+
+
 def observe(root, cache, corpus, case, selected=None):
     adapter = ADAPTERS[corpus]
     revision = stamp(root)
     scope = adapter.SCOPE
-    description = adapter.describe(root, case)
+    description = describe(adapter, root, case)
     if not all(
         re.fullmatch("[a-f0-9]{64}", description[k]) for k in ("source_sha256", "oracle_sha256")
     ):
@@ -85,7 +97,7 @@ def observe(root, cache, corpus, case, selected=None):
     finally:
         db.close()
     result = measured(adapter, root, case)
-    if stamp(root) != revision or adapter.describe(root, case) != description:
+    if stamp(root) != revision or describe(adapter, root, case) != description:
         raise ValueError("source changed during replay")
     event = {
         "schema_version": 1,
@@ -171,7 +183,7 @@ def next_case(root, cache):
         if adapter is None or event["scope"] != adapter.SCOPE or event["schema_version"] != 1:
             continue
         try:
-            pins = adapter.describe(root, row["case_name"])
+            pins = describe(adapter, root, row["case_name"])
         except (FileNotFoundError, ValueError):
             continue
         if all(row[k] == pins[k] for k in ("family", "source_sha256", "oracle_sha256")):

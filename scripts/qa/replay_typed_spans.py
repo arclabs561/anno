@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 
 import check_span_assertions as judge
+import domain_coverage
 
 SCOPE = "synthetic_contract"
 MODEL = "stacked"
@@ -21,11 +22,14 @@ def _case(root, case):
 
 def describe(root, case):
     row = _case(root, case)
-    local_scorer = Path(judge.__file__).read_bytes()
-    if local_scorer != (root / "scripts/qa/check_span_assertions.py").read_bytes():
-        raise ValueError("scorer differs from the executable adapter's checkout")
+    sources = []
+    for actual in (Path(__file__), Path(judge.__file__), Path(domain_coverage.__file__)):
+        contents = actual.read_bytes()
+        if contents != (root / "scripts/qa" / actual.name).read_bytes():
+            raise ValueError("scorer differs from the executable adapter's checkout")
+        sources.append(hashlib.sha256(contents).hexdigest())
     oracle = json.dumps(
-        [MODEL, hashlib.sha256(local_scorer).hexdigest(), row["assertions"]],
+        [MODEL, sources, row["assertions"]],
         sort_keys=True, separators=(",", ":"),
     ).encode()
     return {
