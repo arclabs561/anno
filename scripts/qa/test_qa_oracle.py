@@ -89,6 +89,26 @@ class OracleCliTest(unittest.TestCase):
                           usage["reported_output_tokens"]), (1, 9, 0))
         self.assertEqual((usage["known_cost"], usage["reported_cost_usd"]), (1, 0))
 
+    def test_single_json_fence_preserves_payload_and_raw_reply_hash(self):
+        payload = ' [ {"n": 1.000} ]'.encode()
+        raw = b"```json\r\n" + payload + b"\r\n```\n"
+        receipt = json.loads(self.cli("accept", self.task, self.answer, "--shape", "array", stdin=raw))
+        self.assertEqual(self.answer.read_bytes(), payload)
+        self.assertEqual(receipt["reply_sha256"], digest(raw))
+        self.assertEqual(receipt["answer_sha256"], digest(payload))
+        out = self.root / "extra.json"
+        for invalid in (raw + b"text", b"preface\n" + raw, raw + raw, raw.replace(b"json", b"python")):
+            self.cli("accept", self.task, out, "--shape", "array", stdin=invalid, code=2)
+            self.assertFalse(out.exists())
+
+    def test_unusable_gateway_reply_keeps_reported_usage_in_failed_span(self):
+        round_trace.initialize(self.trace, "test")
+        with patch("oracle_gateway.complete", return_value=("invalid", "actual/model", 12, 3, 0.01)):
+            self.provider("openrouter", self.answer, code=2)
+        agent, = [s for s in self.report()["spans"] if s["kind"] == "agent"]
+        self.assertEqual((agent["status"], agent["input_tokens"], agent["cost_usd"]), ("error", 12, 0.01))
+        self.assertFalse(self.answer.exists())
+
     def test_codex_openrouter_attempt_is_attributed_to_the_chosen_route(self):
         round_trace.initialize(self.trace, "test")
         with patch("oracle_headless.complete", return_value=('{}', None, 12, 3)) as complete:

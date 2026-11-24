@@ -57,13 +57,6 @@ def _reject_constant(value: str):
     raise ValueError("invalid JSON number")
 
 
-def _parse_json(text: str):
-    try:
-        return json.loads(text, parse_constant=_reject_constant)
-    except (ValueError, RecursionError):
-        raise OracleGatewayError("expected complete JSON from OpenRouter") from None
-
-
 def _token_count(usage: dict, name: str) -> int | None:
     count = usage.get(name)
     if count is not None and (type(count) is not int or not 0 <= count < 2**63):
@@ -80,11 +73,13 @@ def _cost(usage: dict) -> float | None:
     return float(value)
 
 
-def _completion(data: bytes, shape: str) -> tuple[str, str | None, int | None, int | None, float | None]:
+def _completion(data: bytes) -> tuple[str, str | None, int | None, int | None, float | None]:
     try:
-        body = _parse_json(data.decode("utf-8"))
+        body = json.loads(data.decode("utf-8"), parse_constant=_reject_constant)
     except UnicodeDecodeError:
         raise OracleGatewayError("invalid UTF-8 from OpenRouter") from None
+    except (ValueError, RecursionError):
+        raise OracleGatewayError("expected complete JSON from OpenRouter") from None
     if not isinstance(body, dict):
         raise OracleGatewayError("invalid completion envelope from OpenRouter")
     choices = body.get("choices")
@@ -104,8 +99,6 @@ def _completion(data: bytes, shape: str) -> tuple[str, str | None, int | None, i
         answer.encode("utf-8")
     except UnicodeEncodeError:
         raise OracleGatewayError("invalid Unicode answer from OpenRouter") from None
-    if not isinstance(_parse_json(answer), dict if shape == "object" else list):
-        raise OracleGatewayError(f"expected a JSON {shape} answer from OpenRouter")
     model = body.get("model")
     usage = body.get("usage")
     if usage is None:
@@ -119,7 +112,7 @@ def _completion(data: bytes, shape: str) -> tuple[str, str | None, int | None, i
 def complete(
     prompt: str, *, model: str, max_tokens: int, timeout: float, shape: str = "object"
 ) -> tuple[str, str | None, int | None, int | None, float | None]:
-    """Send only this prompt and return JSON answer text and observed provider metadata."""
+    """Send only this prompt and return the provider's verbatim answer text and metadata."""
     if not isinstance(prompt, str) or len(prompt) > _MAX_REQUEST_BYTES or not prompt.strip():
         raise OracleGatewayError("expected a nonempty prompt within the request size limit")
     if type(max_tokens) is not int or not 0 < max_tokens < 2**31:
@@ -159,4 +152,4 @@ def complete(
         raise OracleGatewayError(f"OpenRouter returned HTTP {status:d}")
     if len(raw) > _MAX_RESPONSE_BYTES:
         raise OracleGatewayError("OpenRouter response exceeds the size limit")
-    return _completion(raw, shape)
+    return _completion(raw)

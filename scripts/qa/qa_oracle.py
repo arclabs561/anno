@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import time
@@ -49,7 +50,13 @@ def answer_bytes(reply, shape):
         encoded = reply.encode("utf-8")
         if len(encoded) > MAX_REPLY:
             raise ValueError("reply exceeds the byte limit")
-        value = json.loads(reply, object_pairs_hook=unique, parse_constant=invalid_constant)
+        # Chat clients may wrap an entire JSON payload in one Markdown block.
+        # Never extract snippets from prose or concatenate separate proposals.
+        fenced = re.fullmatch(rb"[ \t\r\n]*```json[ \t]*\r?\n(.*?)\r?\n```[ \t\r\n]*",
+                              encoded, flags=re.DOTALL)
+        if fenced:
+            encoded = fenced.group(1)
+        value = json.loads(encoded.decode("utf-8"), object_pairs_hook=unique, parse_constant=invalid_constant)
         if not isinstance(value, dict if shape == "object" else list):
             raise ValueError("wrong root type")
         # Reject exponent overflow and escaped lone surrogates, then preserve the original bytes.
@@ -150,6 +157,7 @@ def run(args, prompt):
                                    output_tokens=output_tokens, cost_usd=cost_usd,
                                    elapsed_ns=time.monotonic_ns() - started)
     return {"via": via, "prompt_sha256": digest, "answer_sha256": result,
+            "reply_sha256": hashlib.sha256(reply.encode("utf-8")).hexdigest(),
             "requested_model": getattr(args, "model", None), "model": model,
             "input_tokens": input_tokens, "output_tokens": output_tokens, "cost_usd": cost_usd}
 

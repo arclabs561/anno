@@ -87,13 +87,13 @@ class OracleGateway(unittest.TestCase):
         req, = self.https.requests
         self.assertNotIn("response_format", json.loads(req.data))
 
-    def test_native_root_must_match_in_both_modes(self):
-        for shape, answer in (("array", "{}"), ("object", "[]"), ("array", "false")):
+    def test_fenced_and_invalid_answer_text_reaches_coordinator_with_usage(self):
+        for shape, answer in (("array", "  ```json\n[42]\n```\n"), ("array", "{}"), ("object", "[]"),
+                              ("object", "unexpected prose"), ("object", '{"x":NaN}'), ("object", "")):
             with self.subTest(shape=shape, answer=answer):
                 self.https.requests.clear()
                 self.https.raw = json.dumps(envelope(answer)).encode()
-                with self.assertRaisesRegex(gateway.OracleGatewayError, f"JSON {shape} answer"):
-                    self.call(shape=shape)
+                self.assertEqual(self.call(shape=shape), (answer, "example/resolved", 23, 7, 0.0002))
 
     def test_key_file_has_precedence_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -155,7 +155,7 @@ class OracleGateway(unittest.TestCase):
             self.call()
         self.https.read.assert_called_once_with(31)
 
-    def test_incomplete_envelopes_and_non_object_answers_fail(self):
+    def test_incomplete_envelopes_and_non_utf8_text_fail(self):
         choice = envelope()["choices"][0]
         bad_choices = [None, {}, [], [choice, choice], [None]]
         for field in ({"finish_reason": "length"}, {"finish_reason": None}, {"error": {"private": True}},
@@ -163,7 +163,7 @@ class OracleGateway(unittest.TestCase):
                       {"message": {**choice["message"], "refusal": "fixture-private"}}):
             bad_choices.append([{**choice, **field}])
         bad_bodies = [{"choices": choices} for choices in bad_choices]
-        bad_bodies.extend(envelope(answer) for answer in ([], "", "[]", "null", '{"x":NaN}', "```json\n{}\n```"))
+        bad_bodies.extend(envelope(answer) for answer in (None, [], {}, 7, "\ud800"))
         bad_bodies.extend([[], {"error": "fixture-private", **envelope()}, {**envelope(), "model": "bad\nmodel"}])
         for raw in [b"\xff", b"<html>fixture-private</html>", *(json.dumps(body).encode() for body in bad_bodies)]:
             with self.subTest(raw=raw):
