@@ -2757,6 +2757,11 @@ code{color:var(--code)}
     Ok(())
 }
 
+#[cfg(feature = "eval")]
+fn has_dataset_reader(id: DatasetId) -> bool {
+    id == DatasetId::ECBPlus || LoadableDatasetId::try_from(id).is_ok()
+}
+
 /// Run the info subcommand
 fn run_info(dataset: &str) -> Result<(), String> {
     println!();
@@ -2831,7 +2836,10 @@ fn run_info(dataset: &str) -> Result<(), String> {
 
             // Check if loadable
             println!();
-            if loadable_match.is_some() {
+            if registry_id == RegistryDatasetId::ECBPlus {
+                println!("  Status: Loadable as XML coreference documents");
+                println!("  Download: anno dataset download ECBPlus");
+            } else if loadable_match.is_some() {
                 let access = if registry_id.requires_local_source() {
                     "requires a local source"
                 } else {
@@ -2909,7 +2917,6 @@ fn run_list(
     #[cfg(feature = "eval")]
     {
         use anno_eval::eval::dataset_registry::DatasetId as RegistryDatasetId;
-        use anno_eval::eval::loader::LoadableDatasetId;
         use anno_eval::eval::task_mapping::Task;
 
         type TaskPredicate = Box<dyn Fn(&[Task]) -> bool>;
@@ -2947,7 +2954,7 @@ fn run_list(
         }
 
         let catalog = RegistryDatasetId::all();
-        let has_loader = |id: &RegistryDatasetId| LoadableDatasetId::try_from(*id).is_ok();
+        let has_loader = |id: &RegistryDatasetId| has_dataset_reader(*id);
         let task = task_filter.as_deref().map(task_predicate).transpose()?;
         let domain = domain_filter.as_deref().map(str::to_lowercase);
 
@@ -3032,7 +3039,6 @@ fn run_list(
 #[cfg(feature = "eval")]
 fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(), String> {
     use anno_eval::eval::dataset_registry::DatasetId as RegistryDatasetId;
-    use anno_eval::eval::loader::LoadableDatasetId;
 
     println!();
     println!("{}", color("1;36", "Dataset Metadata Check"));
@@ -3059,7 +3065,7 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
     };
 
     for registry_id in &datasets_to_check {
-        let is_loadable = LoadableDatasetId::try_from(*registry_id).is_ok();
+        let is_loadable = has_dataset_reader(*registry_id);
 
         // Check 1: Missing download URL
         let url = registry_id.download_url();
@@ -3163,7 +3169,7 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
     if !issues_only {
         let loadable_count = datasets_to_check
             .iter()
-            .filter(|id| LoadableDatasetId::try_from(**id).is_ok())
+            .filter(|id| has_dataset_reader(**id))
             .count();
         let with_urls = datasets_to_check
             .iter()

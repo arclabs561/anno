@@ -1321,16 +1321,15 @@ fn parse_bookcoref_item(item: &serde_json::Value) -> Result<Option<CorefDocument
 // ECB+ Coreference Parser
 // =============================================================================
 
-/// Parse ECB+ coreference from any supported format.
-///
-/// Dispatches to the XML zip parser if `raw_bytes` starts with ZIP magic bytes,
-/// otherwise falls back to the legacy CSV sentence-index parser.
+/// Read the legacy ECB+ token-and-chain CSV export.
+/// For original XML bytes use [`parse_ecb_plus_zip`]. The three-column published
+/// sentence index supplies a selection to [`parse_ecb_plus_selected_gold_zip`].
 pub fn parse_ecb_plus_coref(content: &str) -> Result<Vec<CorefDocument>> {
     // Check for ZIP magic bytes at the start
     if content.as_bytes().starts_with(b"PK\x03\x04") {
         return parse_ecb_plus_zip(content.as_bytes());
     }
-    parse_ecb_plus_sentence_index(content)
+    parse_ecb_plus_token_csv(content)
 }
 
 /// An ECB+ chain with its original cross-document identifier, when explicitly provided.
@@ -1338,7 +1337,8 @@ pub fn parse_ecb_plus_coref(content: &str) -> Result<Vec<CorefDocument>> {
 pub struct EcbPlusChain {
     /// Opaque instance identifier. Compare it only within the same known ECB+ topic.
     pub cross_document_id: Option<String>,
-    /// Mentions anchored in this document.
+    /// Mention text joins the actual anchored tokens in source order. Offsets enclose
+    /// the first through last anchor, including any intervening unanchored words.
     pub chain: CorefChain,
 }
 
@@ -1669,8 +1669,10 @@ fn parse_ecb_plus_xml(
                     }
                 }
                 tag if entity_type(tag).is_some() => {
-                    if let Some((mid, kind, anchors)) = markable.take() {
+                    if let Some((mid, kind, mut anchors)) = markable.take() {
                         if !anchors.is_empty() {
+                            anchors.sort_unstable();
+                            anchors.dedup();
                             mentions.insert(mid, (kind, anchors));
                         }
                     }
@@ -1751,16 +1753,17 @@ fn parse_ecb_plus_xml(
             let Some((kind, anchors)) = mentions.get(&mid) else {
                 continue;
             };
-            let mut valid = anchors.iter().filter_map(|id| offsets.get(id));
-            let Some(first) = valid.next() else { continue };
-            let (mut start, mut end, mut byte_start, mut byte_end) = *first;
-            for &(s, e, bs, be) in valid {
-                start = start.min(s);
-                end = end.max(e);
-                byte_start = byte_start.min(bs);
-                byte_end = byte_end.max(be);
+            let mut anchored = anchors.iter().filter_map(|tid| offsets.get(tid));
+            let Some(&(start, mut end, first, last)) = anchored.next() else {
+                continue;
+            };
+            let mut surface = text[first..last].to_owned();
+            for &(_, token_end, first, last) in anchored {
+                surface.push(' ');
+                surface.push_str(&text[first..last]);
+                end = token_end;
             }
-            let mut mention = Mention::new(&text[byte_start..byte_end], start, end);
+            let mut mention = Mention::new(surface, start, end);
             mention.entity_type = Some((*kind).into());
             spans.push(mention);
         }
@@ -1784,17 +1787,15 @@ fn parse_ecb_plus_xml(
     })
 }
 
-/// Parse ECB+ sentence-index CSV into `CorefDocument`s (legacy fallback).
-///
-/// The ECB+ CSV (`ECBplus_coreference_sentences.csv`) has rows per token with columns:
-/// `Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Chain`
+/// Parse a legacy token-level export. The supported columns are
+/// `Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Chain`.
 ///
 /// Documents are identified by `(topic, file)` pairs. Tokens are grouped into
 /// sentences, and coreference chains are built from the `Coreference Chain` column.
 /// A non-empty chain value indicates the token belongs to that coref chain.
 ///
 /// Returns one `CorefDocument` per (topic, file).
-fn parse_ecb_plus_sentence_index(content: &str) -> Result<Vec<CorefDocument>> {
+fn parse_ecb_plus_token_csv(content: &str) -> Result<Vec<CorefDocument>> {
     // (topic, file) -> DocAcc
     let mut docs: HashMap<(String, String), ecb_plus_acc::DocAcc> = HashMap::new();
 
@@ -2419,6 +2420,26 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
                 .iter()
                 .all(|chain| chain.cluster_id.is_none()));
         }
+    }
+
+    #[test]
+    fn ecb_plus_discontinuous_mentions_join_only_anchored_tokens() {
+        let xml = r#"<Document><token t_id="1">Zoë</token><token t_id="2">left</token>
+            <token t_id="3">quietly</token><token t_id="4">town</token>
+            <Markables><ACTION_OCCURRENCE m_id="1"><token_anchor t_id="4"/>
+            <token_anchor t_id="2"/><token_anchor t_id="2"/></ACTION_OCCURRENCE></Markables></Document>"#;
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_1ecb", None).unwrap();
+        let mention = &doc.chains[0].chain.mentions[0];
+        assert_eq!(mention.text, "left town");
+        assert_eq!((mention.start, mention.end), (4, 21));
+        assert_eq!(
+            doc.text
+                .chars()
+                .skip(mention.start)
+                .take(mention.end - mention.start)
+                .collect::<String>(),
+            "left quietly town"
+        );
     }
 
     #[test]

@@ -152,7 +152,6 @@ enum DatasetParsePlan {
     GapTsv,
     PrecoJsonl,
     Litbank,
-    EcbPlus,
     AfriSenti,
     AfriQa,
     MasakhaNews,
@@ -438,7 +437,6 @@ impl LoadableDatasetId {
             DatasetId::WinoBias => DatasetParsePlan::GapTsv,
             DatasetId::PreCo | DatasetId::SciCo => DatasetParsePlan::PrecoJsonl,
             DatasetId::LitBank => DatasetParsePlan::Litbank,
-            DatasetId::ECBPlus => DatasetParsePlan::EcbPlus,
 
             // African language datasets
             DatasetId::AfriSenti => DatasetParsePlan::AfriSenti,
@@ -839,6 +837,8 @@ impl TryFrom<DatasetId> for LoadableDatasetId {
     fn try_from(value: DatasetId) -> std::result::Result<Self, Self::Error> {
         if Self::is_loadable_dataset(value) {
             Ok(Self(value))
+        } else if value == DatasetId::ECBPlus {
+            Err(Error::InvalidInput("ECB+ provides XML coreference annotations. Use DatasetLoader::load_coref or load_or_download_ecb_plus_gold.".into()))
         } else {
             Err(Error::InvalidInput(format!(
                 "Dataset {:?} is in the registry but has no loading implementation",
@@ -3386,7 +3386,6 @@ impl DatasetLoader {
             DatasetParsePlan::GapTsv => self.parse_gap(content, id),
             DatasetParsePlan::PrecoJsonl => self.parse_preco_jsonl(content, id),
             DatasetParsePlan::Litbank => self.parse_litbank(content, id),
-            DatasetParsePlan::EcbPlus => self.parse_ecb_plus(content, id),
             DatasetParsePlan::AfriSenti => self.parse_afrisenti(content, id),
             DatasetParsePlan::AfriQa => self.parse_afriqa(content, id),
             DatasetParsePlan::MasakhaNews => self.parse_masakhanews(content, id),
@@ -5343,67 +5342,38 @@ impl DatasetLoader {
         })
     }
 
-    /// Parse ECB+ CSV format for event coreference.
-    ///
-    /// ECB+ uses CSV format with columns for event mentions and coreference links.
-    /// For now, extracts entities as NER annotations (event triggers).
-    fn parse_ecb_plus(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
-        let mut sentences = Vec::new();
-        let mut first_line = true;
-
-        for line in content.lines() {
-            // Skip header
-            if first_line {
-                first_line = false;
-                continue;
-            }
-
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() < 3 {
-                continue;
-            }
-
-            // ECB+ CSV format: sentence_id, text, event_mention, ...
-            // Extract text and create tokens
-            let text = parts.get(1).unwrap_or(&"");
-            let tokens: Vec<AnnotatedToken> = text
-                .split_whitespace()
-                .map(|w| AnnotatedToken {
-                    text: w.to_string(),
-                    ner_tag: "O".to_string(),
-                })
-                .collect();
-
-            if !tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
-            }
-        }
-
-        if sentences.is_empty() {
-            return Err(Error::InvalidInput(format!(
-                "ECB+ CSV file for {:?} contains no valid sentences",
-                id
-            )));
-        }
-
-        let now = super::timestamp::now();
-        Ok(LoadedDataset {
-            id,
-            sentences,
-            loaded_at: now,
-            source_url: id.download_url().to_string(),
-            data_source: DataSource::LocalCache,
-            temporal_metadata: Self::get_temporal_metadata(id),
-            metadata: id.default_metadata(),
-        })
-    }
-
     // =========================================================================
     // Coreference Loading
     // =========================================================================
+
+    // Older releases cached the official three-column sentence index at ECBPlus.cache.
+    // Leave that selection usable and place its companion archive alongside it.
+    fn coref_cache_path(&self, id: DatasetId) -> Result<PathBuf> {
+        use std::io::Read;
+        let path = self.cache_path_for(id);
+        if id != DatasetId::ECBPlus {
+            return Ok(path);
+        }
+        let companion = path.with_extension("xml.zip");
+        if path.is_file() {
+            let mut prefix = Vec::new();
+            std::fs::File::open(&path)
+                .and_then(|file| file.take(64).read_to_end(&mut prefix))
+                .map_err(|e| Error::InvalidInput(format!("Failed to read {path:?}: {e}")))?;
+            let header = prefix.split(|&c| c == b'\n').next().unwrap_or_default();
+            if header
+                .strip_prefix(b"\xEF\xBB\xBF")
+                .unwrap_or(header)
+                .trim_ascii()
+                == b"Topic,File,Sentence Number"
+            {
+                return Ok(companion);
+            }
+        } else if companion.exists() {
+            return Ok(companion);
+        }
+        Ok(path)
+    }
 
     /// Load coreference dataset, returning documents with chains.
     ///
@@ -5418,7 +5388,7 @@ impl DatasetLoader {
             )));
         }
 
-        let cache_path = self.cache_path_for(id);
+        let cache_path = self.coref_cache_path(id)?;
         if !cache_path.exists() {
             return Err(Error::InvalidInput(format!(
                 "Dataset {:?} not cached at {:?}. Download from {}",
@@ -5547,7 +5517,7 @@ impl DatasetLoader {
         &self,
         parse: impl FnOnce(&[u8]) -> Result<Vec<super::coref_loader::EcbPlusDocument>>,
     ) -> Result<Vec<super::coref_loader::EcbPlusDocument>> {
-        let cache_path = self.cache_path_for(DatasetId::ECBPlus);
+        let cache_path = self.coref_cache_path(DatasetId::ECBPlus)?;
         if cache_path.exists() {
             let bytes = std::fs::read(&cache_path)
                 .map_err(|e| Error::InvalidInput(format!("Failed to read {cache_path:?}: {e}")))?;
@@ -5559,10 +5529,7 @@ impl DatasetLoader {
             return parse(&bytes);
         }
 
-        // The registry's text URL identifies the separate selected-sentence index.
-        // The upstream release licenses the annotations under CC BY 3.0.
-        let url = "https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip";
-        let bytes = self.download_attempt_bytes(url)?;
+        let bytes = self.download_attempt_bytes(DatasetId::ECBPlus.download_url())?;
         let documents = parse(&bytes)?;
         self.replace_cache_content(&cache_path, &bytes)?;
         Ok(documents)
@@ -5574,6 +5541,16 @@ impl DatasetLoader {
         &self,
         id: DatasetId,
     ) -> Result<Vec<super::coref::CorefDocument>> {
+        if id == DatasetId::ECBPlus {
+            if self.coref_cache_path(id)?.exists() {
+                return self.load_coref(id);
+            }
+            return Ok(self
+                .load_or_download_ecb_plus_gold()?
+                .into_iter()
+                .map(super::coref_loader::EcbPlusDocument::into_coref_document)
+                .collect());
+        }
         if !self.is_cached_for(id) {
             if matches!(id, DatasetId::CorefUD) {
                 let cache_path = self.cache_path_for(id);
@@ -5585,13 +5562,6 @@ impl DatasetLoader {
                 )));
             }
 
-            if matches!(id, DatasetId::ECBPlus) {
-                return Ok(self
-                    .load_or_download_ecb_plus_gold()?
-                    .into_iter()
-                    .map(super::coref_loader::EcbPlusDocument::into_coref_document)
-                    .collect());
-            }
             let (content, _) = self.download_with_resolved_url(id)?;
             self.validate_and_cache_coref_content(id, &content)?;
         }
@@ -7571,7 +7541,7 @@ mod tests {
             )
             .unwrap();
         let bytes = archive.finish().unwrap().into_inner();
-        std::fs::write(loader.cache_path_for(DatasetId::ECBPlus), bytes).unwrap();
+        std::fs::write(loader.cache_path_for(DatasetId::ECBPlus), &bytes).unwrap();
 
         assert_eq!(loader.load_coref(DatasetId::ECBPlus).unwrap().len(), 1);
         #[cfg(feature = "eval")]
@@ -7581,11 +7551,28 @@ mod tests {
             let cache = loader.cache_path_for(DatasetId::ECBPlus);
             let sentence_index = b"Topic,File,Sentence Number\n1,2ecb,0\n";
             std::fs::write(&cache, sentence_index).unwrap();
+            assert!(LoadableDatasetId::try_from(DatasetId::ECBPlus).is_err());
             assert!(loader
-                .load_or_download_ecb_plus_gold()
-                .unwrap_err()
-                .to_string()
-                .contains("requires the XML archive"));
+                .parse_content_str(
+                    std::str::from_utf8(sentence_index).unwrap(),
+                    DatasetId::ECBPlus
+                )
+                .is_err());
+            assert!(loader.load_coref(DatasetId::ECBPlus).is_err());
+            let companion = cache.with_extension("xml.zip");
+            assert_eq!(
+                loader.coref_cache_path(DatasetId::ECBPlus).unwrap(),
+                companion
+            );
+            std::fs::write(&companion, bytes).unwrap();
+            assert_eq!(
+                loader.load_or_download_coref(DatasetId::ECBPlus).unwrap()[0].text,
+                "Alice"
+            );
+            assert_eq!(
+                loader.load_or_download_ecb_plus_gold().unwrap()[0].text,
+                "Alice"
+            );
             assert_eq!(std::fs::read(cache).unwrap(), sentence_index);
         }
     }

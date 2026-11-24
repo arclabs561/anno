@@ -239,9 +239,9 @@ DATASETS = {
     # Cross-Document Event Coreference
     "ecb_plus": {
         "group": "event_coref",
-        "url": "https://raw.githubusercontent.com/cltl/ecbPlus/master/ECB%2B_LREC2014/ECBplus_coreference_sentences.csv",
-        "output": "ecb_plus.csv",
-        "description": "ECB+ event coreference corpus",
+        "url": "https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip",
+        "output": "ecb_plus.zip",
+        "description": "ECB+ XML release (Cybulska and Vossen, 2014; CC BY 3.0 annotations)",
     },
     "gvc": {
         "group": "event_coref",
