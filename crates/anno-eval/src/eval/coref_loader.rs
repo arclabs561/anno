@@ -28,7 +28,7 @@ use super::coref::{CorefChain, CorefDocument, Mention, MentionType};
 use super::loader::DatasetId;
 use anno::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
@@ -1321,33 +1321,144 @@ fn parse_bookcoref_item(item: &serde_json::Value) -> Result<Option<CorefDocument
 // ECB+ Coreference Parser
 // =============================================================================
 
-/// Parse ECB+ coreference from any supported format.
-///
-/// Dispatches to the XML zip parser if `raw_bytes` starts with ZIP magic bytes,
-/// otherwise falls back to the legacy CSV sentence-index parser.
+/// Read the legacy ECB+ token-and-chain CSV export.
+/// For original XML bytes use [`parse_ecb_plus_zip`]. The three-column published
+/// sentence index supplies a selection to [`parse_ecb_plus_selected_gold_zip`].
 pub fn parse_ecb_plus_coref(content: &str) -> Result<Vec<CorefDocument>> {
     // Check for ZIP magic bytes at the start
     if content.as_bytes().starts_with(b"PK\x03\x04") {
         return parse_ecb_plus_zip(content.as_bytes());
     }
-    parse_ecb_plus_sentence_index(content)
+    parse_ecb_plus_token_csv(content)
 }
 
-/// Parse ECB+ from the real XML zip archive (`ECB+.zip`).
-///
-/// The zip contains files like `ECB+/{topic}/{topic}_{doc}.xml`.
-/// Each XML file has:
-/// - `<token t_id="N" sentence="S" number="P">text</token>` elements
-/// - `<Markables>` section with mention elements (ACTION_*, HUMAN_*, etc.)
-/// - `<Relations>` section with `CROSS_DOC_COREF` linking mentions to clusters
+/// An ECB+ chain with its original cross-document identifier, when explicitly provided.
+#[derive(Debug, Clone)]
+pub struct EcbPlusChain {
+    /// Opaque instance identifier. Compare it only within the same known ECB+ topic.
+    pub cross_document_id: Option<String>,
+    /// Mention text joins the actual anchored tokens in source order. Offsets enclose
+    /// the first through last anchor, including any intervening unanchored words.
+    pub chain: CorefChain,
+}
+
+/// Gold coreference annotations from one ECB+ XML document.
+#[derive(Debug, Clone)]
+pub struct EcbPlusDocument {
+    /// Topic number from the archive directory or document filename, if available.
+    pub topic: Option<String>,
+    /// Document identifier used by the generic coreference loader.
+    pub doc_id: String,
+    /// Text reconstructed from the XML tokens.
+    pub text: String,
+    /// Cross-document, intra-document and singleton chains.
+    pub chains: Vec<EcbPlusChain>,
+}
+
+impl EcbPlusDocument {
+    /// Convert to the generic document representation, which only supports numeric cluster IDs.
+    pub fn into_coref_document(self) -> CorefDocument {
+        let mut doc = CorefDocument::with_id(
+            self.text,
+            self.doc_id,
+            self.chains
+                .into_iter()
+                .map(|annotated| annotated.chain)
+                .collect(),
+        );
+        doc.includes_singletons = true;
+        doc
+    }
+}
+
+/// Parse the original ECB+ XML ZIP into generic within-document chains.
+/// Use [`parse_ecb_plus_gold_zip`] to retain opaque cross-document IDs.
 pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
+    Ok(parse_ecb_plus_gold_zip(data)?
+        .into_iter()
+        .map(EcbPlusDocument::into_coref_document)
+        .collect())
+}
+
+/// Read the original XML ZIP, including all anchored markables from all sentences.
+/// The upstream selected-sentence CSV supplies a separate benchmark filter.
+pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
+    read_ecb_plus_gold_zip(data, None)
+}
+
+type EcbSentenceIndex = BTreeMap<(String, String), BTreeSet<u32>>;
+
+/// Project the original XML annotations onto the supplied ECB+ sentence-index CSV.
+/// Document text and character offsets still refer to the whole document. A mention
+/// is included only when every anchored token belongs to a selected sentence.
+pub fn parse_ecb_plus_selected_gold_zip(
+    data: &[u8],
+    sentence_index: &str,
+) -> Result<Vec<EcbPlusDocument>> {
+    let mut lines = sentence_index.trim_start_matches('\u{feff}').lines();
+    if lines.next().map(str::trim) != Some("Topic,File,Sentence Number") {
+        return Err(Error::InvalidInput(
+            "ECB+ sentence index requires the header Topic,File,Sentence Number".into(),
+        ));
+    }
+    let mut index = EcbSentenceIndex::new();
+    for (line_number, line) in lines.enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut fields = line.split(',').map(str::trim);
+        let invalid = || {
+            Error::InvalidInput(format!(
+                "Invalid ECB+ sentence-index row {}",
+                line_number + 2
+            ))
+        };
+        let topic = fields
+            .next()
+            .filter(|field| !field.is_empty() && field.bytes().all(|c| c.is_ascii_digit()))
+            .ok_or_else(invalid)?;
+        let file = fields
+            .next()
+            .filter(|field| !field.is_empty() && field.bytes().all(|c| c.is_ascii_alphanumeric()))
+            .ok_or_else(invalid)?;
+        let sentence = fields
+            .next()
+            .and_then(|field| field.parse::<u32>().ok())
+            .ok_or_else(invalid)?;
+        if fields.next().is_some() {
+            return Err(invalid());
+        }
+        let doc_name = format!("{topic}_{file}");
+        if !index
+            .entry((topic.to_owned(), doc_name))
+            .or_default()
+            .insert(sentence)
+        {
+            return Err(Error::InvalidInput(format!(
+                "Duplicate ECB+ sentence-index coordinate {topic},{file},{sentence}"
+            )));
+        }
+    }
+    if index.is_empty() {
+        return Err(Error::InvalidInput(
+            "ECB+ sentence index contains no selected sentences".into(),
+        ));
+    }
+    read_ecb_plus_gold_zip(data, Some(&index))
+}
+
+fn read_ecb_plus_gold_zip(
+    data: &[u8],
+    selection: Option<&EcbSentenceIndex>,
+) -> Result<Vec<EcbPlusDocument>> {
     use std::io::Cursor;
 
     let cursor = Cursor::new(data);
     let mut archive = zip::ZipArchive::new(cursor)
         .map_err(|e| Error::InvalidInput(format!("Failed to open ECB+ zip: {}", e)))?;
 
-    let mut all_docs: Vec<CorefDocument> = Vec::new();
+    let mut all_docs = Vec::new();
+    let mut selected_docs = BTreeSet::new();
 
     for i in 0..archive.len() {
         let Ok(mut file) = archive.by_index(i) else {
@@ -1358,34 +1469,48 @@ pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
             _ => continue,
         };
 
+        let mut components = name.split('/').rev();
+        let doc_name = components.next().unwrap_or(&name).trim_end_matches(".xml");
+        let is_topic =
+            |topic: &&str| !topic.is_empty() && topic.bytes().all(|c| c.is_ascii_digit());
+        let topic = components.next().filter(is_topic).or_else(|| {
+            doc_name
+                .split_once('_')
+                .map(|(topic, _)| topic)
+                .filter(is_topic)
+        });
+
+        let selected_sentences = if let Some(index) = selection {
+            let Some(topic) = topic else { continue };
+            let key = (topic.to_owned(), doc_name.to_owned());
+            let Some(sentences) = index.get(&key) else {
+                continue;
+            };
+            if !selected_docs.insert(key) {
+                return Err(Error::InvalidInput(format!(
+                    "Duplicate selected ECB+ document {name}"
+                )));
+            }
+            Some(sentences)
+        } else {
+            None
+        };
         let mut xml_content = String::new();
         std::io::Read::read_to_string(&mut file, &mut xml_content)
             .map_err(|e| Error::InvalidInput(format!("Failed to read XML {}: {}", name, e)))?;
 
-        // Extract topic and doc name from path like "ECB+/1/1_1ecb.xml"
-        let parts: Vec<&str> = name.split('/').collect();
-        let (topic, doc_name) = if parts.len() >= 3 {
-            (
-                parts[parts.len() - 2].to_string(),
-                parts[parts.len() - 1].trim_end_matches(".xml").to_string(),
-            )
-        } else if let Some(fname) = name.split('/').next_back() {
-            let base = fname.trim_end_matches(".xml");
-            // Try to extract topic from filename like "1_1ecb"
-            if let Some((t, _)) = base.split_once('_') {
-                (t.to_string(), base.to_string())
-            } else {
-                ("unknown".to_string(), base.to_string())
-            }
-        } else {
-            continue;
-        };
-
-        match parse_ecb_plus_xml(&xml_content, &topic, &doc_name) {
+        match parse_ecb_plus_xml(&xml_content, topic, doc_name, selected_sentences) {
             Ok(doc) => all_docs.push(doc),
-            Err(e) => {
-                log::debug!("Skipping {}: {}", name, e);
-            }
+            Err(e) if selection.is_some() => return Err(e),
+            Err(e) => log::debug!("Skipping {}: {}", name, e),
+        }
+    }
+
+    if let Some(index) = selection {
+        if let Some((topic, name)) = index.keys().find(|key| !selected_docs.contains(*key)) {
+            return Err(Error::InvalidInput(format!(
+                "Missing selected ECB+ document {topic}/{name}"
+            )));
         }
     }
 
@@ -1400,315 +1525,277 @@ pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
     Ok(all_docs)
 }
 
-/// Parse a single ECB+ XML file into a `CorefDocument`.
-///
-/// ECB+ XML structure:
-/// ```xml
-/// <Document doc_name="1_1ecb" doc_id="1_1ecb.xml.xml">
-///   <token t_id="1" sentence="0" number="0">Token</token>
-///   ...
-///   <Markables>
-///     <ACTION_OCCURRENCE m_id="30" ...>
-///       <token_anchor t_id="5"/>
-///     </ACTION_OCCURRENCE>
-///   </Markables>
-///   <Relations>
-///     <CROSS_DOC_COREF r_id="1" note="30001">
-///       <source m_id="30"/>
-///       <target m_id="31"/>
-///     </CROSS_DOC_COREF>
-///   </Relations>
-/// </Document>
-/// ```
-fn parse_ecb_plus_xml(xml: &str, topic: &str, doc_name: &str) -> Result<CorefDocument> {
-    use quick_xml::events::Event;
+/// Decode the markable IDs, relation IDs and cross-document instance IDs in their own scopes.
+fn parse_ecb_plus_xml(
+    xml: &str,
+    topic: Option<&str>,
+    doc_name: &str,
+    selection: Option<&BTreeSet<u32>>,
+) -> Result<EcbPlusDocument> {
+    use quick_xml::events::{BytesStart, Event};
     use quick_xml::Reader;
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-    // Token: t_id -> (sentence, number, text)
-    let mut tokens: BTreeMap<u32, (u32, u32, String)> = BTreeMap::new();
-    // Mention: m_id -> vec of t_ids
-    let mut mentions: HashMap<u32, Vec<u32>> = HashMap::new();
-    // Cross-doc cluster: cluster_note -> set of m_ids
-    let mut clusters: HashMap<String, BTreeSet<u32>> = HashMap::new();
-
-    let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
-
-    let mut in_token = false;
-    let mut cur_t_id = 0u32;
-    let mut cur_sentence = 0u32;
-    let mut cur_number = 0u32;
-    let mut current_token_text = String::new();
-
-    let mut in_markable = false;
-    let mut cur_m_id = 0u32;
-    let mut current_mention_tokens: Vec<u32> = Vec::new();
-
-    let mut in_coref = false;
-    let mut cur_coref_note = String::new();
-    let mut current_coref_mentions: Vec<u32> = Vec::new();
-
-    fn get_attr(e: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
-        e.attributes().flatten().find_map(|a| {
-            if a.key.as_ref() == name.as_bytes() {
-                Some(String::from_utf8_lossy(&a.value).to_string())
-            } else {
-                None
-            }
-        })
+    fn attr(e: &BytesStart<'_>, name: &[u8]) -> Option<String> {
+        e.try_get_attribute(name)
+            .ok()??
+            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+            .ok()
+            .map(|value| value.into_owned())
     }
-
-    fn is_markable_tag(name: &[u8]) -> bool {
-        name.starts_with(b"ACTION_")
-            || name.starts_with(b"HUMAN_")
-            || name.starts_with(b"LOC_")
-            || name.starts_with(b"TIME_")
-            || name.starts_with(b"NEG_")
+    fn id(e: &BytesStart<'_>, name: &[u8]) -> Option<u32> {
+        attr(e, name)?.parse().ok()
     }
-
-    #[allow(clippy::too_many_arguments)]
-    fn handle_start(
-        e: &quick_xml::events::BytesStart<'_>,
-        in_token: &mut bool,
-        cur_t_id: &mut u32,
-        cur_sentence: &mut u32,
-        cur_number: &mut u32,
-        current_token_text: &mut String,
-        in_markable: &mut bool,
-        cur_m_id: &mut u32,
-        current_mention_tokens: &mut Vec<u32>,
-        in_coref: &mut bool,
-        cur_coref_note: &mut String,
-        current_coref_mentions: &mut Vec<u32>,
-    ) {
-        let tag = e.name();
-        let tag_bytes = tag.as_ref();
-
-        if tag_bytes == b"token" {
-            *in_token = true;
-            *cur_t_id = get_attr(e, "t_id")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0);
-            *cur_sentence = get_attr(e, "sentence")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0);
-            *cur_number = get_attr(e, "number")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0);
-            current_token_text.clear();
-        } else if tag_bytes == b"token_anchor" {
-            if let Some(tid) = get_attr(e, "t_id").and_then(|v| v.parse::<u32>().ok()) {
-                current_mention_tokens.push(tid);
-            }
-        } else if tag_bytes == b"source" || tag_bytes == b"target" {
-            if let Some(mid) = get_attr(e, "m_id").and_then(|v| v.parse::<u32>().ok()) {
-                current_coref_mentions.push(mid);
-            }
-        } else if tag_bytes == b"CROSS_DOC_COREF" {
-            *in_coref = true;
-            *cur_coref_note = get_attr(e, "note").unwrap_or_default();
-            current_coref_mentions.clear();
-        } else if is_markable_tag(tag_bytes) {
-            *in_markable = true;
-            *cur_m_id = get_attr(e, "m_id")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0);
-            current_mention_tokens.clear();
+    fn label(value: Option<String>) -> Option<String> {
+        value.filter(|value| !value.trim().is_empty())
+    }
+    fn entity_type(tag: &[u8]) -> Option<&'static str> {
+        if tag.starts_with(b"ACTION_") || tag.starts_with(b"NEG_ACTION_") {
+            Some("EVENT")
+        } else if tag.starts_with(b"TIME_") {
+            Some("TIME")
+        } else if tag.starts_with(b"LOC_") {
+            Some("LOC")
+        } else if tag == b"HUMAN_PART_PER" {
+            Some("PERSON")
+        } else if tag == b"HUMAN_PART_ORG" {
+            Some("ORG")
+        } else if tag.starts_with(b"HUMAN_PART") || tag.starts_with(b"NON_HUMAN_PART") {
+            Some("PARTICIPANT")
+        } else {
+            None
         }
     }
 
-    let mut buf = Vec::new();
+    #[derive(Default)]
+    struct Relation {
+        cross: bool,
+        note: Option<String>,
+        target: Option<u32>,
+        members: BTreeSet<u32>,
+    }
+
+    let mut tokens = BTreeMap::new();
+    let mut seen_sentences = BTreeSet::new();
+    let mut selected_tokens = HashSet::new();
+    let mut token: Option<(u32, String)> = None;
+    let mut mentions = BTreeMap::new();
+    let mut markable: Option<(u32, &'static str, Vec<u32>)> = None;
+    let mut descriptors = HashMap::new();
+    let mut relations = Vec::new();
+    let mut relation: Option<Relation> = None;
+
+    let mut reader = Reader::from_str(xml);
+    // Expand self-closing tags so anchored markables and empty descriptors have the same lifecycle.
+    reader.config_mut().expand_empty_elements = true;
     loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) => {
-                handle_start(
-                    e,
-                    &mut in_token,
-                    &mut cur_t_id,
-                    &mut cur_sentence,
-                    &mut cur_number,
-                    &mut current_token_text,
-                    &mut in_markable,
-                    &mut cur_m_id,
-                    &mut current_mention_tokens,
-                    &mut in_coref,
-                    &mut cur_coref_note,
-                    &mut current_coref_mentions,
-                );
-            }
-            Ok(Event::Empty(ref e)) => {
-                // Self-closing tags like <token_anchor t_id="5"/>
-                handle_start(
-                    e,
-                    &mut in_token,
-                    &mut cur_t_id,
-                    &mut cur_sentence,
-                    &mut cur_number,
-                    &mut current_token_text,
-                    &mut in_markable,
-                    &mut cur_m_id,
-                    &mut current_mention_tokens,
-                    &mut in_coref,
-                    &mut cur_coref_note,
-                    &mut current_coref_mentions,
-                );
-                // For empty markable elements, flush immediately
+        match reader.read_event() {
+            Ok(Event::Start(e)) => {
                 let name = e.name();
-                let tag_bytes = name.as_ref();
-                if is_markable_tag(tag_bytes) && !current_mention_tokens.is_empty() {
-                    mentions.insert(cur_m_id, current_mention_tokens.clone());
-                    current_mention_tokens.clear();
-                    in_markable = false;
-                }
-                // Empty source/target already handled above
-            }
-            Ok(Event::Text(ref e)) if in_token => {
-                current_token_text.push_str(&e.xml10_content().unwrap_or_default());
-            }
-            // quick-xml >= 0.38 no longer expands entities inside Text events;
-            // they arrive as separate GeneralRef events.
-            Ok(Event::GeneralRef(ref e)) if in_token => {
-                if let Ok(Some(ch)) = e.resolve_char_ref() {
-                    current_token_text.push(ch);
-                } else {
-                    match e.decode().unwrap_or_default().as_ref() {
-                        "amp" => current_token_text.push('&'),
-                        "lt" => current_token_text.push('<'),
-                        "gt" => current_token_text.push('>'),
-                        "quot" => current_token_text.push('"'),
-                        "apos" => current_token_text.push('\''),
-                        _ => {}
-                    }
-                }
-            }
-            Ok(Event::End(ref e)) => {
-                let name = e.name();
-                let tag_bytes = name.as_ref();
-                if tag_bytes == b"token" && in_token {
-                    tokens.insert(
-                        cur_t_id,
-                        (cur_sentence, cur_number, current_token_text.clone()),
-                    );
-                    in_token = false;
-                } else if tag_bytes == b"CROSS_DOC_COREF" && in_coref {
-                    if !cur_coref_note.is_empty() {
-                        let entry = clusters.entry(cur_coref_note.clone()).or_default();
-                        for mid in &current_coref_mentions {
-                            entry.insert(*mid);
+                let tag = name.as_ref();
+                match tag {
+                    b"token" => {
+                        token = id(&e, b"t_id").map(|tid| (tid, String::new()));
+                        if let (Some(index), Some((tid, _))) = (selection, &token) {
+                            let sentence = id(&e, b"sentence").ok_or_else(|| {
+                                Error::InvalidInput(format!(
+                                    "Missing sentence number for ECB+ token {tid} in {doc_name}"
+                                ))
+                            })?;
+                            seen_sentences.insert(sentence);
+                            if index.contains(&sentence) {
+                                selected_tokens.insert(*tid);
+                            }
                         }
                     }
-                    current_coref_mentions.clear();
-                    in_coref = false;
-                } else if is_markable_tag(tag_bytes) && in_markable {
-                    if !current_mention_tokens.is_empty() {
-                        mentions.insert(cur_m_id, current_mention_tokens.clone());
+                    b"token_anchor" => {
+                        if let (Some((_, _, anchors)), Some(tid)) = (&mut markable, id(&e, b"t_id"))
+                        {
+                            anchors.push(tid);
+                        }
                     }
-                    current_mention_tokens.clear();
-                    in_markable = false;
+                    b"CROSS_DOC_COREF" | b"INTRA_DOC_COREF" => {
+                        relation = Some(Relation {
+                            cross: tag == b"CROSS_DOC_COREF",
+                            note: label(attr(&e, b"note")),
+                            ..Relation::default()
+                        });
+                    }
+                    b"source" | b"target" => {
+                        if let (Some(r), Some(mid)) = (&mut relation, id(&e, b"m_id")) {
+                            r.members.insert(mid);
+                            if tag == b"target" {
+                                r.target = Some(mid);
+                            }
+                        }
+                    }
+                    _ => {
+                        if let Some(mid) = id(&e, b"m_id") {
+                            if let Some(instance) = label(attr(&e, b"instance_id")) {
+                                descriptors.insert(mid, instance);
+                            }
+                            if let Some(kind) = entity_type(tag) {
+                                markable = Some((mid, kind, Vec::new()));
+                            }
+                        }
+                    }
                 }
             }
+            Ok(Event::Text(e)) => {
+                if let Some((_, text)) = &mut token {
+                    text.push_str(&e.xml10_content().unwrap_or_default());
+                }
+            }
+            Ok(Event::GeneralRef(e)) => {
+                if let Some((_, text)) = &mut token {
+                    if let Ok(Some(ch)) = e.resolve_char_ref() {
+                        text.push(ch);
+                    } else if let Some(expanded) = quick_xml::escape::resolve_predefined_entity(
+                        &e.decode().unwrap_or_default(),
+                    ) {
+                        text.push_str(expanded);
+                    }
+                }
+            }
+            Ok(Event::End(e)) => match e.name().as_ref() {
+                b"token" => {
+                    if let Some((tid, value)) = token.take() {
+                        tokens.insert(tid, value);
+                    }
+                }
+                b"CROSS_DOC_COREF" | b"INTRA_DOC_COREF" => {
+                    if let Some(r) = relation.take() {
+                        relations.push(r);
+                    }
+                }
+                tag if entity_type(tag).is_some() => {
+                    if let Some((mid, kind, mut anchors)) = markable.take() {
+                        if !anchors.is_empty() {
+                            anchors.sort_unstable();
+                            anchors.dedup();
+                            mentions.insert(mid, (kind, anchors));
+                        }
+                    }
+                }
+                _ => {}
+            },
             Ok(Event::Eof) => break,
             Err(e) => {
                 return Err(Error::InvalidInput(format!(
-                    "XML parse error in {}: {}",
-                    doc_name, e
-                )));
+                    "XML parse error in {doc_name}: {e}"
+                )))
             }
             _ => {}
         }
-        buf.clear();
     }
-
     if tokens.is_empty() {
         return Err(Error::InvalidInput(format!(
-            "ECB+ XML {} contains no tokens",
-            doc_name
+            "ECB+ XML {doc_name} contains no tokens"
         )));
     }
 
-    // Reconstruct text from tokens (sorted by t_id)
-    let mut text = String::new();
-    let mut token_char_starts: BTreeMap<u32, usize> = BTreeMap::new();
-    let mut token_char_ends: BTreeMap<u32, usize> = BTreeMap::new();
+    if let Some(index) = selection {
+        if let Some(sentence) = index.difference(&seen_sentences).next() {
+            return Err(Error::InvalidInput(format!(
+                "Missing selected ECB+ sentence {sentence} in {doc_name}"
+            )));
+        }
+        mentions.retain(|_, (_, anchors)| anchors.iter().all(|tid| selected_tokens.contains(tid)));
+    }
 
-    for (&t_id, (_sent, _num, tok_text)) in &tokens {
+    let mut text = String::new();
+    let mut offsets = HashMap::new();
+    let mut char_end = 0;
+    for (tid, word) in tokens {
         if !text.is_empty() {
             text.push(' ');
+            char_end += 1;
         }
-        let start = text.chars().count();
-        text.push_str(tok_text);
-        let end = text.chars().count();
-        token_char_starts.insert(t_id, start);
-        token_char_ends.insert(t_id, end);
+        let char_start = char_end;
+        let byte_start = text.len();
+        char_end += word.chars().count();
+        text.push_str(&word);
+        offsets.insert(tid, (char_start, char_end, byte_start, text.len()));
     }
 
-    // Build coref chains from clusters
-    let mut coref_chains: Vec<CorefChain> = Vec::new();
+    let mut shared: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
+    let mut local = Vec::new();
+    let mut linked = HashSet::new();
+    for r in relations {
+        linked.extend(r.members.iter().copied());
+        // r_id and m_id refer to this XML document only. Only an explicit cross-document
+        // relation's note or target descriptor identifies an instance shared by other files.
+        let instance = if r.cross {
+            r.note.or_else(|| descriptors.get(&r.target?).cloned())
+        } else {
+            None
+        };
+        if let Some(instance) = instance {
+            shared.entry(instance).or_default().extend(r.members);
+        } else {
+            local.push(r.members);
+        }
+    }
+    for &mid in mentions.keys() {
+        if !linked.contains(&mid) {
+            local.push(BTreeSet::from([mid]));
+        }
+    }
 
-    let mut cluster_keys: Vec<_> = clusters.keys().cloned().collect();
-    cluster_keys.sort();
-
-    for cluster_key in cluster_keys {
-        let m_ids = &clusters[&cluster_key];
-        let mut chain_mentions: Vec<Mention> = Vec::new();
-
-        for &m_id in m_ids {
-            if let Some(t_ids) = mentions.get(&m_id) {
-                if t_ids.is_empty() {
-                    continue;
-                }
-                // Span = min token start to max token end
-                let start = t_ids
-                    .iter()
-                    .filter_map(|tid| token_char_starts.get(tid))
-                    .min()
-                    .copied();
-                let end = t_ids
-                    .iter()
-                    .filter_map(|tid| token_char_ends.get(tid))
-                    .max()
-                    .copied();
-
-                if let (Some(s), Some(e)) = (start, end) {
-                    let mention_text: String = text.chars().skip(s).take(e - s).collect();
-                    chain_mentions.push(Mention {
-                        text: mention_text,
-                        start: s,
-                        end: e,
-                        head_start: None,
-                        head_end: None,
-                        entity_type: Some("EVENT".to_string()),
-                        mention_type: Some(MentionType::Proper),
-                    });
-                }
+    let mut chains = Vec::new();
+    for (cross_document_id, members) in shared
+        .into_iter()
+        .map(|(id, m)| (Some(id), m))
+        .chain(local.into_iter().map(|m| (None, m)))
+    {
+        let mut spans = Vec::new();
+        for mid in members {
+            let Some((kind, anchors)) = mentions.get(&mid) else {
+                continue;
+            };
+            let mut anchored = anchors.iter().filter_map(|tid| offsets.get(tid));
+            let Some(&(start, mut end, first, last)) = anchored.next() else {
+                continue;
+            };
+            let mut surface = text[first..last].to_owned();
+            for &(_, token_end, first, last) in anchored {
+                surface.push(' ');
+                surface.push_str(&text[first..last]);
+                end = token_end;
             }
+            let mut mention = Mention::new(surface, start, end);
+            mention.entity_type = Some((*kind).into());
+            spans.push(mention);
         }
-
-        if !chain_mentions.is_empty() {
-            let mut chain = CorefChain::new(chain_mentions);
-            // ECB+ normally uses alphanumeric notes. The numeric field can only
-            // represent source IDs that actually parse as numbers.
-            chain.cluster_id = cluster_key.parse::<u64>().ok().map(Into::into);
-            coref_chains.push(chain);
+        if !spans.is_empty() {
+            let mut chain = CorefChain::new(spans);
+            chain.cluster_id = cross_document_id
+                .as_deref()
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(Into::into);
+            chains.push(EcbPlusChain {
+                cross_document_id,
+                chain,
+            });
         }
     }
-
-    let doc_id = format!("{}_{}", topic, doc_name);
-    Ok(CorefDocument::with_id(&text, doc_id, coref_chains))
+    Ok(EcbPlusDocument {
+        doc_id: format!("{}_{doc_name}", topic.unwrap_or("unknown")),
+        topic: topic.map(str::to_owned),
+        text,
+        chains,
+    })
 }
 
-/// Parse ECB+ sentence-index CSV into `CorefDocument`s (legacy fallback).
-///
-/// The ECB+ CSV (`ECBplus_coreference_sentences.csv`) has rows per token with columns:
-/// `Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Chain`
+/// Parse a legacy token-level export. The supported columns are
+/// `Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Chain`.
 ///
 /// Documents are identified by `(topic, file)` pairs. Tokens are grouped into
 /// sentences, and coreference chains are built from the `Coreference Chain` column.
 /// A non-empty chain value indicates the token belongs to that coref chain.
 ///
 /// Returns one `CorefDocument` per (topic, file).
-fn parse_ecb_plus_sentence_index(content: &str) -> Result<Vec<CorefDocument>> {
+fn parse_ecb_plus_token_csv(content: &str) -> Result<Vec<CorefDocument>> {
     // (topic, file) -> DocAcc
     let mut docs: HashMap<(String, String), ecb_plus_acc::DocAcc> = HashMap::new();
 
@@ -2259,6 +2346,208 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
     }
 
     #[test]
+    fn ecb_plus_gold_reads_scoped_labels_and_retains_local_chains() {
+        use std::io::{Cursor, Write};
+        use zip::{write::SimpleFileOptions, ZipWriter};
+
+        // Independently authored XML. Reuse m_id, r_id and local chain order across files.
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, label_attr) in [
+            ("ECB+/4/4_2ecb.xml", r#"note="ACT-demo""#),
+            ("4_1ecb.xml", ""), // the target's instance_id also identifies the cross-document instance
+            ("ECB+/5/5_1ecb.xml", r#"note="ACT-demo""#),
+            ("unknown.xml", r#"note="ACT-demo""#),
+        ] {
+            zip.start_file(name, SimpleFileOptions::default()).unwrap();
+            write!(zip, r#"<Document>
+                <token t_id="1">Zoë</token><token t_id="2">répare</token>
+                <token t_id="3">la</token><token t_id="4">roue</token>
+                <token t_id="5">vite</token><token t_id="6">ici</token>
+                <Markables>
+                <HUMAN_PART_PER m_id="0"><token_anchor t_id="1"/></HUMAN_PART_PER>
+                <ACTION_OCCURRENCE m_id="1"><token_anchor t_id="2"/></ACTION_OCCURRENCE>
+                <NON_HUMAN_PART m_id="2"><token_anchor t_id="3"/></NON_HUMAN_PART>
+                <NON_HUMAN_PART m_id="3"><token_anchor t_id="4"/></NON_HUMAN_PART>
+                <TIME_DURATION m_id="4"><token_anchor t_id="5"/></TIME_DURATION>
+                <LOC_OTHER m_id="5"><token_anchor t_id="6"/></LOC_OTHER>
+                <UNKNOWN_INSTANCE_TAG m_id="20" TAG_DESCRIPTOR="repair" instance_id="ACT-demo"/>
+                <NON_HUMAN_PART m_id="21" TAG_DESCRIPTOR=""/>
+                </Markables>
+                <Relations>
+                <CROSS_DOC_COREF r_id="0" {label_attr}><source m_id="1"/><target m_id="20"/></CROSS_DOC_COREF>
+                <INTRA_DOC_COREF r_id="1" note="ACT-demo"><source m_id="2"/><source m_id="3"/><target m_id="21"/></INTRA_DOC_COREF>
+                <CROSS_DOC_COREF r_id="2"><source m_id="0"/></CROSS_DOC_COREF>
+                <CROSS_DOC_COREF r_id="3" note="0"><source m_id="4"/></CROSS_DOC_COREF>
+                </Relations></Document>"#).unwrap();
+        }
+        let bytes = zip.finish().unwrap().into_inner();
+        let docs = parse_ecb_plus_gold_zip(&bytes).unwrap();
+        assert_eq!(
+            docs.iter().map(|d| d.topic.as_deref()).collect::<Vec<_>>(),
+            [Some("4"), Some("4"), Some("5"), None]
+        );
+        for doc in docs {
+            assert_eq!(doc.chains.len(), 5);
+            let info: Vec<_> = doc
+                .chains
+                .iter()
+                .map(|c| {
+                    let mentions: Vec<_> = c
+                        .chain
+                        .mentions
+                        .iter()
+                        .map(|m| (m.text.as_str(), m.entity_type.as_deref().unwrap()))
+                        .collect();
+                    (c.cross_document_id.as_deref(), mentions)
+                })
+                .collect();
+            assert_eq!(
+                info,
+                [
+                    (Some("0"), vec![("vite", "TIME")]),
+                    (Some("ACT-demo"), vec![("répare", "EVENT")]),
+                    (None, vec![("la", "PARTICIPANT"), ("roue", "PARTICIPANT")]),
+                    (None, vec![("Zoë", "PERSON")]),
+                    (None, vec![("ici", "LOC")]),
+                ]
+            );
+            let action = &doc.chains[1].chain.mentions[0];
+            assert_eq!((action.start, action.end), (4, 10));
+            let generic = doc.into_coref_document();
+            assert!(generic.includes_singletons);
+            assert_eq!(generic.chains[0].cluster_id.unwrap().get(), 0);
+            assert!(generic.chains[1..]
+                .iter()
+                .all(|chain| chain.cluster_id.is_none()));
+        }
+    }
+
+    #[test]
+    fn ecb_plus_discontinuous_mentions_join_only_anchored_tokens() {
+        let xml = r#"<Document><token t_id="1">Zoë</token><token t_id="2">left</token>
+            <token t_id="3">quietly</token><token t_id="4">town</token>
+            <Markables><ACTION_OCCURRENCE m_id="1"><token_anchor t_id="4"/>
+            <token_anchor t_id="2"/><token_anchor t_id="2"/></ACTION_OCCURRENCE></Markables></Document>"#;
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_1ecb", None).unwrap();
+        let mention = &doc.chains[0].chain.mentions[0];
+        assert_eq!(mention.text, "left town");
+        assert_eq!((mention.start, mention.end), (4, 21));
+        assert_eq!(
+            doc.text
+                .chars()
+                .skip(mention.start)
+                .take(mention.end - mention.start)
+                .collect::<String>(),
+            "left quietly town"
+        );
+    }
+
+    #[test]
+    fn ecb_plus_selected_gold_validates_coordinates_and_keeps_full_document_offsets() {
+        use std::io::{Cursor, Write};
+        use zip::{write::SimpleFileOptions, ZipWriter};
+
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        for name in ["ECB+/4/4_1ecb.xml", "ECB+/4/4_1ecbplus.xml"] {
+            zip.start_file(name, SimpleFileOptions::default()).unwrap();
+            zip.write_all(r#"<Document>
+                <token t_id="1" sentence="0">Zoë</token><token t_id="2" sentence="2">fixes</token>
+                <token t_id="3" sentence="2">it</token><token t_id="4" sentence="3">today</token>
+                <Markables>
+                <HUMAN_PART_PER m_id="1"><token_anchor t_id="1"/></HUMAN_PART_PER>
+                <ACTION_OCCURRENCE m_id="2"><token_anchor t_id="2"/></ACTION_OCCURRENCE>
+                <TIME_DATE m_id="3"><token_anchor t_id="3"/><token_anchor t_id="4"/></TIME_DATE>
+                </Markables>
+                <Relations><CROSS_DOC_COREF note="A17"><source m_id="1"/><source m_id="2"/></CROSS_DOC_COREF></Relations>
+                </Document>"#.as_bytes()).unwrap();
+        }
+        let bytes = zip.finish().unwrap().into_inner();
+        let header = "Topic,File,Sentence Number";
+        let selected = format!("\u{feff}{header}\r\n4,1ecb, 2 \r\n");
+        let docs = parse_ecb_plus_selected_gold_zip(&bytes, &selected).unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].doc_id, "4_4_1ecb");
+        assert_eq!(docs[0].text, "Zoë fixes it today");
+        assert_eq!(docs[0].chains.len(), 1);
+        let chain = &docs[0].chains[0];
+        assert_eq!(chain.cross_document_id.as_deref(), Some("A17"));
+        let mentions = &chain.chain.mentions;
+        assert_eq!(mentions.len(), 1);
+        assert_eq!(
+            (
+                mentions[0].text.as_str(),
+                mentions[0].start,
+                mentions[0].end
+            ),
+            ("fixes", 4, 9)
+        );
+
+        for (csv, diagnostic) in [
+            ("Bad header".to_owned(), "header"),
+            (header.to_owned(), "no selected sentences"),
+            (format!("{header}\n4,1ecb,bad"), "row 2"),
+            (format!("{header}\n4,1ecb,2,extra"), "row 2"),
+            (
+                format!("{header}\n5,1ecb,2"),
+                "Missing selected ECB+ document",
+            ),
+            (
+                format!("{header}\n4,1ecb,1"),
+                "Missing selected ECB+ sentence",
+            ),
+            (format!("{header}\n4,1ecb,2\n4,1ecb,2 "), "Duplicate"),
+        ] {
+            let error = parse_ecb_plus_selected_gold_zip(&bytes, &csv)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(diagnostic), "{error}");
+        }
+    }
+
+    /// Opt-in fixture for the original cltl/ecbPlus LREC 2014 XML release.
+    #[test]
+    #[ignore = "set ANNO_ECB_PLUS_ARCHIVE to ECB+.zip beside ECBplus_coreference_sentences.csv"]
+    fn ecb_plus_published_archive_gold_counts() {
+        use std::collections::HashSet;
+        let archive = PathBuf::from(
+            std::env::var_os("ANNO_ECB_PLUS_ARCHIVE").expect("ANNO_ECB_PLUS_ARCHIVE"),
+        );
+        let bytes = std::fs::read(&archive).unwrap();
+        let index =
+            std::fs::read_to_string(archive.with_file_name("ECBplus_coreference_sentences.csv"))
+                .unwrap();
+        for (docs, expected) in [
+            (
+                parse_ecb_plus_gold_zip(&bytes).unwrap(),
+                (982, 2319, 17856, 14441),
+            ),
+            (
+                parse_ecb_plus_selected_gold_zip(&bytes, &index).unwrap(),
+                (976, 1832, 11892, 3230),
+            ),
+        ] {
+            let mut scoped_ids = HashSet::new();
+            let mut cross_mentions = 0;
+            let mut local_mentions = 0;
+            for doc in &docs {
+                let topic = doc.topic.as_ref().unwrap();
+                for chain in &doc.chains {
+                    if let Some(id) = &chain.cross_document_id {
+                        scoped_ids.insert((topic, id));
+                        cross_mentions += chain.chain.len();
+                    } else {
+                        local_mentions += chain.chain.len();
+                    }
+                }
+            }
+            assert_eq!(
+                (docs.len(), scoped_ids.len(), cross_mentions, local_mentions),
+                expected
+            );
+        }
+    }
+
+    #[test]
     fn ecb_plus_alphanumeric_notes_remain_separate_chains_without_a_numeric_id() {
         // Two annotated mentions and their source IDs from ECB+/1/1_10ecb.xml.
         let xml = r#"<Document>
@@ -2273,7 +2562,9 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
             <CROSS_DOC_COREF r_id="37614" note="HUM16236184328979740"><source m_id="21"/><target m_id="43"/></CROSS_DOC_COREF>
           </Relations>
         </Document>"#;
-        let doc = parse_ecb_plus_xml(xml, "1", "1_10ecb").unwrap();
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_10ecb", None)
+            .unwrap()
+            .into_coref_document();
         assert_eq!(doc.chains.len(), 2);
         assert_eq!(doc.chains[0].mentions[0].text, "told");
         assert_eq!(doc.chains[1].mentions[0].text, "herself");
@@ -2316,7 +2607,9 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
   </Relations>
 </Document>"#;
 
-        let doc = parse_ecb_plus_xml(xml, "1", "1_1ecb").unwrap();
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_1ecb", None)
+            .unwrap()
+            .into_coref_document();
         assert_eq!(doc.doc_id.as_deref(), Some("1_1_1ecb"));
         assert!(doc.text.contains("earthquake"));
         assert!(doc.text.contains("tremor"));

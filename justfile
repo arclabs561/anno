@@ -485,11 +485,12 @@ cache-warm-s3:
     ANNO_S3_CACHE=1 cargo run -p anno-eval --example cache_warm --features "eval discourse"
     ./scripts/sync_datasets_s3.sh upload
 
-# Run CDCR evaluation on cached coref datasets.
-# Example:
-#   ANNO_CDCR_DATASETS=ECBPlus cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
-cdcr-eval:
-    cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
+# Evaluate cross-document merging on supplied ECB+ XML annotation spans.
+# Set ANNO_CDCR_MAX_DOCS to evaluate a prefix of the sorted archive.
+# Pass --sentence-index PATH to restrict gold to the published sentence panel.
+[positional-arguments]
+cdcr-eval *args:
+    cargo run -p anno-eval --example cdcr_eval --features "eval discourse" -- "$@"
 
 # === Release ===
 
