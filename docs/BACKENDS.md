@@ -241,6 +241,22 @@ use `onnx_cuda_smoke`, `onnx_coreml_smoke`, and the provider probes for that.
 |---------|--------------|-----------|--------|---------------|
 | `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Ollama) | Yes | beta | `google/gemini-2.5-flash-lite` |
 
+#### Test UniversalNER with Codex CLI
+
+Run `just test-llm-codex` with Python 3, Cargo and Codex CLI on your PATH.
+The check runs `anno extract` on “Ada left.” A temporary loopback server uses
+the chat-completions route in the Ollama adapter to forward Anno's prompt to
+`codex exec`. A second loopback listener supplies a deterministic Responses
+fixture. The check requires the person span at character offsets 0..3 and one
+request at each hop. It exercises the CLI protocol and the Anno parser.
+
+Use `just test-llm-codex-live` to send that synthetic prompt to the model
+configured for Codex. This uses the CLI's own authentication and can consume
+provider quota. Both modes start in a temporary directory and close the listeners
+when the test ends. With a prebuilt `anno` binary that includes the `llm`
+feature, run `python3 scripts/verification/check_codex_llm.py --anno /path/to/anno`.
+The deterministic path was exercised with Codex CLI 0.172.0-alpha.2.
+
 ### Classical (no feature gate)
 
 | Backend | Method | Status | Notes |

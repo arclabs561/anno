@@ -1150,3 +1150,11 @@ spot-trainctl-check:
         echo "trainctl not found. Build it:"; \
         echo "  cd ../trainctl && cargo build --release"; \
     fi
+
+# Exercise UniversalNER through the local Codex CLI with a deterministic Responses fixture.
+test-llm-codex:
+    python3 scripts/verification/check_codex_llm.py
+
+# Exercise the same extraction flow with the model configured in Codex CLI.
+test-llm-codex-live:
+    python3 scripts/verification/check_codex_llm.py --live
