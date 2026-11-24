@@ -28,7 +28,7 @@
 
 use crate::{CanonicalId, CoreferenceResolver, Gender};
 use crate::{Entity, EntityType};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Configuration for [`SimpleCorefResolver`].
 ///
@@ -185,7 +185,8 @@ impl SimpleCorefResolver {
         Self { config }
     }
 
-    /// Resolve coreference for entities, assigning canonical IDs.
+    /// Resolve coreference for entities, preserving supplied canonical IDs.
+    /// New clusters receive the lowest unused IDs in order of first mention.
     #[must_use]
     pub fn resolve_entities(&self, entities: &[Entity]) -> Vec<Entity> {
         if entities.is_empty() {
@@ -193,7 +194,15 @@ impl SimpleCorefResolver {
         }
 
         let mut resolved = entities.to_vec();
-        let mut next_cluster_id = CanonicalId::ZERO;
+        // Later mentions can already own an ID, even though only earlier mentions
+        // are candidates for the matching sieves.
+        let supplied: HashSet<_> = entities
+            .iter()
+            .filter_map(|entity| entity.canonical_id)
+            .collect();
+        let mut fresh_ids = (0..=u64::MAX)
+            .map(CanonicalId::new)
+            .filter(|id| !supplied.contains(id));
 
         // Map from canonical form to cluster ID.
         let mut canonical_to_cluster: HashMap<String, CanonicalId> = HashMap::new();
@@ -210,11 +219,8 @@ impl SimpleCorefResolver {
             let cluster_id =
                 self.find_matching_cluster(entity, &resolved[..i], &canonical_to_cluster);
 
-            let cluster_id = cluster_id.unwrap_or_else(|| {
-                let id = next_cluster_id;
-                next_cluster_id += 1;
-                id
-            });
+            let cluster_id = cluster_id
+                .unwrap_or_else(|| fresh_ids.next().expect("at most one cluster ID per entity"));
 
             resolved[i].canonical_id = Some(cluster_id);
 
@@ -808,6 +814,25 @@ mod tests {
 
     fn resolver() -> SimpleCorefResolver {
         SimpleCorefResolver::new(CorefConfig::default())
+    }
+
+    #[test]
+    fn fresh_clusters_skip_supplied_ids_even_when_they_appear_later() {
+        let entities = [
+            Entity::new("Iris Moss", EntityType::Person, 0, 9, 1.0),
+            Entity::new("Éva Lorn", EntityType::Person, 20, 28, 1.0).with_canonical_id(u64::MAX),
+            Entity::new("She", EntityType::Person, 40, 43, 1.0),
+            Entity::new("Ned Pike", EntityType::Person, 60, 68, 1.0).with_canonical_id(0),
+            Entity::new("Remy Fox", EntityType::Person, 80, 88, 1.0).with_canonical_id(2),
+            Entity::new("Tess Vale", EntityType::Person, 100, 109, 1.0),
+        ];
+        let ids: Vec<_> = resolver()
+            .resolve(&entities)
+            .iter()
+            .map(|entity| entity.canonical_id.unwrap().get())
+            .collect();
+        // “She” joins its supplied antecedent, while Iris and Tess each need a fresh ID.
+        assert_eq!(ids, [1, u64::MAX, u64::MAX, 0, 2, 3]);
     }
 
     // =========================================================================
