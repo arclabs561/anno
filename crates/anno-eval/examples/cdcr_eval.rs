@@ -2,6 +2,7 @@
 //! Run with `just cdcr-eval`, or `just cdcr-eval --sentence-index PATH` for the
 //! published selected-sentence annotations. ANNO_CDCR_MAX_DOCS limits sorted documents.
 
+use anno::core::grounded::html_source::source_sha256;
 use anno_eval::eval::cdcr::{CrossDocCluster, Document};
 use anno_eval::eval::cluster_encoder::{CosineMergeScorer, HeuristicClusterEncoder};
 use anno_eval::eval::coref_loader::EcbPlusDocument;
@@ -10,7 +11,6 @@ use anno_eval::eval::cross_context_eval::{
 };
 use anno_eval::eval::loader::DatasetLoader;
 use anno_eval::{Error, Result};
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -48,8 +48,8 @@ fn main() -> Result<()> {
         (
             loader.load_or_download_ecb_plus_selected_gold(&index)?,
             format!(
-                "fully anchored annotations in sentence index SHA-256 {:x}",
-                Sha256::digest(index.as_bytes())
+                "fully anchored annotations in sentence index SHA-256 {}",
+                source_sha256(&index)
             ),
         )
     } else {
