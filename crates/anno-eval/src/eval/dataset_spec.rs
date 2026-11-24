@@ -394,10 +394,21 @@ impl License {
         )
     }
 
-    /// Returns true if the dataset can be freely redistributed.
+    /// Whether the named license grants redistribution subject to its terms.
+    /// A source-work review and any required notices still apply.
     #[must_use]
     pub fn allows_redistribution(&self) -> bool {
-        !matches!(self, Self::LDC | Self::Proprietary | Self::ResearchOnly)
+        matches!(
+            self,
+            Self::CCBY
+                | Self::CCBYSA
+                | Self::CCBYNC
+                | Self::CCBYNCSA
+                | Self::CC0
+                | Self::MIT
+                | Self::Apache2
+                | Self::GPL
+        )
     }
 }
 
@@ -1278,6 +1289,8 @@ mod tests {
         assert!(License::MIT.allows_commercial());
         assert!(License::MIT.allows_redistribution());
         assert!(!License::LDC.allows_redistribution());
+        assert!(!License::Unknown.allows_redistribution());
+        assert!(!License::Other("unreviewed".into()).allows_redistribution());
         assert!(!License::ResearchOnly.allows_commercial());
     }
 

@@ -120,9 +120,7 @@ use muxer::{
     CandidateDebug, Decision, DecisionNote, Exp3Ix, Exp3IxConfig, Exp3IxState, MabConfig,
     MabSelectionDecision, Outcome, Summary,
 };
-#[cfg(test)]
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::PathBuf;
 #[cfg(test)]
@@ -690,6 +688,15 @@ fn in_ci() -> bool {
     std::env::var("GITHUB_ACTIONS").is_ok()
 }
 
+fn matrix_predicted_mentions() -> crate::eval::task_evaluator::CorefPredictedMentions {
+    use crate::eval::task_evaluator::CorefPredictedMentions;
+    if mh::env_bool("ANNO_COREF_ENGLISH_PRONOUNS", false) {
+        CorefPredictedMentions::NerWithEnglishPronouns
+    } else {
+        CorefPredictedMentions::BackendDefault
+    }
+}
+
 fn matrix_uses_gold_mentions() -> bool {
     std::env::var("ANNO_COREF_GOLD")
         .ok()
@@ -1038,6 +1045,33 @@ fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     }
 }
 
+/// Small, source-free counts that explain scores on the two structural tasks.
+fn structural_counts(row: &TaskEvalResult) -> BTreeMap<&'static str, f64> {
+    let keys: &[&'static str] = match row.task {
+        Task::IntraDocCoref | Task::AbstractAnaphora => &[
+            "input_mentions",
+            "matched_input_mentions",
+            "gold_mentions",
+            "reachable_gold_links",
+            "matched_coref_links",
+            "predicted_coref_links",
+            "gold_coref_links",
+        ],
+        Task::Temporal => &[
+            "gold_spans",
+            "predicted_spans",
+            "matched_spans",
+            "unmatched_predictions_overlapping_missed_gold",
+            "gold_empty_sentences",
+            "gold_empty_sentences_with_predictions",
+        ],
+        _ => &[],
+    };
+    keys.iter()
+        .filter_map(|&key| row.metrics.get(key).map(|&count| (key, count)))
+        .collect()
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 struct DecisionOutcomeLog {
     // Independent schema for post-run outcome events.
@@ -1063,6 +1097,8 @@ struct DecisionOutcomeLog {
     backend_display: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     primary_f1: Option<f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    structural_counts: BTreeMap<&'static str, f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     junk_f1_threshold: Option<f64>,
     ok: bool,
@@ -2151,6 +2187,7 @@ fn select_backends(
                                                     max_examples,
                                                     cached_only,
                                                     matrix_uses_gold_mentions(),
+                                                    matrix_predicted_mentions(),
                                                 )
                                                 .and_then(|key| {
                                                     h.cell_observation_counts_for_policy_cohort(
@@ -2403,7 +2440,7 @@ fn task_dataset_catalog(tasks: &[Task]) -> Vec<DatasetId> {
 enum DatasetExclusion {
     NonAutomatableSource,
     SlowInFastProfile,
-    TemporalEvaluatorNeedsNer,
+    MissingTimexSpanReader,
     MissingRelationSpans,
     NoLoader,
     CacheRequired,
@@ -2440,21 +2477,26 @@ impl DatasetPolicy {
         }
         // Source policy applies even to a local cache hit. Some registered
         // sources have known-bad parses or require manual acquisition.
-        if !self.allow_non_automatable && !ds.is_automatable_download() {
+        if ds.timex_fixture().is_none()
+            && !self.allow_non_automatable
+            && !ds.is_automatable_download()
+        {
             return Some(DatasetExclusion::NonAutomatableSource);
         }
         if self.exclude_slow && matches!(ds, DatasetId::OntoNotesSample | DatasetId::BioMNER) {
             return Some(DatasetExclusion::SlowInFastProfile);
         }
         let tasks = dataset_tasks(ds);
-        if self.temporal_requested && tasks.contains(&Task::Temporal) && !tasks.contains(&Task::NER)
+        if self.temporal_requested && tasks.contains(&Task::Temporal) && !ds.has_timex_span_reader()
         {
-            return Some(DatasetExclusion::TemporalEvaluatorNeedsNer);
+            return Some(DatasetExclusion::MissingTimexSpanReader);
         }
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             return Some(DatasetExclusion::NoLoader);
         };
-        if self.require_cached && !loader.is_cached(loadable) && !loader.s3_enabled() {
+        if (ds.timex_fixture().is_some() || (self.require_cached && !loader.s3_enabled()))
+            && !loader.is_cached(loadable)
+        {
             return Some(DatasetExclusion::CacheRequired);
         }
         None
@@ -2780,6 +2822,56 @@ fn dataset_rejection_message(error: anno::Error) -> String {
 }
 
 #[test]
+fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
+    use crate::eval::task_evaluator::CorefPredictedMentions;
+
+    let dir = tempfile::tempdir().unwrap();
+    let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+    let policy = DatasetPolicy {
+        allow_non_automatable: false,
+        exclude_slow: false,
+        temporal_requested: true,
+        relation_requested: false,
+        require_cached: true,
+    };
+    let mut cohorts = std::collections::BTreeSet::new();
+    for id in [
+        DatasetId::AnnoTimexSmoke,
+        DatasetId::AnnoTimexContrast,
+        DatasetId::TimexRecognitionSentenceOriginal,
+    ] {
+        let key = policy_cohort_key(
+            Task::Temporal,
+            id,
+            42,
+            Some(2),
+            true,
+            false,
+            CorefPredictedMentions::BackendDefault,
+        )
+        .unwrap();
+        assert!(
+            cohorts.insert(key),
+            "distinct source IDs must produce distinct cohorts"
+        );
+        if id.timex_fixture().is_some() {
+            assert_eq!(id.download_url(), "");
+            assert!(id.requires_local_source() && id.excluded_from_shared_cache());
+            let loadable = LoadableDatasetId::try_from(id).unwrap();
+            assert!(matches!(
+                policy.exclusion(&loader, id),
+                Some(DatasetExclusion::CacheRequired)
+            ));
+            std::fs::write(dir.path().join(id.cache_filename()), b"arbitrary source").unwrap();
+            assert!(!loader.is_cached(loadable));
+            assert!(loader.load(loadable).is_err());
+            assert!(loader.cached_timex_sentences(id, None).is_err());
+            assert!(loader.load_or_download(loadable).is_err());
+        }
+    }
+}
+
+#[test]
 fn dataset_rejections_expose_categories_without_urls_payloads_or_s3_stderr() {
     let cache = tempfile::tempdir().unwrap();
     let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
@@ -2915,6 +3007,7 @@ fn choose_datasets_for_run(
                             Some(max_examples_per_dataset()),
                             require_cached,
                             matrix_uses_gold_mentions(),
+                            matrix_predicted_mentions(),
                         )?;
                         history
                             .dataset_observation_counts_for_policy_cohort(&key)
@@ -4224,6 +4317,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         confidence_intervals: false,
         custom_coref_resolver: None,
         coref_use_gold_mentions: matrix_uses_gold_mentions(),
+        coref_predicted_mentions: matrix_predicted_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {
@@ -4392,6 +4486,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     backend: r.backend.clone(),
                     backend_display: r.backend_display.clone(),
                     primary_f1: o.quality_score,
+                    structural_counts: structural_counts(r),
                     junk_f1_threshold: Some(thr),
                     ok,
                     junk,
@@ -4738,6 +4833,7 @@ fn test_matrix_sweep_all_backends_once() {
         confidence_intervals: false,
         custom_coref_resolver: None,
         coref_use_gold_mentions: matrix_uses_gold_mentions(),
+        coref_predicted_mentions: matrix_predicted_mentions(),
     };
 
     let results = match eval.evaluate_all(config) {

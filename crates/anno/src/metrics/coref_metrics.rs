@@ -957,6 +957,22 @@ pub struct BlancCounts {
     coreferent: CorefLinkCounts,
     noncoreferent: CorefLinkCounts,
     different_mentions: bool,
+    resolver_inputs: Option<ResolverInputCounts>,
+}
+
+/// Exact resolver-input coverage on documents with observable candidate spans.
+#[derive(Default, Debug, PartialEq, Eq)]
+pub struct ResolverInputCounts {
+    /// Distinct spans passed to the resolver, summed within documents.
+    pub proposed_mentions: u128,
+    /// Distinct gold mention spans in the same documents.
+    pub gold_mentions: u128,
+    /// Resolver-input spans with an exact gold match.
+    pub matched_mentions: u128,
+    /// Distinct gold links with both endpoints supplied to the resolver.
+    pub reachable_gold_links: u128,
+    /// All distinct gold links in the documents with observed inputs.
+    pub gold_links: u128,
 }
 
 /// Counts of unordered mention pairs in one link class, summed within documents.
@@ -991,6 +1007,18 @@ impl CorefLinkCounts {
 impl BlancCounts {
     /// Add one document using its original mention coordinates.
     pub fn add_document(&mut self, predicted: &[CorefChain], gold: &[CorefChain]) {
+        self.add_document_with_inputs(predicted, gold, None);
+    }
+
+    /// Add a document and optionally observe the exact character spans supplied to its resolver.
+    /// An observed empty set counts as zero proposals. Use `None` for raw-text backends
+    /// whose internal proposals are unavailable.
+    pub fn add_document_with_inputs(
+        &mut self,
+        predicted: &[CorefChain],
+        gold: &[CorefChain],
+        inputs: Option<&HashSet<(usize, usize)>>,
+    ) {
         fn coreferent_links(chains: &[CorefChain]) -> HashSet<SpanPair> {
             let mut links = HashSet::new();
             for chain in chains {
@@ -1015,6 +1043,17 @@ impl BlancCounts {
         let key = all_mention_spans_mode(gold, SpanMode::Full);
         let proposed_links = coreferent_links(predicted);
         let key_links = coreferent_links(gold);
+        if let Some(inputs) = inputs {
+            let totals = self.resolver_inputs.get_or_insert_with(Default::default);
+            totals.proposed_mentions += inputs.len() as u128;
+            totals.gold_mentions += key.len() as u128;
+            totals.matched_mentions += inputs.intersection(&key).count() as u128;
+            totals.gold_links += key_links.len() as u128;
+            totals.reachable_gold_links += key_links
+                .iter()
+                .filter(|(a, b)| inputs.contains(a) && inputs.contains(b))
+                .count() as u128;
+        }
         let matched = proposed_links.intersection(&key_links).count() as u128;
         self.coreferent.add(
             matched,
@@ -1037,6 +1076,16 @@ impl BlancCounts {
             pair_count(key.len()) - key_links.len() as u128,
         );
         self.different_mentions |= proposed != key;
+    }
+
+    /// Within-document coreferent link totals over all scored documents.
+    pub fn coreferent_links(&self) -> &CorefLinkCounts {
+        &self.coreferent
+    }
+
+    /// Resolver-input coverage over only the documents for which inputs were supplied.
+    pub fn resolver_inputs(&self) -> Option<&ResolverInputCounts> {
+        self.resolver_inputs.as_ref()
     }
 
     /// Score the accumulated classes using the same boundary conventions as a single document.
@@ -2325,6 +2374,32 @@ mod tests {
     // =========================================================================
     // 9. AggregateCorefEvaluation::compute
     // =========================================================================
+
+    #[test]
+    fn resolver_input_counts_deduplicate_and_exclude_unobservable_documents() {
+        let gold = chains(vec![
+            vec![("a", 0, 1), ("a", 0, 1), ("ab", 0, 2)],
+            vec![("a", 0, 1), ("ab", 0, 2), ("c", 3, 4)],
+        ]);
+        let mut counts = BlancCounts::default();
+        counts.add_document(&[], &gold);
+        assert!(counts.resolver_inputs().is_none());
+        let inputs = HashSet::from([(0, 1), (0, 2), (5, 6)]);
+        counts.add_document_with_inputs(&[], &gold, Some(&inputs));
+        counts.add_document_with_inputs(&[], &gold, Some(&HashSet::new()));
+        assert_eq!(
+            counts.resolver_inputs(),
+            Some(&ResolverInputCounts {
+                proposed_mentions: 3,
+                gold_mentions: 6,
+                matched_mentions: 2,
+                reachable_gold_links: 1,
+                gold_links: 6,
+            })
+        );
+        assert_eq!(counts.coreferent_links().gold, 9);
+        assert_eq!(counts.coreferent_links().matched, 0);
+    }
 
     #[test]
     fn corpus_blanc_excludes_cross_document_negatives() {

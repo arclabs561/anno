@@ -1,55 +1,47 @@
-"""Prepare the revision-pinned public TIMEX test split for a trusted matrix runner."""
+"""Stage an independently authorized local copy of the historical TIMEX split."""
 
+import argparse
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
-import subprocess
 from tempfile import TemporaryDirectory
 
 
-SOURCE = ("https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/"
-          "resolve/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl")
 DIGEST = "58cd74b68da63ff8acbb70e8acd0302f4edea6151a2f73787aa57799a57e93d3"
 SIZE = 257382
 NAME = "TimexRecognitionSentenceOriginal.cache"
 
 
-def verified(path):
-    return (path.is_file() and path.stat().st_size == SIZE
-            and sha256(path.read_bytes()).hexdigest() == DIGEST)
+def prepare(directory, source):
+    with source.open("rb") as stream:
+        data = stream.read(SIZE + 1)
+    if len(data) != SIZE or sha256(data).hexdigest() != DIGEST:
+        raise ValueError("Unexpected TIMEX test split size or SHA-256")
 
-
-def prepare(directory):
     directory.mkdir(parents=True, exist_ok=True)
     corpus = directory / NAME
+    manifest = directory / "manifest.json"
     with TemporaryDirectory(dir=directory) as staging:
-        if not verified(corpus):
-            download = Path(staging) / NAME
-            subprocess.run(["curl", "--fail", "--silent", "--show-error", "--location",
-                            "--proto", "=https", "--proto-redir", "=https", "--retry", "2",
-                            "--max-time", "30", "--max-filesize", str(SIZE), "-o", str(download),
-                            SOURCE], check=True)
-            if not verified(download):
-                raise ValueError("Unexpected TIMEX test split size or SHA-256")
-            download.replace(corpus)
-
-        manifest = directory / "manifest.json"
+        staged = Path(staging)
         if manifest.exists():
-            state = json.loads(manifest.read_text())
-            entry = state["entries"].get(NAME)
-            if entry is not None and (entry.get("source_url") != SOURCE or entry.get("sha256") != DIGEST
-                                      or entry.get("resolved_url") not in (None, SOURCE)
-                                      or entry.get("sentence_count") != 390):
-                # A restored entry for the old Viewer split invalidates the new file.
-                # The native loader accepts a raw cache without a manifest entry.
+            state = json.loads(manifest.read_bytes())
+            if NAME in state["entries"]:
+                # A remote-source record from an older cache would misdescribe this local import.
                 del state["entries"][NAME]
-                updated = Path(staging) / "manifest.json"
-                updated.write_text(json.dumps(state))
-                updated.replace(manifest)
+                (staged / "manifest.json").write_text(json.dumps(state))
 
-    print(f"Verified {corpus.name}: {SIZE} bytes, sha256 {DIGEST}")
+        if not corpus.is_file() or corpus.stat().st_size != SIZE or corpus.read_bytes() != data:
+            (staged / NAME).write_bytes(data)
+            (staged / NAME).replace(corpus)
+        if (staged / "manifest.json").is_file():
+            (staged / "manifest.json").replace(manifest)
+
+    print(f"Verified local {corpus.name}: {SIZE} bytes, sha256 {DIGEST}")
 
 
 if __name__ == "__main__":
-    prepare(Path(os.environ["ANNO_CACHE_DIR"]) / "datasets")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source", type=Path, help="local JSONL covered by your source permissions")
+    options = parser.parse_args()
+    prepare(Path(os.environ["ANNO_CACHE_DIR"]) / "datasets", options.source)

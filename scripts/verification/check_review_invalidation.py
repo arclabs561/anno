@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Check that removing review invalidation makes the public Rust regression fail."""
 
 import os

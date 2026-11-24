@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Compile valid and invalid Rust callers of anno's reviewed catalog assignment API."""
 
 import json
