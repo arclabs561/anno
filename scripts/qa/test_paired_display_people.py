@@ -1,11 +1,10 @@
 """Check the paired holdout and its occurrence-specific display judgments."""
-from collections import defaultdict
 import json
-from pathlib import Path
 import unittest
+from collections import defaultdict
+from pathlib import Path
 
 from score_person_mentions import annotation_maps, gold_span
-
 
 GROUND = Path(__file__).resolve().parents[2] / "testdata/grounded"
 
