@@ -299,8 +299,9 @@ qa-replay $CORPUS $CASE:
     @python3 scripts/qa/replay_feedback.py replay "$CORPUS" "$CASE"
 
 # Run a local, independently labeled cross-document case against a selected producer.
-qa-challenge $CASE $BINARY:
-    @python3 scripts/qa/replay_crossdoc_case.py "$CASE" "$BINARY"
+[positional-arguments]
+qa-challenge CASE BINARY *args:
+    @python3 scripts/qa/replay_crossdoc_case.py "$@"
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
 qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":
