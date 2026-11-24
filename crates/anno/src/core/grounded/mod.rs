@@ -5027,6 +5027,10 @@ impl Corpus {
     // A replacement or reclustering may retire a pure coreference identity.
     // KB identities survive loss of their final track.
     pub(crate) fn refresh_coref_membership(&mut self, affected: &[IdentityId]) {
+        self.refresh_coref_records(affected, None);
+    }
+
+    fn refresh_coref_records(&mut self, affected: &[IdentityId], delivered: Option<&str>) {
         if affected.is_empty() {
             return;
         }
@@ -5055,7 +5059,13 @@ impl Corpus {
                 self.update_shared_identity(identity);
                 continue;
             }
+            // A delivery can explicitly declare an unbound corpus record before
+            // its member documents arrive. Keep its source kind and clear stale evidence.
+            let explicitly_declared = delivered
+                .and_then(|doc| self.get_document(doc))
+                .is_some_and(|doc| previous.matches_copy(doc.get_identity(*id)));
             if members.is_empty()
+                && !explicitly_declared
                 && matches!(previous.source, Some(IdentitySource::CrossDocCoref { .. }))
             {
                 let state = self.state_mut();
@@ -5069,7 +5079,7 @@ impl Corpus {
                 continue;
             }
             *refs = members;
-            if refs.is_empty() {
+            if refs.is_empty() && !explicitly_declared {
                 if let Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) = identity.source.take()
                 {
                     identity.source = Some(IdentitySource::KnowledgeBase { kb_name, kb_id });
@@ -5291,7 +5301,11 @@ impl Corpus {
     /// Replacing a document invalidates its old track references. Incoming track IDs
     /// that could name a previous track receive fresh IDs; obtain new references
     /// from the stored document. Returns the document ID.
-    pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
+    pub fn add_document(&mut self, document: GroundedDocument) -> String {
+        self.insert_document(document, false)
+    }
+
+    fn insert_document(&mut self, mut document: GroundedDocument, delivered: bool) -> String {
         let mut affected = HashSet::new();
         document.corpus_managed = true;
         let previous = self.get_document(document.id());
@@ -5395,7 +5409,10 @@ impl Corpus {
             );
         }
         state.documents.insert(doc_id.clone(), document);
-        self.refresh_coref_membership(&affected.into_iter().collect::<Vec<_>>());
+        self.refresh_coref_records(
+            &affected.into_iter().collect::<Vec<_>>(),
+            delivered.then_some(doc_id.as_str()),
+        );
         if replacing {
             self.prune_local_track_refs(&doc_id, |id| replacement_ids.contains(&id), None);
         }

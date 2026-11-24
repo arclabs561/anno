@@ -549,7 +549,7 @@ impl Corpus {
             .identities
             .extend(new_records.into_iter().map(|r| (r.id, r)));
         state.delivery.origins.extend(new_origins);
-        self.add_document(doc);
+        self.insert_document(doc, true);
         if let DeliveryOwnership::Restore { origin } = &request.ownership {
             self.restore_complete_evidence(request, origin, &assigned);
         }
