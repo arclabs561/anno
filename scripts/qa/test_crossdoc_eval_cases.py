@@ -34,9 +34,9 @@ class AuthoringTests(unittest.TestCase):
                     self.assertNotIn(b"CROSS_DOC_COREF", xml)
         self.assertEqual(*blobs)
 
-    def test_rejects_unknown_inputs_and_missing_denominators(self):
+    def test_rejects_unknown_inputs_and_empty_assertions(self):
         case = fixture("local-seeds")
-        del case["assertions"][0]["gold_links"]
+        case["assertions"][0] = {"seeds": "singletons", "threshold": 0.7}
         with self.assertRaises(ValueError):
             runner._expectations(case)
         for invalid in ({"tokens": [0]}, {"tokens": [1], "cross": "x", "local": "x"},
@@ -66,6 +66,20 @@ class AuthoringTests(unittest.TestCase):
         for row in case["assertions"]:
             row.update(gold_links=1, correct_links=1, predicted_links=1, predicted_clusters=1)
         self.assertTrue(all(c["passed"] for c in runner.run_case(case, binary)["checks"]))
+
+    @unittest.skipUnless(EVAL_BIN, "set ANNO_CDCR_BIN to the built cdcr_eval executable")
+    def test_withdrawn_mentions_can_be_adjudicated_with_gold_counters_only(self):
+        case = fixture("local-seeds")
+        case["documents"][1]["mentions"] = []  # The second document still exists.
+        case["assertions"] = [{"seeds": "singletons", "threshold": 0.7, "gold_links": 0, "gold_clusters": 1}]
+        checks = runner.run_case(case, Path(EVAL_BIN))["checks"]
+        self.assertEqual({c["name"] for c in checks}, {"singletons@0.7 gold_links", "singletons@0.7 gold_clusters"})
+        self.assertTrue(all(c["passed"] for c in checks))
+
+    def test_rejects_partial_scorer_output_even_for_partial_adjudication(self):
+        header = "| Local seeds | Threshold | Gold clusters | Pred clusters | Correct links | Gold links | Pred links |"
+        with self.assertRaisesRegex(RuntimeError, "full seed/threshold"):
+            runner._observations(header + "\n| Singletons | 0.7 | 1 | 1 | 0 | 0 | 0 |")
 
 
 if __name__ == "__main__":

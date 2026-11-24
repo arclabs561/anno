@@ -19,7 +19,7 @@ METRICS = {
     "gold_links": "Gold links",
     "predicted_links": "Pred links",
 }
-LINKS = {"correct_links", "gold_links", "predicted_links"}
+THRESHOLDS = (0.3, 0.5, 0.7)
 KINDS = {
     "person": "HUMAN_PART_PER",
     "organization": "HUMAN_PART_ORG",
@@ -142,9 +142,11 @@ def _write_panel(case, directory):
 def _expectations(case):
     rows = {}
     for assertion in _items(case.get("assertions"), "assertions", 1, 6):
-        _fields(assertion, {"seeds", "threshold"} | LINKS, set(METRICS) - LINKS)
+        _fields(assertion, {"seeds", "threshold"}, METRICS)
+        if not METRICS.keys() & assertion.keys():
+            raise ValueError("each assertion needs at least one expected counter")
         seeds, threshold = assertion["seeds"], assertion["threshold"]
-        if seeds not in SEEDS.values() or threshold not in (0.3, 0.5, 0.7):
+        if seeds not in SEEDS.values() or threshold not in THRESHOLDS:
             raise ValueError("select singletons or gold_local and threshold 0.3, 0.5, or 0.7")
         key = seeds, threshold
         if key in rows:
@@ -175,6 +177,9 @@ def _observations(output):
             if key in rows:
                 raise RuntimeError("cdcr_eval emitted duplicate seed/threshold results")
             rows[key] = counts
+    required_rows = {(seeds, threshold) for seeds in SEEDS.values() for threshold in THRESHOLDS}
+    if rows.keys() != required_rows:
+        raise RuntimeError("cdcr_eval did not emit its full seed/threshold results table")
     return rows
 
 
@@ -200,8 +205,6 @@ def run_case(case: dict, binary: Path) -> dict:
         observed = _observations(result.stdout)
     checks = []
     for key, counts in expected.items():
-        if key not in observed:
-            raise RuntimeError(f"cdcr_eval omitted row {key}")
         for metric, wanted in counts.items():
             actual = observed[key][metric]
             checks.append({"name": f"{key[0]}@{key[1]} {metric}", "expected": wanted,
