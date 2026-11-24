@@ -1,0 +1,68 @@
+; SPDX-License-Identifier: MIT OR Apache-2.0
+; The permissions are reviewed inputs, not conclusions about copyright law.
+(set-logic ALL)
+(declare-datatype Source ((LocalOnly) (Publisher) (ReviewedSynthetic)))
+(declare-datatype Evidence ((Hypothesis) (NativeOnly) (IndependentReplay)))
+(declare-const source Source)
+(declare-const evidence Evidence)
+(declare-const holdout Bool)
+(declare-const caller-authorized Bool)
+(declare-const notice-present Bool)
+(declare-const registered-seed Bool)
+
+(define-fun local-use () Bool caller-authorized)
+(define-fun origin-fetch () Bool (= source Publisher))
+; Raw dataset publication has no approved packages in this revision.
+(define-fun publish-raw-dataset () Bool false)
+; The binary fuzz seed registry and reviewed span replay registry contain only
+; project-authored regression seeds. New external materials require fresh review.
+(define-fun can-register ((src Source) (registered Bool) (notice Bool) (held Bool)) Bool
+  (and registered (= src ReviewedSynthetic) notice (not held)))
+(define-fun share-seed () Bool
+  (and (can-register source registered-seed notice-present holdout)
+       (= evidence IndependentReplay)))
+; Simulate learning twice: only the evidence changes. Rights and corpus scope
+; are immutable across a restore/replay of the same registered corpus revision.
+(define-fun replayed-seed () Bool
+  (and registered-seed (= source ReviewedSynthetic) notice-present (not holdout)))
+
+(echo "local-file-permission-cannot-grant-origin-or-shared-access")
+(push)
+(assert (and (= source LocalOnly) local-use (or origin-fetch publish-raw-dataset)))
+(check-sat)
+(pop)
+(echo "publisher-permission-does-not-grant-shared-raw-publication")
+(push)
+(assert (and origin-fetch publish-raw-dataset))
+(check-sat)
+(pop)
+(echo "replay-cannot-relicense-external-data-or-promote-a-holdout")
+(push)
+(assert (and replayed-seed (or (not (= source ReviewedSynthetic)) holdout)))
+(check-sat)
+(pop)
+(echo "judge-only-or-uncredited-seeds-cannot-enter-shared-state")
+(push)
+(assert (and share-seed (or (not (= evidence IndependentReplay)) (not notice-present))))
+(check-sat)
+(pop)
+(echo "authorized-local-source-has-a-witness")
+(push)
+(assert (and (= source LocalOnly) local-use))
+(check-sat)
+(pop)
+(echo "publisher-origin-fetch-has-a-witness")
+(push)
+(assert origin-fetch)
+(check-sat)
+(pop)
+(echo "reviewed-independent-synthetic-replay-has-a-witness")
+(push)
+(assert share-seed)
+(check-sat)
+(pop)
+(echo "trusting-replay-alone-allows-a-restricted-source")
+(push)
+(assert (and (= source LocalOnly) (= evidence IndependentReplay) registered-seed))
+(check-sat)
+(pop)

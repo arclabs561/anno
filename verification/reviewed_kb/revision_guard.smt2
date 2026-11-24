@@ -1,3 +1,4 @@
+; SPDX-License-Identifier: MIT OR Apache-2.0
 ; Bounded model of preview, two intervening operations, and one atomic apply.
 ; There are two corpus owners, each with a trigger, a peer, and three possible
 ; catalog bindings. One bit describes whether the peer shares the identity.

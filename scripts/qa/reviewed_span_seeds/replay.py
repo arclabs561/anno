@@ -20,6 +20,13 @@ def verified(path, expected):
     return data
 
 
+def reviewed_source(entry):
+    """Only the maintainer registry supplies these fields."""
+    return (entry.get("scope"), entry.get("origin"), entry.get("license")) == (
+        "exposed-regression", "project-authored-synthetic", "MIT OR Apache-2.0"
+    )
+
+
 def check_round(fixture, bundle):
     # Only checked-in maintainer decisions can admit a source. An incoming
     # trace, judge or downloaded fixture cannot declare itself redistributable.
@@ -27,9 +34,7 @@ def check_round(fixture, bundle):
     fixture_id = digest(data)
     registry = json.loads(Path(__file__).with_name("registry.json").read_bytes())
     admitted = registry.get(fixture_id, {})
-    if (admitted.get("scope"), admitted.get("origin")) != (
-        "exposed-regression", "project-authored-synthetic"
-    ):
+    if not reviewed_source(admitted):
         raise ValueError("Fixture is outside the reviewed synthetic regression corpus")
     trace = json.loads(verified(bundle / "trace.json", admitted["trace_sha256"]))
     ticket = json.loads(verified(bundle / "dispatch-receipt.json", admitted["dispatch_sha256"]))

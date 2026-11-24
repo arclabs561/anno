@@ -67,3 +67,5 @@ cargo check --manifest-path fuzz/Cargo.toml
 `cargo-fuzz` needs a nightly toolchain (`cargo +nightly`). If the toolchain or
 `cargo-fuzz` is unavailable on your machine, the target is unverified there;
 the source remains a reproducible harness.
+
+The seven reviewed-KB seed files are project-authored synthetic operation sequences under the repository's `MIT OR Apache-2.0` license. Additional corpora need their own recorded source and redistribution terms before inclusion. [Model and fixture licensing](../verification/source_rights/README.md)
