@@ -1609,12 +1609,22 @@ impl DatasetLoader {
         file.take(fixture.bytes as u64 + 1)
             .read_to_string(&mut data)
             .map_err(|_| Error::InvalidInput(format!("Invalid fixture {id:?}")))?;
-        if data.len() != fixture.bytes || self.compute_sha256(&data) != fixture.digest {
+        self.verify_timex_fixture(id, fixture, &data)?;
+        Ok(data)
+    }
+
+    fn verify_timex_fixture(
+        &self,
+        id: DatasetId,
+        fixture: &super::temporal_expressions::TimexFixture,
+        content: &str,
+    ) -> Result<()> {
+        if content.len() != fixture.bytes || self.compute_sha256(content) != fixture.digest {
             return Err(Error::InvalidInput(format!(
                 "Fixture {id:?} checksum mismatch"
             )));
         }
-        Ok(data)
+        Ok(())
     }
 
     #[must_use]
@@ -3307,6 +3317,9 @@ impl DatasetLoader {
     /// [`DatasetLoader::load_or_download`] / [`DatasetLoader::load`]. For LitBank,
     /// supply a JSON object with the corresponding BRAT `text` and `annotations` strings.
     pub fn parse_content_str(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        if let Some(fixture) = id.timex_fixture() {
+            self.verify_timex_fixture(id, &fixture, content)?;
+        }
         self.parse_content_impl(content, id)
     }
 

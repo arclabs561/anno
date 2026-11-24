@@ -2864,6 +2864,8 @@ fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
             ));
             std::fs::write(dir.path().join(id.cache_filename()), b"arbitrary source").unwrap();
             assert!(!loader.is_cached(loadable));
+            let other_rows = r#"{"text":"invented","time_expressions":[]}"#;
+            assert!(loader.parse_content_str(other_rows, id).is_err());
             assert!(loader.load(loadable).is_err());
             assert!(loader.cached_timex_sentences(id, None).is_err());
             assert!(loader.load_or_download(loadable).is_err());
