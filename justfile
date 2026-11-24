@@ -289,6 +289,11 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
 qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
 
+# Dispatch an independent QA reviewer or import an answer from a running harness.
+[positional-arguments]
+qa-oracle *args:
+    @python3 scripts/qa/qa_oracle.py "$@"
+
 # Replay one named case from the working tree, with no scheduler or ledger writes.
 qa-replay $CORPUS $CASE:
     @python3 scripts/qa/replay_feedback.py replay "$CORPUS" "$CASE"

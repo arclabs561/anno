@@ -74,8 +74,9 @@ def span_id(db, value):
     return db.execute("SELECT id FROM trace").fetchone()[0] if value == "round" else value
 
 
-def start(db, args, kind):
-    prompt_digest = file_digest(args.prompt_file)
+def start(db, args, kind, *, prompt_digest=None):
+    if prompt_digest is None:
+        prompt_digest = file_digest(args.prompt_file)
     with db:
         db.execute("BEGIN IMMEDIATE")
         parent = span_id(db, args.parent)

@@ -44,7 +44,7 @@ just qa-panel target/debug/anno smoke "$OUT"
 
 Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence CI fixture has the dataset ID `AnnoNerSmoke`. A WikiGold score requires the pinned labeled corpus.
 
-To challenge a result in your current session, give a reviewer the contract and an input cleared for that reviewer. Freeze the expected answer before showing the candidate output. When another person or session needs context, `just qa-round "$OUT" "Does punctuation change organization boundaries?"` renders a brief from the saved receipt. [Adversarial QA](ADVERSARIAL_QA.md) · [Domain fixtures and source terms](DOMAIN_QA.md)
+To challenge a result in your current session, give a reviewer the contract and an input cleared for that reviewer. Freeze the expected answer before showing the candidate output. Use `just qa-oracle --help` for harness, headless Codex and direct OpenRouter dispatch. When another person or session needs context, `just qa-round "$OUT" "Does punctuation change organization boundaries?"` renders a brief from the saved receipt. [Adversarial QA](ADVERSARIAL_QA.md) · [Domain fixtures and source terms](DOMAIN_QA.md)
 
 ## Score a LitBank book or cohort
 
