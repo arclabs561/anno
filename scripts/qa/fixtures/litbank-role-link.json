@@ -1,0 +1,21 @@
+{
+  "id": "litbank-208-8570",
+  "source_repository": "https://github.com/dbamman/litbank",
+  "source_revision": "3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+  "source_path": "coref/brat/208_daisy_miller_a_study_brat.txt",
+  "source_sha256": "62d72edfc90101330e6054c6d27809106eb96f245e0001aa1edf61712519f958",
+  "excerpt": [7570, 9573],
+  "excerpt_sha256": "f1601c99d2ca7847d1b57fe620842c2ab674075c7bb51003d3f32dcfd8f99eef",
+  "spans": {
+    "pronoun": [8570, 8573],
+    "correct_name": [8427, 8435],
+    "role": [8539, 8550],
+    "foil": [8633, 8645]
+  },
+  "pairs": [
+    ["pronoun", "correct_name", "same"],
+    ["pronoun", "foil", "different"],
+    ["pronoun", "role", "same"],
+    ["role", "correct_name", "same"]
+  ]
+}
