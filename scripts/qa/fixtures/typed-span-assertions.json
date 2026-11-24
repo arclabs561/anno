@@ -1,6 +1,7 @@
 [
   {
     "id": "credential-cpa",
+    "family": "credential",
     "text": "The consultant Iona Tress (CPA) signed the audit.",
     "assertions": [
       {
@@ -27,6 +28,7 @@
   },
   {
     "id": "credential-peng",
+    "family": "credential",
     "text": "Surveyor Teo Miran (P.Eng.) certified the new boundary.",
     "assertions": [
       {
@@ -94,6 +96,7 @@
   },
   {
     "id": "credential-cpa-no-role",
+    "family": "credential",
     "text": "Áine Doran (CPA) reviewed the expense report.",
     "assertions": [
       {
