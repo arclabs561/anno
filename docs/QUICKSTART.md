@@ -82,6 +82,23 @@ During `review`, read the source, selected occurrence, and affected tracks in th
 
 The caller saves the grounded document, the selected source occurrence, the recorded origin of its prior identity, the reader’s reason, and the decision together. The saved quote, Unicode scalar range, and source-text digest let a later reader check which occurrence was reviewed. Only an applied decision contains a write receipt. The example file represents one decision on one document. [Example source](../crates/anno/examples/review_mention.rs) · [Catalog write contract](CONTRACT.md#grouping-flat-entities)
 
+## Read changes to a document's catalog results
+
+With the CLI built from this checkout, a subscriber can ask which source occurrences entered or left a person-specific search. The inputs are two complete grounded document snapshots. The publisher assigns an increasing sequence within the feed and can identify the cited source edition independently. To try a reassignment on the unchanged quay log above, run:
+
+```sh
+printf 'defer\nKeep the existing catalog assignment.\n' | review_mention review > deferred.json
+printf 'apply\nUse the signed cargo log.\n' | review_mention review > applied.json
+jq '{stream:"quay", sequence:1, source_revision:"log-edition-1", document:.document}' deferred.json > before.json
+jq '{stream:"quay", sequence:2, source_revision:"log-edition-1", document:.document}' applied.json > after.json
+anno query publication before.json --catalog-record quay-catalog musician
+anno query publication after.json --since before.json --catalog-record quay-catalog musician
+```
+
+The first response contains both occurrences under the musician's record. The delta removes the one that signed the cargo log. Search the clerk's record instead to see that occurrence added. Omitting the catalog filter returns the complete occurrence view, including unresolved names. Each selection has its own checkpoint. The source digest and locations refer to the text in the grounded document.
+
+Install a delta's removals, additions and target checkpoint in one transaction after checking the stored checkpoint against its base. Redelivery to the same target can be skipped. If the stored state diverged, obtain a full snapshot. Rust consumers can use `anno::publication::IndexSnapshot` and `IndexCheckpoint::needs_delta` to make these decisions. [Rust publication contract](../crates/anno/src/publication.rs) · [Chronological catalog pilot](decisions/catalog-publication-pilot.md)
+
 ## CLI: redact a document
 
 `anno extract --threshold` filters which entities appear in the extraction
