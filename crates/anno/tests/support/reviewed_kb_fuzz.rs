@@ -1,9 +1,10 @@
 //! Shared byte interpreter for the cargo-fuzz target and stable seed replay.
 use anno::coalesce::Resolver;
 use anno::core::grounded::{
-    Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentError, KbAssignmentPreview, Track,
-    TrackRef,
+    Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentError, KbAssignmentPreview,
+    SignalRef, Track, TrackRef,
 };
+use anno::{Location, Signal, SignalId};
 
 pub const MAX_INPUT_BYTES: usize = 48;
 
@@ -14,6 +15,7 @@ type Target = (&'static str, &'static str, &'static str);
 const ORIGINAL: Target = ("library", "42", "Ada");
 const REVIEWED: Target = ("review", "7", "Reviewed");
 const COMMANDS: &[u8] = b"012345pABNLmc!r";
+const LOCAL_MENTION_STARTS: [usize; 3] = [0, 4, 8];
 
 #[derive(Clone, Copy)]
 struct Binding {
@@ -26,6 +28,7 @@ struct Fixture {
     corpus: Corpus,
     tracks: [TrackRef; 6],
     expected: [Option<Binding>; 6],
+    local_mentions: [SignalId; 3],
 }
 
 fn add_track(doc: &mut GroundedDocument) -> TrackRef {
@@ -57,9 +60,16 @@ impl Fixture {
             .unwrap();
         assert_ne!(shared, separate);
 
-        let mut doc = GroundedDocument::new("local", "Ada");
+        let mut doc = GroundedDocument::new("local", "Ada Ada Ada");
         let local = add_track(&mut doc);
         let sibling = add_track(&mut doc);
+        // Identical surfaces, distinct occurrences. The third has no assigned track.
+        let local_mentions = LOCAL_MENTION_STARTS.map(|start| {
+            let mention = Signal::new(0, Location::text(start, start + 3), "Ada", "PERSON", 1.0);
+            doc.add_signal_validated(mention).unwrap()
+        });
+        assert!(doc.add_signal_to_track(local_mentions[0], local.track_id, 0));
+        assert!(doc.add_signal_to_track(local_mentions[1], sibling.track_id, 0));
         let id = doc.add_identity(Identity::from_kb(0, name, catalog, key));
         doc.link_track_to_identity(local.track_id, id);
         doc.link_track_to_identity(sibling.track_id, id);
@@ -81,6 +91,7 @@ impl Fixture {
         };
         Self {
             corpus,
+            local_mentions,
             tracks: [first, peer, independent, local, sibling, unlinked],
             expected: [
                 binding(shared, true),
@@ -125,6 +136,43 @@ impl Fixture {
                 );
                 std::panic::panic_any(VisibleBindingMismatch);
             }
+        }
+
+        let doc = corpus.get_document("local").unwrap();
+        assert_eq!(doc.signals().len(), self.local_mentions.len());
+        let owners = [
+            Some(self.tracks[3].track_id),
+            Some(self.tracks[4].track_id),
+            None,
+        ];
+        for ((signal_id, start), track_id) in self
+            .local_mentions
+            .into_iter()
+            .zip(LOCAL_MENTION_STARTS)
+            .zip(owners)
+        {
+            let signal = doc.get_signal(signal_id).unwrap();
+            assert_eq!(signal.surface, "Ada");
+            assert_eq!(signal.location.text_offsets(), Some((start, start + 3)));
+            assert_eq!(
+                doc.track_for_signal(signal_id).map(|track| track.id),
+                track_id
+            );
+            if let Some(track_id) = track_id {
+                assert_eq!(
+                    doc.get_track(track_id).unwrap().signals(),
+                    &[SignalRef {
+                        signal_id,
+                        position: 0
+                    }]
+                );
+            }
+            // The track-level binding was checked against the oracle above. A caller
+            // following the mention must see exactly that identity, or no identity.
+            assert_eq!(
+                doc.identity_for_signal(signal_id),
+                track_id.and_then(|id| doc.identity_for_track(id))
+            );
         }
     }
 
