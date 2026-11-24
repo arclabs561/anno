@@ -223,6 +223,7 @@ impl Corpus {
             &assignment.kb_id,
             &assignment.canonical_name,
         )?;
+        self.protect_reviewed_bindings(&assignment.affected_tracks);
         // Accepting a proposal retires competing reviews even for an unchanged target.
         self.state_mut();
         Ok(KbAssignmentReceipt {

@@ -83,6 +83,9 @@ pub enum Commands {
     #[command(hide = true)]
     Analyze(commands::AnalyzeArgs),
 
+    /// Deliver and review grounded documents in a durable local corpus
+    Corpus(commands::corpus::CorpusArgs),
+
     /// Work with NER datasets
     #[command(visible_alias = "ds")]
     #[command(hide = true)]

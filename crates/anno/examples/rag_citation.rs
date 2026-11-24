@@ -7,11 +7,16 @@
 //! The search rule is a literal sentence lookup. No extractor, ranker or language
 //! model is evaluated here.
 
-use anno::core::grounded::html_source::source_sha256;
-use anno::offset::chars_to_bytes;
+use anno::citation::{
+    Correspondence, EditorialReview, Successor, SuccessorDecision, TextCitation, TextEdition,
+};
+use anno::offset::CharRange;
 use anno::rag::resolve_for_rag;
 use anno::{GroundedDocument, Identity, Signal, SignalId};
+use std::collections::BTreeMap;
 
+const STREAM: &str = "sound-archive";
+const FIRST_EDITION: &str = "printed-1";
 const NAME: &str = "Éva Lorn";
 const QUERY: &str = "Éva Lorn recorded";
 
@@ -28,18 +33,15 @@ fn note(id: &str, text: &str, catalog: &str) -> (GroundedDocument, SignalId) {
 }
 
 struct Hit {
-    doc_id: String,
-    source_digest: String,
+    citation: TextCitation,
     subject: SignalId,
-    start: usize,
     pronoun_end: usize,
-    sentence_end: usize,
     indexed_sentence: String,
     flat_accession: String,
 }
 
 impl Hit {
-    fn from_note(doc: &GroundedDocument, subject: SignalId) -> Self {
+    fn from_note(doc: &GroundedDocument, subject: SignalId, source_revision: &str) -> Self {
         let entities = doc.to_entities();
         let result = resolve_for_rag(doc.text(), &entities, None);
         let [rewrite] = result.rewrites.as_slice() else {
@@ -57,34 +59,39 @@ impl Hit {
         // The observation is the final sentence in each of these two notes.
         let (_, indexed) = result.text.split_once(". ").unwrap();
         Hit {
-            doc_id: doc.id().into(),
-            source_digest: source_sha256(doc.text()),
+            citation: TextEdition::new(STREAM, source_revision, doc)
+                .unwrap()
+                .cite(CharRange::from_raw(
+                    rewrite.start,
+                    doc.text().chars().count(),
+                ))
+                .unwrap(),
             subject,
-            start: rewrite.start,
             pronoun_end: rewrite.end,
-            sentence_end: doc.text().chars().count(),
             indexed_sentence: indexed.into(),
             flat_accession: flat_subject.kb_id.clone().unwrap(),
         }
     }
 
-    fn source_quote<'a>(&self, doc: &'a GroundedDocument) -> Option<&'a str> {
-        if doc.id() != self.doc_id || source_sha256(doc.text()) != self.source_digest {
-            return None;
-        }
-        let (start, end) = chars_to_bytes(doc.text(), self.start, self.sentence_end);
-        doc.text().get(start..end)
+    fn source_quote<'a>(
+        &self,
+        doc: &'a GroundedDocument,
+        source_revision: &str,
+    ) -> Option<&'a str> {
+        let edition = TextEdition::new(STREAM, source_revision, doc).ok()?;
+        self.citation.open(Some(&edition)).ok()
     }
 
     fn quote_for<'a>(
         &self,
         doc: &'a GroundedDocument,
+        source_revision: &str,
         catalog: &str,
         key: &str,
     ) -> Option<&'a str> {
-        let quote = self.source_quote(doc)?;
+        let quote = self.source_quote(doc, source_revision)?;
         let subject = doc.get_signal(self.subject)?;
-        if subject.text_offsets() != Some((self.start, self.pronoun_end)) {
+        if subject.text_offsets() != Some((self.citation.range.start.get(), self.pronoun_end)) {
             return None;
         }
         let current = doc.identity_for_signal(self.subject)?.qualified_kb_ref()?;
@@ -129,13 +136,17 @@ fn main() {
         "Éva Lorn set a gauge. She recorded the tide.",
         "tides",
     );
-    let music_hit = Hit::from_note(&music, music_subject);
-    let tides_hit = Hit::from_note(&tides, tides_subject);
+    let music_hit = Hit::from_note(&music, music_subject, FIRST_EDITION);
+    let tides_hit = Hit::from_note(&tides, tides_subject, FIRST_EDITION);
     let rows = [(&music_hit, &music), (&tides_hit, &tides)];
 
     let original = rows
         .iter()
-        .filter(|(hit, doc)| hit.source_quote(doc).unwrap().contains(QUERY))
+        .filter(|(hit, doc)| {
+            hit.source_quote(doc, FIRST_EDITION)
+                .unwrap()
+                .contains(QUERY)
+        })
         .count();
     let hits: Vec<_> = rows
         .iter()
@@ -147,7 +158,7 @@ fn main() {
         .count();
     let answers: Vec<_> = hits
         .iter()
-        .filter_map(|(hit, doc)| hit.quote_for(doc, "music", "17"))
+        .filter_map(|(hit, doc)| hit.quote_for(doc, FIRST_EDITION, "music", "17"))
         .collect();
     assert_eq!((original, hits.len(), by_accession), (0, 2, 2));
     assert_eq!(answers, ["She recorded the chime."]);
@@ -166,21 +177,74 @@ fn main() {
 
     let revised = GroundedDocument::new(music.id(), music.text().replace("bell", "gong"));
     assert!(revised.text().ends_with(answers[0]));
-    assert!(music_hit.source_quote(&revised).is_none());
-    let (start, end) = chars_to_bytes(revised.text(), music_hit.start, music_hit.sentence_end);
-    assert_eq!(revised.text().get(start..end), Some(answers[0]));
-    println!("The quote still occupies the same range in the edited text. The citation selects the original edition.");
+    let original_edition = TextEdition::new(STREAM, FIRST_EDITION, &music).unwrap();
+    let new_edition = TextEdition::new(STREAM, "printed-2", &revised).unwrap();
+    assert!(music_hit.citation.open(Some(&new_edition)).is_err());
+    let review = |decisions| {
+        Some(EditorialReview {
+            authority: "archive-editor",
+            through_revision: 4,
+            decisions,
+        })
+    };
+    let Successor::Candidates { ranges, .. } = music_hit
+        .citation
+        .successor(&original_edition, &new_edition, 0, None)
+        .unwrap()
+    else {
+        panic!("no reviewed correspondence")
+    };
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(
+        new_edition
+            .cite(ranges[0])
+            .unwrap()
+            .open(Some(&new_edition))
+            .unwrap(),
+        answers[0]
+    );
+    // The editor's independent correspondence can be stored with the two edition locators.
+    let decisions = [SuccessorDecision {
+        original: music_hit.citation.clone(),
+        target: new_edition.locator().clone(),
+        authority: "archive-editor".into(),
+        revision: 4,
+        correspondence: Correspondence::Confirmed(music_hit.citation.range),
+    }];
+    assert!(matches!(
+        music_hit
+            .citation
+            .successor(&original_edition, &new_edition, 0, review(&decisions)),
+        Ok(Successor::Confirmed { .. })
+    ));
+    println!("The later edition contains one matching quote. The editor confirmed its correspondence at revision 4.");
 
     let mut corrected = music.clone();
     let track = corrected.track_for_signal(music_subject).unwrap().id;
     let new_record = corrected.add_identity(Identity::from_kb(0, NAME, "music", "23"));
     corrected.link_track_to_identity(track, new_record);
-    assert_eq!(music_hit.source_quote(&corrected), Some(answers[0]));
-    assert!(music_hit.quote_for(&corrected, "music", "17").is_none());
     assert_eq!(
-        music_hit.quote_for(&corrected, "music", "23"),
+        music_hit.source_quote(&corrected, FIRST_EDITION),
         Some(answers[0])
     );
-    println!("The catalog correction preserves the source quote and moves the supported answer from music/17 to music/23.");
+    // A catalog reader selects an authorized annotation snapshot separately from the
+    // cited print edition. Keys in this example are scoped to this note and print edition.
+    let snapshots = BTreeMap::from([
+        (("music-editor", 1u64), &music),
+        (("music-editor", 3), &corrected),
+        (("first-cataloguer", 3), &music),
+    ]);
+    let as_of = |authority, revision, accession: &str| {
+        let (_, snapshot) = snapshots
+            .range((authority, 0)..=(authority, revision))
+            .next_back()?;
+        music_hit.quote_for(snapshot, FIRST_EDITION, "music", accession)
+    };
+    assert_eq!(as_of("music-editor", 1, "17"), Some(answers[0]));
+    assert_eq!(as_of("music-editor", 3, "23"), Some(answers[0]));
+    assert_eq!(as_of("music-editor", 3, "17"), None);
+    assert_eq!(as_of("first-cataloguer", 3, "17"), Some(answers[0]));
+    assert_eq!(as_of("music-editor", 0, "17"), None);
+    println!("The printed quote stays available. The music editor recorded accession 17 at revision 1 and 23 at revision 3.");
     inspect_partial_note();
 }

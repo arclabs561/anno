@@ -45,3 +45,32 @@ Compare queues at equal operator time or equal case volume. Measure omitted gold
 A team corrects the gold labels on a document and wants to compare two models under the revised policy. The source digest stays the same. In an original CLI probe the pattern model extracted `bench@example.org` from “Return sensor logs to bench@example.org.” The first gold snapshot labeled character range `[22, 39)` as `EMAIL`. The second used `entities: []` after the caller elected to exclude shared mailboxes. The model's prediction stayed fixed. Scoring against the first and second snapshots independently yielded F1 scores of 1.0 and 0.0. Passing both rows together yielded 1.0. Repeating only the first row yielded 0.667, with an extra false negative. The single-text gold loader combines entity arrays from every row, including valid fragments of one annotation. It verifies a supplied source digest and document ID but has no operation to supersede an earlier judgment. [Gold loader](../../crates/anno-cli/src/cli/utils.rs) · [Evaluation caller](../../crates/anno-cli/src/cli/commands/eval.rs)
 
 A corpus adapter should identify the dataset policy and adjudicated revision for each document, select that snapshot, and then pass its fragments to the scorer. Keep an empty accepted snapshot distinguishable from a document that nobody annotated. Two adjudicators can label the same span differently. Preserve both judgments until the evaluation declares which policy or adjudication governs the run. An acceptance test can replay either delivery twice, select the revised policy, and still count exactly one false positive. Selecting the historical policy should still yield the original score. Deduplicating arbitrary annotations by span would erase legitimate overlapping labels.
+
+### Keeping a reviewed corpus across restarts
+
+`anno corpus` stores accepted grounded document deliveries and reviewed catalog assignments in one SQLite journal. For example, use this request file to deliver the exact bytes of `program.json`. Give each member of a batch its own delivery ID so a subset can be retried independently.
+
+```json
+{"kind":"delivery","request":{"issuer":"programs","delivery_id":"issue-4/doc-7","source_revision":4,"ownership":{"mode":"independent"}}}
+```
+
+```sh
+anno corpus --store program.sqlite apply request.json --document program.json
+```
+
+Save the returned `receipt.document_id` to read the current grounded document with `anno corpus --store program.sqlite read <document-id>`. An exact replay returns the original receipt, even after a review has changed the current state. Use a later source revision and a fresh delivery ID for a genuine update. The caller authenticates the issuer and decides who may restore the same original corpus or access the database.
+
+An assignment file identifies the live track and proposed catalog binding. Copy the track ID from the current document. In this example the document's embedded ID was `doc-7`.
+
+```json
+{"kind":"assignment","trigger":{"doc_id":"8:programs/doc-7","track_id":0},"kb_name":"artists","kb_id":"42","canonical_name":"Nera"}
+```
+
+```sh
+anno corpus --store program.sqlite preview correction.json
+anno corpus --store program.sqlite apply correction.json --approval "$REVIEWED_APPROVAL"
+```
+
+Inspect the affected tracks before supplying the approval token. Follow the same preview/apply sequence with `--document` for an incoming revision that conflicts with a reviewed binding. The token binds the operation, payload, displayed scope, and exact journal head. The assignment and delivery commands serialize writers. Each accepted journal row commits the operation, the original document bytes, the scope and the receipt together. A reader reconstructs its corpus from one SQLite snapshot. Replaying an already committed approval returns its original receipt.
+
+This adapter targets local corpora where replaying the retained history per command is affordable. All accepted deliveries stay recognizable for the life of the journal. Back up the whole SQLite database with SQLite's backup facilities. Reconstructing an empty database from current document exports loses the delivery and review history. If a later version computes a different review scope or receipt during recovery, the command reports the incompatible event. Keep the prior executable and database available for a reviewed migration.

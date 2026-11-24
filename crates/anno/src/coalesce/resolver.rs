@@ -62,6 +62,13 @@ use crate::core::grounded::CorefTrackType;
 use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackRef};
 use std::collections::{BTreeMap, HashMap};
 
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum PairMeasure {
+    WordJaccard,
+    ScaledEmbeddingCosine,
+}
+
 /// Coalescer for inter-document entity resolution.
 #[derive(Debug, Clone)]
 pub struct Resolver {
@@ -110,6 +117,22 @@ impl Resolver {
         similarity_threshold: Option<f32>,
         require_type_match: Option<bool>,
     ) -> Vec<IdentityId> {
+        self.resolve_with_edges(
+            corpus,
+            similarity_threshold,
+            require_type_match,
+            |_, _, _, _| {},
+        )
+    }
+
+    /// Report exactly the edges accepted in this run, before transitive closure.
+    pub(super) fn resolve_with_edges(
+        &self,
+        corpus: &mut Corpus,
+        similarity_threshold: Option<f32>,
+        require_type_match: Option<bool>,
+        mut accept: impl FnMut(&TrackRef, &TrackRef, f32, PairMeasure),
+    ) -> Vec<IdentityId> {
         let threshold = similarity_threshold.unwrap_or(self.similarity_threshold);
         let type_match = require_type_match.unwrap_or(self.require_type_match);
 
@@ -122,19 +145,20 @@ impl Resolver {
             embedding: Option<Vec<f32>>,
         }
 
-        fn similarity(a: &TrackData, b: &TrackData) -> Option<f32> {
+        fn similarity(a: &TrackData, b: &TrackData) -> Option<(f32, PairMeasure)> {
             match (&a.embedding, &b.embedding) {
-                (Some(left), Some(right)) if left.len() == right.len() => {
-                    Some(embedding_similarity(left, right))
-                }
+                (Some(left), Some(right)) if left.len() == right.len() => Some((
+                    embedding_similarity(left, right),
+                    PairMeasure::ScaledEmbeddingCosine,
+                )),
                 _ if a.canonical_surface.trim().is_empty()
                     || b.canonical_surface.trim().is_empty() =>
                 {
                     None
                 }
-                _ => Some(string_similarity(
-                    &a.canonical_surface,
-                    &b.canonical_surface,
+                _ => Some((
+                    string_similarity(&a.canonical_surface, &b.canonical_surface),
+                    PairMeasure::WordJaccard,
                 )),
             }
         }
@@ -143,7 +167,7 @@ impl Resolver {
             let mut minimum = None;
             for (position, &left) in members.iter().enumerate() {
                 for &right in &members[position + 1..] {
-                    let score = similarity(&tracks[left], &tracks[right])?;
+                    let (score, _) = similarity(&tracks[left], &tracks[right])?;
                     minimum = Some(minimum.map_or(score, |previous: f32| previous.min(score)));
                 }
             }
@@ -229,7 +253,10 @@ impl Resolver {
                     continue;
                 }
 
-                if similarity(track_a, track_b).is_some_and(|score| score >= threshold) {
+                if let Some((score, measure)) =
+                    similarity(track_a, track_b).filter(|(score, _)| *score >= threshold)
+                {
+                    accept(&track_a.track_ref, &track_b.track_ref, score, measure);
                     union(&mut union_find, &mut rank, i, j);
                 }
             }

@@ -259,3 +259,65 @@ fn resolved_grounded_array_can_be_imported_and_its_members_regrouped() {
     );
     assert_eq!(clusters[0]["minimum_pair_similarity"], 1.0);
 }
+
+#[test]
+fn delivery_manifests_scope_documents_and_replay_original_receipts_in_the_report() {
+    let temp = tempfile::tempdir().unwrap();
+    let directory = temp.path();
+    let inputs = directory.join("inputs");
+    fs::create_dir(&inputs).unwrap();
+    let source = linked_doc("7", "library", "17");
+    fs::write(
+        inputs.join("one.json"),
+        serde_json::to_vec(&source).unwrap(),
+    )
+    .unwrap();
+    let member = |issuer: &str| {
+        json!({
+            "request": {"issuer": issuer, "delivery_id": "edition-1/7", "source_revision": 1,
+                        "ownership": {"mode": "independent"}},
+            "path": "one.json"
+        })
+    };
+    let manifest = json!([member("east"), member("west"), member("east")]);
+    fs::write(
+        inputs.join("deliveries.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+    let output = success(anno(
+        directory,
+        &["cross-doc", "--delivery-manifest", "inputs/deliveries.json"],
+    ));
+    let report: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(report["metadata"]["documents_processed"], 2);
+    let receipts = &report["deliveries"];
+    assert_eq!(receipts[0]["applied"], receipts[2]["previously_applied"]);
+    assert_eq!(receipts[0]["applied"]["applied_revision"], 1);
+    assert_eq!(receipts[1]["applied"]["applied_revision"], 2);
+    assert_ne!(
+        receipts[0]["applied"]["document_id"],
+        receipts[1]["applied"]["document_id"]
+    );
+
+    let mut conflict = member("east");
+    conflict["request"]["source_revision"] = json!(2);
+    fs::write(
+        inputs.join("conflict.json"),
+        serde_json::to_vec(&json!([member("east"), conflict])).unwrap(),
+    )
+    .unwrap();
+    let failed = anno(
+        directory,
+        &[
+            "cross-doc",
+            "--delivery-manifest",
+            "inputs/conflict.json",
+            "--output",
+            "unpublished.json",
+        ],
+    );
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("different bytes or intent"));
+    assert!(!directory.join("unpublished.json").exists());
+}

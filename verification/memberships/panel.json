@@ -1,0 +1,25 @@
+{
+  "design": "Constructed registers with authored person IDs. Dates order synthetic accession batches. The later cases were fixed before running the comparison. Neither sample estimates real prevalence.",
+  "development": {
+    "as_of": "2024-01-01",
+    "topics": [
+      {"topic": "Ferry trials", "rows": [["Om", "a"], ["OM", "a"], ["Om", "b"], ["Om", "b"], ["Ax", "c"]]},
+      {"topic": "Lantern repairs", "rows": [["月", "a"], ["月", "a"], ["木", "b"], ["木", "c"]]},
+      {"topic": "Handpress fair", "rows": [["É", "a"], ["É", "a"], ["Noé", "b"], ["Noé", "b"], ["Noe", "c"]]},
+      {"topic": "Observatory shifts", "rows": [["Ira", "a"], ["Ira", "b"], ["Nerina", "c"], ["Nerine", "c"], ["Nerino", "d"]]},
+      {"topic": "Registry day", "rows": [["Mira Vale", "a"], ["Mira", "a"], ["Vale", "b"], ["Vale Rowan", "b"], ["Mira Vale", "c"]]},
+      {"topic": "Theatre calls", "rows": [["夏川", "a"], ["夏川", "a"], ["夏川", "b"], ["Noki", "c"], ["Noki", "c"], ["Naki", "d"]]},
+      {"topic": "Rotunda exhibition", "rows": [["O", "a"], ["O", "a"], ["Q", "b"], ["Q", "c"]]}
+    ]
+  },
+  "later": {
+    "as_of": "2025-01-01",
+    "topics": [
+      {"topic": "New bridge between repeat credits", "rows": [["Lio", "p"], ["Lio", "p"], ["Mere", "q"], ["Mere", "q"], ["Lio Mere", "p"]]},
+      {"topic": "One person with two credit forms", "rows": [["Eska", "p"], ["Noor", "p"], ["Eska Noor", "p"]]},
+      {"topic": "Two people at one desk", "rows": [["泉", "p"], ["泉", "q"], ["Ziva", "r"], ["Ziva", "r"]]},
+      {"topic": "Reordered source names", "rows": [["Mara Sol", "p"], ["Sol Mara", "p"], ["Sol", "q"], ["Mara", "p"]]},
+      {"topic": "Later moving byline", "rows": [["Ada", "p"], ["Penn", "p"], ["Ada Penn", "p"], ["Penn Keil", "q"], ["Keil", "q"]]}
+    ]
+  }
+}

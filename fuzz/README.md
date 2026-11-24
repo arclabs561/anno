@@ -1,5 +1,33 @@
 # Fuzzing anno
 
+## Document deliveries
+
+The `document_delivery` target replays up to 48 operation bytes against an in-memory corpus. Its independent ledger records accepted issuer/token pairs and source revisions. Six synthetic source slots declare which readers share an owner. After every operation the oracle follows each source mention to its track and catalog record, then compares the full scope of a proposed correction with the declared ownership. Historical retries must return their original receipt, including its sequence and the digest of the original bytes.
+
+Digits `0`–`5` select a source. Slots 0 and 1 restore the same issuer and origin. Slots 3 and 4 vary the issuer and origin respectively. Independent forks 2 and 5 reuse a local ID across issuers. All payloads start with the same numeric owner and catalog fields.
+
+| Operations | Effect |
+|---|---|
+| `a`, `A` | Submit the next source revision. When a reviewed binding disagrees with an edit, `a` drops the proposal and `A` approves it. |
+| `c` | Use the same token regardless of issuer or document. |
+| `r`, `R` | Retry the first or the latest accepted delivery for the selected source. |
+| `x`, `v`, `o` | Reuse the first accepted token with changed wire whitespace, revision or ownership. |
+| `s`, `b` | Use a new token at the current or a lower revision. |
+| `p`, `!` | Prepare and apply a catalog correction. The model predicts whether the pending preview is still current. |
+
+Run the retained, project-authored [seed histories](seeds/document_delivery/) on stable Rust. Their expected operation outcomes and final bindings are recorded in the [Cargo test](../crates/anno/tests/document_delivery_seeds.rs).
+
+```sh
+cargo test --locked -p anno --no-default-features --test document_delivery_seeds
+mkdir -p fuzz/corpus/document_delivery
+cargo +nightly-2026-05-01 fuzz run --dev --sanitizer address document_delivery \
+  fuzz/corpus/document_delivery fuzz/seeds/document_delivery -- -runs=1000 -max_len=48
+```
+
+Replay a minimized input on stable Rust by setting `ANNO_DELIVERY_INPUT` to its path and running `cargo test --locked -p anno --no-default-features --test document_delivery_seeds replay_local_delivery_input -- --ignored`.
+
+Keep local inputs and minimized failures under the ignored `fuzz/corpus/` and `fuzz/artifacts/` directories. Promote an original synthetic reproducer by adding its bytes and independent reader expectation to the shared seed replay. The generated histories exercise the in-memory session API.
+
 ## Reviewed catalog assignments
 
 The `reviewed_kb` target mutates short sequences of catalog operations. Each input starts with both document-local identities and identities shared across documents. Several records have identical visible names and catalog keys. The oracle checks who acquired the new binding, who kept the old one, and whether a stale or foreign approval was rejected. It also follows three identical source mentions through their tracks after each operation. Two belong to different sibling tracks and the third stays unassigned.

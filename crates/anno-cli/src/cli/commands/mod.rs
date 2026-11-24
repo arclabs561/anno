@@ -10,6 +10,7 @@ pub mod cache;
 pub mod compare;
 pub mod config;
 pub mod context;
+pub mod corpus;
 pub mod dataset;
 pub mod debug;
 pub mod domain;

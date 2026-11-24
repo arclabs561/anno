@@ -8,6 +8,8 @@ on:
       - 'crates/anno/src/coalesce/**'
       - 'crates/anno/tests/reviewed_kb*.rs'
       - 'crates/anno/tests/support/reviewed_kb*.rs'
+      - 'crates/anno/tests/document_delivery*.rs'
+      - 'crates/anno/tests/support/document_delivery.rs'
       - 'crates/anno/Cargo.toml'
       - 'Cargo.toml'
   schedule:
@@ -36,22 +38,24 @@ jobs:
         run: cargo install --locked cargo-fuzz --version 0.13.2
       - name: Resolve locked fuzz dependencies
         run: cargo +nightly-2026-05-01 fetch --locked --manifest-path fuzz/Cargo.toml
-      - name: Exercise reviewed assignments
+      - name: Exercise reviewed assignments and document deliveries
         shell: bash
         run: |
-          mkdir -p fuzz/corpus/reviewed_kb
           if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
             budget=-runs=1000
           else
             budget=-max_total_time=300
           fi
-          cargo +nightly-2026-05-01 fuzz run --dev --sanitizer address reviewed_kb \
-            fuzz/corpus/reviewed_kb fuzz/seeds/reviewed_kb -- "$budget" -max_len=48
+          for target in reviewed_kb document_delivery; do
+            mkdir -p "fuzz/corpus/$target"
+            cargo +nightly-2026-05-01 fuzz run --dev --sanitizer address "$target" \
+              "fuzz/corpus/$target" "fuzz/seeds/$target" -- "$budget" -max_len=48
+          done
       - name: Save failing inputs and resolved dependencies
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: reviewed-kb-fuzz-reproducer
           path: |
-            fuzz/artifacts/reviewed_kb/
+            fuzz/artifacts/
             fuzz/Cargo.lock
