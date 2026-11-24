@@ -8,6 +8,7 @@ import shutil
 
 import check_span_assertions as judge
 import export_muxer_summary
+import domain_coverage
 
 WIKIGOLD = export_muxer_summary.WIKIGOLD
 
@@ -63,7 +64,7 @@ def annotated_sentence(block):
 def describe(root, case):
     text, gold = sentence(case)
     sources = []
-    for file in (Path(__file__), Path(judge.__file__), Path(export_muxer_summary.__file__)):
+    for file in (Path(__file__), Path(judge.__file__), Path(export_muxer_summary.__file__), Path(domain_coverage.__file__)):
         data = file.read_bytes()
         if data != (root / "scripts/qa" / file.name).read_bytes():
             raise ValueError(f"{file.name} differs from the replay checkout")
@@ -86,7 +87,7 @@ def replay(root, case):
         raise FileNotFoundError("offline WikiGold replay needs anno on PATH or ANNO_BIN")
     binary = Path(found).resolve()
     producer = binary_digest(binary)
-    row, = judge.run_batch({case: {"text": text}}, str(binary), "stacked")
+    row, = judge.run_batch({case: {"text": text}}, str(binary), "stacked", require_native_metadata=True)
     if binary_digest(binary) != producer:
         raise ValueError("extractor changed during replay")
     if (row.get("id") != case or row.get("model") != "stacked"

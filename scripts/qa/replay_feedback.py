@@ -13,9 +13,10 @@ import subprocess
 
 import replay_reviewed_kb
 import replay_typed_spans
+import replay_wikigold
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans}
+ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold}
 DB_NAME = "replay-feedback.db"
 
 
@@ -222,6 +223,7 @@ def main():
     sub.add_parser("snapshot").add_argument("file", type=Path)
     sub.add_parser("restore").add_argument("file", type=Path)
     args = p.parse_args()
+    os.environ.setdefault("ANNO_CACHE_DIR", str(args.cache_dir.resolve()))
     if args.command in ("snapshot", "restore"):
         ledger = args.cache_dir / DB_NAME
         if args.command == "snapshot":

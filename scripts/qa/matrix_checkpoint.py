@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 
 
-STATE_FILES = {"linucb_global_state.json", "eval-results.jsonl", "eval-history.db", "replay-feedback.db"}
+STATE_FILES = {"linucb_global_state.json", "eval-results.jsonl", "eval-history.db"}
 
 
 def state_file(name):
@@ -117,7 +117,7 @@ def snapshot(root, target, logs, journal_start=0):
     target.mkdir()
     for src in files:
         dest = target / src.name
-        if src.suffix == ".db":
+        if src.name == "eval-history.db":
             # A copied main database can miss committed pages in its WAL.
             with sqlite3.connect(f"{src.resolve().as_uri()}?mode=ro", uri=True) as source, sqlite3.connect(dest) as backup:
                 source.backup(backup)

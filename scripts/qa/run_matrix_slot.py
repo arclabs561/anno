@@ -21,7 +21,7 @@ def choose_strategy(policy, slot, period, coverage_slot):
     return "estimate" if (slot - 1) % period + 1 == coverage_slot else "worst-first"
 
 
-def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed, plan_only=False, replay_history=False):
+def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed, plan_only=False, replay_history=True):
     strategy = choose_strategy(policy, slot, period, coverage_slot)
     if not 0 <= seed < 2**64:
         raise ValueError("seed must fit an unsigned 64-bit integer")
@@ -87,9 +87,10 @@ def main():
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--test-binary", type=Path, help="previously built anno-eval library test executable")
     p.add_argument("--plan-only", action="store_true", help="seal a selection without scoring it")
-    p.add_argument("--replay-history", action="store_true",
-                   help="spend at most one triage slot per block on a confirmed replay")
+    p.add_argument("--replay-history", action=argparse.BooleanOptionalAction, default=True,
+                   help="use a vetted ledger for at most one triage slot per block (default: enabled)")
     args = p.parse_args()
+    os.environ.setdefault("ANNO_CACHE_DIR", str(args.cache_dir.resolve()))
     binary = args.test_binary.resolve() if args.test_binary else None
     run_slot(binary, args.cache_dir, args.receipts, args.policy, args.slot, args.period,
              args.coverage_slot, args.seed, args.plan_only, args.replay_history)
