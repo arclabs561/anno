@@ -1,6 +1,6 @@
 //! Document with extraction results attached.
 
-use crate::{CorefChain, Entity, GroundedDocument, Language, Model, Relation, Result, StackedNER};
+use crate::{CorefChain, Entity, GroundedDocument, Language, Model, Relation, Result};
 
 /// Text paired with its extraction outputs (entities, relations, coreference chains).
 ///
@@ -65,7 +65,7 @@ impl AnnotatedDoc {
 
 /// Extract entities from text using the default backend and return an [`AnnotatedDoc`].
 ///
-/// Creates a [`StackedNER`] and populates entities. Relations and coreference chains
+/// Uses [`crate::extract`] to populate entities. Relations and coreference chains
 /// are left empty (the default backend does not produce them).
 ///
 /// For control over backend selection or language hints, construct an [`AnnotatedDoc`]
@@ -78,8 +78,7 @@ impl AnnotatedDoc {
 /// # Ok::<(), anno::Error>(())
 /// ```
 pub fn annotate(text: &str) -> Result<AnnotatedDoc> {
-    let model = StackedNER::default();
-    let entities = model.extract_entities(text, None)?;
+    let entities = crate::extract(text)?;
     Ok(AnnotatedDoc::new(text, entities, Vec::new(), Vec::new()))
 }
 
@@ -95,8 +94,8 @@ pub fn annotate(text: &str) -> Result<AnnotatedDoc> {
 /// # Ok::<(), anno::Error>(())
 /// ```
 pub fn annotate_grounded(id: impl Into<String>, text: &str) -> Result<GroundedDocument> {
-    let model = StackedNER::default();
-    annotate_grounded_with(&model, id, text, None)
+    let entities = crate::extract(text)?;
+    Ok(GroundedDocument::from_entities(id, text, &entities))
 }
 
 /// Extract one document with `model` into a [`GroundedDocument`].
@@ -216,6 +215,14 @@ mod tests {
         assert!(doc.entities.is_empty());
         assert!(doc.relations.is_empty());
         assert!(doc.coref_chains.is_empty());
+    }
+
+    #[test]
+    fn empty_grounded_document_retains_its_id() {
+        let doc = annotate_grounded("empty", "").unwrap();
+        assert_eq!(doc.id(), "empty");
+        assert!(doc.text().is_empty());
+        assert!(doc.signals().is_empty());
     }
 
     #[test]

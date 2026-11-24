@@ -94,6 +94,14 @@ The coordinator measures elapsed time from dispatch to observed completion, incl
 
 The trace records file digests. Its top-level `revision` and `tracked_changes` describe the coordinator checkout when the round started. Record each tested binary’s SHA-256, build revision and features alongside its replay result to identify the baseline and candidate. Keep raw prompts, responses and source documents in the private round directory. Review any report before sharing, and use public or approved material in prompts sent to an external model. [Span assertion contracts](QA.md#check-what-a-negative-span-means)
 
+## Challenge the judge itself
+
+For a span assertion, start with a successful batch receipt from an authored fixture. Keep one copy as a control and duplicate a single entity row in a second copy, updating the reported entity count if present. Both copies still contain the expected text, offsets and type. A caller that counts occurrences can distinguish them. Use `expected_count: 1` in the exact-span rule when that distinction belongs to the fixture contract. An assertion that asks only whether the span is present should pass on both copies.
+
+Have an independent reviewer freeze three possible outcomes for each case before running the judge: pass, assertion failure, or invalid input. Include a repeated surface at another offset, a legitimate nested span and a mismatched source digest. Compare the baseline and candidate on the same receipts. Report missed assertion failures, false alarms on valid controls and mishandled invalid inputs separately. A seeded duplicate can establish a scorer blind spot; estimating how often the extractor produces it requires unmodified outputs.
+
+When comparing mutation policies, hold the oracle and mutation recipe fixed, include a clean producer, and charge the immediate confirmation replay to the same CPU budget as discovery. Count distinct confirmed causes at the cutoff and record the time spent on repeated confirmations. A known case can be valuable to verify a repair even when it finds no additional cause.
+
 ## From a panel to a decision
 
 The fixed WikiGold panel can stay green even if organization boundaries fail around punctuation. Two explanations are that the backend mishandles aliases generally or that token spacing masks the bug. Keep the ordinary corpus as the control. Have the scout remove only the spaces immediately inside parentheses and have the reviewer remap the gold offsets to the transformed text. Run both versions on both renderings.
