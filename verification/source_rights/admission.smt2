@@ -61,8 +61,11 @@
 (assert share-seed)
 (check-sat)
 (pop)
+; Mutant intentionally drops the source, scope and attribution checks.
+(define-fun trust-replay-alone () Bool
+  (and registered-seed (= evidence IndependentReplay)))
 (echo "trusting-replay-alone-allows-a-restricted-source")
 (push)
-(assert (and (= source LocalOnly) (= evidence IndependentReplay) registered-seed))
+(assert (and (= source LocalOnly) trust-replay-alone (not share-seed)))
 (check-sat)
 (pop)
