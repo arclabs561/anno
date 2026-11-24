@@ -137,6 +137,10 @@ def run(args, work, fixture_url=None):
         if not any(e["text"] == "Ada" and (e["start"], e["end"]) == (0, 3)
                    and e["type"].lower() in {"per", "person"} for e in entities):
             raise ValueError(f"Anno omitted the expected person and offsets: {entities!r}")
+        if len(entities) > 1:
+            if fixture_url:
+                raise ValueError(f"Expected a single entity from the fixture, got {entities!r}")
+            print(f"Configured model returned the expected person and {len(entities) - 1} extra entities.")
 
 
 def main():
