@@ -67,6 +67,16 @@ def main():
             receipt["assignment"]["previous"]["identity_id"] = receipt["identity_id"] + 1
             assert run("show", archive=json.dumps(changed), check=False).returncode != 0
 
+            changed = json.loads(archive)
+            identity = changed["document"]["identities"][str(decision["receipt"]["identity_id"])]
+            identity["source"]["KnowledgeBase"]["kb_id"] = "musician"
+            assert run("show", archive=json.dumps(changed), check=False).returncode != 0
+        else:
+            for key, invalid in [("kb_id", ""), ("kb_name", "  "), ("kb_name", " UNKNOWN ")]:
+                changed = json.loads(archive)
+                changed["decision"]["proposal"][key] = invalid
+                assert run("show", archive=json.dumps(changed), check=False).returncode != 0
+
         # Substitute the homonym's signal ID while retaining the selected occurrence's range.
         evidence["signal_id"] = other
         assert run("show", archive=json.dumps(record), check=False).returncode != 0

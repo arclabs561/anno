@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A caller's review of a catalog correction in an original synthetic quay log.
 use anno::core::grounded::{
-    html_source::source_sha256, Corpus, IdentitySource, KbAssignment, KbAssignmentReceipt, SignalId,
+    html_source::source_sha256, Corpus, Identity, IdentitySource, KbAssignment,
+    KbAssignmentReceipt, SignalId,
 };
 use anno::{GroundedDocument, Location, Signal};
 use serde::{Deserialize, Serialize};
@@ -156,6 +157,16 @@ fn review(preview_only: bool) -> Result<()> {
     Ok(())
 }
 
+fn source_catalog_key(source: Option<&IdentitySource>) -> Option<(&str, &str)> {
+    match source {
+        Some(
+            IdentitySource::KnowledgeBase { kb_name, kb_id }
+            | IdentitySource::Hybrid { kb_name, kb_id, .. },
+        ) => Some((kb_name.as_str(), kb_id.as_str())),
+        _ => None,
+    }
+}
+
 fn show(record: Record) -> Result<()> {
     let Record {
         document,
@@ -204,24 +215,31 @@ fn show(record: Record) -> Result<()> {
         return Err("the original corpus identity should be updated in place".into());
     }
     let prior_key = previous.kb_name.as_deref().zip(previous.kb_id.as_deref());
-    let source_key = match &evidence.identity_source {
-        Some(
-            IdentitySource::KnowledgeBase { kb_name, kb_id }
-            | IdentitySource::Hybrid { kb_name, kb_id, .. },
-        ) => Some((kb_name.as_str(), kb_id.as_str())),
-        _ => None,
-    };
-    if source_key != prior_key
+    if source_catalog_key(evidence.identity_source.as_ref()) != prior_key
         || (applied_id.is_none() && current.source() != evidence.identity_source.as_ref())
     {
         return Err("recorded identity source disagrees with the prior binding".into());
     }
+    let proposed = Identity::from_kb(
+        current.id,
+        &assignment.canonical_name,
+        &assignment.kb_name,
+        &assignment.kb_id,
+    );
+    let proposed_key = proposed
+        .qualified_kb_ref()
+        .ok_or("saved proposal needs a qualified catalog target")?;
     let expected = if let Some(id) = applied_id {
+        if source_catalog_key(current.source()) != Some(proposed_key) {
+            return Err(
+                "applied identity source disagrees with the reviewed catalog target".into(),
+            );
+        }
         (
             id,
-            Some(assignment.kb_name.as_str()),
-            Some(assignment.kb_id.as_str()),
-            assignment.canonical_name.as_str(),
+            Some(proposed_key.0),
+            Some(proposed_key.1),
+            proposed.canonical_name(),
         )
     } else {
         (
