@@ -46,20 +46,21 @@ impl Channels<'_> {
         let mut best = None;
         for class in 0..self.classes {
             if self.start[start * self.stride + class] > self.threshold {
-                let mut sum = 0.0_f64;
+                // The checkpoint scores spans with a float32 inside-probability mean.
+                let mut sum = 0.0_f32;
                 for end in start..limit {
                     let i = end * self.stride + class;
                     let inside = self.inside[i];
                     if inside.is_nan() || inside < self.threshold {
                         break;
                     }
-                    sum += f64::from(inside);
+                    sum += inside;
                     if self.end[i] > self.threshold {
                         let candidate = WordSpan {
                             start,
                             end,
                             class,
-                            score: (sum / (end - start + 1) as f64) as f32,
+                            score: sum / (end - start + 1) as f32,
                         };
                         if best.as_ref().is_none_or(|prior| candidate > *prior) {
                             best = Some(candidate);
@@ -162,6 +163,16 @@ mod tests {
     }
 
     #[test]
+    fn float32_inside_mean_selects_the_upstream_three_word_span() {
+        // GLiNER v0.2.16 on float32 logits ranks the three-word mean one ULP
+        // above each singleton. Widening the sum turns that difference into a tie.
+        let spans = decode(&[2.; 9], 3, 1, 3, 1, 0.5);
+        assert_eq!(spans.len(), 1);
+        assert_eq!((spans[0].start, spans[0].end, spans[0].class), (0, 2, 0));
+        assert!((spans[0].score - 0.880_797_1).abs() < 1e-6);
+    }
+
+    #[test]
     fn tensor_strides_include_padded_words_and_classes() {
         let mut logits = [-3.; 18]; // 3 planes x 3 words x 2 classes
         for offset in [0, 6, 12] {
@@ -203,12 +214,12 @@ mod tests {
                         if inside.clone().any(|x| x < 0.) {
                             continue;
                         }
-                        let sum: f64 = inside.map(|x| f64::from(1.0 / (1.0 + (-x).exp()))).sum();
+                        let sum: f32 = inside.map(|x| 1.0 / (1.0 + (-x).exp())).sum();
                         reference.push(WordSpan {
                             start,
                             end,
                             class,
-                            score: (sum / (end - start + 1) as f64) as f32,
+                            score: sum / (end - start + 1) as f32,
                         });
                     }
                 }
