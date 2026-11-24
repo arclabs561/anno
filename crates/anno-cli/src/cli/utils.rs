@@ -192,6 +192,27 @@ pub fn parse_grounded_document(json: &str) -> Result<GroundedDocument, String> {
         .map_err(|e| format_error("parse GroundedDocument JSON", &e.to_string()))
 }
 
+/// Keep raw inputs addressable by their inferred document IDs.
+#[cfg(feature = "eval")]
+pub(super) fn register_document_source(
+    sources: &mut HashMap<String, String>,
+    id: &str,
+    source: impl Into<String>,
+) -> Result<(), String> {
+    use std::collections::hash_map::Entry;
+    match sources.entry(id.to_owned()) {
+        Entry::Vacant(entry) => {
+            entry.insert(source.into());
+            Ok(())
+        }
+        Entry::Occupied(entry) => Err(format!(
+            "Duplicate document ID {id:?} for {} and {}. Cross-document inputs need distinct document IDs.",
+            entry.get(),
+            source.into(),
+        )),
+    }
+}
+
 /// Format error message consistently
 pub fn format_error(operation: &str, details: &str) -> String {
     format!("Failed to {}: {}", operation, details)

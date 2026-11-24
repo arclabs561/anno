@@ -14,7 +14,7 @@ use anno::coalesce::Resolver;
 #[cfg(feature = "eval")]
 use anno::offset::TextSpan;
 #[cfg(feature = "eval")]
-use anno::{Corpus, GroundedDocument, Signal, SignalId};
+use anno::{Corpus, GroundedDocument};
 #[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 
@@ -137,7 +137,7 @@ fn context_snippet<'a>(
 /// Build the import view from current track assignments. Entity indices in
 /// CLI output refer to the signal's position in the document's flat projection.
 #[cfg(feature = "eval")]
-fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
+pub(super) fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
     #[derive(Hash, PartialEq, Eq)]
     enum Key<'a> {
         Kb(&'a str, &'a str),
@@ -472,7 +472,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         Some(clusters)
     } else {
         // Normal mode: extract from text files, use CDCRResolver (legacy path)
-        let model = args.model.create_model()?;
         // Normal mode: extract entities from text files
         // Directory is required in normal mode
         let dir = if let Some(ref dir_str) = args.directory {
@@ -490,6 +489,23 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             ));
         }
 
+        files.sort();
+        let mut doc_ids = Vec::with_capacity(files.len());
+        for (idx, path) in files.iter().enumerate() {
+            let id = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("doc{idx}"));
+            super::super::utils::register_document_source(
+                &mut doc_paths,
+                &id,
+                path.display().to_string(),
+            )?;
+            doc_ids.push(id);
+        }
+
+        let model = args.model.create_model()?;
         if args.verbose {
             eprintln!("Found {} files", files.len());
             eprintln!("Extracting entities...");
@@ -498,7 +514,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         // NOTE: Currently operates on raw entities (Level 1: Signal)
         // With --import, can use Level 2 (Tracks) and Level 3 (Identities) from pre-processed docs
         let total_files = files.len();
-        for (idx, file_path) in files.iter().enumerate() {
+        for (idx, (file_path, doc_id)) in files.iter().zip(&doc_ids).enumerate() {
             if args.verbose {
                 eprint!(
                     "\r  Processing {}/{}: {}...",
@@ -516,38 +532,11 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             let text = fs::read_to_string(file_path)
                 .map_err(|e| format!("Failed to read {}: {}", file_path.display(), e))?;
 
-            let doc_id = file_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("doc{}", idx));
-
-            // Store file path for later display
-            doc_paths.insert(doc_id.clone(), file_path.display().to_string());
-
             let entities = model
                 .extract_entities(&text, None)
                 .map_err(|e| format!("Failed to extract entities from {}: {}", doc_id, e))?;
 
-            // Build GroundedDocument and run coreference to create tracks (Level 2)
-            // This enables using tracks instead of just raw signals for better clustering
-            let mut grounded_doc = GroundedDocument::new(&doc_id, &text);
-            let mut signal_ids: Vec<SignalId> = Vec::new();
-
-            for e in &entities {
-                let id = grounded_doc.add_signal(Signal::from(e));
-                signal_ids.push(id);
-            }
-
-            // Auto-create tracks by running within-document coreference
-            // This groups signals into tracks, improving crossdoc clustering quality
-            use super::super::utils::resolve_coreference;
-            resolve_coreference(&mut grounded_doc, &text, &signal_ids);
-
-            // Convert to CDCR Document using entities (tracks are preserved in GroundedDocument
-            // but CDCRResolver works with entities, so we use the original entities)
-            // Future enhancement: CDCRResolver could accept tracks directly
-            documents.push(Document::new(&doc_id, &text).with_entities(entities));
+            documents.push(Document::new(doc_id, &text).with_entities(entities));
         }
 
         if args.verbose {
@@ -1031,8 +1020,8 @@ mod tests {
 
     #[test]
     fn imported_clusters_use_flat_indices_once_after_enrichment() {
-        use super::{corpus_clusters, Corpus, GroundedDocument, Resolver, Signal};
-        use anno::Location;
+        use super::{corpus_clusters, Corpus, GroundedDocument, Resolver};
+        use anno::{Location, Signal};
 
         let mut doc = GroundedDocument::new("d", "x Ada Ada");
         doc.add_signal(Signal::new(0, Location::text(0, 1), "x", "OTHER", 0.5));
