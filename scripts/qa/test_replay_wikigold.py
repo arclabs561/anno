@@ -36,13 +36,24 @@ class WikiGoldReplay(unittest.TestCase):
         with (mock.patch.object(adapter, "sentence", return_value=fixture),
               mock.patch.object(adapter.judge.shutil, "which", return_value=__file__),
               mock.patch.object(adapter.judge, "run_batch", return_value=[row])):
+            failures = set()
             for entity, outcome in [
                 (dict(start=0, end=8, text="Zé Quill", type="PER"), "pass"),
                 (dict(start=0, end=8, text="Zé Quill", type="ORG"), "fail"),
                 (dict(start=0, end=2, text="Zé", type="PER"), "fail"),
             ]:
                 row["entities"] = [entity]
-                self.assertEqual(adapter.replay(Path.cwd(), "sentence-0")["outcome"], outcome)
+                result = adapter.replay(Path.cwd(), "sentence-0")
+                self.assertEqual(result["outcome"], outcome)
+                self.assertEqual(set(result), {"outcome", "signature", "producer_sha256"})
+                if outcome == "fail":
+                    self.assertRegex(result["signature"], r"^sha256:[0-9a-f]{64}$")
+                    self.assertEqual(result, adapter.replay(Path.cwd(), "sentence-0"))
+                    failures.add(result["signature"])
+                else:
+                    self.assertEqual(result["signature"], "")
+            self.assertEqual(len(failures), 2)
+
             row["entities"][0]["text"] = "different"
             with self.assertRaisesRegex(ValueError, "does not select"):
                 adapter.replay(Path.cwd(), "sentence-0")

@@ -11,7 +11,7 @@ import domain_coverage
 
 WIKIGOLD = export_muxer_summary.WIKIGOLD
 
-SCOPE = "pinned_source_contract"
+SCOPE = "pinned_source_contract_digest_v2"
 LABELS = {"PER", "ORG", "LOC", "MISC"}
 
 
@@ -93,6 +93,10 @@ def replay(root, case):
             predicted.add((entity["start"], entity["end"], label))
     missing = sorted(set(gold) - predicted)
     extra = sorted(predicted - set(gold))
-    return {"outcome": "fail" if missing or extra else "pass",
-            "signature": json.dumps({"missing": missing, "extra": extra}, separators=(",", ":")),
-            "producer_sha256": producer}
+    if not missing and not extra:
+        return {"outcome": "pass", "signature": "", "producer_sha256": producer}
+    # Receipts and the shared ledger carry an equality witness for the replay.
+    # Keep the sentence-specific gold and prediction differences local.
+    differences = json.dumps([SCOPE, WIKIGOLD, case, missing, extra], separators=(",", ":"))
+    digest = hashlib.sha256(differences.encode()).hexdigest()
+    return {"outcome": "fail", "signature": f"sha256:{digest}", "producer_sha256": producer}
