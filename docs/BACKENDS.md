@@ -239,11 +239,12 @@ use `onnx_cuda_smoke`, `onnx_coreml_smoke`, and the provider probes for that.
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Ollama) | Yes | beta | `google/gemini-2.5-flash-lite` |
+| `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Gemini/Ollama) | Yes | beta | `google/gemini-2.5-flash-lite` |
 
 Select a chat-completions endpoint for the CLI or evaluation with
 `ANNO_LLM_ENDPOINT` (the full request URL) and `ANNO_LLM_MODEL` (the model ID
-accepted by that endpoint). The optional `ANNO_LLM_API_KEY` is scoped to this
+accepted by that endpoint). Without a model ID Anno uses the native provider
+default, or the literal model ID `default` for a custom URL. The optional `ANNO_LLM_API_KEY` is scoped to this
 explicit route. With a custom endpoint, leaving the key unset sends an
 unauthenticated request. An explicitly configured Rust `LlmConfig` takes
 precedence over these three variables. Without an endpoint override Anno uses

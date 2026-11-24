@@ -232,15 +232,12 @@ impl UniversalNER {
                 ));
             }
         };
-        let mut config = LlmConfig {
+        Self::with_config(LlmConfig {
             endpoint: Some(endpoint),
+            model: var("ANNO_LLM_MODEL").unwrap_or_default(),
             api_key: var("ANNO_LLM_API_KEY").ok(),
             ..LlmConfig::default()
-        };
-        if let Some(model) = var("ANNO_LLM_MODEL").ok().filter(|m| !m.trim().is_empty()) {
-            config.model = model;
-        }
-        Self::with_config(config)
+        })
     }
 
     /// Create with a specific LLM configuration, independent of ANNO_LLM_ENDPOINT.
@@ -435,16 +432,20 @@ Output:"#
 
     #[cfg(feature = "llm")]
     fn llm_target(&self, provider: &str, api_key: &str) -> Result<LlmTarget> {
-        let model = self.config.as_ref().map_or_else(
-            || match provider {
-                "anthropic" => "claude-haiku-4-5-20251001",
-                "groq" => "llama-3.3-70b-versatile",
-                "ollama" => "llama3.2:3b",
-                "gemini" => "gemini-2.5-flash-lite",
-                _ => "google/gemini-2.5-flash-lite",
-            },
-            |config| config.model.as_str(),
-        );
+        let fallback_model = match provider {
+            "anthropic" => "claude-haiku-4-5-20251001",
+            "groq" => "llama-3.3-70b-versatile",
+            "ollama" => "llama3.2:3b",
+            "gemini" => "gemini-2.5-flash-lite",
+            "custom" => "default",
+            _ => "google/gemini-2.5-flash-lite",
+        };
+        let model = self
+            .config
+            .as_ref()
+            .map(|config| config.model.as_str())
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or(fallback_model);
         // The built-in Google presets use OpenRouter's provider-prefixed IDs.
         let model = if provider == "gemini" {
             model.strip_prefix("google/").unwrap_or(model)
