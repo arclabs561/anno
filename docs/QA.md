@@ -112,6 +112,40 @@ The scorer evaluates the same output against each gold occurrence's compact high
 
 For each boundary contract, `joined_positive / positive_pairs` measures end-to-end same-person pair recall. `joined_negative / negative_pairs` measures the fraction of distinct-person pairs merged. `covered_positive` and `covered_negative` count pairs whose endpoints were both proposed. A missed endpoint stays in the end-to-end denominator. Report zero denominators as unavailable. Unresolved references are reported separately and have no pair truth. The human–distractor counts cover pairs of an annotated human occurrence and an exact marked distractor within the same document. They expose contaminated clusters even when no distinct people were merged. These are within-document measurements. The receipt carries no external catalog or linking decisions.
 
+### Compare compact name displays
+
+Use the pinned local FCoref export described above and the stacked NER backend. Both commands below consume only IDs and verbatim text. Set `FCOREF_MODEL_DIR` to the export directory and prefetch build dependencies for an offline replay.
+
+```sh
+panel=testdata/grounded/paired_display_people.json
+out=target/qa-display
+mkdir -p "$out"
+jq '[.documents[] | {id, text}]' "$panel" > "$out/inputs.json"
+jq -c '.[]' "$out/inputs.json" > "$out/inputs.jsonl"
+ANNO_NO_DOWNLOADS=1 cargo run --offline --locked -p anno --no-default-features --features onnx \
+  --example fcoref_word_spans -- "$FCOREF_MODEL_DIR" "$out/inputs.json" > "$out/coref.json"
+ANNO_NO_DOWNLOADS=1 cargo run --offline --locked -p anno-cli --bin anno --no-default-features --features onnx,extractor-readability \
+  -- batch --stdin --format jsonl --model stacked < "$out/inputs.jsonl" > "$out/ner.jsonl"
+python3 scripts/qa/score_compact_display.py "$panel" "$out/coref.json" "$out/ner.jsonl" > "$out/scores.json"
+jq '{totals, stronger_baseline, gate, passes}' "$out/scores.json"
+```
+
+The global comparison counts each distinct source range once per document and includes all eligible name occurrences. The full-phrase baseline displays the source ranges used in decoded clusters. Standalone NER displays every PER range, including predictions on documents with no decoded phrases. On each decoded phrase the candidate displays the sole distinct fully contained PER range and abstains with zero or multiple choices. Its displays therefore form a subset of standalone NER. Reading the global counts gives selection precision as `correct / emitted` and coverage as `correct / eligible`. Zero denominators indicate an unavailable rate.
+
+For attribution, all three phrase views use the same source ranges and cluster memberships. Only an exact licensed referring expression supplies a gold occurrence owner. An explicitly protected expression requires no compact display. A nested name can be a valid standalone highlight and an incorrect assignment to its parent. A different occurrence counts as a known wrong person only when both local identities are resolved and differ. The contained-all diagnostic exposes ambiguous choices. Each document retains the paired variant ID, source occurrences, protected cases and decisions for inspection. No external identity, KB linking or new cluster inference is evaluated.
+
+The gate requires more correct global highlights than both existing baselines at no more wrong highlights than the stronger baseline (most correct, then fewest wrong). Source memberships must be preserved and no new wrong protected assignment may be introduced. Because selection only removes standalone PER ranges, the strict global gain is impossible for this candidate. Phrase-level precision and abstention describe its behavior under a different, conditional unit.
+
+On 24 November 2026, the pinned CPU model and stacked NER produced these results on the 24 paired documents. The fixture SHA-256 was `19db4b9d544ec861de0aeb81ea821487e6e47175e0a442de342ddfd6bfe46f33`. The FCoref revision was `e91dfff12879495d882ba9460d0c5d5dd44ade59`.
+
+| Display rule | Correct highlights | Wrong highlights | Eligible occurrences |
+|---|---:|---:|---:|
+| Full referring phrase | 18 | 19 | 44 |
+| Standalone stacked PER | 20 | 14 | 44 |
+| Single contained PER | 8 | 5 | 44 |
+
+The candidate dropped 12 correct and nine wrong standalone highlights. In `possessor_a`, it also selected the possessor’s name for a phrase referring to the assistant. The candidate failed both the global recovery gate and the protected-attribution gate.
+
 ## Find a dataset or add a case
 
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
