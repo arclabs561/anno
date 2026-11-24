@@ -12,6 +12,9 @@ description = "Evaluation harnesses, datasets, and muxer-backed sampling for ann
 keywords = ["ner", "evaluation", "nlp"]
 categories = ["text-processing"]
 
+# This repository QA example requires the version-matched native oracle and corpus.
+exclude = ["/examples/reviewed_seed_campaign.rs"]
+
 [lib]
 doctest = false
 
@@ -40,6 +43,10 @@ required-features = ["eval"]
 name = "muxer_audit"
 test = false
 path = "src/bin/muxer_audit.rs"
+
+[[example]]
+name = "reviewed_seed_campaign"
+required-features = ["eval"]
 
 [[example]]
 name = "muxer_decision_loop"

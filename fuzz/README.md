@@ -6,6 +6,19 @@ The `reviewed_kb` target mutates short sequences of catalog operations. Each inp
 
 The required `Test (minimal)` CI job replays the [shared seeds](seeds/reviewed_kb/) with ordinary Cargo. A separate coverage-guided job runs 1,000 inputs on relevant pull requests and five-minute campaigns weekly or when manually dispatched. CI retains failing inputs as a workflow artifact. [Seed replay](../crates/anno/tests/reviewed_kb_seeds.rs) · [Campaign workflow](../.github/workflows/reviewed-kb-fuzz.yml)
 
+### Comparing seed selection locally
+
+Run paired rounds from the repository root. The first command starts a local checkpoint. Repeat the second with consecutive round numbers. A repeated round leaves the counters unchanged.
+
+```sh
+cargo run --locked -p anno-eval --features eval --example reviewed_seed_campaign -- /tmp/reviewed-seeds.json 0
+cargo run --locked -p anno-eval --features eval --example reviewed_seed_campaign -- /tmp/reviewed-seeds.json 1
+```
+
+Each round replays the seven unmodified regression seeds, then applies the same deterministic mutation recipe to one parent chosen by Muxer UCB and one parent chosen in rotation. Each lane gets one probe and maintains its own exposure and discovery counts. A seed receives one win when the native oracle confirms a previously unseen combination of track and receipt outcome in that lane. Outcomes cover stale reviews and successful single- or two-track writes. Smoke-seed outcomes, repeated discoveries and successful execution alone add no wins. A typed visible-binding mismatch must recur on a second execution to count as a failure. It stops the campaign and identifies the lane and round for reproduction. Other panics stop the run before a checkpoint is written. These are semantic outcomes; compiler edge coverage belongs to the separate instrumented fuzz campaign.
+
+Only the seven named, first-party synthetic seeds compiled into the example can receive credit. To admit a proposed QA or judge case, reduce it to a repository-owned operation trace, review its provenance and expected outcome, add it to the shared native seed replay and then add its ID to the campaign. Holdouts and unreviewed inputs stay outside the registry. State contains the version, corpus fingerprint, round and finite per-seed counts and outcome bits. Keep the checkpoint in a trusted local directory. Schema validation does not establish the authenticity of a checkpoint from another writer. Reinitialize on a changed corpus or oracle, and bump the schema when changing the mutator or reward definition.
+
 To reproduce a campaign from the repository root, use the pinned nightly and the fuzz workspace's lockfile.
 
 ```sh
