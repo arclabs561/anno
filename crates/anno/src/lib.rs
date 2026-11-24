@@ -71,6 +71,7 @@ pub struct ReadmeDoctests;
 pub mod active;
 mod annotated;
 pub mod backends;
+pub mod citation;
 /// Discourse-level analysis: centering theory, abstract anaphora, dialogue acts.
 ///
 /// Enable with the `discourse` feature.
