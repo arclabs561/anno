@@ -26,7 +26,7 @@
 //!
 //! | Dataset | Source | License | Entities |
 //! |---------|--------|---------|----------|
-//! | WikiGold | Wikipedia | CC-BY | PER, LOC, ORG, MISC |
+//! | WikiGold | Wikipedia | Annotations CC BY 4.0, article text subject to Wikipedia reuse terms | PER, LOC, ORG, MISC |
 //! | WNUT-17 | Social Media | Open | person, location, corporation, etc. |
 //! | MIT Movie | MIT | Research | actor, director, genre, title, etc. |
 //! | MIT Restaurant | MIT | Research | amenity, cuisine, dish, etc. |
@@ -1359,16 +1359,12 @@ impl std::fmt::Display for DatasetStats {
 ///
 /// # Caching Strategy (Tiered)
 ///
-/// 1. **Local cache** (`~/.cache/anno/datasets/`): Checked first, fastest
-/// 2. **S3 cache** (`s3://anno-data/`): Checked if `ANNO_S3_CACHE=1` and AWS credentials available
-/// 3. **URL download**: Original source URL, last resort
+/// 1. The loader checks the local dataset cache first.
+/// 2. With `ANNO_S3_CACHE=1`, eligible datasets can be read from the configured
+///    bucket using the AWS CLI credential chain.
+/// 3. On a cache miss, the loader tries the configured source when permitted.
 ///
-/// This tiered approach:
-/// - Maximizes speed (local cache hit is instant)
-/// - Provides redundancy (S3 backup if original URLs go down)
-/// - Allows sharing datasets across machines via S3
-///
-/// # Environment Variables
+////// # Environment Variables
 ///
 /// - `ANNO_CACHE_DIR`: Override default cache location
 /// - `ANNO_S3_CACHE`: Set to "1" to enable S3 fallback (requires AWS credentials)
@@ -1379,7 +1375,7 @@ impl std::fmt::Display for DatasetStats {
 /// ```bash
 /// # Enable S3 caching
 /// export ANNO_S3_CACHE=1
-/// export AWS_PROFILE=default  # or set AWS_ACCESS_KEY_ID, etc.
+/// export AWS_PROFILE=anno-reader  # use a profile authorized to read this bucket
 ///
 /// # Now load_or_download() will try S3 before URL
 /// ```
@@ -1609,12 +1605,22 @@ impl DatasetLoader {
         file.take(fixture.bytes as u64 + 1)
             .read_to_string(&mut data)
             .map_err(|_| Error::InvalidInput(format!("Invalid fixture {id:?}")))?;
-        if data.len() != fixture.bytes || self.compute_sha256(&data) != fixture.digest {
+        self.verify_timex_fixture(id, fixture, &data)?;
+        Ok(data)
+    }
+
+    fn verify_timex_fixture(
+        &self,
+        id: DatasetId,
+        fixture: &super::temporal_expressions::TimexFixture,
+        content: &str,
+    ) -> Result<()> {
+        if content.len() != fixture.bytes || self.compute_sha256(content) != fixture.digest {
             return Err(Error::InvalidInput(format!(
                 "Fixture {id:?} checksum mismatch"
             )));
         }
-        Ok(data)
+        Ok(())
     }
 
     #[must_use]
@@ -3307,6 +3313,9 @@ impl DatasetLoader {
     /// [`DatasetLoader::load_or_download`] / [`DatasetLoader::load`]. For LitBank,
     /// supply a JSON object with the corresponding BRAT `text` and `annotations` strings.
     pub fn parse_content_str(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        if let Some(fixture) = id.timex_fixture() {
+            self.verify_timex_fixture(id, &fixture, content)?;
+        }
         self.parse_content_impl(content, id)
     }
 
@@ -7636,7 +7645,11 @@ mod tests {
 
         // WikiGold has known metadata
         assert_eq!(id.citation(), Some("Balasuriya et al. (2009)"));
-        assert_eq!(id.license(), Some("CC-BY-4.0"));
+        assert_eq!(
+            id.license(),
+            Some("Annotations: CC-BY-4.0; text: Wikipedia reuse terms")
+        );
+        assert_eq!(id.paper_url(), Some("https://aclanthology.org/W09-3302/"));
         assert_eq!(id.year(), Some(2009));
     }
 
