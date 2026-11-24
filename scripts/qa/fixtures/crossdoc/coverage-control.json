@@ -1,0 +1,15 @@
+{
+  "kind": "cross_doc",
+  "id": "coverage-control",
+  "documents": [
+    {"id": "card", "text": "Rue wrote. She left.", "signals": [{"start": 0, "end": 3, "label": "PER"}, {"start": 0, "end": 3, "label": "LOC"}], "tracks": [{"name": "Rue", "members": [0]}]},
+    {"id": "note", "text": "Rue signed.", "signals": [{"start": 0, "end": 3, "label": "PER"}], "tracks": [{"name": "Rue", "members": [0]}]}
+  ],
+  "assertions": [
+    {"after": 2, "kind": "same", "mentions": [["card", 0, 3, "PER"], ["note", 0, 3]]},
+    {"after": 2, "kind": "resolved", "mentions": [["card", 0, 3, "PER"]]},
+    {"after": 2, "kind": "unresolved", "mentions": [["card", 0, 3, "LOC"]]},
+    {"after": 2, "kind": "absent", "mentions": [["card", 11, 14]]},
+    {"after": 2, "kind": "record", "mentions": [["note", 0, 3]], "record": null}
+  ]
+}
