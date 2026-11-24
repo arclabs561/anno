@@ -40,6 +40,17 @@ class CrossDocChallengeTest(unittest.TestCase):
                              (1, 1, "fail", [1]))
             self.assertNotIn("private", json.dumps(receipt))
 
+    def test_ambiguous_or_misspelled_fields_do_not_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "duplicate.json"
+            path.write_text('{"kind":"cross_doc","assertions":[],"assertions":[{}]}')
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                replay.load_case(path)
+        case = replay.reviewed_case(ROOT, "topic-scoped-homonyms")
+        case["select_sentences"] = []
+        with self.assertRaisesRegex(ValueError, "fields"):
+            replay.crossdoc_eval_cases.run_case(case, Path("unneeded"))
+
     def test_private_files_are_executable_without_becoming_reviewed(self):
         case = replay.reviewed_case(ROOT, "topic-scoped-homonyms")
         with tempfile.TemporaryDirectory() as tmp:

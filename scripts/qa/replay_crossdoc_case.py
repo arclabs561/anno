@@ -39,7 +39,15 @@ def load_case(path):
         raw = source.read(1024 * 1024 + 1)
     if len(raw) > 1024 * 1024:
         raise ValueError("cross-document case exceeds 1 MiB")
-    case = json.loads(raw)
+    def unique_fields(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError(f"duplicate case field: {key}")
+            obj[key] = value
+        return obj
+
+    case = json.loads(raw, object_pairs_hook=unique_fields)
     if not isinstance(case, dict) or not isinstance(case.get("kind"), str) or case["kind"] not in RUNNERS:
         raise ValueError("expected kind cross_doc or cross_doc_eval")
     if not isinstance(case.get("assertions"), list) or not 1 <= len(case["assertions"]) <= 256:

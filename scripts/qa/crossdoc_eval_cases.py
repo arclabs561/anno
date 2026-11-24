@@ -187,6 +187,7 @@ def run_case(case: dict, binary: Path) -> dict:
     """Run one fixed executable once. XML, selection and expectations are data supplied by the case."""
     if not isinstance(case, dict) or case.get("kind") != "cross_doc_eval":
         raise ValueError("expected a cross_doc_eval case")
+    _fields(case, {"kind", "documents", "assertions"}, {"id", "description", "selected_sentences"})
     expected = _expectations(case)
     executable = Path(binary).resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="anno-qa-cdcr-") as tmp:
