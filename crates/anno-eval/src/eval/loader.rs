@@ -1560,6 +1560,7 @@ impl DatasetLoader {
     /// - `datasets/<cache_filename>.manifest.json` (sidecar metadata)
     #[cfg(feature = "eval")]
     pub fn upload_cached_dataset_to_s3(&self, bucket: &str, id: DatasetId) -> Result<()> {
+        Self::check_shared_publication(id)?;
         let key = id.cache_filename();
         let entry = {
             let guard = self
@@ -1733,7 +1734,11 @@ impl DatasetLoader {
         let _ = self.update_manifest(entry); // Best effort
 
         // 6. Optionally upload to S3 for future use (best effort)
-        if let Some(ref bucket) = self.s3_bucket {
+        if let Some(bucket) = self
+            .s3_bucket
+            .as_ref()
+            .filter(|_| dataset_id.approved_for_shared_publication())
+        {
             let entry = CacheManifestEntry {
                 dataset_id: dataset_id.cache_filename().to_string(),
                 source_url: dataset_id.download_url().to_string(),
@@ -1765,6 +1770,25 @@ impl DatasetLoader {
         ))
     }
 
+    #[cfg(feature = "eval")]
+    fn check_shared_cache_source(id: DatasetId) -> Result<()> {
+        if id.excluded_from_shared_cache() {
+            return Err(Error::InvalidInput(format!(
+                "{} raw data is excluded from shared caches; use an authorized local source",
+                id.name()
+            )));
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "eval")]
+    fn check_shared_publication(id: DatasetId) -> Result<()> {
+        if !id.approved_for_shared_publication() {
+            return Err(Error::InvalidInput(format!("{} is excluded from raw shared-cache publication: no reviewed artifact and notice package",id.name())));
+        }
+        Ok(())
+    }
+
     /// Download dataset from S3 cache bucket.
     ///
     /// Uses AWS CLI under the hood (requires `aws` command in PATH and valid credentials).
@@ -1775,6 +1799,8 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<(String, Option<CacheManifestEntry>)> {
         use std::process::Command;
+
+        Self::check_shared_cache_source(id)?;
 
         // Prefer a content-addressed snapshot if the pointer exists; fall back to the legacy key.
         let pointer_key = format!("datasets/{}.latest.json", id.cache_filename());
@@ -1875,6 +1901,8 @@ impl DatasetLoader {
     ) -> Result<()> {
         use std::io::Write;
         use std::process::{Command, Stdio};
+
+        Self::check_shared_publication(id)?;
 
         let s3_key = format!("datasets/{}", id.cache_filename());
         let s3_uri = format!("s3://{}/{}", bucket, s3_key);
@@ -2020,6 +2048,14 @@ impl DatasetLoader {
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
+        if id.requires_local_source() {
+            return Err(Error::InvalidInput(format!(
+                "{} requires an authorized local source. Place it at {}. {}",
+                id.name(),
+                self.cache_path_for(id).display(),
+                id.notes().unwrap_or_default()
+            )));
+        }
         let url = id.download_url().to_string();
         if id == DatasetId::LitBank {
             let source_url = url
@@ -2035,17 +2071,6 @@ impl DatasetLoader {
             Self::enforce_max_download_bytes(content.len(), &url)?;
             return Ok((content, url));
         }
-        // This corpus publishes the complete held-out split as a small, pinned JSONL file.
-        if id == DatasetId::TimexRecognitionSentenceOriginal {
-            let content = self.download_attempt(&url)?;
-            if self.compute_sha256(&content) != super::temporal_expressions::TEST_SHA256 {
-                return Err(Error::InvalidInput(
-                    "TIMEX test split checksum mismatch".into(),
-                ));
-            }
-            return Ok((content, url));
-        }
-
         fn env_single_csv(keys: &[&str]) -> Option<String> {
             for &k in keys {
                 let Ok(raw) = std::env::var(k) else {
@@ -2791,7 +2816,6 @@ impl DatasetLoader {
             DatasetId::TweetNER7 => ("tner/tweetner7", "dataset/2020.dev.json"),
             DatasetId::BroadTwitterCorpus => ("GateNLP/broad_twitter_corpus", "test/a.conll"),
             DatasetId::CADEC => ("KevinSpaghetti/cadec", "data/test.jsonl"),
-            DatasetId::PreCo => ("coref-data/preco_raw", "dev.jsonl"),
             // Gated datasets that require HF_TOKEN
             DatasetId::MultiCoNER => ("MultiCoNER/multiconer_v1", "en/test.conll"),
             DatasetId::MultiCoNERv2 => ("MultiCoNER/multiconer_v2", "en/test.conll"),
@@ -10620,6 +10644,48 @@ CEO,O
                 std::fs::write(&path, ann.replace("0 4", bad)).unwrap();
                 assert!(loader.load_litbank_from_path(&path).is_err());
             }
+        }
+
+        #[cfg(feature = "eval")]
+        #[test]
+        fn restricted_raw_sources_stay_out_of_shared_caches_and_cold_downloads() {
+            let dir = tempfile::tempdir().unwrap();
+            let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            for id in [
+                DatasetId::PreCo,
+                DatasetId::TimeBank12,
+                DatasetId::TimexRecognitionSentenceOriginal,
+                DatasetId::LitBank,
+                DatasetId::CUAD,
+            ] {
+                assert!(loader
+                    .download_from_s3("unused", id)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("excluded"));
+                assert!(loader
+                    .upload_cached_dataset_to_s3("unused", id)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("excluded"));
+                if !matches!(id, DatasetId::LitBank | DatasetId::CUAD) {
+                    assert!(!id.is_automatable_download());
+                    assert!(loader
+                        .download_with_resolved_url(id)
+                        .unwrap_err()
+                        .to_string()
+                        .contains("authorized local"));
+                }
+            }
+            assert!(!DatasetId::WikiGold.excluded_from_shared_cache());
+            assert!(DatasetId::all()
+                .iter()
+                .all(|id| !id.approved_for_shared_publication()));
+            assert!(loader
+                .upload_cached_dataset_to_s3("unused", DatasetId::WikiGold)
+                .unwrap_err()
+                .to_string()
+                .contains("no reviewed artifact"));
         }
 
         #[test]

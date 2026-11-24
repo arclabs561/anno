@@ -123,7 +123,7 @@ An active default-branch run can finish its checkpoint before the next run
 starts. A retry stays read-only if that run or a newer run already published
 the same cohort. Each retry retains its own sampling receipt.
 
-Both kinds of run measure five examples per dataset from a local cache. A
+Both kinds of run measure five examples per selected dataset from job-local storage. A
 checksum-pinned public WikiGold corpus supplies a real input even after cache
 eviction. A cold default-branch run records a heuristic baseline on that corpus.
 The synthetic offline checks use separate storage. A temporal check scores two
@@ -393,9 +393,12 @@ The link counts show how many within-document mention pairs the resolver matched
 
 Matrix decision logs store the following counts in the `structural_counts` object on each scored outcome. Coreference rows record `matched_coref_links`, `predicted_coref_links` and `gold_coref_links`. For resolvers that take mention spans, divide `matched_input_mentions` by `input_mentions` for exact mention precision and by `gold_mentions` for recall. Divide `reachable_gold_links` by `gold_coref_links` to see how many gold links the resolver could form from its inputs. Counts sum distinct spans and pairs within each document. A zero denominator leaves the corresponding rate undefined. Raw-text FCoref exposes its final clusters only, so its rows omit input coverage.
 
-The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. To compare the modes on the full PreCo validation split, run the same cached command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`:
+The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. PreCo’s authors limit the compilation to academic study and research and identify third-party rights in its passages. For an authorized evaluation, put the original development JSONL at `$ANNO_CACHE_DIR/datasets/PreCo.cache` on your own machine. Keep passages and per-example outputs local. About two thirds of the passages come from RACE, whose authors specify noncommercial research use. The mirror labels its license unknown. [RACE release](https://www.cs.cmu.edu/~glai1/data/race/) · [Authors’ Copyright and Privacy Notice](https://preschool-lab.github.io/PreCo/) · [Pinned mirror card](https://huggingface.co/datasets/coref-data/preco_raw/blob/02c8ffedb9d0b49168809a572ff553c2f6f9f7ca/README.md)
+
+To compare mention sources on all 500 development documents, run the same command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`.
 
 ```sh
+ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1 ANNO_NO_DOWNLOADS=1 ANNO_S3_CACHE=0 \
 anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
   --fixed-backend coref_resolver --require-cached --max-examples 500 --runs 1 --seed-base 42
 ```

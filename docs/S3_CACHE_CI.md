@@ -89,41 +89,10 @@ In GitHub repo settings:
   - `ANNO_AWS_REGION`: region for STS (commonly `us-east-1`)
   - optional `ANNO_S3_BUCKET`: override bucket (defaults to `arc-anno-data`)
 
-The workflow will:
+## What CI shares
 
-- set `ANNO_CACHE_DIR=$HOME/.anno_cache` (dataset loader + muxer state root)
-- set `ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl` (eval JSONL + SQLite index)
-- enable S3 cache only when `ANNO_AWS_ROLE_ARN` is set and the run is not a fork PR
-- persist muxer state (`muxer_history.*.json`, `linucb_global_state.json`) and eval history
-  (`eval-results.jsonl`, `eval-history.db`) under the `anno-muxer-${{ runner.os }}-v1-` GitHub
-  Actions cache key, separate from the `anno-datasets` key so MAB learning survives unrelated
-  job cache overwrites
+Job-local corpus files live in `$ANNO_CACHE_DIR/datasets`. Hosted CI caches model repositories separately and publishes aggregate decision receipts and evaluator history. Raw datasets have no approved shared publication package. The S3 reader can still use existing owner-provisioned storage for eligible inputs on trusted refs. The read exclusions cover PreCo, LitBank, CUAD, TimeBank 1.2 and its TIMEX derivative, including known legacy object names. The dataset registry distinguishes explicit publisher retrieval from authorized local-only inputs. [Source rules](../crates/anno-eval/src/eval/shared_cache_exclusions.tsv) · [Source-specific terms](QA.md#score-a-litbank-book-or-cohort)
 
-## Optional: sync local cache → S3
+The loader, `anno cache sync-s3`, and the bulk synchronization script skip raw dataset publication. Adding a sharable artifact requires checking rights for the source and the annotation layers, identifying the exact bytes and packaging the required notices. Local authorized evaluation and the separately configured model cache remain available.
 
-If you already have datasets cached locally and want to refresh the shared S3 cache:
-
-```bash
-cargo run -p anno-cli --features "eval discourse" -- cache sync-s3 --dry-run
-cargo run -p anno-cli --features "eval discourse" -- cache sync-s3 --limit 50
-cargo run -p anno-cli --features "eval discourse" -- cache sync-s3 --datasets Wnut17,CrossREAI
-```
-
-## Fallback: scoped IAM user + GitHub secrets (long-lived)
-
-This is **not recommended** compared to OIDC, but it meets the “limited-scope secret” requirement.
-
-High-level:
-
-- Create an IAM user (e.g. `anno-gh-ci`)
-- Attach the same minimal S3 read policy as above
-- Create an access key
-- Store into GitHub Secrets:
-  - `ANNO_AWS_ACCESS_KEY_ID`
-  - `ANNO_AWS_SECRET_ACCESS_KEY`
-
-If you do this, also set:
-
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` via workflow `env:`
-- rotate keys periodically
-
+Previously created Actions cache archives follow GitHub's existing access and expiry rules. A pull request can restore a cache from its base or the default branch, including some fork pull requests. Changing the workflow only affects future runs. Repository administrators can review old dataset cache keys and retention in Actions. [GitHub cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)

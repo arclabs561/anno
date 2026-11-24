@@ -1054,8 +1054,7 @@ macro_rules! impl_category_checks {
                     DatasetId::MitRestaurant |
                     DatasetId::CoNLL2003Sample |
                     DatasetId::BC5CDR |
-                    DatasetId::GAP |
-                    DatasetId::PreCo
+                    DatasetId::GAP
                 ))
                 .collect()
         }
@@ -1741,14 +1740,14 @@ define_datasets! {
         entity_types: ["PER", "LOC", "ORG"],
         language: "en",
         domain: "reading_comprehension",
-        license: "CC-BY-4.0",
+        license: "Research",
         citation: "Chen et al. (2018)",
         paper_url: "https://aclanthology.org/D18-1016/",
         year: 2018,
         format: "JSONL",
         annotation_scheme: "CoNLLCoref",
         size_hint: "38k documents, includes singletons",
-        notes: "The public held-out split is validation (dev.jsonl), with 500 documents and singleton mentions.",
+        notes: "The authors limit the compilation to academic study and research and identify third-party copyrights. Provide an authorized local dev.jsonl (500 documents), including singletons. See https://preschool-lab.github.io/PreCo/.",
         splits: ["train", "validation"],
         tasks: ["coref"],
         hf_id: "coref-data/preco_raw",
@@ -1757,19 +1756,19 @@ define_datasets! {
     },
     LitBank {
         name: "LitBank",
-        description: "Literary coreference. 100 public-domain English fiction works (1719-1922) with ACE-style entities.",
+        description: "Literary coreference. 100 works of English fiction selected from Project Gutenberg under U.S. public-domain criteria (1719-1922) with ACE-style entities.",
         url: "https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann",
         entity_types: ["PER", "LOC", "ORG", "GPE", "FAC", "VEH"],
         language: "en",
         domain: "literature",
         license: "CC-BY-4.0",
-        citation: "Bamman et al. (2019)",
-        paper_url: "https://aclanthology.org/P19-1353/",
-        year: 2019,
+        citation: "Bamman, Lewke and Mansoor (2020)",
+        paper_url: "https://aclanthology.org/2020.lrec-1.6/",
+        year: 2020,
         format: "BRAT",
         annotation_scheme: "Standoff",
         size_hint: "Registry sample: 1 book excerpt. Upstream corpus: 100 works, ~2k tokens each.",
-        notes: "The registry downloads one paired Bleak House excerpt. Legacy LitBank.cache annotations require the matching LitBank.txt beside them. Flat NER uses leftmost outermost mentions.",
+        notes: "The pinned release declares CC BY 4.0 for LitBank. Source-work rights depend on jurisdiction. The registry downloads one paired Bleak House excerpt. Legacy LitBank.cache annotations require the matching LitBank.txt beside them. Flat NER uses leftmost outermost mentions.",
         splits: ["all"],
         tasks: ["ner", "coref", "event_coref"],
         expected_docs: 1,
@@ -9645,12 +9644,52 @@ impl DatasetId {
         )
     }
 
+    // Shared with the CI and bulk S3 cache filters. Each row contains the registry
+    // cache filename, permitted source (local or publisher), and legacy object aliases.
+    fn raw_source_rule(&self) -> Option<&'static str> {
+        include_str!("shared_cache_exclusions.tsv")
+            .lines()
+            .find_map(|row| {
+                let mut fields = row.split('\t');
+                let filename = fields.next()?;
+                let rule = fields.next()?;
+                (filename == self.cache_filename()).then_some(rule)
+            })
+    }
+
+    /// The current public mirrors do not establish raw redistribution rights. Researchers
+    /// can supply an authorized local copy using the normal dataset cache layout.
+    #[must_use]
+    pub fn requires_local_source(&self) -> bool {
+        self.raw_source_rule()
+            .is_some_and(|rule| rule != "publisher")
+    }
+
+    /// Dataset-specific exclusions for shared cache reads and writes. The LitBank pair
+    /// also needs attribution and a source-work rights check that the raw mirror lacks.
+    /// This policy does not establish permissions for other registry entries.
+    #[must_use]
+    pub fn excluded_from_shared_cache(&self) -> bool {
+        self.raw_source_rule().is_some()
+    }
+
+    /// Publication needs a reviewed artifact, matching rights and any required notices.
+    /// The current S3 writer packages only raw data and technical cache metadata.
+    /// No registry entry has such an approved publication package yet.
+    #[must_use]
+    pub const fn approved_for_shared_publication(&self) -> bool {
+        false
+    }
+
     /// Whether this dataset is currently automatable by our loader without manual intervention.
     ///
     /// This is intentionally conservative: it can be `false` for datasets that are “public”
     /// but do not offer a stable export path we can consume yet.
     #[must_use]
     pub fn is_automatable_download(&self) -> bool {
+        if self.requires_local_source() {
+            return false;
+        }
         // Hard exclusions (known to fail under current loader automation).
         //
         // These datasets have HuggingFace or direct URLs that pass the heuristic checks
