@@ -597,7 +597,14 @@ mod tests {
     fn token_cleanup_drops_empty_predictions_and_keeps_exact_source_tail() {
         let text = ". ... Monday.";
         let words: Vec<_> = text.split_whitespace().collect();
-        let spans = token_decoder::decode(&[2.; 9], 3, 1, 3, 1, 0.0);
+        let spans = (0..words.len())
+            .map(|word| token_decoder::WordSpan {
+                start: word,
+                end: word,
+                class: 0,
+                score: 0.8,
+            })
+            .collect();
         let entities = token_entities(text, &words, &["time expression"], spans);
         assert_eq!(entities.len(), 1);
         assert_eq!((entities[0].start(), entities[0].end()), (6, 12));
