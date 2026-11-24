@@ -1,5 +1,8 @@
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +58,52 @@ class Feedback(unittest.TestCase):
 
     def pick(self):
         return rf.next_case(self.root, self.cache)
+
+    def test_developer_replay_runs_once_without_a_stamp_or_a_ledger(self):
+        with patch.object(rf, "stamp", side_effect=AssertionError):
+            for outcome, status in (("fail", 1), ("pass", 0)):
+                self.oracle.outcomes["case"] = outcome
+                code, receipt = rf.replay_once(self.root, "fixture", "case")
+                self.assertEqual((code, receipt["outcome"]), (status, outcome))
+        self.assertEqual(self.oracle.calls, ["case", "case"])
+        self.assertFalse(self.cache.exists())
+
+    def test_missing_input_differs_from_a_bad_pin_and_neither_exposes_source(self):
+        command = [sys.executable, str(rf.ROOT / "scripts/qa/replay_feedback.py"),
+                   "replay", "wikigold", "sentence-0"]
+        env = {**os.environ, "ANNO_CACHE_DIR": str(self.cache)}
+        missing = subprocess.run(command, env=env, capture_output=True)
+        self.assertEqual(missing.returncode, 3)
+        self.assertEqual(json.loads(missing.stdout)["outcome"], "unavailable")
+        self.assertFalse(self.cache.exists())
+        path = self.cache / "datasets/WikiGold.cache"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"private-document-canary")
+        invalid = subprocess.run(command, env=env, capture_output=True)
+        self.assertEqual(invalid.returncode, 2)
+        self.assertEqual(json.loads(invalid.stdout)["outcome"], "error")
+        self.assertNotIn(path.read_bytes(), invalid.stdout + invalid.stderr)
+        self.assertFalse((self.cache / rf.DB_NAME).exists())
+
+    def test_developer_replay_keeps_native_errors_out_of_public_output(self):
+        script = """
+import os
+import replay_feedback as rf
+
+def broken(*args):
+    os.write(2, b'private-native-diagnostic')
+    raise RuntimeError('private-failure-detail')
+
+rf.replay_typed_spans.replay = broken
+raise SystemExit(rf.main())
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script, "replay", "typed_spans", "currency-print-spacing"],
+            cwd=rf.ROOT / "scripts/qa", capture_output=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["outcome"], "error")
+        self.assertNotIn(b"private-", result.stdout + result.stderr)
 
     def test_case_resolution_and_dedup_do_not_erase_related_witnesses(self):
         self.record("a", "fail")

@@ -197,6 +197,47 @@ class CrossDomainSampling(unittest.TestCase):
                              "https://final.example/new", "xxh3:0000000000000abc", "timed out"):
                 self.assertIn(expected, report)
 
+    def test_public_summary_excludes_fetched_fields_and_keeps_failure_counts(self):
+        source = qa.Source("Catalog", "https://source.example/feed", "cross-domain", "en", "Latin",
+                           True, domain="arts")
+        private = "PRIVATE-CANARY"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = qa.Path(tmp)
+            report, summary = root / "local.md", root / "public.json"
+            run = qa.RunResult(source, "https://source.example/" + private, "error", backend="pattern",
+                               error_msg=private, stderr_tail=private, detected_lang=private)
+            with patch("sys.argv", ["qa", "--count", "1", "--seed", "42", "--backends", "pattern",
+                                    "--output", str(report), "--public-summary", str(summary)]), patch.object(
+                qa, "CROSS_DOMAIN_SOURCES", [source]
+            ), patch.object(qa, "discover_publisher_article", return_value=run.url), patch.object(
+                qa, "run_anno", return_value=run
+            ), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(qa.main(), 1)
+            self.assertIn(private, report.read_text())
+            self.assertNotIn(private, summary.read_text())
+            public = json.loads(summary.read_text())
+            self.assertEqual(public["outcomes"], {"error": 1})
+            self.assertEqual(public["coverage"]["failures"], {"backend": 1})
+            self.assertEqual(public["sources"], [{"catalog_name": "Catalog", "resolved": True,
+                                                  "checks": {"pattern": "error"}}])
+
+    def test_public_summary_rejects_unreviewed_names_from_replay(self):
+        source = qa.Source("Catalog", "https://source.example/doc", "cross-domain", "en", "Latin",
+                           domain="arts")
+        with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", [source]):
+            root = qa.Path(tmp)
+            ref, summary, report = root / "source.json", root / "public.json", root / "local.md"
+            for backend, eligible in [("unreviewed", {"arts": 1}), ("pattern", {"arts": 1, "private": 1})]:
+                receipt = qa.cross_domain_receipt(1, [backend], eligible, {source: source.url}, [
+                    qa.RunResult(source, source.url, "OK", backend=backend, text_hash="xxh3:0000000000000001")
+                ])
+                ref.write_text(json.dumps(receipt))
+                with patch("sys.argv", ["qa", "--replay", str(ref), "--output", str(report),
+                                        "--public-summary", str(summary)]), patch.object(qa, "run_anno") as run:
+                    self.assertEqual(qa.main(), 1)
+                    run.assert_not_called()
+                    self.assertFalse(summary.exists())
+
     def test_cross_domain_success_requires_text_hash(self):
         source = qa.CROSS_DOMAIN_SOURCES[0]
         data = {"entities": [], "provenance": {"model": "pattern", "text_chars": 4, "entity_count": 0}}

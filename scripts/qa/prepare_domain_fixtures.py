@@ -22,7 +22,10 @@ MULTILINGUAL = {
     "conll2002-nl": "CoNLL-2002 Dutch news", "conll2002-es": "CoNLL-2002 Spanish news",
     "weibo-zh": "WeiboNER Chinese social posts",
 }
-FAMILIES = {**ENGLISH, **MULTILINGUAL}
+# Only these directly licensed publisher inputs have a hosted QA acquisition review.
+HOSTED = {"snips-weather": "Snips weather validation", "snips-restaurant": "Snips restaurant validation"}
+LOCAL = {**ENGLISH, **MULTILINGUAL}
+FAMILIES = {**LOCAL, **HOSTED}
 LABELS = {"person": "PER", "per": "PER", "organisation": "ORG", "organization": "ORG",
           "org": "ORG", "corporation": "ORG", "location": "LOC", "loc": "LOC"}
 COMPANY_SUFFIX = re.compile(r"\b(incorporated|inc|llc|ltd|limited|plc|corp|corporation)\.?$", re.I)
@@ -112,8 +115,8 @@ def read_source(data_dir, name, pins):
 
 
 def domain_files(domain):
-    if domain == "cuad":
-        return ["cuad.json"]
+    if domain == "cuad" or domain in HOSTED:
+        return [domain + ".json"]
     if domain in {"atis", "snips"}:
         return [domain + ".in", domain + ".out"]
     return [domain + ".bio"]
@@ -135,7 +138,24 @@ def tagged_token(domain, line):
 
 
 def records(domain, seed, inputs):
-    if domain == "cuad":
+    if domain in HOSTED:
+        utterances, = json.loads(inputs[0]).values()
+        for utterance in utterances:
+            parts = utterance["data"]
+            text = "".join(part["text"] for part in parts)
+            offset = 0
+            anchors = []
+            for part in parts:
+                end = offset + len(part["text"])
+                if part.get("entity") in {"city", "state", "country"} and end > offset:
+                    anchors.append((offset, end, "LOC"))
+                offset = end
+            if anchors:
+                best = min(anchors, key=lambda a: rank(seed, text, *a))
+                yield Record(text, text, *best)
+            else:
+                yield None
+    elif domain == "cuad":
         for doc in json.loads(inputs[0])["data"]:
             yield contract(doc, seed)
     elif domain in {"atis", "snips"}:
@@ -250,18 +270,18 @@ def fetch(data_dir, pins):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    download = commands.add_parser("fetch", help="download and verify the pinned source files")
+    download = commands.add_parser("fetch", help="download and verify publisher sources reviewed for automated acquisition")
     download.add_argument("data", type=Path)
     make = commands.add_parser("prepare", help="use verified local files; no network access")
     make.add_argument("data", type=Path)
     make.add_argument("output", type=Path)
     make.add_argument("--per-split", type=int, default=32, help="budget per domain per split")
     make.add_argument("--seed", default=DEFAULT_SEED)
-    groups = {"english": ENGLISH, "multilingual": MULTILINGUAL, "all": FAMILIES}
+    groups = {"english": ENGLISH, "multilingual": MULTILINGUAL, "all": LOCAL, "hosted": HOSTED}
     for cmd in (download, make):
         selection = cmd.add_mutually_exclusive_group()
-        selection.add_argument("--group", choices=groups, default="english",
-                               help="source group (default: english)")
+        selection.add_argument("--group", choices=groups, default="hosted",
+                               help="source group (default: hosted)")
         selection.add_argument("--domain", action="append", choices=FAMILIES,
                                help="select individual domains (repeatable)")
     args = parser.parse_args()
@@ -271,6 +291,10 @@ def main():
         domains = [d for d in FAMILIES if d in args.domain]
     try:
         if args.command == "fetch":
+            local_only = [domain for domain in domains if domain not in HOSTED]
+            if local_only:
+                raise ValueError(f"{', '.join(local_only)}: automatic acquisition has no recorded clearance; "
+                                 "stage lawfully obtained local files and use prepare")
             files = dict.fromkeys(name for d in domains for name in domain_files(d))
             fetch(args.data, {name: pins[name] for name in files})
         else:

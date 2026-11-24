@@ -39,20 +39,41 @@ class DomainFixturesTest(unittest.TestCase):
             self.assertEqual(manifest["source_credits"], {"cuad.json": credits})
             self.assertNotIn("Sample Corporation", json.dumps(manifest))
 
-    def test_fetch_and_prepare_select_the_same_source_group(self):
-        selections = [([], panel.ENGLISH), (["--group", "multilingual"], panel.MULTILINGUAL),
-                      (["--group", "all"], panel.FAMILIES), (["--domain", "weibo-zh"], ["weibo-zh"])]
-        for flags, domains in selections:
-            with self.subTest(flags=flags):
-                with patch.object(sys, "argv", ["qa", "fetch", "data", *flags]), patch.object(panel, "fetch") as fetch:
-                    panel.main()
-                files = set(name for domain in domains for name in panel.domain_files(domain))
-                self.assertEqual(set(fetch.call_args.args[1]), files)
-                with patch.object(sys, "argv", ["qa", "prepare", "data", "out", *flags]), patch.object(
-                    panel, "prepare", return_value={"groups": {}}
-                ) as prepare:
-                    panel.main()
-                self.assertEqual(list(prepare.call_args.kwargs["domains"]), list(domains))
+    def test_hosted_review_applies_to_bulk_and_individual_acquisition(self):
+        files = {name for domain in panel.HOSTED for name in panel.domain_files(domain)}
+        for flags in ([], ["--group", "hosted"]):
+            with patch.object(sys, "argv", ["qa", "fetch", "data", *flags]), patch.object(panel, "fetch") as fetch:
+                panel.main()
+            self.assertEqual(set(fetch.call_args.args[1]), files)
+            for record in fetch.call_args.args[1].values():
+                self.assertIn("CC0", record["credits"]["scope"])
+                self.assertIn("1805.10190", record["credits"]["work"])
+        for flags in (["--group", "all"], ["--domain", "snips-weather", "--domain", "cuad"]):
+            with patch.object(sys, "argv", ["qa", "fetch", "data", *flags]), patch.object(
+                panel, "fetch"
+            ) as fetch, self.assertRaises(SystemExit):
+                panel.main()
+            fetch.assert_not_called()
+
+    def test_prepare_remains_available_for_authorized_local_sources(self):
+        for flags, domains in [([], panel.HOSTED), (["--group", "english"], panel.ENGLISH),
+                               (["--group", "multilingual"], panel.MULTILINGUAL),
+                               (["--group", "all"], panel.LOCAL), (["--group", "hosted"], panel.HOSTED),
+                               (["--domain", "weibo-zh"], ["weibo-zh"])]:
+            with self.subTest(flags=flags), patch.object(sys, "argv", ["qa", "prepare", "data", "out", *flags]), patch.object(
+                panel, "prepare", return_value={"groups": {}}
+            ) as prepare:
+                panel.main()
+            self.assertEqual(list(prepare.call_args.kwargs["domains"]), list(domains))
+
+    def test_publisher_validation_keeps_original_spacing_and_offsets(self):
+        data = {"GetWeather": [{"data": [
+            {"text": "🦊  in "}, {"text": "New York", "entity": "city"}, {"text": "?"},
+        ]}, {"data": [{"text": "near me", "entity": "current_location"}]}]}
+        record, unlabelled = panel.records("snips-weather", "s", [json.dumps(data)])
+        self.assertEqual((record.text, record.start, record.end, record.label),
+                         ("🦊  in New York?", 6, 14, "LOC"))
+        self.assertIsNone(unlabelled)
 
     def test_weibo_uses_source_scalars_and_projects_named_entities(self):
         data = ("🛰0\tO\n��0\tO\n50\tO\n 0\tO\n北10\tB-GPE.NAM\n京11\tI-GPE.NAM\n"

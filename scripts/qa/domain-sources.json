@@ -68,6 +68,32 @@
     "sha256": "3616d59d4d2b9dbf4c1126f8d8ba47ff97886223c95f93649bfd527343e64ced",
     "download_bytes": 220459
   },
+  "snips-restaurant.json": {
+    "url": "https://raw.githubusercontent.com/sonos/nlu-benchmark/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/BookRestaurant/validate_BookRestaurant.json",
+    "download_bytes": 49353,
+    "sha256": "4f7258ccc768b777b2eb8916532db9aa50dbd058ddf1ffb0dc59218963e7442a",
+    "credits": {
+      "work": "Coucke A. et al., “Snips Voice Platform: an embedded Spoken Language Understanding system for private-by-design voice interfaces”, 2018. https://arxiv.org/abs/1805.10190",
+      "source": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/BookRestaurant/validate_BookRestaurant.json",
+      "license": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/LICENSE",
+      "terms": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/README.md",
+      "scope": "Publisher’s CC0 1.0 dedication for the Snips benchmark. Include the requested paper citation when publishing results.",
+      "changes": "Sampled the validation utterances and mapped city, state, and country slots to exact LOC assertions."
+    }
+  },
+  "snips-weather.json": {
+    "url": "https://raw.githubusercontent.com/sonos/nlu-benchmark/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/GetWeather/validate_GetWeather.json",
+    "download_bytes": 39612,
+    "sha256": "60c095e193655d6ca92be220fed3926ca25e18cd70c85664145efe25d80993af",
+    "credits": {
+      "work": "Coucke A. et al., “Snips Voice Platform: an embedded Spoken Language Understanding system for private-by-design voice interfaces”, 2018. https://arxiv.org/abs/1805.10190",
+      "source": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/GetWeather/validate_GetWeather.json",
+      "license": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/LICENSE",
+      "terms": "https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/README.md",
+      "scope": "Publisher’s CC0 1.0 dedication for the Snips benchmark. Include the requested paper citation when publishing results.",
+      "changes": "Sampled the validation utterances and mapped city, state, and country slots to exact LOC assertions."
+    }
+  },
   "snips.in": {
     "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/snips/test/seq.in",
     "sha256": "c1e341173fcea2951a8ca371956a6f81c76de87b9583c62eb87edd6158fa3a7c",

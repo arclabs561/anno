@@ -20,6 +20,15 @@ python3 -m unittest discover -s scripts/qa -p 'test_*.py'
 cargo test --locked -p anno-cli --no-default-features --features eval,extractor-html2text --test public_sources
 ```
 
+To investigate one reviewed failure, run its named case on the binary you are editing. This works on a dirty checkout. The currency case uses a project-authored sentence and requires no dataset, model download, agent or Muxer history.
+
+```sh
+cargo build --locked -p anno-cli --no-default-features --features extractor-html2text
+ANNO_BIN=target/debug/anno just qa-replay typed_spans currency-print-spacing
+```
+
+Exit 0 means the assertions passed, 1 means an assertion failed, 2 means the command could not evaluate the case, and 3 means a required corpus input is unavailable. For a local fixture still under development, run `just qa-spans target/debug/anno stacked /path/to/fixture.json`. That command prints detailed findings, which can include source text. Keep its output with the private inputs.
+
 To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once. The preparation script verifies the pinned corpus digest and downloads it if needed. The panel disables dataset and model downloads. It expects a measured result from each of two backends on up to 20 examples at seed 42.
 
 The authors’ versioned Figshare release lists the manual annotations in `wikigold.conll.txt` under CC BY 4.0. Its file 9446377 is 318,530 bytes with MD5 `0c1a4f91b9ea70f84ed43f4ff62fdfd5`. The pinned Git mirror used here has those same bytes, verified locally, and the preparation script checks SHA-256 `c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f`. The underlying Wikipedia passages retain separate reuse terms, including attribution, applicable share-alike provisions and notices. Raw corpus files stay in the job-local dataset directory. [Author release](https://doi.org/10.6084/m9.figshare.5462500.v1) · [Annotation paper](https://aclanthology.org/W09-3302/) · [Wikimedia reuse terms, §7](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content)
@@ -33,17 +42,9 @@ OUT=$(mktemp -d "$PWD/.generated/anno-qa/fixed-panel.XXXXXXXX")
 just qa-panel target/debug/anno smoke "$OUT"
 ```
 
-Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence WikiGold-format CI fixture, the labeled WikiGold corpus, and a random Wikipedia page are three distinct sources.
+Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence CI fixture has the dataset ID `AnnoNerSmoke`. A WikiGold score requires the pinned labeled corpus.
 
-To investigate a result, pass the panel's printed output directory and the claim to the coordinator. This prints a local handoff with the observed cells, the independent review prompt, and a worked WikiGold example. Give the oracle reviewer only the source and contract so its expected answer remains independent.
-
-```sh
-just qa-round "$OUT" "Does removing spaces inside parentheses change organization boundaries?"
-```
-
-The same command accepts a matrix slot's receipt directory. To time agent calls and their replay, follow the [traced round](ADVERSARIAL_QA.md#trace-one-author-and-one-replay). Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
-
-#For an equal-budget comparison on public, labeled text across ten domains, prepare [the domain fixtures](DOMAIN_QA.md).
+To challenge a result in your current session, give a reviewer the contract and an input cleared for that reviewer. Freeze the expected answer before showing the candidate output. When another person or session needs context, `just qa-round "$OUT" "Does punctuation change organization boundaries?"` renders a brief from the saved receipt. [Adversarial QA](ADVERSARIAL_QA.md) · [Domain fixtures and source terms](DOMAIN_QA.md)
 
 ## Score a LitBank book or cohort
 
@@ -159,7 +160,20 @@ anno dataset info --dataset WikiGold
 
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
-When a live run reveals a bug, preserve the original revision and rendering details, then reduce it to the smallest redistributable input that still fails. Put the expected behavior beside the test that consumes it. For a restricted source, use an independently authored reproducer or a permitted fetch recipe with a digest. Preserve the coordinate system of the original data, including whether source offsets address bytes, Unicode characters or token-reconstructed text. [Source and offset contract](CONTRACT.md)
+### Decide what to keep
+
+Promote a discovery when a small input and an independent expected result reproduce the behavior. For a repair, run both revisions and include a neighboring case the change could break. Preserve the offset units. Once a patch author or agent has seen a holdout, count it as exposed in future comparisons. [Source and offset contract](CONTRACT.md)
+
+| What the reviewer has established | What belongs in Git | Where the input can run |
+| --- | --- | --- |
+| The fixture or generator is project-authored and cleared for the project license | The small input or generator and seed, expected result, and provenance alongside the owning test | Contributor checkouts and offline PR CI |
+| A third-party release permits redistribution of the particular text, labels and embedded assets | Only the cleared material, with the revision, license, attribution, notices and changes its terms require | Each destination and purpose covered by the terms |
+| Testing is permitted but sharing source bytes is restricted | A public reference or permitted acquisition recipe with a version, plus non-revealing assertions if shareable | An authorized local cache, or a hosted runner if specifically covered |
+| Rights or provenance are unknown | An independently authored example after review, if it reproduces the same failure | Obtain permission before using the external material |
+
+Keep generated candidates in a private working directory. `fuzz/corpus/` and `.generated/` are Git-ignored. Review logs, prompts, Actions artifacts and S3 as separate destinations. Predictions and minimized cases can retain original text. A digest identifies bytes and short or sensitive values can be guessable. For shared receipts, select approved fields before writing output, including on error paths. Keep source-bearing traces with their inputs.
+
+The [fuzz corpus](../fuzz/README.md) keeps generated inputs separate from reviewed regression seeds. Muxer tracks which cases and dataset cells to try next. Its trusted checkpoint can preserve scheduling history between runs. Fixed cases remain replayable with an empty history. Count a confirmed cause once when evaluating discovery, even if several variants reproduce it. [Checkpoint and source policy](S3_CACHE_CI.md#what-ci-shares) · [Reviewed replay adapters](EVALUATION_SAMPLING.md#replay-a-reviewed-corpus-witness-in-a-triage-slot)
 
 ### Agency names in government publications
 

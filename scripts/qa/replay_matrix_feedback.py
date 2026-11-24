@@ -56,7 +56,7 @@ def sample(command, cache, strategy, output, fixed=None, seed=41):
     return row, [r for r in rows if r.get("worst_first_round")]
 
 
-def replay(command, root, low, fixture):
+def replay(command, root, low, fixture, features):
     writer = root / "writer"
     reader = root / "reader"
     (writer / "datasets").mkdir(parents=True)
@@ -78,7 +78,7 @@ def replay(command, root, low, fixture):
     # Transport exactly the state the Actions job publishes. Neither the
     # original dataset cache nor the writer's decision logs reach the reader.
     checkpoint = root / "checkpoint"
-    if snapshot(writer, checkpoint, logs) != len(DATASETS):
+    if snapshot(writer, checkpoint, logs, features=features) != len(DATASETS):
         raise ValueError("checkpoint did not record both observations")
     archive = root / "checkpoint.zip"
     with ZipFile(archive, "w") as compressed:
@@ -118,7 +118,7 @@ def main():
                args.features, TEST, "--", "--exact", "--ignored", "--nocapture"]
     fixture = (ROOT / "scripts/qa/fixtures/matrix-smoke.conll").read_text()
     with tempfile.TemporaryDirectory() as tmp:
-        controls = [replay(command, Path(tmp) / low, low, fixture) for low in DATASETS]
+        controls = [replay(command, Path(tmp) / low, low, fixture, args.features) for low in DATASETS]
         if controls[0] != controls[1]:
             raise ValueError(f"swapping history also changed the seeded random control: {controls}")
         print(f"Random control chose {controls[0]} in both histories. Both successful retries cleared.")

@@ -71,7 +71,7 @@ impl RetryPlan {
     }
 }
 
-fn infrastructure_diagnosis(error: &str) -> Option<&str> {
+pub(super) fn infrastructure_diagnosis(error: &str) -> Option<&str> {
     // Reporting also labels bare URLs as I/O. Only throttle explicit failed operations,
     // including nested errors such as "backend initialization: Failed to download tokenizer".
     if !matches!(mh::classify_failure_kind(error), "dataset" | "io") {

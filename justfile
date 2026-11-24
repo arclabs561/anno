@@ -271,7 +271,7 @@ eval-sanity:
 
 # Prepare local pinned sources for paired exact-span QA.
 qa-prepare-domains $DATA $OUT $PER_SPLIT="32" $SEED="anno-domain-transfer-20261123-v1":
-    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --per-split "$PER_SPLIT" --seed "$SEED"
+    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --group english --per-split "$PER_SPLIT" --seed "$SEED"
 
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
@@ -288,6 +288,10 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
 # Prepare a coordinator prompt from a fixed panel or a muxer slot.
 qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
+
+# Replay one named case from the working tree, with no scheduler or ledger writes.
+qa-replay $CORPUS $CASE:
+    @python3 scripts/qa/replay_feedback.py replay "$CORPUS" "$CASE"
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
 qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":

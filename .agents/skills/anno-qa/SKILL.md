@@ -8,13 +8,23 @@ description: Run anno's code checks and bounded dataset/backend evaluations, usi
 Run commands from the repository root. This is a tool-based procedure usable by
 developers or coding agents; it does not require a particular harness.
 
-## Procedure
+## Replay a reported case
+
+Start with the resolved case or cell in the report. For example, run
+`ANNO_BIN=target/debug/anno just qa-replay typed_spans currency-print-spacing`
+from the checkout you are editing. For a CI matrix outcome, use its fixed-cell
+command with the reported revision and features. Run a new sampling campaign
+when the question concerns selection or coverage. Use a brief when another
+reviewer needs context. [Developer commands and seed rights](../../../docs/QA.md#run-a-check)
+
+## Procedure for a campaign
 
 1. Define the changed boundary and evaluation budget: tasks, datasets, backends,
    examples, seeds, and runtime limit. Read `justfile`, the relevant tests, and
    `docs/EVALUATION_SAMPLING.md`. Keep receipts in a fresh directory:
 
    ```bash
+   umask 077
    mkdir -p .generated/anno-qa
    REC=$(mktemp -d "$PWD/.generated/anno-qa/run.XXXXXXXX")
    git rev-parse HEAD > "$REC/commit.txt"
@@ -135,10 +145,11 @@ developers or coding agents; it does not require a particular harness.
 Run `just qa-random-selftest` for the offline URL checks. To exercise standards
 text, mixed-direction HTML and Japanese literature, run
 `just qa-random 3 pattern,heuristic 42 documents`. Set `ANNO` to an existing
-CLI built with URL support to skip the build. The scheduled and manually dispatched CI runs also sample two RSS
-feeds. The seed selects endpoints. For a backend comparison, verify that the
-reported text hashes match or give both backends the same captured input. Record the source, excerpt and
-exact character span when promoting a discovery to an offline CLI regression. A valid extraction
+CLI built with URL support to skip the build. Scheduled and manual CI runs sample two documents, one feed
+article and eight catalog topics. The hosted summaries contain counts and
+catalog identifiers. For a paired comparison, capture both outputs on the same
+permitted input and verify the hashes locally. Review source rights before
+promoting an excerpt or its expected label. A valid extraction
 with zero matches passes the live contract. Use labeled fixtures or evaluation
 panels to check what the extractor missed.
 
