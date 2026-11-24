@@ -247,8 +247,8 @@ pub(crate) fn score_mentions(
 /// Score antecedent pairs and return best antecedent for each mention.
 ///
 /// For each mention i, computes the coreference score with all preceding mentions j < i,
-/// plus a null antecedent score (the mention's own score). Returns the best antecedent
-/// index per mention (or self-index for null).
+/// and returns the highest-scoring earlier index if its score exceeds zero.
+/// Otherwise the mention points to itself (null), including ties at zero.
 ///
 /// # Arguments
 ///
@@ -433,6 +433,25 @@ mod tests {
         let antes = score_antecedents(&starts, &ends, &logits, &start_reps, &end_reps, &weights);
         assert_eq!(antes.len(), 1);
         assert_eq!(antes[0], 0); // self = null
+    }
+
+    #[test]
+    fn antecedent_pair_must_beat_zero_to_replace_null() {
+        let positions = [0, 1];
+        let reps = Array2::zeros((2, 4));
+        let weights = dummy_scorer_weights(4);
+        // With zero pair interactions the score is the sum of the two mention logits.
+        for (second, expected) in [(0.5, 1), (1.0, 1), (2.0, 0)] {
+            let parents = score_antecedents(
+                &positions,
+                &positions,
+                &[-1.0, second],
+                &reps,
+                &reps,
+                &weights,
+            );
+            assert_eq!(parents, [0, expected]);
+        }
     }
 
     /// Create dummy scorer weights for testing.
