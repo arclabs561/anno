@@ -7490,7 +7490,7 @@ define_datasets! {
         entity_types: ["Party", "Date", "Amount", "Clause", "Jurisdiction"],
         language: "en",
         domain: "legal",
-        license: "CC-BY-4.0 (CUAD); third-party contract text has separate, unverified rights",
+        license: "Mixed: CUAD is CC-BY-4.0; third-party contract text has separate, unverified rights",
         citation: "Hendrycks et al. (2021)",
         paper_url: "https://arxiv.org/abs/2103.06268",
         year: 2021,

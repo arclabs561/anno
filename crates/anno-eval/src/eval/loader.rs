@@ -7873,6 +7873,12 @@ Blackburn NNP I-NP I-PER
     }
 
     #[test]
+    fn cuad_has_distinct_dataset_and_contract_rights() {
+        assert!(!DatasetId::CUAD.has_spdx_license());
+        assert!(DatasetId::CUAD.license().unwrap().contains("CC-BY-4.0"));
+    }
+
+    #[test]
     fn test_queer_nlp_datasets_configured() {
         // Queer/gender-inclusive NLP datasets
         assert!(!DatasetId::WinoQueer.download_url().is_empty());
