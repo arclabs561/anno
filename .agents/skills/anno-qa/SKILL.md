@@ -20,7 +20,9 @@ reviewer needs context. [Developer commands and seed rights](../../../docs/QA.md
 For a cross-document claim, choose the grounded track CLI, the fixed-mention benchmark,
 or a named native lifecycle replay. Use `just qa-challenge CASE BINARY` for a private
 scout-authored case and `just qa-round RECEIPT CLAIM` for an aggregate handoff. Give a
-fresh oracle the inputs and contract before collecting producer output. [Cases, scopes
+fresh oracle the inputs and contract before collecting producer output. The
+[`qa-oracle` runner](../../../docs/ADVERSARIAL_QA.md#choose-how-to-ask-the-oracle)
+can accept a harness reply, launch headless Codex or ask OpenRouter directly. [Cases, scopes
 and replay commands](../../../docs/ADVERSARIAL_QA.md#challenge-cross-document-identity-decisions)
 
 ## Procedure for a campaign
