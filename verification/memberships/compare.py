@@ -80,7 +80,7 @@ def real_roster(cli, path):
     # The existing public CC0 extraction supplies dated official names and Bioguide IDs.
     if hashlib.sha256(path.read_bytes()).hexdigest() != "f6c4246cdaff7b3094ae00cf820b9ed27462970c75bda0319460e0350290a337":
         raise ValueError("use the roster.jsonl pinned by the Congress pilot")
-    releases = [json.loads(line) for line in path.read_text().splitlines()]
+    releases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     observations = []
     for year in [2021,2023,2025]:
         roster = {}
@@ -109,7 +109,7 @@ if __name__=="__main__":
     parser.add_argument("cli")
     parser.add_argument("--roster",type=Path)
     args=parser.parse_args()
-    panel=json.loads(Path(__file__).with_name("panel.json").read_text())
+    panel=json.loads(Path(__file__).with_name("panel.json").read_text(encoding="utf-8"))
     for split in ["development","later"]:
         topics=[]
         for topic in panel[split]["topics"]:

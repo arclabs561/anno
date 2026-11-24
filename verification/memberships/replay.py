@@ -41,7 +41,7 @@ def capture(cli, head, base=None, neighbors=None):
             args += ["--since", str(path)]
         if neighbors:
             args += ["--neighbors", neighbors, "0"]
-        result = subprocess.run(args, input=json.dumps(head), text=True, capture_output=True, timeout=60)
+        result = subprocess.run(args, input=json.dumps(head), encoding="utf-8", capture_output=True, timeout=60)
         if result.returncode:
             raise ValueError(result.stderr)
         return json.loads(result.stdout)
