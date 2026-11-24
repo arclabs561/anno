@@ -210,12 +210,17 @@ def current_event(root, row):
     identity = {k: event[k] for k in IDENTITY_FIELDS}
     if (key(event) != row["latest"] or key(identity) != row["id"]
             or row["case_name"] != event["case"] or not isinstance(event["case"], str)
-            or adapter.family_for_case(root, event["case"]) != event["family"]
             or any(row[k] != event[k] for k in ("corpus", "family", "source_sha256", "oracle_sha256"))
             or row["unresolved"] != int(failed)
             or type(row["generation"]) is not int or not 1 <= row["generation"] < 2**63 - 1
             or type(row["last_slot"]) is not int or not 0 <= row["last_slot"] < 2**63 - 1):
         raise ValueError("replay history has an inconsistent observation")
+    try:
+        family = adapter.family_for_case(root, event["case"])
+    except replay_typed_spans.UnknownTypedCase:
+        return None
+    if family != event["family"]:
+        raise ValueError("replay history has an inconsistent family")
     return event
 
 
@@ -290,7 +295,7 @@ def backup(source, target, root=ROOT):
                                  tuple(row[k] for k in WITNESS_FIELDS))
             os.link(staged, target)
             if skipped:
-                print(f"Omitted {skipped} witnesses with obsolete or unknown scope", file=sys.stderr)
+                print(f"Omitted {skipped} witnesses with a retired case or obsolete scope", file=sys.stderr)
 
 
 def main():

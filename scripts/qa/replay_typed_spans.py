@@ -12,11 +12,15 @@ FAIL_SIGNATURE = r"failed_rules:[0-9]{1,2}(?:,[0-9]{1,2}){0,31}"
 MODEL = "stacked"
 
 
+class UnknownTypedCase(ValueError):
+    """The validated fixture no longer contains this case."""
+
+
 def _case(root, case):
     path = root / "scripts/qa/fixtures/typed-span-assertions.json"
     cases = judge.load_cases(json.loads(path.read_bytes()))
     if case not in cases:
-        raise ValueError(f"unknown typed-span case {case!r}")
+        raise UnknownTypedCase(f"unknown typed-span case {case!r}")
     return cases[case]
 
 

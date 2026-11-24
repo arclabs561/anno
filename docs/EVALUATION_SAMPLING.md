@@ -469,7 +469,8 @@ receipt, generation and rotation position. Earlier observations, auxiliary
 tables and free-text fields stay in the local ledger. These transfers support
 up to 512 witnesses and 2 KiB per receipt. Obsolete scopes, including the
 old WikiGold span-list format, are omitted. Re-observe those cases with the
-current adapter. Both commands require a new destination and a trusted input.
+current adapter. When a validated typed-span fixture retires a case, selection
+and transfer skip that witness so the remaining cases can still be replayed. Both commands require a new destination and a trusted input.
 Store the replay snapshot in a trusted project archive. On a new machine, restore the existing native matrix
 checkpoint into the fresh cache, then restore the separate replay snapshot
 into that same directory using the command above. Native CI checkpoints keep

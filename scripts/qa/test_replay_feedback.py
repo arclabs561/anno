@@ -130,6 +130,38 @@ class Feedback(unittest.TestCase):
         self.assertFalse((cold / "eval-results.jsonl").exists())
         self.assertNotEqual(self.pick(), None)
 
+    def test_retired_typed_case_does_not_block_other_witnesses_or_transfer(self):
+        adapter = rf.replay_typed_spans
+        for module in (adapter, adapter.judge, adapter.domain_coverage):
+            source = Path(module.__file__)
+            dest = self.root / "scripts/qa" / source.name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(source.read_bytes())
+        fixture = Path("scripts/qa/fixtures/typed-span-assertions.json")
+        rows = json.loads((rf.ROOT / fixture).read_bytes())
+        local = self.root / fixture
+        local.parent.mkdir()
+        local.write_text(json.dumps(rows))
+        result = {"outcome": "fail", "signature": "failed_rules:0",
+                  "producer_sha256": "c" * 64}
+        with patch.object(adapter, "replay", return_value=result):
+            for case in ("credential-cpa", "message-channel"):
+                rf.observe(self.root, self.cache, "typed_spans", case)
+        before = self.root / "before.db"
+        rf.backup(self.cache / rf.DB_NAME, before, self.root)
+        local.write_text(json.dumps([row for row in rows if row["id"] != "credential-cpa"]))
+        self.assertEqual(self.pick()["case"], "message-channel")
+        for source in (self.cache / rf.DB_NAME, before):
+            target = self.root / (source.stem + "-cold") / rf.DB_NAME
+            rf.backup(source, target, self.root)
+            self.assertEqual(rf.next_case(self.root, target.parent)["case"], "message-channel")
+            with sqlite3.connect(target) as db:
+                self.assertEqual(db.execute("SELECT case_name FROM witnesses").fetchall(),
+                                 [("message-channel",)])
+        local.write_text("[]")
+        with self.assertRaisesRegex(ValueError, "empty fixture"):
+            self.pick()
+
     def test_transfer_contains_latest_receipts_and_no_private_storage(self):
         old = self.record("a", "fail")
         current = self.record("a", "pass")
