@@ -264,8 +264,10 @@ fn paired_difference(
     reference: impl Fn(&[View; 3]) -> (usize, Decision),
     costs: Costs,
 ) -> (f64, f64, f64) {
-    let differences: Vec<_> = test
-        .chunks_exact(TRACKS_PER_FAMILY)
+    let (families, remainder) = test.as_chunks::<TRACKS_PER_FAMILY>();
+    assert!(remainder.is_empty(), "expected complete test families");
+    let differences: Vec<_> = families
+        .iter()
         .map(|family| {
             let loss = f64::from(evaluate(family, &decide).loss(costs));
             let baseline = f64::from(evaluate(family, &reference).loss(costs));
