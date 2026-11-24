@@ -380,13 +380,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
-          restore-keys: |
-            hf-model-repos-v3-${{ runner.os }}
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
@@ -425,13 +418,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
-          restore-keys: |
-            hf-model-repos-v3-${{ runner.os }}
       - name: Build Candle backend
         run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
@@ -453,11 +439,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
       - name: Build
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
@@ -481,11 +462,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
       - name: Build
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
@@ -505,11 +481,6 @@ jobs:
         with:
           cache-all-crates: true
           env-vars: ImageVersion
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
@@ -649,13 +620,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
-          restore-keys: |
-            hf-model-repos-v3-${{ runner.os }}
       - name: Check the offline sampler on a labeled fixture
         env:
           ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
@@ -899,13 +863,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
-          restore-keys: |
-            hf-model-repos-v3-${{ runner.os }}
       # Restore eval history so CLI benchmark accumulates observation counts across runs.
       # Uses the same anno-muxer key family as matrix-test to share state.
       - name: Cache eval history (persistent observation counts)
@@ -987,13 +944,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub/models--*
-          key: hf-model-repos-v3-${{ runner.os }}
-          restore-keys: |
-            hf-model-repos-v3-${{ runner.os }}
       # Restore eval history so full evals seed from accumulated observation counts.
       - name: Cache eval history (persistent observation counts)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -9747,3 +9747,31 @@ impl DatasetId {
         EXT_OK.iter().any(|ext| url.ends_with(ext))
     }
 }
+
+#[cfg(test)]
+mod source_rights_tests {
+    use super::DatasetId;
+
+    #[test]
+    fn source_rights_route_conformance() {
+        use DatasetId::{LitBank, PreCo, TimeBank12, TimexRecognitionSentenceOriginal, CUAD};
+        // Reviewed witnesses are intentionally independent of the registry's source table.
+        for (source, local_only) in [
+            (PreCo, true),
+            (TimeBank12, true),
+            (TimexRecognitionSentenceOriginal, true),
+            (LitBank, false),
+            (CUAD, false),
+        ] {
+            assert_eq!(source.requires_local_source(), local_only, "{source:?}");
+            assert!(source.excluded_from_shared_cache(), "{source:?}");
+            if local_only {
+                assert!(!source.is_automatable_download(), "{source:?}");
+            }
+        }
+        // The writer currently sends raw files without source-specific notice packages.
+        assert!(DatasetId::all()
+            .iter()
+            .all(|id| !id.approved_for_shared_publication()));
+    }
+}

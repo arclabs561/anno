@@ -59,8 +59,8 @@ graph, labels and threshold, correcting the decoder raised exact matches from 23
 Wikinews spans and from 14 to 18 of 40 Microsoft specification spans. The latter change gained
 six spans and lost two compact slash dates. False alarms occurred in zero of 34 gold-empty news
 sentences and three of 16 gold-empty specification cases after the correction. An additional
-English phrase-expansion rule gave no incremental gain on either panel. The 390-sentence news
-split and these now-inspected panels can be replayed as regression controls. Freeze new source
+English phrase-expansion rule gave no incremental gain on either panel. Researchers with authorized access can replay the 390-sentence news split.
+Both now-inspected independent panels are regression controls under their source terms. Freeze new source
 documents before evaluating a subsequent candidate. [Prepare the independent panels](../scripts/qa/temporal_sources/README.md)
 
 ## Choose a mode
