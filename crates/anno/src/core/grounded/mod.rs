@@ -92,6 +92,12 @@ use html_source::HtmlSource;
 mod corpus_state;
 pub use corpus_state::Corpus;
 
+mod delivery;
+pub use delivery::{
+    DeliveryBindingConflict, DeliveryCatalogBinding, DeliveryError, DeliveryOutcome,
+    DeliveryOwnership, DeliveryReceipt, DeliveryReview, DeliveryReviewSummary, DocumentDelivery,
+};
+
 mod kb_assignment;
 pub use kb_assignment::{
     KbAssignment, KbAssignmentError, KbAssignmentPreview, KbAssignmentPrior, KbAssignmentReceipt,
@@ -2011,6 +2017,29 @@ impl GroundedDocument {
             self.next_identity_id = id + 1;
         }
         true
+    }
+
+    fn replacement_track_ids(
+        &self,
+        floor: TrackId,
+    ) -> Option<(HashMap<TrackId, TrackId>, TrackId)> {
+        let mut ids: Vec<_> = self
+            .tracks
+            .keys()
+            .copied()
+            .filter(|id| *id < floor)
+            .collect();
+        ids.sort_unstable();
+        let mut mapping = HashMap::with_capacity(ids.len());
+        let mut next = floor;
+        for old in ids {
+            while self.tracks.contains_key(&next) {
+                next = TrackId::new(next.get().checked_add(1)?);
+            }
+            mapping.insert(old, next);
+            next = TrackId::new(next.get().checked_add(1)?);
+        }
+        Some((mapping, next))
     }
 
     fn remap_identity_id(&mut self, from: IdentityId, to: IdentityId) -> bool {
@@ -5282,36 +5311,17 @@ impl Corpus {
                     })
                     .map(|identity| identity.id),
             );
-            let floor = previous.next_track_id;
-            let mut next = floor;
-            let mut reassign: Vec<_> = document
-                .tracks
-                .keys()
-                .copied()
-                .filter(|id| *id < floor)
-                .collect();
-            reassign.sort_unstable();
-            for old in reassign {
-                while document.tracks.contains_key(&next) {
-                    next = TrackId::new(
-                        next.get()
-                            .checked_add(1)
-                            .expect("track IDs exhausted during replacement"),
-                    );
-                }
-                let id = next;
-                next = TrackId::new(
-                    id.get()
-                        .checked_add(1)
-                        .expect("track IDs exhausted during replacement"),
-                );
+            let (mapping, next) = document
+                .replacement_track_ids(previous.next_track_id)
+                .expect("track IDs exhausted during replacement");
+            remapped = mapping;
+            for (&old, &id) in &remapped {
                 let mut track = document
                     .tracks
                     .remove(&old)
                     .expect("track came from this document");
                 track.id = id;
                 document.tracks.insert(id, track);
-                remapped.insert(old, id);
             }
             // Shared copies are reconciled against live assignments after insertion.
             for identity in document.identities.values_mut() {
@@ -5365,6 +5375,9 @@ impl Corpus {
                 .max(IdentityId::new(max_identity_id.get().saturating_add(1)));
         }
         let doc_id = document.id.clone();
+        // A direct replacement supersedes the delivery-managed head. Exact old
+        // retries can still retrieve their receipts without touching this document.
+        state.delivery.heads.remove(&doc_id);
         let replacement_ids: HashSet<_> = if replacing {
             document.tracks.keys().copied().collect()
         } else {

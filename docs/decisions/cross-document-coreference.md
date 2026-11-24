@@ -32,3 +32,29 @@ The native resolver received 1,798 unlinked person tracks from twelve dated Hous
 Permanent chamber boundaries removed the false links and lost 22 additional true ones across ten people who changed chambers. A retrospective rule that split groups only after observing simultaneous membership in both chambers removed all twelve false links in this panel while preserving the transfers. It depends on synchronized roster editions. A counterexample combining a transfer with an overlapping namesake defeats it. A downstream archive could flag the conflicting interval for review and keep the source citations accessible while the link is unsettled. There is no general impossibility rule for changing offices, names or identities. [Policy experiment and counterexample](../../verification/index_consumers/congress/test_cross_doc_partition.py)
 
 For a search interface, a provisional name cluster can be useful for discovery. Open the underlying occurrences and label the grouping with its source edition. For an index joining facts about people, publish a qualified catalog record or a revisioned decision with its evidence, issuer and scope. An append-only alias list cannot say when a name or role applied, when the catalog learned it, or who can see it. Keep effective dates, publication order and visibility in the consuming domain until the producer can supply them. A future matching API should expose candidate inclusion, supporting and conflicting evidence, and an unresolved outcome before offering a confidence threshold for automatic joins.
+
+## Delivering grounded documents from independent issuers
+
+Use `anno cross-doc --delivery-manifest deliveries.json` for a caller-managed import. Each array member names one grounded document relative to the manifest and carries its own request. For example, a manifest containing one independent document can be written as
+
+```json
+[
+  {
+    "path": "catalog/page-7.json",
+    "request": {
+      "issuer": "city-library",
+      "delivery_id": "shipment-45/page-7",
+      "source_revision": 3,
+      "ownership": {"mode": "independent"}
+    }
+  }
+]
+```
+
+The default JSON report includes an ordered `deliveries` array with the original receipt for each applied or previously applied operation. Within one invocation, repeating the entire manifest or any previously accepted member preserves the existing corpus. Each separate invocation starts a new session. Durable consumers must recover their journal of accepted deliveries and catalog decisions before handling late retries.
+
+In Rust, pass the request and the original JSON bytes to `Corpus::deliver_document`. Get the qualified live document ID from the receipt. Each new delivery ID must advance the issuer-local document revision. Reusing an accepted token checks the original bytes and intent even after a newer revision arrives. Byte differences, including changes in JSON formatting, count as different payloads.
+
+Independent import allocates owners per document and preserves a shared assignment between tracks within that document. An authorized restore uses `{"mode":"restore","origin":"catalog-backup-8"}`. Each issuer, origin and source identity ID identifies an original record. Its members follow the current canonical catalog assignment in the receiving corpus. A fork that copied an entire origin must declare independent import. The caller authenticates the issuer and decides whether it can assert that origin.
+
+A newer delivery that disputes reviewed bindings returns a review with the current and proposed scopes, the source assertion, and its effective catalog assignment on approval. Keeping the current edition discards the proposal. Accepting it calls `Corpus::accept_document_replacement` with the still-current review. The replacement retires superseded track handles. Raw `--import` continues to use `Corpus::add_document` with its established explicit replacement behavior.

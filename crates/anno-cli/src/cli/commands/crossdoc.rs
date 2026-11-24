@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "eval")]
 use anno::coalesce::Resolver;
 #[cfg(feature = "eval")]
+use anno::core::grounded::{DeliveryOutcome, DocumentDelivery};
+#[cfg(feature = "eval")]
 use anno::offset::TextSpan;
 #[cfg(feature = "eval")]
 use anno::{Corpus, GroundedDocument};
@@ -65,6 +67,12 @@ pub struct CrossDocArgs {
     /// Use - to insert a JSONL stream. A later document with the same ID replaces the earlier one.
     #[arg(long, value_name = "PATH")]
     pub import: Vec<String>,
+
+    /// Apply a JSON array of {request, path} deliveries in order. Each path identifies
+    /// one grounded JSON document relative to its manifest. Repeating a manifest in
+    /// one invocation returns original receipts. JSON reports include the outcomes.
+    #[arg(long, value_name = "PATH", conflicts_with_all = ["import", "stdin", "candidates", "directory"])]
+    pub delivery_manifest: Vec<String>,
 
     /// Read only stdin (JSONL format, one GroundedDocument per line).
     /// To combine stdin with files, use --import - in the desired order.
@@ -304,6 +312,48 @@ fn import_documents(
 }
 
 #[cfg(feature = "eval")]
+fn import_deliveries(
+    paths: &[String],
+    corpus: &mut Corpus,
+    doc_paths: &mut HashMap<String, String>,
+) -> Result<Vec<DeliveryOutcome>, String> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Member {
+        request: DocumentDelivery,
+        path: PathBuf,
+    }
+
+    let mut outcomes = Vec::new();
+    for manifest in paths {
+        let path = Path::new(manifest);
+        let bytes =
+            fs::read(path).map_err(|e| format!("Failed to read manifest '{manifest}': {e}"))?;
+        let members: Vec<Member> = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("Failed to parse manifest '{manifest}': {e}"))?;
+        for member in members {
+            let file = path.parent().unwrap_or(Path::new(".")).join(member.path);
+            let source = file.display();
+            let payload =
+                fs::read(&file).map_err(|e| format!("Failed to read delivery '{source}': {e}"))?;
+            let outcome = corpus
+                .deliver_document(&member.request, &payload)
+                .map_err(|e| {
+                    format!(
+                        "Failed to deliver '{source}' as '{}': {e}",
+                        member.request.delivery_id
+                    )
+                })?;
+            if let DeliveryOutcome::Applied(receipt) = &outcome {
+                doc_paths.insert(receipt.document_id.clone(), source.to_string());
+            }
+            outcomes.push(outcome);
+        }
+    }
+    Ok(outcomes)
+}
+
+#[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
     if args.verbose {
@@ -349,13 +399,20 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
     let candidate_mode;
+    let mut delivery_outcomes = Vec::new();
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
         || args.stdin
+        || !args.delivery_manifest.is_empty()
     {
         // Import mode: use Corpus for proper inter-doc coref with GroundedDocuments
         use_corpus = true;
-        import_documents(&args, &mut corpus, &mut doc_paths)?;
+        if args.delivery_manifest.is_empty() {
+            import_documents(&args, &mut corpus, &mut doc_paths)?;
+        } else {
+            delivery_outcomes =
+                import_deliveries(&args.delivery_manifest, &mut corpus, &mut doc_paths)?;
+        }
 
         let doc_count = corpus.documents().count();
         if doc_count == 0 {
@@ -601,6 +658,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         OutputFormat::Json => {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
+            if !delivery_outcomes.is_empty() {
+                output.insert("deliveries".into(), serde_json::json!(delivery_outcomes));
+            }
             output.insert("metadata".to_string(), serde_json::json!({
                 "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
                 "candidate_mode": candidate_mode,
