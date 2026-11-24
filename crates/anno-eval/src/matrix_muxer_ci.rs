@@ -2440,7 +2440,7 @@ fn task_dataset_catalog(tasks: &[Task]) -> Vec<DatasetId> {
 enum DatasetExclusion {
     NonAutomatableSource,
     SlowInFastProfile,
-    TemporalEvaluatorNeedsNer,
+    MissingTimexSpanReader,
     MissingRelationSpans,
     NoLoader,
     CacheRequired,
@@ -2477,21 +2477,26 @@ impl DatasetPolicy {
         }
         // Source policy applies even to a local cache hit. Some registered
         // sources have known-bad parses or require manual acquisition.
-        if !self.allow_non_automatable && !ds.is_automatable_download() {
+        if ds.timex_fixture().is_none()
+            && !self.allow_non_automatable
+            && !ds.is_automatable_download()
+        {
             return Some(DatasetExclusion::NonAutomatableSource);
         }
         if self.exclude_slow && matches!(ds, DatasetId::OntoNotesSample | DatasetId::BioMNER) {
             return Some(DatasetExclusion::SlowInFastProfile);
         }
         let tasks = dataset_tasks(ds);
-        if self.temporal_requested && tasks.contains(&Task::Temporal) && !tasks.contains(&Task::NER)
+        if self.temporal_requested && tasks.contains(&Task::Temporal) && !ds.has_timex_span_reader()
         {
-            return Some(DatasetExclusion::TemporalEvaluatorNeedsNer);
+            return Some(DatasetExclusion::MissingTimexSpanReader);
         }
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             return Some(DatasetExclusion::NoLoader);
         };
-        if self.require_cached && !loader.is_cached(loadable) && !loader.s3_enabled() {
+        if (ds.timex_fixture().is_some() || (self.require_cached && !loader.s3_enabled()))
+            && !loader.is_cached(loadable)
+        {
             return Some(DatasetExclusion::CacheRequired);
         }
         None
@@ -2814,6 +2819,56 @@ fn dataset_rejection_message(error: anno::Error) -> String {
         mh::classify_failure_kind(&message)
     };
     category.into()
+}
+
+#[test]
+fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
+    use crate::eval::task_evaluator::CorefPredictedMentions;
+
+    let dir = tempfile::tempdir().unwrap();
+    let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+    let policy = DatasetPolicy {
+        allow_non_automatable: false,
+        exclude_slow: false,
+        temporal_requested: true,
+        relation_requested: false,
+        require_cached: true,
+    };
+    let mut cohorts = std::collections::BTreeSet::new();
+    for id in [
+        DatasetId::AnnoTimexSmoke,
+        DatasetId::AnnoTimexContrast,
+        DatasetId::TimexRecognitionSentenceOriginal,
+    ] {
+        let key = policy_cohort_key(
+            Task::Temporal,
+            id,
+            42,
+            Some(2),
+            true,
+            false,
+            CorefPredictedMentions::BackendDefault,
+        )
+        .unwrap();
+        assert!(
+            cohorts.insert(key),
+            "distinct source IDs must produce distinct cohorts"
+        );
+        if id.timex_fixture().is_some() {
+            assert_eq!(id.download_url(), "");
+            assert!(id.requires_local_source() && id.excluded_from_shared_cache());
+            let loadable = LoadableDatasetId::try_from(id).unwrap();
+            assert!(matches!(
+                policy.exclusion(&loader, id),
+                Some(DatasetExclusion::CacheRequired)
+            ));
+            std::fs::write(dir.path().join(id.cache_filename()), b"arbitrary source").unwrap();
+            assert!(!loader.is_cached(loadable));
+            assert!(loader.load(loadable).is_err());
+            assert!(loader.cached_timex_sentences(id, None).is_err());
+            assert!(loader.load_or_download(loadable).is_err());
+        }
+    }
 }
 
 #[test]

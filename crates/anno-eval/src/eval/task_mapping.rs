@@ -378,7 +378,11 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         Task::PosTagging => &[],
         Task::MachineTranslation => &[],
         Task::LanguageModeling => &[],
-        Task::Temporal => &[DatasetId::TimexRecognitionSentenceOriginal],
+        Task::Temporal => &[
+            DatasetId::TimexRecognitionSentenceOriginal,
+            DatasetId::AnnoTimexSmoke,
+            DatasetId::AnnoTimexContrast,
+        ],
         Task::HierarchicalExtraction => {
             // GLiNER multi-task can do hierarchical extraction, but we don't have dedicated datasets yet
             &[]

@@ -211,6 +211,9 @@ impl LoadableDatasetId {
 
     #[must_use]
     fn parse_plan(id: DatasetId) -> Option<DatasetParsePlan> {
+        if id.timex_fixture().is_some() {
+            return Some(DatasetParsePlan::HfApiResponse);
+        }
         if let Some(hint) = Self::registry_hint_plan(id) {
             return Some(hint);
         }
@@ -1593,8 +1596,32 @@ impl DatasetLoader {
         self.cache_dir.join(id.cache_filename())
     }
 
+    fn read_timex_fixture(
+        &self,
+        id: DatasetId,
+        fixture: &super::temporal_expressions::TimexFixture,
+    ) -> Result<String> {
+        use std::io::Read;
+        let file = fs::File::open(self.cache_path_for(id)).map_err(|_| {
+            Error::InvalidInput(format!("Fixture {id:?} not cached; stage {}", fixture.path))
+        })?;
+        let mut data = String::new();
+        file.take(fixture.bytes as u64 + 1)
+            .read_to_string(&mut data)
+            .map_err(|_| Error::InvalidInput(format!("Invalid fixture {id:?}")))?;
+        if data.len() != fixture.bytes || self.compute_sha256(&data) != fixture.digest {
+            return Err(Error::InvalidInput(format!(
+                "Fixture {id:?} checksum mismatch"
+            )));
+        }
+        Ok(data)
+    }
+
     #[must_use]
     fn is_cached_for(&self, id: DatasetId) -> bool {
+        if let Some(fixture) = id.timex_fixture() {
+            return self.read_timex_fixture(id, &fixture).is_ok();
+        }
         if !self.cache_path_for(id).exists() {
             return false;
         }
@@ -1637,6 +1664,10 @@ impl DatasetLoader {
     /// Returns an error if the dataset is not cached.
     pub fn load(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
         let dataset_id = id.0;
+        if let Some(fixture) = dataset_id.timex_fixture() {
+            let content = self.read_timex_fixture(dataset_id, &fixture)?;
+            return self.parse_content_impl(&content, dataset_id);
+        }
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
             return Err(Error::InvalidInput(format!(
@@ -3660,7 +3691,7 @@ impl DatasetLoader {
     /// ```
     fn hf_row_envelope(content: &str, id: DatasetId) -> Result<serde_json::Value> {
         let parsed = serde_json::from_str::<serde_json::Value>(content);
-        if id != DatasetId::TimexRecognitionSentenceOriginal
+        if !id.has_timex_span_reader()
             || parsed
                 .as_ref()
                 .is_ok_and(|value| value.get("rows").is_some())
@@ -3698,13 +3729,17 @@ impl DatasetLoader {
         id: DatasetId,
         expected_version: Option<&str>,
     ) -> Result<Vec<super::temporal_expressions::TimexSentence>> {
-        if id != DatasetId::TimexRecognitionSentenceOriginal {
+        if !id.has_timex_span_reader() {
             return Err(Error::InvalidInput(format!(
                 "No TIMEX span reader for {id:?}"
             )));
         }
-        let content = fs::read_to_string(self.cache_path_for(id))
-            .map_err(|e| Error::InvalidInput(format!("Failed to read TIMEX cache: {e}")))?;
+        let content = if let Some(fixture) = id.timex_fixture() {
+            self.read_timex_fixture(id, &fixture)?
+        } else {
+            fs::read_to_string(self.cache_path_for(id))
+                .map_err(|e| Error::InvalidInput(format!("Failed to read TIMEX cache: {e}")))?
+        };
         if expected_version
             .and_then(|v| v.strip_prefix("sha256:"))
             .is_some_and(|expected| expected != self.compute_sha256(&content))
@@ -3810,8 +3845,7 @@ impl DatasetLoader {
                         .is_some();
 
                 if (has_temporal_spans
-                    || (id == DatasetId::TimexRecognitionSentenceOriginal
-                        && row.get("time_expressions").is_some()))
+                    || (id.has_timex_span_reader() && row.get("time_expressions").is_some()))
                     && !text.is_empty()
                 {
                     fn spans_from_array(
@@ -4026,6 +4060,11 @@ impl DatasetLoader {
                 metadata.split = None;
             }
             metadata.version = Some(format!("sha256:{digest}"));
+        }
+        if let Some(fixture) = id.timex_fixture() {
+            source_url = fixture.path.into();
+            metadata.version = Some(format!("sha256:{}", fixture.digest));
+            metadata.split = Some("fixture".into());
         }
         Ok(LoadedDataset {
             id,

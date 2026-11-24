@@ -643,9 +643,9 @@ jobs:
           run_sample
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
 
-          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/TimexRecognitionSentenceOriginal.cache"
+          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexSmoke.cache"
           export ANNO_MUXER_DECISIONS_FILE="$ANNO_CACHE_DIR/temporal-outcomes.jsonl"
-          ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1 ANNO_MUXER_FIXED_DATASETS=TimexRecognitionSentenceOriginal ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
+          ANNO_MUXER_FIXED_DATASETS=AnnoTimexSmoke ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
           python3 scripts/qa/check_matrix_outcomes.py --temporal-smoke "$ANNO_MUXER_DECISIONS_FILE"
       - name: Replay adaptive selection across isolated CI histories
         run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
@@ -679,7 +679,6 @@ jobs:
       - name: Score the checked-in temporal contrast fixture
         env:
           ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-temporal-contrast
-          ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE: "1"
           ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-timex-control.jsonl
           ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-timex-history.jsonl
           ANNO_HISTORY_FILE: ${{ runner.temp }}/matrix-timex-arms.json
@@ -688,13 +687,13 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: "42"
           ANNO_MUXER_PIN_BACKEND: pattern
-          ANNO_MUXER_FIXED_DATASETS: TimexRecognitionSentenceOriginal
+          ANNO_MUXER_FIXED_DATASETS: AnnoTimexContrast
           ANNO_MAX_EXAMPLES: "34"
           ANNO_NO_DOWNLOADS: "1"
           ANNO_S3_CACHE: "0"
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
         run: |
-          install -D scripts/qa/fixtures/timex-contrast/rows.jsonl "$ANNO_CACHE_DIR/datasets/TimexRecognitionSentenceOriginal.cache"
+          install -D scripts/qa/fixtures/timex-contrast/rows.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexContrast.cache"
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --temporal-contrast "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
       - name: Run worst-first matrix test (+ regression detection)

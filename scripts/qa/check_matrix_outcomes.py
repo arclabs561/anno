@@ -61,7 +61,7 @@ def check_wikigold(lines, bootstrap=False):
 
 
 def check_temporal_smoke(lines):
-    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+    return check_fixed_sample(lines, task="temporal", dataset="AnnoTimexSmoke",
                               backend="pattern", examples=2, exact=True,
                               counts={"gold_spans": 1, "predicted_spans": 1, "matched_spans": 1,
                                       "gold_empty_sentences": 1, "gold_empty_sentences_with_predictions": 0,
@@ -69,7 +69,7 @@ def check_temporal_smoke(lines):
 
 
 def check_temporal_contrast(lines):
-    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+    return check_fixed_sample(lines, task="temporal", dataset="AnnoTimexContrast",
                               backend="pattern", examples=34, exact=False)
 
 

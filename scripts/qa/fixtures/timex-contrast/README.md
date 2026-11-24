@@ -38,10 +38,10 @@ isolated cache so the panel gets its own input digest and history.
 ```sh
 panel_cache=$(mktemp -d)
 mkdir -p "$panel_cache/datasets"
-cp scripts/qa/fixtures/timex-contrast/rows.jsonl "$panel_cache/datasets/TimexRecognitionSentenceOriginal.cache"
-ANNO_CACHE_DIR="$panel_cache" ANNO_NO_DOWNLOADS=1 ANNO_S3_CACHE=0 ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1 \
+cp scripts/qa/fixtures/timex-contrast/rows.jsonl "$panel_cache/datasets/AnnoTimexContrast.cache"
+ANNO_CACHE_DIR="$panel_cache" ANNO_NO_DOWNLOADS=1 ANNO_S3_CACHE=0 \
   anno sampler --strategy random run --task temporal --fixed-backend pattern \
-    --fixed-datasets TimexRecognitionSentenceOriginal --require-cached --max-examples 34 \
+    --fixed-datasets AnnoTimexContrast --require-cached --max-examples 34 \
     --runs 1 --seed-base 42 --decisions-file "$panel_cache/decisions.jsonl"
 ```
 

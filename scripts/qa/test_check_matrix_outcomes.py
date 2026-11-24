@@ -91,15 +91,16 @@ class CoverageTest(unittest.TestCase):
             self.assertFalse(accepts(hard_junk=True))
 
     def test_contrast_control_requires_the_whole_offline_panel(self):
-        row = dict(outcome("temporal", examples=34), dataset="TimexRecognitionSentenceOriginal",
+        row = dict(outcome("temporal", examples=34), dataset="AnnoTimexContrast",
                    backend="pattern", primary_f1=0.4)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertTrue(check_temporal_contrast([json.dumps(row)]))
-            for change in ({"cost_units": 390}, {"cost_units": 2}, {"hard_junk": True}):
+            for change in ({"cost_units": 390}, {"cost_units": 2}, {"hard_junk": True},
+                           {"dataset": "TimexRecognitionSentenceOriginal"}, {"dataset": "AnnoTimexSmoke"}):
                 self.assertFalse(check_temporal_contrast([json.dumps(row | change)]))
 
     def test_temporal_fixture_requires_the_positive_and_negative_documents(self):
-        row = dict(outcome("temporal", examples=2), dataset="TimexRecognitionSentenceOriginal",
+        row = dict(outcome("temporal", examples=2), dataset="AnnoTimexSmoke",
                    backend="pattern", primary_f1=1.0,
                    structural_counts={"gold_spans": 1, "predicted_spans": 1, "matched_spans": 1,
                                       "gold_empty_sentences": 1, "gold_empty_sentences_with_predictions": 0,
@@ -109,7 +110,8 @@ class CoverageTest(unittest.TestCase):
             for change in ({"structural_counts": {}}, {"structural_counts": None},
                            {"structural_counts": row["structural_counts"] | {"matched_spans": True}},
                            {"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
-                           {"slice": "ner.lang=en"}, {"dataset": "WikiGold"}):
+                           {"slice": "ner.lang=en"}, {"dataset": "WikiGold"},
+                           {"dataset": "TimexRecognitionSentenceOriginal"}, {"dataset": "AnnoTimexContrast"}):
                 self.assertFalse(check_temporal_smoke([json.dumps(row | change)]))
 
     def test_reports_first_decision_and_matching_observation(self):

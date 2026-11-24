@@ -1362,7 +1362,7 @@ impl TaskEvaluator {
             | "gliner_candle" | "gliner_multitask" | "gliner_pii" | "gliner_relex" | "w2ner"
             | "gliner_poly" | "deberta_v3" | "albert" | "universal_ner" => true,
             // Pattern only does structured entities (not named entities)
-            "pattern" => dataset == DatasetId::TimexRecognitionSentenceOriginal,
+            "pattern" => dataset.has_timex_span_reader(),
             // Heuristic only does Person, Organization, Location
             "heuristic" => {
                 let supported = [
