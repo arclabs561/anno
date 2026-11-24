@@ -114,6 +114,31 @@ def crossdoc_evidence(receipt):
             f"Evaluated {passed + failed} assertions ({passed} passed, {failed} failed).")
 
 
+def query_case_evidence(receipt):
+    if set(receipt) != {"kind", "authored", "consumer", "proposal_sha256", "outcome"}:
+        raise ValueError("unexpected query case receipt fields")
+    authored, reader = receipt["authored"], receipt["consumer"]
+    if (not isinstance(authored, dict) or authored.get("kind") != "anno.qa.crossdoc-case.v1"
+            or authored.get("runner") != "cli"):
+        raise ValueError("expected an authored CLI case")
+    summary = crossdoc_evidence(authored)
+    if not isinstance(reader, dict) or set(reader) != {
+        "rubric", "scorer_sha256", "holdout_sha256", "passed", "failed", "outcome"
+    } or reader["rubric"] != "anno.qa.query-postings.v1":
+        raise ValueError("unexpected reader rubric or fields")
+    hashes = [receipt["proposal_sha256"], reader["scorer_sha256"], reader["holdout_sha256"]]
+    if not all(isinstance(value, str) and re.fullmatch("[a-f0-9]{64}", value) for value in hashes):
+        raise ValueError("invalid query case digest")
+    passed, failed = reader["passed"], reader["failed"]
+    if (type(passed) is not int or type(failed) is not int or min(passed, failed) < 0
+            or not 1 <= passed + failed <= 32):
+        raise ValueError("expected 1 to 32 evaluated reader queries")
+    combined = "fail" if failed or authored["failed"] else "pass"
+    if reader["outcome"] != ("fail" if failed else "pass") or receipt["outcome"] != combined:
+        raise ValueError("query case outcomes disagree with the counts")
+    return f"{summary} Evaluated {passed + failed} reader queries ({passed} passed, {failed} failed)."
+
+
 def replay_evidence(receipt):
     from replay_feedback import ADAPTERS, validate_signature
 
@@ -139,6 +164,8 @@ def evidence(directory):
             return outcome_evidence(directory)
         receipt = json.loads(directory.read_text(encoding="utf-8"))
         if isinstance(receipt, dict):
+            if receipt.get("kind") == "anno.qa.crossdoc-query-case.v1":
+                return query_case_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-case.v1":
                 return crossdoc_evidence(receipt)
             if "kind" not in receipt and "outcome" in receipt:

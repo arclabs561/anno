@@ -41,6 +41,26 @@ For a historical or model-quality comparison, record which assertions distinguis
 
 The coordinator uses the agent host selected for the round. The repository’s Codex example dispatches a subagent with the oracle prompt. The local replay commands call the selected binary and need no LLM service or API key.
 
+
+### Check the published report with an independent reader
+
+A case can group the right occurrences while a name search returns somebody else's sources. An independent reviewer can freeze a JSON query holdout for a grounded proposal. Give the reviewer the source documents, the reader contract and the source digest before exposing any producer output. The digest covers the ordered inputs, case ID and resolver options. It excludes the author's assertions, so a change to those assertions can be scored against the same reader expectations.
+
+```sh
+case=scripts/qa/fixtures/crossdoc/lamp-ledger.json
+holdout=scripts/qa/fixtures/crossdoc/lamp-ledger.queries.json
+python3 scripts/qa/replay_crossdoc_case.py "$case" --source-digest
+python3 scripts/qa/replay_crossdoc_case.py "$case" target/debug/anno --query-holdout "$holdout" --details
+```
+
+Use `kind: anno.qa.query-postings.v1`, that source digest in `source_sha256`, and a `queries` array. Each query sets `after` to a document submission count, supplies `entity` (native name search), `catalog_record` (exact catalog and accession), or both, and lists the expected `postings`. Each posting is a document ID and a zero-based position in the active edition's signal array. An empty array asserts zero hits. The reader checks every returned posting, including multiplicity, in any output order. The two judges share the actual report bytes produced once at each checkpoint. The harness allows 32 queries across up to eight combined checkpoints.
+
+Without `--details`, the receipt carries separate authored and consumer outcomes, the proposal and holdout file hashes, the source digest, producer hash, and both scorer commitments. `--details` writes expected and observed postings to local stderr. A missed expectation in either judge exits 1. Invalid inputs or an execution error exit 2. A hash identifies the frozen bytes. Use a separately recorded reviewer dispatch when the experiment requires evidence of authorship or independence.
+
+For an in-session agent or deterministic local reply, use `qa_oracle.py accept TASK ANSWER`. A headless agent can use `qa_oracle.py codex TASK ANSWER`. A raw gateway can use `qa_oracle.py openrouter TASK ANSWER --model MODEL`. Supply the resulting proposal and the separate reviewer response as the two replay files. Compare each dispatch receipt's `answer_sha256` to the corresponding file hash. The transport commands and task isolation are described below.
+
+The lamp ledger, names, accession assignments and query expectations are original synthetic project examples released under the repository's MIT OR Apache-2.0 license. They are exposed regression controls. The native tests deliberately exchange display names or catalog namespaces between two report rows and rerun the reader. Keep future experimental holdouts outside the proposal author's context. [Proposal](../scripts/qa/fixtures/crossdoc/lamp-ledger.json) · [Reader expectations](../scripts/qa/fixtures/crossdoc/lamp-ledger.queries.json) · [Mutation controls](../scripts/qa/test_crossdoc_query_holdout.py)
+
 ## Start from a rotating domain sample
 
 The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. A local run retains the detailed receipt for replay or an optional reviewer brief. The hosted job exports catalog coverage counts.
