@@ -1,6 +1,9 @@
 //! Query command - Query and filter entities/clusters
 
-use clap::Parser;
+mod publication;
+
+use clap::{Parser, Subcommand};
+use publication::CatalogRecord;
 use std::fs;
 use std::io::{self, Read};
 
@@ -9,11 +12,24 @@ use super::super::utils::{format_error, parse_grounded_document, read_input_file
 use anno::{Location, Signal};
 
 /// Query and filter entities/clusters
+#[derive(Subcommand, Debug)]
+pub enum QueryCommand {
+    /// Publish or compare complete revisions of one grounded document.
+    Publication(publication::PublicationArgs),
+}
+
 #[derive(Parser, Debug)]
+#[command(subcommand_negates_reqs = true, args_conflicts_with_subcommands = true)]
 pub struct QueryArgs {
+    #[command(subcommand)]
+    pub command: Option<QueryCommand>,
     /// Input file (GroundedDocument JSON or cross-doc clusters JSON)
-    #[arg(value_name = "FILE")]
-    pub input: String,
+    #[arg(value_name = "FILE", required = true)]
+    pub input: Option<String>,
+
+    /// Only show occurrences bound to this exact catalog and accession.
+    #[arg(long, num_args = 2, value_names = ["CATALOG", "ACCESSION"], conflicts_with_all = ["untracked", "unlinked"])]
+    pub catalog_record: Vec<String>,
 
     /// Filter by entity type
     #[arg(short, long, value_name = "TYPE")]
@@ -113,6 +129,11 @@ fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
 
 /// Execute the query command.
 pub fn run(args: QueryArgs) -> Result<(), String> {
+    if let Some(QueryCommand::Publication(publication)) = args.command {
+        return publication::run(publication);
+    }
+    let catalog = CatalogRecord::from_args(&args.catalog_record)?;
+    let input = args.input.as_deref().ok_or("missing query input")?;
     let expression = args
         .filter
         .as_deref()
@@ -120,14 +141,14 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
         .transpose()?
         .unwrap_or_default();
     // Load input file
-    let json_content = if args.input == "-" {
+    let json_content = if input == "-" {
         let mut buf = String::new();
         io::stdin()
             .read_to_string(&mut buf)
             .map_err(|e| format_error("read stdin", &e.to_string()))?;
         buf
     } else {
-        read_input_file(&args.input)?
+        read_input_file(input)?
     };
 
     // Try to parse as GroundedDocument first, then as cross-doc clusters
@@ -189,6 +210,14 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             signals.retain(|s| doc.track_for_signal(s.id).is_none());
         }
 
+        if let Some(catalog) = &catalog {
+            signals.retain(|signal| {
+                doc.identity_for_signal(signal.id)
+                    .and_then(anno::Identity::qualified_kb_ref)
+                    == Some(catalog.as_ref())
+            });
+        }
+
         if args.linked {
             signals.retain(|s| doc.identity_for_signal(s.id).is_some());
         }
@@ -225,6 +254,9 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             }
         }
     } else {
+        if catalog.is_some() {
+            return Err("catalog-record filtering requires a GroundedDocument".into());
+        }
         // Try to parse as cross-doc clusters (requires cross-doc support).
         #[cfg(feature = "eval")]
         {
@@ -350,7 +382,9 @@ mod tests {
         fs::write(&input, serde_json::to_string(&document).unwrap()).unwrap();
 
         run(QueryArgs {
-            input: input.to_string_lossy().into_owned(),
+            command: None,
+            input: Some(input.to_string_lossy().into_owned()),
+            catalog_record: Vec::new(),
             r#type: None,
             entity: None,
             min_confidence: None,

@@ -49,6 +49,8 @@ A stream-processing watermark can trigger publication at a chosen delay. Later r
 
 ## Decision for anno
 
+The subsequent [catalog publication pilot](catalog-publication-pilot.md) replayed historical directory, committee and House Clerk records through a Rust publication API and the shipped query command. It measures when a corrected result becomes readable on a local index.
+
 Keep `Signal`, `Track` and `Identity` as the grounded, current view. Pilot the additional contract in an index consumer before adding public Rust types. That consumer should accept versioned source updates and withdrawals, retain anchored occurrences, expose possible matches separately from committed memberships, and publish a versioned snapshot or changes to earlier bindings. Carry the dependencies that authorize and support an attribution all the way to facets and citations. Explicit external assignments and corrections are inputs to reconciliation. This design lets a caller tune latency and review independently of the physical write or flush schedule. [Worked downstream journeys and release tests](index-consumers.md)
 
 A deployment decision needs the caller's read-freshness budget, update distribution (including bursts, deletes and repeats), false-merge cost, available review capacity and label policy. Replay a licensed workload chronologically with burst and disconnection periods. Compare full reconciliation, bounded repair and an adaptive policy against a gold partition as well as against each other. Measure p95 time to searchable text and to corrected person results, stale postings after recovery, per-audience precision, and throughput including persistence. The synthetic timing and loss units here cannot select those budgets for a real caller.

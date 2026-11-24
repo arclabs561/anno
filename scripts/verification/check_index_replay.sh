@@ -11,3 +11,5 @@ cargo run --quiet --locked -p anno --no-default-features --example index_publish
   | python3 verification/index_consumers/check_recovery.py
 python3 verification/temporal_identity/check_replay.py
 python3 verification/index_consumers/check_projection.py
+python3 verification/index_consumers/congress/test_committee_pilot.py
+python3 verification/index_consumers/congress/check_catalog_history.py
