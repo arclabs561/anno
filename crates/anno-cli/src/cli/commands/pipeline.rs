@@ -50,6 +50,10 @@ pub struct PipelineArgs {
     #[arg(long, default_value = "0.6")]
     pub threshold: f64,
 
+    /// Require compatible known track types when comparing tracks across documents.
+    #[arg(long, requires = "cross_doc")]
+    pub require_type_match: bool,
+
     /// Output format
     #[arg(long, default_value = "human")]
     pub format: OutputFormat,
@@ -261,6 +265,7 @@ fn output_cross_doc(args: &PipelineArgs, documents: Vec<GroundedDocument>) -> Re
     }
     Resolver::new()
         .with_threshold(args.threshold as f32)
+        .require_type_match(args.require_type_match)
         .resolve_inter_doc_coref(&mut corpus, None, None);
     if matches!(args.format, OutputFormat::Grounded) {
         let docs: Vec<_> = ids
