@@ -1183,6 +1183,19 @@ mod tests {
     }
 
     #[test]
+    fn date_shaped_controller_model_after_on_is_not_a_calendar_date() {
+        let text =
+            "The firmware runs on 2040‑02‑29, the controller model. Installed on 2040-03-01.";
+        let entities = extract(text);
+        let dates: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(dates, ["2040-03-01"]);
+    }
+
+    #[test]
     fn provenance_attached() {
         use crate::ExtractionMethod;
 
