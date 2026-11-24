@@ -59,6 +59,10 @@ def load_cases(rows, custom_types=()):
             check_range(rule, text, key)
             if rule.get("kind") not in ("exact_span", "no_overlap"):
                 raise ValueError(f"{key}: unsupported assertion kind")
+            if "expected_count" in rule:
+                count = rule["expected_count"]
+                if rule["kind"] != "exact_span" or type(count) is not int or count < 0:
+                    raise ValueError(f"{key}: expected_count requires exact_span and a nonnegative integer")
             labels = rule.get("types")
             if (not isinstance(labels, list) or not labels
                     or any(not isinstance(label, str) or label not in vocabulary for label in labels)
@@ -137,11 +141,15 @@ def score(cases, predictions):
             if rule["kind"] == "exact_span":
                 matches = [i for i in matches if (entities[i]["start"], entities[i]["end"])
                            == (rule["start"], rule["end"])]
-                passed = bool(matches)
+                passed = (len(matches) == rule["expected_count"]
+                          if "expected_count" in rule else bool(matches))
             else:
                 passed = not matches
             assessed.update(matches)
-            findings.append({**rule, "id": key, "passed": passed, "overlaps": overlaps})
+            finding = {**rule, "id": key, "passed": passed, "overlaps": overlaps}
+            if "expected_count" in rule:
+                finding["observed_count"] = len(matches)
+            findings.append(finding)
         predicted += len(entities)
         unassessed += len(entities) - len(assessed)
     return {"passed": sum(row["passed"] for row in findings), "total": len(findings),

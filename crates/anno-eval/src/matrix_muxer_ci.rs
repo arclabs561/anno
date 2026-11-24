@@ -2477,7 +2477,7 @@ impl DatasetPolicy {
         }
         // Source policy applies even to a local cache hit. Some registered
         // sources have known-bad parses or require manual acquisition.
-        if ds.timex_fixture().is_none()
+        if ds.checkout_fixture().is_none()
             && !self.allow_non_automatable
             && !ds.is_automatable_download()
         {
@@ -2494,7 +2494,7 @@ impl DatasetPolicy {
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             return Some(DatasetExclusion::NoLoader);
         };
-        if (ds.timex_fixture().is_some() || (self.require_cached && !loader.s3_enabled()))
+        if (ds.checkout_fixture().is_some() || (self.require_cached && !loader.s3_enabled()))
             && !loader.is_cached(loadable)
         {
             return Some(DatasetExclusion::CacheRequired);
@@ -2854,7 +2854,7 @@ fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
             cohorts.insert(key),
             "distinct source IDs must produce distinct cohorts"
         );
-        if id.timex_fixture().is_some() {
+        if id.checkout_fixture().is_some() {
             assert_eq!(id.download_url(), "");
             assert!(id.requires_local_source() && id.excluded_from_shared_cache());
             let loadable = LoadableDatasetId::try_from(id).unwrap();
@@ -2870,6 +2870,59 @@ fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
             assert!(loader.cached_timex_sentences(id, None).is_err());
             assert!(loader.load_or_download(loadable).is_err());
         }
+    }
+}
+
+#[test]
+fn ner_smoke_uses_its_checked_in_conll_source() {
+    let id = DatasetId::AnnoNerSmoke;
+    let wiki = DatasetId::WikiGold;
+    let rows = include_str!("../../../scripts/qa/fixtures/matrix-smoke.conll");
+    let dir = tempfile::tempdir().unwrap();
+    let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+    let loadable = LoadableDatasetId::try_from(id).unwrap();
+
+    let policy = DatasetPolicy {
+        allow_non_automatable: true,
+        exclude_slow: false,
+        temporal_requested: false,
+        relation_requested: false,
+        require_cached: false,
+    };
+    assert!(id.requires_local_source() && id.excluded_from_shared_cache());
+    assert!(!id.has_timex_span_reader());
+    assert_ne!(id.cache_filename(), wiki.cache_filename());
+    assert!(matches!(
+        policy.exclusion(&loader, id),
+        Some(DatasetExclusion::CacheRequired)
+    ));
+    let path = dir.path().join(id.cache_filename());
+    let altered = rows.replacen("B-LOC", "B-ORG", 1);
+    std::fs::write(&path, &altered).unwrap();
+    assert!(!loader.is_cached(loadable));
+    assert!(loader.load_or_download(loadable).is_err());
+    assert!(loader.parse_content_str(&altered, id).is_err());
+    std::fs::write(path, rows).unwrap();
+    assert!(policy.exclusion(&loader, id).is_none());
+    assert!(!loader.is_cached(LoadableDatasetId::try_from(wiki).unwrap()));
+    let fixture = id.checkout_fixture().unwrap();
+    for loaded in [
+        loader.load(loadable).unwrap(),
+        loader.parse_content_str(rows, id).unwrap(),
+    ] {
+        assert_eq!(loaded.id, id);
+        assert_eq!(loaded.sentences.len(), 1);
+        assert_eq!(loaded.entity_count(), 3);
+        assert_eq!(loaded.source_url, fixture.path);
+        assert_eq!(
+            loaded.metadata.original_source.as_deref(),
+            Some(fixture.path)
+        );
+        assert_eq!(loaded.metadata.split.as_deref(), Some("fixture"));
+        assert_eq!(
+            loaded.metadata.version.unwrap(),
+            format!("sha256:{}", fixture.digest)
+        );
     }
 }
 

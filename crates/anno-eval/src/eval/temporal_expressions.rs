@@ -8,32 +8,12 @@ pub(super) const TEST_SHA256: &str =
     "58cd74b68da63ff8acbb70e8acd0302f4edea6151a2f73787aa57799a57e93d3";
 pub(super) const LABEL: &str = "time expression";
 
-/// The two reviewed sources are supplied by the checkout and are never fetched.
-pub(crate) struct TimexFixture {
-    pub path: &'static str,
-    pub bytes: usize,
-    pub digest: &'static str,
-}
-
 impl DatasetId {
-    pub(crate) fn timex_fixture(self) -> Option<TimexFixture> {
-        match self {
-            Self::AnnoTimexSmoke => Some(TimexFixture {
-                path: "scripts/qa/fixtures/matrix-smoke-timex.jsonl",
-                bytes: 430,
-                digest: "6ea2b070e37f5b04376b167215caf35bcc54e1dda28571fc0c7eaf5a7aef70bb",
-            }),
-            Self::AnnoTimexContrast => Some(TimexFixture {
-                path: "scripts/qa/fixtures/timex-contrast/rows.jsonl",
-                bytes: 5621,
-                digest: "c1718c1749c528234fe2007f903bfa48bad3e1da5ff1f25e9b1fd5d5554ec4f9",
-            }),
-            _ => None,
-        }
-    }
-
     pub(crate) fn has_timex_span_reader(self) -> bool {
-        self == Self::TimexRecognitionSentenceOriginal || self.timex_fixture().is_some()
+        matches!(
+            self,
+            Self::TimexRecognitionSentenceOriginal | Self::AnnoTimexSmoke | Self::AnnoTimexContrast
+        )
     }
 }
 

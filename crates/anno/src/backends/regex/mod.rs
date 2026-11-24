@@ -212,10 +212,12 @@ static TIME_SIMPLE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static MONEY_SYMBOL: LazyLock<Regex> = LazyLock::new(|| {
+    // Print prices may use one nonbreaking space between the symbol and digits.
+    // Commas belong to the amount only between digits.
     // Spelled-out magnitudes match in any case; the single-letter forms stay
     // uppercase-only. The trailing `\b` keeps "$20 Kits" from becoming "$20 K".
     Regex::new(
-        r"[$€£¥][\d,]+(?:[.,]\d{1,2})?(?:\s*(?:(?i:billion|million|thousand|bn|mn)|B|M|K)\b)?",
+        r"[$€£¥][\x{00A0}\x{202F}]?\d+(?:,\d+)*(?:\.\d{1,2})?(?:\s*(?:(?i:billion|million|thousand|bn|mn)|B|M|K)\b)?",
     )
     .expect("valid regex")
 });
@@ -601,6 +603,25 @@ mod tests {
             .into_iter()
             .map(|e| (e.entity_type.as_label().to_string(), e.text))
             .collect()
+    }
+
+    #[test]
+    fn symbol_prices_keep_print_spacing_and_exclude_list_punctuation() {
+        let text = "🧾 €\u{a0}27, £\u{202f}4.50, $3,240.05, and ¥12. Signs: $, £, €\n47.";
+        let money: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|entity| entity.entity_type == EntityType::Money)
+            .collect();
+        let spans: Vec<_> = money.iter().map(|entity| entity.text.as_str()).collect();
+        assert_eq!(spans, ["€\u{a0}27", "£\u{202f}4.50", "$3,240.05", "¥12"]);
+        for entity in money {
+            let slice: String = text
+                .chars()
+                .skip(entity.start())
+                .take(entity.end() - entity.start())
+                .collect();
+            assert_eq!(slice, entity.text);
+        }
     }
 
     /// A magnitude word matches in any case and only as a whole word, so

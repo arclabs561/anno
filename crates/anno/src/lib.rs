@@ -712,10 +712,14 @@ pub use backends::CandleNER;
 ///
 /// # Performance
 ///
-/// Each call constructs a fresh [`StackedNER`]. For repeated calls, build the
+/// Empty text returns immediately. Each nonempty call constructs a fresh
+/// [`StackedNER`]. For repeated calls, build the
 /// model once (`let m = StackedNER::default();`) and reuse it via
 /// [`Model::extract_entities`] to avoid per-call initialization overhead.
 pub fn extract(text: &str) -> Result<Vec<Entity>> {
+    if text.is_empty() {
+        return Ok(Vec::new());
+    }
     let model = StackedNER::default();
     model.extract_entities(text, None)
 }

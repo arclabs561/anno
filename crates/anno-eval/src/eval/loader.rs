@@ -211,7 +211,8 @@ impl LoadableDatasetId {
 
     #[must_use]
     fn parse_plan(id: DatasetId) -> Option<DatasetParsePlan> {
-        if id.timex_fixture().is_some() {
+        // This reader accepts local TIMEX JSONL and Dataset Viewer envelopes.
+        if id.has_timex_span_reader() {
             return Some(DatasetParsePlan::HfApiResponse);
         }
         if let Some(hint) = Self::registry_hint_plan(id) {
@@ -457,10 +458,6 @@ impl LoadableDatasetId {
             DatasetId::MAVENArg => DatasetParsePlan::MavenArg,
             DatasetId::CASIE => DatasetParsePlan::Casie,
             DatasetId::RAMS => DatasetParsePlan::Rams,
-
-            // The TIMEX row reader also accepts local JSONL. Its parser is independent
-            // of whether the registry provides a network source.
-            DatasetId::TimexRecognitionSentenceOriginal => DatasetParsePlan::HfApiResponse,
 
             // HF datasets-server API responses
             DatasetId::GENIA
@@ -1592,10 +1589,10 @@ impl DatasetLoader {
         self.cache_dir.join(id.cache_filename())
     }
 
-    fn read_timex_fixture(
+    fn read_checkout_fixture(
         &self,
         id: DatasetId,
-        fixture: &super::temporal_expressions::TimexFixture,
+        fixture: &super::dataset_registry::CheckoutFixture,
     ) -> Result<String> {
         use std::io::Read;
         let file = fs::File::open(self.cache_path_for(id)).map_err(|_| {
@@ -1605,14 +1602,14 @@ impl DatasetLoader {
         file.take(fixture.bytes as u64 + 1)
             .read_to_string(&mut data)
             .map_err(|_| Error::InvalidInput(format!("Invalid fixture {id:?}")))?;
-        self.verify_timex_fixture(id, fixture, &data)?;
+        self.verify_checkout_fixture(id, fixture, &data)?;
         Ok(data)
     }
 
-    fn verify_timex_fixture(
+    fn verify_checkout_fixture(
         &self,
         id: DatasetId,
-        fixture: &super::temporal_expressions::TimexFixture,
+        fixture: &super::dataset_registry::CheckoutFixture,
         content: &str,
     ) -> Result<()> {
         if content.len() != fixture.bytes || self.compute_sha256(content) != fixture.digest {
@@ -1625,8 +1622,8 @@ impl DatasetLoader {
 
     #[must_use]
     fn is_cached_for(&self, id: DatasetId) -> bool {
-        if let Some(fixture) = id.timex_fixture() {
-            return self.read_timex_fixture(id, &fixture).is_ok();
+        if let Some(fixture) = id.checkout_fixture() {
+            return self.read_checkout_fixture(id, &fixture).is_ok();
         }
         if !self.cache_path_for(id).exists() {
             return false;
@@ -1670,8 +1667,8 @@ impl DatasetLoader {
     /// Returns an error if the dataset is not cached.
     pub fn load(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
         let dataset_id = id.0;
-        if let Some(fixture) = dataset_id.timex_fixture() {
-            let content = self.read_timex_fixture(dataset_id, &fixture)?;
+        if let Some(fixture) = dataset_id.checkout_fixture() {
+            let content = self.read_checkout_fixture(dataset_id, &fixture)?;
             return self.parse_content_impl(&content, dataset_id);
         }
         let cache_path = self.cache_path(id);
@@ -3313,8 +3310,8 @@ impl DatasetLoader {
     /// [`DatasetLoader::load_or_download`] / [`DatasetLoader::load`]. For LitBank,
     /// supply a JSON object with the corresponding BRAT `text` and `annotations` strings.
     pub fn parse_content_str(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
-        if let Some(fixture) = id.timex_fixture() {
-            self.verify_timex_fixture(id, &fixture, content)?;
+        if let Some(fixture) = id.checkout_fixture() {
+            self.verify_checkout_fixture(id, &fixture, content)?;
         }
         self.parse_content_impl(content, id)
     }
@@ -3360,7 +3357,7 @@ impl DatasetLoader {
             )));
         }
 
-        let result = match plan {
+        let mut result = match plan {
             DatasetParsePlan::Conll => self.parse_conll(content, id),
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
@@ -3398,6 +3395,13 @@ impl DatasetLoader {
             DatasetParsePlan::TsvNer => self.parse_tsv_ner(content, id),
             DatasetParsePlan::CsvNer => self.parse_csv_ner(content, id),
         }?;
+
+        if let Some(fixture) = id.checkout_fixture() {
+            result.source_url = fixture.path.into();
+            result.metadata.original_source = Some(fixture.path.into());
+            result.metadata.version = Some(format!("sha256:{}", fixture.digest));
+            result.metadata.split = Some("fixture".into());
+        }
 
         // Validate parsed dataset is not empty
         if result.sentences.is_empty() {
@@ -3743,8 +3747,8 @@ impl DatasetLoader {
                 "No TIMEX span reader for {id:?}"
             )));
         }
-        let content = if let Some(fixture) = id.timex_fixture() {
-            self.read_timex_fixture(id, &fixture)?
+        let content = if let Some(fixture) = id.checkout_fixture() {
+            self.read_checkout_fixture(id, &fixture)?
         } else {
             fs::read_to_string(self.cache_path_for(id))
                 .map_err(|e| Error::InvalidInput(format!("Failed to read TIMEX cache: {e}")))?
@@ -4069,11 +4073,6 @@ impl DatasetLoader {
                 metadata.split = None;
             }
             metadata.version = Some(format!("sha256:{digest}"));
-        }
-        if let Some(fixture) = id.timex_fixture() {
-            source_url = fixture.path.into();
-            metadata.version = Some(format!("sha256:{}", fixture.digest));
-            metadata.split = Some("fixture".into());
         }
         Ok(LoadedDataset {
             id,

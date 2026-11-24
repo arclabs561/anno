@@ -55,9 +55,14 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts
     return False
 
 
-def check_wikigold(lines, bootstrap=False):
+def check_ner_smoke(lines):
+    return check_fixed_sample(lines, task="ner", dataset="AnnoNerSmoke", backend="heuristic",
+                              examples=1, exact=True)
+
+
+def check_wikigold_bootstrap(lines):
     return check_fixed_sample(lines, task="ner", dataset="WikiGold", backend="heuristic",
-                              examples=5 if bootstrap else 1, exact=not bootstrap)
+                              examples=5, exact=False)
 
 
 def check_temporal_smoke(lines):
@@ -167,8 +172,10 @@ if __name__ == "__main__":
                                             backend="pattern", examples=390, exact=False)
             elif args.temporal_smoke:
                 passed = check_temporal_smoke(stream)
-            elif args.smoke or args.bootstrap:
-                passed = check_wikigold(stream, args.bootstrap)
+            elif args.smoke:
+                passed = check_ner_smoke(stream)
+            elif args.bootstrap:
+                passed = check_wikigold_bootstrap(stream)
             else:
                 passed = check(stream, args.report)
             sys.exit(0 if passed else 1)
