@@ -1,0 +1,8 @@
+{
+  "kind": "anno.qa.query-postings.v1",
+  "source_sha256": "5c8b796d69a06b17a219ab4d234aa18afdc671557712fc5fbdc5985cc8a11924",
+  "queries": [
+    {"after": 3, "entity": "Nacre", "postings": [["lamp", 0], ["receipt", 0]]},
+    {"after": 3, "entity": "Oriel", "postings": [["lift", 0]]}
+  ]
+}
