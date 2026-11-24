@@ -4,7 +4,7 @@ use super::super::super::utils::source_sha256;
 use anno::publication::IndexSnapshot;
 use anno::{GroundedDocument, Identity};
 use clap::Args;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -28,7 +28,7 @@ pub struct PublicationArgs {
     catalog_record: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub(super) struct CatalogRecord {
     catalog: String,
     accession: String,
@@ -93,8 +93,13 @@ impl Revision {
 
         // A tuple retains exact, case-sensitive domain, document and query boundaries,
         // even when any of their identifiers contain separators.
-        let stream =
-            json!(["anno.query.publication.v1", self.stream, doc.id(), filter]).to_string();
+        let stream = json!([
+            "anno.query.publication.v1",
+            self.stream,
+            doc.id(),
+            filter.map(CatalogRecord::as_ref)
+        ])
+        .to_string();
         let hash = source_sha256(doc.text());
         let mut rows = BTreeMap::new();
         // Bind empty documents to their source edition too. An empty key can never
