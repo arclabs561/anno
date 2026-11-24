@@ -2,7 +2,7 @@
 
 ## Reviewed catalog assignments
 
-The `reviewed_kb` target mutates short sequences of catalog operations. Each input starts with both document-local identities and identities shared across documents. Several records have identical visible names and catalog keys. The oracle checks who actually acquired the new binding, who kept the old one, and whether a stale or foreign approval was rejected.
+The `reviewed_kb` target mutates short sequences of catalog operations. Each input starts with both document-local identities and identities shared across documents. Several records have identical visible names and catalog keys. The oracle checks who acquired the new binding, who kept the old one, and whether a stale or foreign approval was rejected. It also follows three identical source mentions through their tracks after each operation. Two belong to different sibling tracks and the third stays unassigned.
 
 The required `Test (minimal)` CI job replays the [shared seeds](seeds/reviewed_kb/) with ordinary Cargo. A separate coverage-guided job runs 1,000 inputs on relevant pull requests and five-minute campaigns weekly or when manually dispatched. CI retains failing inputs as a workflow artifact. [Seed replay](../crates/anno/tests/reviewed_kb_seeds.rs) · [Campaign workflow](../.github/workflows/reviewed-kb-fuzz.yml)
 
@@ -21,7 +21,9 @@ The first corpus directory is writable. libFuzzer puts new coverage inputs there
 
 Seeds can be read as operations. Digits `0` through `5` select a track, `p` previews a reviewed assignment, and the end of the input applies it. For example, `0pBA` previews track 0, changes its key, then restores it. The approval must still be stale. In `0p2A`, track 2 already has the requested binding on an independent identity. That write changes nothing, so the pending approval on track 0 still applies to its two shared tracks. [Operation definitions](../crates/anno/tests/support/reviewed_kb_fuzz.rs)
 
-When a campaign finds a failure, reproduce it with the failing file in place of the two corpus directories. Use `cargo +nightly-2026-05-01 fuzz tmin --dev reviewed_kb <failing-file>` to minimize it. Promote the shortest trace that still demonstrates the behavior to `fuzz/seeds/reviewed_kb/` and record the expected outcome in the Cargo replay test. An adversarial reviewer can contribute a scenario or a new assertion through the same path. [libFuzzer corpus handling](https://llvm.org/docs/LibFuzzer.html#running)
+When a campaign finds a failure, reproduce it with the failing file in place of the two corpus directories. Use `cargo +nightly-2026-05-01 fuzz tmin --dev reviewed_kb <failing-file>` to minimize it locally. For the shared corpus, write the reproducing operations in the printable seed alphabet and replay them. Put the trace in `fuzz/seeds/reviewed_kb/` and its expected outcome in the Cargo replay test. An adversarial reviewer can contribute a scenario or a new assertion through the same path. [libFuzzer corpus handling](https://llvm.org/docs/LibFuzzer.html#running)
+
+The seven initial shared seeds are original synthetic operations. When a case comes from external material, check what its terms allow you to use and distribute, including in CI artifacts. If its terms permit local testing only, keep the input and any minimized copy local. An independently authored synthetic trace can demonstrate the same failure in shared CI. For material you have permission to redistribute, preserve any required attribution and notices alongside it. [Anno’s fixture guidance](../docs/QA.md#find-a-dataset-or-add-a-case) · [Contribution terms](../CONTRIBUTING.md#license)
 
 ## PII
 
