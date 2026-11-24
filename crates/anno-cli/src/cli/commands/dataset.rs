@@ -2838,7 +2838,7 @@ fn run_info(dataset: &str) -> Result<(), String> {
             println!();
             if registry_id == RegistryDatasetId::ECBPlus {
                 println!("  Status: Loadable as XML coreference documents");
-                println!("  Download: anno dataset download ECBPlus");
+                println!("  Download: anno dataset download --dataset ECBPlus");
             } else if loadable_match.is_some() {
                 let access = if registry_id.requires_local_source() {
                     "requires a local source"
