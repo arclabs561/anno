@@ -761,6 +761,7 @@ Return ONLY the JSON array:"#,
         let char_count = original_text.chars().count();
         let mut entities = Vec::new();
 
+        let mut has_row = false;
         for item in &items {
             let arr = match item.as_array() {
                 Some(a) if a.len() >= 3 => a,
@@ -780,6 +781,7 @@ Return ONLY the JSON array:"#,
                 None => continue,
             };
 
+            has_row = true;
             if start >= end || end > char_count {
                 continue;
             }
@@ -835,6 +837,7 @@ Return ONLY the JSON array:"#,
             entities.push(entity);
         }
 
+        ensure_recognizable_rows(&items, has_row)?;
         Ok(entities)
     }
 
@@ -847,12 +850,16 @@ Return ONLY the JSON array:"#,
         let items = response_array(content)?;
 
         let mut entities = Vec::new();
-        for item in items {
-            let text = item["text"].as_str().unwrap_or("");
+        let mut has_row = false;
+        for item in &items {
+            let (Some(text), Some(end)) = (item["text"].as_str(), item["end"].as_u64()) else {
+                continue;
+            };
+            has_row = true;
             let type_str = item["type"].as_str().unwrap_or("misc");
             // Treat provided offsets as **character offsets** hints (LLMs are often wrong).
             let hint_start = item["start"].as_u64().unwrap_or(0) as usize;
-            let hint_end = item["end"].as_u64().unwrap_or(0) as usize;
+            let hint_end = end as usize;
 
             if text.is_empty() || hint_end <= hint_start {
                 continue;
@@ -913,6 +920,7 @@ Return ONLY the JSON array:"#,
             entities.push(entity);
         }
 
+        ensure_recognizable_rows(&items, has_row)?;
         Ok(entities)
     }
 }
@@ -972,6 +980,17 @@ fn response_text(provider: &str, json: &serde_json::Value) -> Result<String> {
         return Err(missing());
     }
     Ok(text)
+}
+
+// A model can propose a well-formed row whose span fails grounding. Only a
+// nonempty list with no decodable rows indicates a response format error.
+fn ensure_recognizable_rows(items: &[serde_json::Value], has_row: bool) -> Result<()> {
+    if !items.is_empty() && !has_row {
+        return Err(crate::Error::Parse(
+            "UniversalNER response contained no decodable entity rows".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn response_array(content: &str) -> Result<Vec<serde_json::Value>> {

@@ -172,3 +172,46 @@ fn changing_the_extraction_prompt_on_a_warm_model_uses_the_new_prompt() {
         },
     );
 }
+
+#[test]
+fn malformed_only_rows_retry_and_grounding_filters_still_succeed() {
+    for (strategy, valid, ungrounded) in [
+        (
+            PromptStrategy::Simple,
+            json!({"text":"Ada","start":0,"end":3,"type":"person"}),
+            json!({"text":"Bob","start":0,"end":3,"type":"person"}),
+        ),
+        (
+            PromptStrategy::Compact,
+            json!([0, 3, "P"]),
+            json!([6, 9, "P"]),
+        ),
+    ] {
+        let responses = [json!([null, {"bad":1}]), json!([null, valid])];
+        let replies = responses
+            .iter()
+            .map(|row| completion(&row.to_string()))
+            .collect();
+        with_replies(replies, |model| {
+            let model = model.prompt_strategy(strategy.clone());
+            assert!(matches!(
+                model.extract_entities("Ada", None),
+                Err(anno::Error::Parse(_))
+            ));
+            for _ in 0..2 {
+                let entities = model.extract_entities("Ada", None).unwrap();
+                assert_eq!(entities.len(), 1);
+                assert_eq!(entities[0].text, "Ada");
+            }
+        });
+        with_replies(
+            vec![completion(&json!([null, ungrounded]).to_string())],
+            |model| {
+                let model = model.prompt_strategy(strategy);
+                for _ in 0..2 {
+                    assert!(model.extract_entities("Ada", None).unwrap().is_empty());
+                }
+            },
+        );
+    }
+}
