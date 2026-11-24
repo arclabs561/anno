@@ -78,13 +78,11 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         return Err("Cross-document clustering requires 'eval' feature".into());
     }
 
-    #[cfg(feature = "eval")]
     let mut sources = std::collections::HashMap::new();
     let mut texts = Vec::new();
-    let mut add_input = |id: String, text: String, _source: String| -> Result<(), String> {
-        #[cfg(feature = "eval")]
+    let mut add_input = |id: String, text: String, source: String| -> Result<(), String> {
         if args.cross_doc {
-            super::super::utils::register_document_source(&mut sources, &id, _source)?;
+            super::super::utils::register_document_source(&mut sources, &id, source)?;
         }
         texts.push((id, text));
         Ok(())
