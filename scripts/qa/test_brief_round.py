@@ -95,6 +95,32 @@ class RoundEvidenceTest(unittest.TestCase):
                 self.assertEqual(brief(dict(outcome=outcome, detail="PRIVATE_REASON")),
                                  f"Reviewed replay reported {outcome}. Evaluated 0 cases.")
 
+    def test_reviewed_matrix_slot_keeps_selector_and_case_details_out_of_handoff(self):
+        from replay_feedback import key
+
+        case = dict(scope="synthetic", case="PRIVATE_CASE", corpus="typed_spans", family="PRIVATE_CASE",
+                    source_sha256="a" * 64, oracle_sha256="b" * 64)
+        plan = dict(slot=1, requested_strategy="reviewed-replay", seed=7, selected_case=case)
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            schedule, result = (directory / name for name in ("schedule.json", "result.json"))
+            schedule.write_text(json.dumps(dict(plan, plan_only=True)))
+            result.write_text("{}")
+            self.assertNotIn("PRIVATE_CASE", evidence(directory))
+            schedule.write_text(json.dumps(dict(plan, plan_only=False)))
+            for outcome, replays in (("fail", 2), ("pass", 1), ("pass", 2)):
+                event = dict(case, outcome=outcome, replays=replays)
+                observation = key(event)
+                result.write_text(json.dumps(dict(outcome_observation_id=observation)))
+                (directory / "replay.json").write_text(json.dumps(dict(event, observation_id=observation)))
+                if outcome == "pass" and replays == 2:
+                    with self.assertRaisesRegex(ValueError, "attempt"):
+                        evidence(directory)
+                else:
+                    brief = evidence(directory)
+                    self.assertIn(f"Evaluated 1 reviewed case in {replays}", brief)
+                    self.assertNotIn("PRIVATE_CASE", brief)
+
     def test_crossdoc_cli_initializes_trace_from_aggregate_handoff(self):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "PRIVATE_CASE_FILENAME.json"

@@ -162,9 +162,8 @@ def evidence(directory):
     run = json.loads(result.read_text())
     if plan["requested_strategy"] == "reviewed-replay":
         case = plan["selected_case"]
-        label = f"{case['scope']} {case['corpus']}/{case['case']} (family {case['family']})"
         if plan["plan_only"]:
-            return lines[0] + f" Selected {label}; oracle replay pending."
+            return lines[0] + " Selected one reviewed case, oracle replay pending."
         actual = json.loads((directory / "replay.json").read_text())
         from replay_feedback import key
         outcome_id = actual.pop("observation_id")
@@ -172,8 +171,12 @@ def evidence(directory):
                 or any(case[k] != actual[k] for k in
                        ("corpus", "case", "scope", "family", "source_sha256", "oracle_sha256"))):
             raise ValueError("saved oracle outcome does not match the selected witness")
-        return (lines[0] + f" Replayed {label}. Oracle result: {actual['outcome']}. "
-                f"Case SHA-256 {case['source_sha256']}; oracle SHA-256 {case['oracle_sha256']}.")
+        outcome = actual["outcome"]
+        if (outcome not in ("pass", "fail") or type(actual["replays"]) is not int
+                or actual["replays"] != (2 if outcome == "fail" else 1)):
+            raise ValueError("inconsistent reviewed replay outcome or attempt count")
+        attempts = "2 attempts" if outcome == "fail" else "1 attempt"
+        return lines[0] + f" Evaluated 1 reviewed case in {attempts}. Oracle result: {outcome}."
     if not run["strategy_matches"]:
         return lines[0] + " The observed strategy differed. Exclude this slot from policy comparisons."
     if run["plan_only"]:
