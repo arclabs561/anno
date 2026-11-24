@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "offset_unit": "unicode_scalar",
+  "annotation_scope": {
+    "language": "en",
+    "origin": "Independently authored paired synthetic English texts.",
+    "population": "All explicit singular human mentions, including proper names, aliases, vocatives, pronouns and role descriptions. A person's name can also be a nested possessor. Group phrases have no single human identity. Person detection is exhaustive within these texts.",
+    "highlight": "The lexical anchor for the prior dual-span contract. Nominal and pronominal anchors are included. All offsets are half-open Unicode scalar indices into unnormalized source.",
+    "referential_spans": "Acceptable source intervals for the same mention. A title or occupation prefix may be retained for a proper name. For definite role descriptions, keep the determiner and for possessive descriptions keep the possessor. Distinct mentions may be nested but cannot license the same range.",
+    "identity": "person_id is document-local. Null means the text leaves the named addressee unresolved. These mentions remain eligible for name display. No catalog identity is supplied.",
+    "display_highlight": "The exact compact human proper name or alias associated with that occurrence. Null means the mention supplies no compact name of its own. Display truth is independent of identity resolution. Null does not mean the detector has abstained.",
+    "display_controls": "A decoded source phrase exactly equal to a protected control must not yield a single human name for that phrase. Named people inside may independently license their own mention displays. Controls include all marked distractors and selected shorter object names within them. A protected phrase can coincide with a licensed human occurrence only if that occurrence explicitly has no compact name. Missing source proposals are not successful abstentions.",
+    "negatives": "Marked nonperson distractors use exact range matching. Overlap only is diagnostic. Unannotated text does not denote additional people. All pairs and recurring fictitious people belong wholly to this holdout."
+  },
+  "documents": [
+    {
+      "id": "title_a",
+      "pair_id": "title",
+      "variant": "a",
+      "contrast": "alternate title",
+      "text": "Director Anja Verr signed. Verr left.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [9, 18], "highlight_surface": "Anja Verr", "referential_spans": [[0, 18], [9, 18]], "referential_surfaces": ["Director Anja Verr", "Anja Verr"], "display_highlight": [9, 18]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [27, 31], "highlight_surface": "Verr", "referential_spans": [[27, 31]], "referential_surfaces": ["Verr"], "display_highlight": [27, 31]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "title_b",
+      "pair_id": "title",
+      "variant": "b",
+      "contrast": "alternate title",
+      "text": "Curator Anja Verr signed. Verr left.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [8, 17], "highlight_surface": "Anja Verr", "referential_spans": [[0, 17], [8, 17]], "referential_surfaces": ["Curator Anja Verr", "Anja Verr"], "display_highlight": [8, 17]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [26, 30], "highlight_surface": "Verr", "referential_spans": [[26, 30]], "referential_surfaces": ["Verr"], "display_highlight": [26, 30]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "possessor_a",
+      "pair_id": "possessor",
+      "variant": "a",
+      "contrast": "possessor versus role bearer",
+      "text": "Ota Lemm’s assistant entered. The assistant nodded.",
+      "people": [{"id": "x"}, {"id": "y"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 8], "highlight_surface": "Ota Lemm", "referential_spans": [[0, 8]], "referential_surfaces": ["Ota Lemm"], "display_highlight": [0, 8]},
+        {"id": "m2", "person_id": "y", "kind": "nominal", "highlight": [11, 20], "highlight_surface": "assistant", "referential_spans": [[0, 20]], "referential_surfaces": ["Ota Lemm’s assistant"], "display_highlight": null},
+        {"id": "m3", "person_id": "y", "kind": "nominal", "highlight": [34, 43], "highlight_surface": "assistant", "referential_spans": [[30, 43]], "referential_surfaces": ["The assistant"], "display_highlight": null}
+      ],
+      "negative_spans": [],
+      "display_controls": [{"span": [0, 20], "surface": "Ota Lemm’s assistant", "reason": "named_possessor_of_person"}]
+    },
+    {
+      "id": "possessor_b",
+      "pair_id": "possessor",
+      "variant": "b",
+      "contrast": "possessor versus role bearer",
+      "text": "The assistant entered. Ota Lemm nodded.",
+      "people": [{"id": "y"}, {"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "y", "kind": "nominal", "highlight": [4, 13], "highlight_surface": "assistant", "referential_spans": [[0, 13]], "referential_surfaces": ["The assistant"], "display_highlight": null},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [23, 31], "highlight_surface": "Ota Lemm", "referential_spans": [[23, 31]], "referential_surfaces": ["Ota Lemm"], "display_highlight": [23, 31]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "multiword_a",
+      "pair_id": "multiword",
+      "variant": "a",
+      "contrast": "given name reversed across people",
+      "text": "Tavi Del Mar greeted Suri Del Mar. Tavi smiled.",
+      "people": [{"id": "x"}, {"id": "y"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 12], "highlight_surface": "Tavi Del Mar", "referential_spans": [[0, 12]], "referential_surfaces": ["Tavi Del Mar"], "display_highlight": [0, 12]},
+        {"id": "m2", "person_id": "y", "kind": "name", "highlight": [21, 33], "highlight_surface": "Suri Del Mar", "referential_spans": [[21, 33]], "referential_surfaces": ["Suri Del Mar"], "display_highlight": [21, 33]},
+        {"id": "m3", "person_id": "x", "kind": "name", "highlight": [35, 39], "highlight_surface": "Tavi", "referential_spans": [[35, 39]], "referential_surfaces": ["Tavi"], "display_highlight": [35, 39]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "multiword_b",
+      "pair_id": "multiword",
+      "variant": "b",
+      "contrast": "given name reversed across people",
+      "text": "Suri Del Mar greeted Tavi Del Mar. Suri smiled.",
+      "people": [{"id": "y"}, {"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "y", "kind": "name", "highlight": [0, 12], "highlight_surface": "Suri Del Mar", "referential_spans": [[0, 12]], "referential_surfaces": ["Suri Del Mar"], "display_highlight": [0, 12]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [21, 33], "highlight_surface": "Tavi Del Mar", "referential_spans": [[21, 33]], "referential_surfaces": ["Tavi Del Mar"], "display_highlight": [21, 33]},
+        {"id": "m3", "person_id": "y", "kind": "name", "highlight": [35, 39], "highlight_surface": "Suri", "referential_spans": [[35, 39]], "referential_surfaces": ["Suri"], "display_highlight": [35, 39]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "alias_a",
+      "pair_id": "alias",
+      "variant": "a",
+      "contrast": "an alias shared with a product",
+      "text": "Zoa Kir performed as Glimmer. Glimmer bowed.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 7], "highlight_surface": "Zoa Kir", "referential_spans": [[0, 7]], "referential_surfaces": ["Zoa Kir"], "display_highlight": [0, 7]},
+        {"id": "m2", "person_id": "x", "kind": "alias", "highlight": [21, 28], "highlight_surface": "Glimmer", "referential_spans": [[21, 28]], "referential_surfaces": ["Glimmer"], "display_highlight": [21, 28]},
+        {"id": "m3", "person_id": "x", "kind": "alias", "highlight": [30, 37], "highlight_surface": "Glimmer", "referential_spans": [[30, 37]], "referential_surfaces": ["Glimmer"], "display_highlight": [30, 37]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "alias_b",
+      "pair_id": "alias",
+      "variant": "b",
+      "contrast": "an alias shared with a product",
+      "text": "Zoa Kir performed as Glimmer. A Glimmer bulb flashed.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 7], "highlight_surface": "Zoa Kir", "referential_spans": [[0, 7]], "referential_surfaces": ["Zoa Kir"], "display_highlight": [0, 7]},
+        {"id": "m2", "person_id": "x", "kind": "alias", "highlight": [21, 28], "highlight_surface": "Glimmer", "referential_spans": [[21, 28]], "referential_surfaces": ["Glimmer"], "display_highlight": [21, 28]}
+      ],
+      "negative_spans": [{"span": [32, 39], "surface": "Glimmer", "kind": "product"}],
+      "display_controls": [{"span": [32, 39], "surface": "Glimmer", "reason": "nonperson"}]
+    },
+    {
+      "id": "namesakes_a",
+      "pair_id": "namesakes",
+      "variant": "a",
+      "contrast": "same name distinct people",
+      "text": "Cook Vito Henn stood opposite dancer Vito Henn. The cook left. “Henn?”",
+      "people": [{"id": "x"}, {"id": "y"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [5, 14], "highlight_surface": "Vito Henn", "referential_spans": [[0, 14], [5, 14]], "referential_surfaces": ["Cook Vito Henn", "Vito Henn"], "display_highlight": [5, 14]},
+        {"id": "m2", "person_id": "y", "kind": "name", "highlight": [37, 46], "highlight_surface": "Vito Henn", "referential_spans": [[30, 46], [37, 46]], "referential_surfaces": ["dancer Vito Henn", "Vito Henn"], "display_highlight": [37, 46]},
+        {"id": "m3", "person_id": "x", "kind": "nominal", "highlight": [52, 56], "highlight_surface": "cook", "referential_spans": [[48, 56]], "referential_surfaces": ["The cook"], "display_highlight": null},
+        {"id": "m4", "person_id": null, "kind": "ambiguous", "highlight": [64, 68], "highlight_surface": "Henn", "referential_spans": [[64, 68]], "referential_surfaces": ["Henn"], "display_highlight": [64, 68]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "namesakes_b",
+      "pair_id": "namesakes",
+      "variant": "b",
+      "contrast": "same name distinct people",
+      "text": "Dancer Vito Henn stood opposite cook Vito Henn. The dancer left. “Henn?”",
+      "people": [{"id": "y"}, {"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "y", "kind": "name", "highlight": [7, 16], "highlight_surface": "Vito Henn", "referential_spans": [[0, 16], [7, 16]], "referential_surfaces": ["Dancer Vito Henn", "Vito Henn"], "display_highlight": [7, 16]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [37, 46], "highlight_surface": "Vito Henn", "referential_spans": [[32, 46], [37, 46]], "referential_surfaces": ["cook Vito Henn", "Vito Henn"], "display_highlight": [37, 46]},
+        {"id": "m3", "person_id": "y", "kind": "nominal", "highlight": [52, 58], "highlight_surface": "dancer", "referential_spans": [[48, 58]], "referential_surfaces": ["The dancer"], "display_highlight": null},
+        {"id": "m4", "person_id": null, "kind": "ambiguous", "highlight": [66, 70], "highlight_surface": "Henn", "referential_spans": [[66, 70]], "referential_surfaces": ["Henn"], "display_highlight": [66, 70]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "joint_a",
+      "pair_id": "joint",
+      "variant": "a",
+      "contrast": "person pair versus person and vessel",
+      "text": "Deni Rul and Evi Sol entered the lock. Evi called out.",
+      "people": [{"id": "x"}, {"id": "y"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 8], "highlight_surface": "Deni Rul", "referential_spans": [[0, 8]], "referential_surfaces": ["Deni Rul"], "display_highlight": [0, 8]},
+        {"id": "m2", "person_id": "y", "kind": "name", "highlight": [13, 20], "highlight_surface": "Evi Sol", "referential_spans": [[13, 20]], "referential_surfaces": ["Evi Sol"], "display_highlight": [13, 20]},
+        {"id": "m3", "person_id": "y", "kind": "name", "highlight": [39, 42], "highlight_surface": "Evi", "referential_spans": [[39, 42]], "referential_surfaces": ["Evi"], "display_highlight": [39, 42]}
+      ],
+      "negative_spans": [],
+      "display_controls": [{"span": [0, 20], "surface": "Deni Rul and Evi Sol", "reason": "multiple_people"}]
+    },
+    {
+      "id": "joint_b",
+      "pair_id": "joint",
+      "variant": "b",
+      "contrast": "person pair versus person and vessel",
+      "text": "Deni Rul and the barge Evi Sol entered the lock. Deni called out.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 8], "highlight_surface": "Deni Rul", "referential_spans": [[0, 8]], "referential_surfaces": ["Deni Rul"], "display_highlight": [0, 8]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [49, 53], "highlight_surface": "Deni", "referential_spans": [[49, 53]], "referential_surfaces": ["Deni"], "display_highlight": [49, 53]}
+      ],
+      "negative_spans": [{"span": [13, 30], "surface": "the barge Evi Sol", "kind": "vessel"}],
+      "display_controls": [{"span": [13, 30], "surface": "the barge Evi Sol", "reason": "nonperson"}, {"span": [23, 30], "surface": "Evi Sol", "reason": "nonperson_name"}, {"span": [0, 30], "surface": "Deni Rul and the barge Evi Sol", "reason": "person_and_object"}]
+    },
+    {
+      "id": "vessel_a",
+      "pair_id": "vessel",
+      "variant": "a",
+      "contrast": "human name and vessel name exchange position",
+      "text": "Alma Voss boarded the ferry Alma. Alma waved.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 9], "highlight_surface": "Alma Voss", "referential_spans": [[0, 9]], "referential_surfaces": ["Alma Voss"], "display_highlight": [0, 9]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [34, 38], "highlight_surface": "Alma", "referential_spans": [[34, 38]], "referential_surfaces": ["Alma"], "display_highlight": [34, 38]}
+      ],
+      "negative_spans": [{"span": [18, 32], "surface": "the ferry Alma", "kind": "vessel"}],
+      "display_controls": [{"span": [18, 32], "surface": "the ferry Alma", "reason": "nonperson"}, {"span": [28, 32], "surface": "Alma", "reason": "nonperson_name"}]
+    },
+    {
+      "id": "vessel_b",
+      "pair_id": "vessel",
+      "variant": "b",
+      "contrast": "human name and vessel name exchange position",
+      "text": "The ferry Alma carried Alma Voss. Alma waved.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [23, 32], "highlight_surface": "Alma Voss", "referential_spans": [[23, 32]], "referential_surfaces": ["Alma Voss"], "display_highlight": [23, 32]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [34, 38], "highlight_surface": "Alma", "referential_spans": [[34, 38]], "referential_surfaces": ["Alma"], "display_highlight": [34, 38]}
+      ],
+      "negative_spans": [{"span": [0, 14], "surface": "The ferry Alma", "kind": "vessel"}],
+      "display_controls": [{"span": [0, 14], "surface": "The ferry Alma", "reason": "nonperson"}, {"span": [10, 14], "surface": "Alma", "reason": "nonperson_name"}]
+    },
+    {
+      "id": "product_a",
+      "pair_id": "product",
+      "variant": "a",
+      "contrast": "named human or branded product",
+      "text": "Toma Wirt tested the Wirt pen. Wirt approved it.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 9], "highlight_surface": "Toma Wirt", "referential_spans": [[0, 9]], "referential_surfaces": ["Toma Wirt"], "display_highlight": [0, 9]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [31, 35], "highlight_surface": "Wirt", "referential_spans": [[31, 35]], "referential_surfaces": ["Wirt"], "display_highlight": [31, 35]}
+      ],
+      "negative_spans": [{"span": [17, 29], "surface": "the Wirt pen", "kind": "product"}],
+      "display_controls": [{"span": [17, 29], "surface": "the Wirt pen", "reason": "nonperson"}, {"span": [21, 25], "surface": "Wirt", "reason": "nonperson_name"}]
+    },
+    {
+      "id": "product_b",
+      "pair_id": "product",
+      "variant": "b",
+      "contrast": "named human or branded product",
+      "text": "The Wirt pen rested beside the Wirt case. Both leaked.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [0, 12], "surface": "The Wirt pen", "kind": "product"}, {"span": [27, 40], "surface": "the Wirt case", "kind": "product"}],
+      "display_controls": [{"span": [0, 12], "surface": "The Wirt pen", "reason": "nonperson"}, {"span": [4, 8], "surface": "Wirt", "reason": "nonperson_name"}, {"span": [27, 40], "surface": "the Wirt case", "reason": "nonperson"}, {"span": [31, 35], "surface": "Wirt", "reason": "nonperson_name"}]
+    },
+    {
+      "id": "pronoun_a",
+      "pair_id": "pronoun",
+      "variant": "a",
+      "contrast": "pronoun-only person or nonhuman",
+      "text": "She signed the waiver. She initialed it.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "pronoun", "highlight": [0, 3], "highlight_surface": "She", "referential_spans": [[0, 3]], "referential_surfaces": ["She"], "display_highlight": null},
+        {"id": "m2", "person_id": "x", "kind": "pronoun", "highlight": [23, 26], "highlight_surface": "She", "referential_spans": [[23, 26]], "referential_surfaces": ["She"], "display_highlight": null}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "pronoun_b",
+      "pair_id": "pronoun",
+      "variant": "b",
+      "contrast": "pronoun-only person or nonhuman",
+      "text": "The wheel wobbled. It steadied.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [0, 9], "surface": "The wheel", "kind": "object"}],
+      "display_controls": [{"span": [0, 9], "surface": "The wheel", "reason": "nonperson"}]
+    },
+    {
+      "id": "unicode_a",
+      "pair_id": "unicode",
+      "variant": "a",
+      "contrast": "non-BMP prefix and decomposed name",
+      "text": "🪁 Dr. Iné Zall waited. “Zall!”",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [6, 15], "highlight_surface": "Iné Zall", "referential_spans": [[2, 15], [6, 15]], "referential_surfaces": ["Dr. Iné Zall", "Iné Zall"], "display_highlight": [6, 15]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [25, 29], "highlight_surface": "Zall", "referential_spans": [[25, 29]], "referential_surfaces": ["Zall"], "display_highlight": [25, 29]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "unicode_b",
+      "pair_id": "unicode",
+      "variant": "b",
+      "contrast": "non-BMP prefix and decomposed name",
+      "text": "🪁 “Zall!” Dr. Iné Zall turned.",
+      "people": [{"id": "x"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [3, 7], "highlight_surface": "Zall", "referential_spans": [[3, 7]], "referential_surfaces": ["Zall"], "display_highlight": [3, 7]},
+        {"id": "m2", "person_id": "x", "kind": "name", "highlight": [14, 23], "highlight_surface": "Iné Zall", "referential_spans": [[10, 23], [14, 23]], "referential_surfaces": ["Dr. Iné Zall", "Iné Zall"], "display_highlight": [14, 23]}
+      ],
+      "negative_spans": [],
+      "display_controls": []
+    },
+    {
+      "id": "scope_a",
+      "pair_id": "scope",
+      "variant": "a",
+      "contrast": "coordinated names versus owners in an object description",
+      "text": "Lio Renn photographed Bela Nott and Daru Pell.",
+      "people": [{"id": "x"}, {"id": "y"}, {"id": "z"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 8], "highlight_surface": "Lio Renn", "referential_spans": [[0, 8]], "referential_surfaces": ["Lio Renn"], "display_highlight": [0, 8]},
+        {"id": "m2", "person_id": "y", "kind": "name", "highlight": [22, 31], "highlight_surface": "Bela Nott", "referential_spans": [[22, 31]], "referential_surfaces": ["Bela Nott"], "display_highlight": [22, 31]},
+        {"id": "m3", "person_id": "z", "kind": "name", "highlight": [36, 45], "highlight_surface": "Daru Pell", "referential_spans": [[36, 45]], "referential_surfaces": ["Daru Pell"], "display_highlight": [36, 45]}
+      ],
+      "negative_spans": [],
+      "display_controls": [{"span": [22, 45], "surface": "Bela Nott and Daru Pell", "reason": "multiple_people"}]
+    },
+    {
+      "id": "scope_b",
+      "pair_id": "scope",
+      "variant": "b",
+      "contrast": "coordinated names versus owners in an object description",
+      "text": "Lio Renn photographed the kiln jointly owned by Bela Nott and Daru Pell.",
+      "people": [{"id": "x"}, {"id": "y"}, {"id": "z"}],
+      "mentions": [
+        {"id": "m1", "person_id": "x", "kind": "name", "highlight": [0, 8], "highlight_surface": "Lio Renn", "referential_spans": [[0, 8]], "referential_surfaces": ["Lio Renn"], "display_highlight": [0, 8]},
+        {"id": "m2", "person_id": "y", "kind": "name", "highlight": [48, 57], "highlight_surface": "Bela Nott", "referential_spans": [[48, 57]], "referential_surfaces": ["Bela Nott"], "display_highlight": [48, 57]},
+        {"id": "m3", "person_id": "z", "kind": "name", "highlight": [62, 71], "highlight_surface": "Daru Pell", "referential_spans": [[62, 71]], "referential_surfaces": ["Daru Pell"], "display_highlight": [62, 71]}
+      ],
+      "negative_spans": [],
+      "display_controls": [{"span": [22, 71], "surface": "the kiln jointly owned by Bela Nott and Daru Pell", "reason": "named_owners_of_object"}, {"span": [48, 71], "surface": "Bela Nott and Daru Pell", "reason": "multiple_people"}]
+    },
+    {
+      "id": "empty_a",
+      "pair_id": "empty",
+      "variant": "a",
+      "contrast": "place and object phrases without people",
+      "text": "Juniper Quay flooded. The Archer bell rang.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [0, 12], "surface": "Juniper Quay", "kind": "place"}, {"span": [22, 37], "surface": "The Archer bell", "kind": "object"}],
+      "display_controls": [{"span": [0, 12], "surface": "Juniper Quay", "reason": "nonperson"}, {"span": [22, 37], "surface": "The Archer bell", "reason": "nonperson"}, {"span": [26, 32], "surface": "Archer", "reason": "nonperson_name"}]
+    },
+    {
+      "id": "empty_b",
+      "pair_id": "empty",
+      "variant": "b",
+      "contrast": "place and object phrases without people",
+      "text": "The Archer bell cracked. Juniper Quay emptied.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [0, 15], "surface": "The Archer bell", "kind": "object"}, {"span": [25, 37], "surface": "Juniper Quay", "kind": "place"}],
+      "display_controls": [{"span": [0, 15], "surface": "The Archer bell", "reason": "nonperson"}, {"span": [4, 10], "surface": "Archer", "reason": "nonperson_name"}, {"span": [25, 37], "surface": "Juniper Quay", "reason": "nonperson"}]
+    }
+  ]
+}
