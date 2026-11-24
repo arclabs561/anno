@@ -98,7 +98,7 @@ impl Resolver {
     /// Tracks with KB links stay assigned to their existing identities. The resolver
     /// evaluates the remaining tracks again, reusing IDs for unchanged memberships.
     /// Newly similar tracks can join an unanchored cluster on subsequent runs.
-    /// The first current member in document/track order supplies the name, type, and
+    /// The first current member by document ID and submitted local track ID supplies the name, type, and
     /// usable embedding of an identity this resolver created. Imported and KB-linked
     /// records retain their representative metadata.
     /// Returns the current coreference IDs, including KB-linked clusters from earlier
@@ -246,7 +246,6 @@ impl Resolver {
         // Note: Singleton clusters (clusters with only one track) still create identities.
         // This allows tracking entities that appear only once across documents.
         for members in cluster_map.values() {
-            let first = &track_data[members[0]];
             let refs: Vec<_> = members
                 .iter()
                 .map(|&i| track_data[i].track_ref.clone())
@@ -262,9 +261,7 @@ impl Resolver {
                 continue;
             }
 
-            let mut identity = Identity::new(IdentityId::ZERO, &first.canonical_surface);
-            identity.entity_type = first.entity_type.clone().into_label();
-            identity.embedding = first.embedding.clone();
+            let mut identity = Identity::new(IdentityId::ZERO, "");
             identity.minimum_pair_similarity = minimum;
             identity.confidence = score;
             identity.source = Some(IdentitySource::CrossDocCoref {
