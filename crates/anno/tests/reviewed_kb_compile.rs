@@ -2,7 +2,9 @@
 // The verification runner selects one deliberate type error per Cargo invocation.
 #![allow(dead_code, unexpected_cfgs)]
 
-use anno::core::grounded::{Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentPreview};
+use anno::core::grounded::{
+    Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentPreview, TrackId,
+};
 
 // Compile the real storage module. Inside this fixture, `sibling` has exactly
 // the access granted to a sibling module under `core::grounded`.
