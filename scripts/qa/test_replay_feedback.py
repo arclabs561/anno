@@ -65,6 +65,17 @@ class Feedback(unittest.TestCase):
         self.record("z", "pass")
         self.assertEqual(self.pick()["case"], "a--variant")
 
+    def test_extra_families_cannot_buy_a_corpus_another_turn(self):
+        self.enterContext(patch.dict(rf.ADAPTERS, {"other": self.oracle}))
+        self.record("a", "fail")
+        self.record("b", "fail")
+        self.oracle.outcomes["z"] = "fail"
+        rf.observe(self.root, self.cache, "other", "z")
+        selected = self.pick()
+        self.assertEqual(selected["corpus"], "fixture")
+        rf.observe(self.root, self.cache, "fixture", selected["case"], selected)
+        self.assertEqual(self.pick()["corpus"], "other")
+
     def test_unconfirmed_flap_no_entry(self):
         def flap(*args):
             n = len(self.oracle.calls)
