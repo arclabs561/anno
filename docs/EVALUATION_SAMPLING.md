@@ -413,7 +413,8 @@ continues to select native evaluation cells. A passing reviewed seed yields no p
 the first eligible triage slot in each block. Each such slot runs one named
 case, with a second replay only to confirm a failure. Random controls, the
 reserved coverage slot and other triage slots run the native selection. The
-oldest-served eligible family gets the next turn, then its oldest-served case.
+oldest-served eligible corpus gets the next turn, then its oldest-served
+family and case.
 Use `family--variant` for related catalog seeds with the same named oracle.
 Rerunning the same evidence adds no observations. A clean replay closes that
 witness alone. When a seed or oracle changes, re-observe it under the new

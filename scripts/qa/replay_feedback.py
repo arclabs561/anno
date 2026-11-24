@@ -159,7 +159,8 @@ def next_case(root, cache):
     try:
         rows = db.execute("""SELECT w.*, o.receipt FROM witnesses w
             JOIN observations o ON w.latest=o.id WHERE unresolved=1
-            ORDER BY (SELECT MAX(last_slot) FROM witnesses f
+            ORDER BY (SELECT MAX(last_slot) FROM witnesses c WHERE c.corpus=w.corpus),
+                     (SELECT MAX(last_slot) FROM witnesses f
                       WHERE f.corpus=w.corpus AND f.family=w.family),
                      last_slot, w.corpus, w.family, w.case_name""").fetchall()
     finally:

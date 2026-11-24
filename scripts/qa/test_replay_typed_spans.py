@@ -16,7 +16,7 @@ class TypedReplay(unittest.TestCase):
         case = adapter._case(ROOT, CASE)
         good = {"id": CASE, "entities": [], "model": "stacked",
                 "source_sha256": adapter.judge.source_sha256(case["text"])}
-        with patch.object(adapter, "binary_and_digest", return_value=(Path("anno"), "a" * 64)), \
+        with patch.object(adapter.judge, "binary_and_digest", return_value=(Path("anno"), "a" * 64)), \
                 patch.object(adapter.judge.subprocess, "run") as run:
             run.return_value.stdout = json.dumps(good)
             self.assertEqual(adapter.replay(ROOT, CASE)["outcome"], "pass")

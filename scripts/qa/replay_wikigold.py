@@ -4,7 +4,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 
 import check_span_assertions as judge
 import export_muxer_summary
@@ -75,20 +74,11 @@ def describe(root, case):
             "family": "wikigold-stacked-exact-spans"}
 
 
-def binary_digest(path):
-    with path.open("rb") as file:
-        return hashlib.file_digest(file, "sha256").hexdigest()
-
-
 def replay(root, case):
     text, gold = sentence(case)
-    found = shutil.which(os.environ.get("ANNO_BIN", "anno"))
-    if not found:
-        raise FileNotFoundError("offline WikiGold replay needs anno on PATH or ANNO_BIN")
-    binary = Path(found).resolve()
-    producer = binary_digest(binary)
+    binary, producer = judge.binary_and_digest()
     row, = judge.run_batch({case: {"text": text}}, str(binary), "stacked", require_native_metadata=True)
-    if binary_digest(binary) != producer:
+    if judge.binary_and_digest() != (binary, producer):
         raise ValueError("extractor changed during replay")
     if (row.get("id") != case or row.get("model") != "stacked"
             or row.get("source_sha256") != judge.source_sha256(text)):

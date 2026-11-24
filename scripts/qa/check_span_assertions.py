@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -72,6 +73,15 @@ def jsonl_rows(text):
 
 def source_sha256(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def binary_and_digest():
+    resolved = shutil.which(os.environ.get("ANNO_BIN", "anno"))
+    if resolved is None:
+        raise FileNotFoundError("offline replay needs anno on PATH or ANNO_BIN")
+    binary = Path(resolved).resolve()
+    with binary.open("rb") as handle:
+        return binary, hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def run_batch(cases, binary, model, *, require_native_metadata=False):

@@ -34,7 +34,7 @@ class WikiGoldReplay(unittest.TestCase):
         row = {"id": "sentence-0", "source_sha256": adapter.judge.source_sha256(fixture[0]),
                "model": "stacked", "entities": []}
         with (mock.patch.object(adapter, "sentence", return_value=fixture),
-              mock.patch.object(adapter.shutil, "which", return_value=__file__),
+              mock.patch.object(adapter.judge.shutil, "which", return_value=__file__),
               mock.patch.object(adapter.judge, "run_batch", return_value=[row])):
             for entity, outcome in [
                 (dict(start=0, end=8, text="Zé Quill", type="PER"), "pass"),

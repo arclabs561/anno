@@ -1,9 +1,7 @@
 """Replay one reviewed typed-span case with the offline stacked extractor."""
 import hashlib
 import json
-import os
 from pathlib import Path
-import shutil
 
 import check_span_assertions as judge
 import domain_coverage
@@ -39,21 +37,12 @@ def describe(root, case):
     }
 
 
-def binary_and_digest():
-    resolved = shutil.which(os.environ.get("ANNO_BIN", "anno"))
-    if resolved is None:
-        raise FileNotFoundError("offline replay needs anno on PATH or ANNO_BIN")
-    binary = Path(resolved).resolve()
-    with binary.open("rb") as handle:
-        return binary, hashlib.file_digest(handle, "sha256").hexdigest()
-
-
 def replay(root, case):
     row = _case(root, case)
-    binary, digest = binary_and_digest()
+    binary, digest = judge.binary_and_digest()
     cases = {case: row}
     report = judge.score(cases, judge.run_batch(cases, str(binary), MODEL, require_native_metadata=True))
-    if binary_and_digest() != (binary, digest):
+    if judge.binary_and_digest() != (binary, digest):
         raise ValueError("extractor changed during replay")
     failed = [str(i) for i, finding in enumerate(report["findings"]) if not finding["passed"]]
     return {
