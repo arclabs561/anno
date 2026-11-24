@@ -26,6 +26,9 @@
 //! | `ANTHROPIC_API_KEY` | Anthropic API key for Claude LLM backends |
 //! | `GEMINI_API_KEY` | Google Gemini API key |
 //! | `GROQ_API_KEY` | Groq API key (ultra-fast inference for open models) |
+//! | `ANNO_LLM_ENDPOINT` | Explicit full completion URL for UniversalNER |
+//! | `ANNO_LLM_MODEL` | Model ID for the explicit endpoint |
+//! | `ANNO_LLM_API_KEY` | Optional bearer credential for the explicit endpoint |
 //! | `OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 //! | `ANNO_CACHE_DIR` | Custom cache directory for models/datasets |
 //! | `ANNO_CI_SEED` | Fixed seed for reproducible CI testing |
