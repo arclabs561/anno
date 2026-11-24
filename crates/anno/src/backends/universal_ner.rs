@@ -108,15 +108,59 @@ fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
     hasher.finish()
 }
 
+#[cfg(feature = "llm")]
+const GEMINI_CHAT_URL: &str =
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+#[cfg(feature = "llm")]
+fn llm_provider(
+    config: Option<&crate::backends::llm_client::LlmConfig>,
+) -> Option<(String, &'static str)> {
+    let Some((config, endpoint)) = config.and_then(|c| Some((c, c.endpoint.as_deref()?))) else {
+        return crate::env::llm_api_key();
+    };
+    let key = config
+        .api_key
+        .as_deref()
+        .filter(|key| !key.trim().is_empty());
+    let (provider, env_key) = match endpoint {
+        GEMINI_CHAT_URL => ("gemini", "GEMINI_API_KEY"),
+        "https://api.anthropic.com/v1/messages" => ("anthropic", "ANTHROPIC_API_KEY"),
+        "https://openrouter.ai/api/v1/chat/completions" => ("openrouter", "OPENROUTER_API_KEY"),
+        "https://api.groq.com/openai/v1/chat/completions" => ("groq", "GROQ_API_KEY"),
+        _ => {
+            let uri = endpoint.parse::<ureq::http::Uri>().ok()?;
+            if !matches!(uri.scheme_str(), Some("http" | "https")) || uri.host().is_none() {
+                return None;
+            }
+            return Some((key.unwrap_or_default().to_owned(), "custom"));
+        }
+    };
+    let key = key.map(str::to_owned).or_else(|| {
+        std::env::var(env_key)
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+    })?;
+    Some((key, provider))
+}
+
+#[cfg(feature = "llm")]
+struct LlmTarget {
+    url: String,
+    model: String,
+    headers: Vec<(&'static str, String)>,
+}
+
 /// Whether the configured LLM feature can resolve a provider for extraction.
-fn llm_provider_available() -> bool {
+fn llm_provider_available(config: Option<&crate::backends::llm_client::LlmConfig>) -> bool {
     #[cfg(feature = "llm")]
     {
-        crate::env::llm_api_key().is_some()
+        llm_provider(config).is_some()
     }
 
     #[cfg(not(feature = "llm"))]
     {
+        let _ = config;
         false
     }
 }
@@ -176,31 +220,41 @@ impl UniversalNER {
     ///
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        let llm_available = llm_provider_available();
+        use crate::backends::llm_client::LlmConfig;
+        use std::env::{var, VarError};
 
-        Ok(Self {
-            llm_available,
-            config: None,
-            prompt_strategy: PromptStrategy::default(),
-            domain_context: None,
-            cache: Mutex::new(ResponseCache::new(256)),
-            self_verify: false,
-            max_chunk_chars: 4000,
+        let endpoint = match var("ANNO_LLM_ENDPOINT") {
+            Ok(url) => url,
+            Err(VarError::NotPresent) => return Ok(Self::from_config(None)),
+            Err(VarError::NotUnicode(_)) => {
+                return Err(crate::Error::ModelInit(
+                    "ANNO_LLM_ENDPOINT must be a UTF-8 URL".into(),
+                ));
+            }
+        };
+        Self::with_config(LlmConfig {
+            endpoint: Some(endpoint),
+            model: var("ANNO_LLM_MODEL").unwrap_or_default(),
+            api_key: var("ANNO_LLM_API_KEY").ok(),
+            ..LlmConfig::default()
         })
     }
 
-    /// Create with a specific LLM configuration.
+    /// Create with a specific LLM configuration, independent of ANNO_LLM_ENDPOINT.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        let llm_available = llm_provider_available();
-        Ok(Self {
-            llm_available,
-            config: Some(config),
+        Ok(Self::from_config(Some(config)))
+    }
+
+    fn from_config(config: Option<crate::backends::llm_client::LlmConfig>) -> Self {
+        Self {
+            llm_available: llm_provider_available(config.as_ref()),
+            config,
             prompt_strategy: PromptStrategy::default(),
             domain_context: None,
             cache: Mutex::new(ResponseCache::new(256)),
             self_verify: false,
             max_chunk_chars: 4000,
-        })
+        }
     }
 
     /// Set the prompting strategy.
@@ -376,6 +430,89 @@ Output:"#
         })
     }
 
+    #[cfg(feature = "llm")]
+    fn llm_target(&self, provider: &str, api_key: &str) -> Result<LlmTarget> {
+        let fallback_model = match provider {
+            "anthropic" => "claude-haiku-4-5-20251001",
+            "groq" => "llama-3.3-70b-versatile",
+            "ollama" => "llama3.2:3b",
+            "gemini" => "gemini-2.5-flash-lite",
+            "custom" => "default",
+            _ => "google/gemini-2.5-flash-lite",
+        };
+        let model = self
+            .config
+            .as_ref()
+            .map(|config| config.model.as_str())
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or(fallback_model);
+        // The built-in Google presets use OpenRouter's provider-prefixed IDs.
+        let model = if provider == "gemini" {
+            model.strip_prefix("google/").unwrap_or(model)
+        } else {
+            model
+        };
+        let (url, headers): (String, Vec<(&str, String)>) = match provider {
+            "openrouter" => (
+                "https://openrouter.ai/api/v1/chat/completions".to_string(),
+                vec![
+                    ("Authorization", format!("Bearer {}", api_key)),
+                    (
+                        "HTTP-Referer",
+                        "https://github.com/anno-rs/anno".to_string(),
+                    ),
+                    ("X-Title", "Anno NER".to_string()),
+                ],
+            ),
+            "anthropic" => (
+                "https://api.anthropic.com/v1/messages".to_string(),
+                vec![
+                    ("x-api-key", api_key.to_owned()),
+                    ("anthropic-version", "2023-06-01".to_string()),
+                ],
+            ),
+            "groq" => (
+                "https://api.groq.com/openai/v1/chat/completions".to_string(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            "custom" => (
+                self.config
+                    .as_ref()
+                    .and_then(|c| c.endpoint.clone())
+                    .expect("custom route has an explicit endpoint"),
+                if api_key.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![("Authorization", format!("Bearer {}", api_key))]
+                },
+            ),
+            "ollama" => {
+                let host = std::env::var("OLLAMA_HOST")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
+                (
+                    format!("{}/v1/chat/completions", host),
+                    vec![("Authorization", "Bearer ollama".to_string())],
+                )
+            }
+            "gemini" => (
+                GEMINI_CHAT_URL.to_owned(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            other => {
+                return Err(crate::Error::FeatureNotAvailable(format!(
+                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
+                    other
+                )));
+            }
+        };
+
+        Ok(LlmTarget {
+            url,
+            model: model.to_owned(),
+            headers,
+        })
+    }
+
     /// Extract entities from a single chunk of text.
     ///
     /// `char_offset` is the chunk's starting character offset in the original
@@ -387,29 +524,20 @@ Output:"#
         char_offset: usize,
         entity_types: &[&str],
     ) -> Result<Vec<Entity>> {
-        let (api_key, provider) = crate::env::llm_api_key().ok_or_else(|| {
+        let (api_key, provider) = llm_provider(self.config.as_ref()).ok_or_else(|| {
             crate::Error::FeatureNotAvailable(
-                "No LLM API key found. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, or run Ollama locally.".into(),
+                "No available LLM route. Check the configured endpoint and its credentials.".into(),
             )
         })?;
 
-        let default_model = |fallback: &str| -> String {
-            self.config
-                .as_ref()
-                .map_or_else(|| fallback.to_string(), |c| c.model.clone())
-        };
-
-        // Determine model name for cache key
-        let model_for_cache = match provider {
-            "openrouter" => default_model("google/gemini-2.5-flash-lite"),
-            "anthropic" => default_model("claude-haiku-4-5-20251001"),
-            "groq" => default_model("llama-3.3-70b-versatile"),
-            "ollama" => default_model("llama3.2:3b"),
-            _ => default_model("google/gemini-2.5-flash-lite"),
-        };
+        let LlmTarget {
+            url,
+            model,
+            headers,
+        } = self.llm_target(provider, &api_key)?;
 
         // Check cache first (keyed on chunk text, not full document)
-        let key = cache_key(chunk_text, entity_types, &model_for_cache);
+        let key = cache_key(chunk_text, entity_types, &model);
         {
             let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = cache.get(key) {
@@ -431,55 +559,6 @@ Output:"#
         let (system_msg, user_msg) = self.build_prompt(chunk_text, entity_types);
 
         let max_tokens = self.config.as_ref().map_or(1024, |c| c.max_tokens);
-
-        let (url, model, headers): (String, String, Vec<(&str, String)>) = match provider {
-            "openrouter" => (
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                default_model("google/gemini-2.5-flash-lite"),
-                vec![
-                    ("Authorization", format!("Bearer {}", api_key)),
-                    (
-                        "HTTP-Referer",
-                        "https://github.com/anno-rs/anno".to_string(),
-                    ),
-                    ("X-Title", "Anno NER".to_string()),
-                ],
-            ),
-            "anthropic" => (
-                "https://api.anthropic.com/v1/messages".to_string(),
-                default_model("claude-haiku-4-5-20251001"),
-                vec![
-                    ("x-api-key", api_key.clone()),
-                    ("anthropic-version", "2023-06-01".to_string()),
-                ],
-            ),
-            "groq" => (
-                "https://api.groq.com/openai/v1/chat/completions".to_string(),
-                default_model("llama-3.3-70b-versatile"),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            "ollama" => {
-                let host = std::env::var("OLLAMA_HOST")
-                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                (
-                    format!("{}/v1/chat/completions", host),
-                    default_model("llama3.2:3b"),
-                    vec![("Authorization", "Bearer ollama".to_string())],
-                )
-            }
-            "gemini" => (
-                // Route Gemini through OpenRouter-compatible format
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                "google/gemini-2.5-flash-lite".to_string(),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            other => {
-                return Err(crate::Error::FeatureNotAvailable(format!(
-                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
-                    other
-                )));
-            }
-        };
 
         // All providers use OpenAI-compatible format except direct Anthropic API
         let body = if provider == "anthropic" {
@@ -911,7 +990,7 @@ impl Model for UniversalNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }
@@ -957,7 +1036,7 @@ impl ZeroShotNER for UniversalNER {
     ) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }
@@ -979,6 +1058,86 @@ impl ZeroShotNER for UniversalNER {
 mod tests {
     use super::*;
     use std::sync::OnceLock;
+
+    #[cfg(feature = "llm")]
+    #[test]
+    fn explicit_provider_uses_the_protocol_for_the_exact_destination() {
+        use crate::backends::llm_client::LlmConfig;
+
+        for (url, provider) in [
+            ("https://api.anthropic.com/v1/messages", "anthropic"),
+            (
+                "https://openrouter.ai/api/v1/chat/completions",
+                "openrouter",
+            ),
+            ("https://api.groq.com/openai/v1/chat/completions", "groq"),
+            ("https://example.test/v1/messages", "custom"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(url.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::default()
+            };
+            assert_eq!(
+                llm_provider(Some(&config)),
+                Some(("explicit".into(), provider))
+            );
+        }
+        let config = LlmConfig {
+            endpoint: Some("/missing-host".into()),
+            ..LlmConfig::default()
+        };
+        assert!(llm_provider(Some(&config)).is_none());
+    }
+
+    #[cfg(feature = "llm")]
+    #[test]
+    fn gemini_target_binds_the_key_and_native_model_to_google() {
+        use crate::backends::llm_client::LlmConfig;
+
+        let backend = UniversalNER::new().unwrap();
+        let route = backend.llm_target("gemini", "dummy").unwrap();
+        assert_eq!(
+            route.url,
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        );
+        assert_eq!(route.model, "gemini-2.5-flash-lite");
+        assert_eq!(
+            route.headers,
+            [("Authorization", "Bearer dummy".to_owned())]
+        );
+        for (configured, native) in [
+            ("google/gemini-2.5-flash", "gemini-2.5-flash"),
+            ("gemini-3.1-flash-lite", "gemini-3.1-flash-lite"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(GEMINI_CHAT_URL.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::with_model(configured)
+            };
+            let (key, provider) = llm_provider(Some(&config)).unwrap();
+            assert_eq!(provider, "gemini");
+            let route = UniversalNER::with_config(config)
+                .unwrap()
+                .llm_target(provider, &key)
+                .unwrap();
+            assert_eq!(route.url, GEMINI_CHAT_URL);
+            assert_eq!(route.model, native);
+            assert_eq!(
+                route.headers,
+                [("Authorization", "Bearer explicit".to_owned())]
+            );
+        }
+    }
+
+    #[cfg(not(feature = "llm"))]
+    #[test]
+    fn explicit_endpoint_requires_http_feature() {
+        use crate::backends::llm_client::LlmConfig;
+        assert!(!UniversalNER::with_config(LlmConfig::ollama("fixture"))
+            .unwrap()
+            .is_available());
+    }
 
     #[test]
     fn test_universal_ner_creation() {
@@ -1015,7 +1174,7 @@ mod tests {
 
         std::env::set_var("UNIVERSAL_NER_API_KEY", "dummy");
         let model2 = UniversalNER::new().unwrap();
-        assert_eq!(model2.is_available(), llm_provider_available());
+        assert_eq!(model2.is_available(), llm_provider_available(None));
     }
 
     #[test]
