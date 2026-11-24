@@ -115,6 +115,22 @@ The scorer evaluates the same output against each gold occurrence's compact high
 
 For each boundary contract, `joined_positive / positive_pairs` measures end-to-end same-person pair recall. `joined_negative / negative_pairs` measures the fraction of distinct-person pairs merged. `covered_positive` and `covered_negative` count pairs whose endpoints were both proposed. A missed endpoint stays in the end-to-end denominator. Report zero denominators as unavailable. Unresolved references are reported separately and have no pair truth. The human–distractor counts cover pairs of an annotated human occurrence and an exact marked distractor within the same document. They expose contaminated clusters even when no distinct people were merged. These are within-document measurements. The receipt carries no external catalog or linking decisions.
 
+### Replay a quoted role and two named people
+
+This fixture uses a 2,003-scalar excerpt from document 208 in [LitBank](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8), by David Bamman, Olivia Lewke and Anya Mansoor (CC BY 4.0). The [fixture](../scripts/qa/fixtures/litbank-role-link.json) pins the verbatim source and excerpt hashes. All saved offsets are half-open Unicode scalar indices into the original document. The runner receives only the unmarked excerpt and its ID. Use the same local FP32 export as the word-aligned example above.
+
+```sh
+git clone https://github.com/dbamman/litbank.git target/litbank
+git -C target/litbank checkout --detach 3e50db0ffc033d7ccbb94f4d88f6b99210328ed8
+cargo build --locked -p anno --no-default-features --features onnx --example fcoref_word_spans
+python3 scripts/qa/replay_litbank_role.py target/litbank \
+  --runner target/debug/examples/fcoref_word_spans --model-dir "$FCOREF_MODEL_DIR"
+```
+
+The oracle expects the pronoun, role and correct name to share a cluster, and the other named person to appear in a different cluster. The scorer reports all four selected pairs, with an unresolved judgment when either exact span lacks an emitted cluster. Stock FCoref on 942eb6a6 proposed all four endpoints but grouped the pronoun and role with the other named person. This single case has no frequency estimate.
+
+Use `--predictions FILE` to score a saved receipt from the example. A match exits 0 and a mismatch exits 1. An unavailable runner or model, or a source-only check with neither execution mode, reports `not_run` and exits 77. A bad source, malformed receipt, or failed invocation exits 2. Synthetic same-person, wrong-person and missing-endpoint controls run with `python3 -m unittest discover -s scripts/qa -p test_replay_litbank_role.py`.
+
 ### Compare compact name displays
 
 Use the pinned local FCoref export described above and the stacked NER backend. Both commands below consume only IDs and verbatim text. Set `FCOREF_MODEL_DIR` to the export directory and prefetch build dependencies for an offline replay.
