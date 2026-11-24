@@ -455,6 +455,10 @@ impl LoadableDatasetId {
             DatasetId::CASIE => DatasetParsePlan::Casie,
             DatasetId::RAMS => DatasetParsePlan::Rams,
 
+            // The TIMEX row reader also accepts local JSONL. Its parser is independent
+            // of whether the registry provides a network source.
+            DatasetId::TimexRecognitionSentenceOriginal => DatasetParsePlan::HfApiResponse,
+
             // HF datasets-server API responses
             DatasetId::GENIA
             | DatasetId::AnatEM
@@ -4013,12 +4017,12 @@ impl DatasetLoader {
         let mut metadata = id.default_metadata();
         let mut source_url = id.download_url().to_owned();
         if id == DatasetId::TimexRecognitionSentenceOriginal {
+            source_url = id.cache_filename().into();
             let digest = self.compute_sha256(content);
             if digest == super::temporal_expressions::TEST_SHA256 {
                 metadata.split = Some("test".into());
             } else {
                 // An unmanaged local fixture or older Viewer envelope may use another split.
-                source_url = id.cache_filename().into();
                 metadata.split = None;
             }
             metadata.version = Some(format!("sha256:{digest}"));
@@ -7595,6 +7599,23 @@ mod tests {
         assert_eq!(id.citation(), Some("Balasuriya et al. (2009)"));
         assert_eq!(id.license(), Some("CC-BY-4.0"));
         assert_eq!(id.year(), Some(2009));
+    }
+
+    #[test]
+    fn local_source_policy_preserves_supported_readers() {
+        for (name, id) in [
+            (
+                "TimexRecognitionSentenceOriginal",
+                DatasetId::TimexRecognitionSentenceOriginal,
+            ),
+            ("PreCo", DatasetId::PreCo),
+        ] {
+            assert_eq!(name.parse::<LoadableDatasetId>().unwrap().into_inner(), id);
+            assert!(id.requires_local_source());
+            assert!(!id.is_automatable_download());
+        }
+        // The licensed TimeML XML corpus is a different format from its TIMEX JSONL derivative.
+        assert!(LoadableDatasetId::try_from(DatasetId::TimeBank12).is_err());
     }
 
     #[test]
