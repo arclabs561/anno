@@ -860,6 +860,26 @@ mod tests {
     }
 
     #[test]
+    fn rag_preserves_pronoun_attribution_from_a_partially_tracked_document() {
+        use crate::{GroundedDocument, Signal};
+
+        let source =
+            "Iris Moss checked the bell. Éva Lorn tuned the reeds. She recorded the chime.";
+        let mut doc = GroundedDocument::new("reed-log", source);
+        let [_, eva, she] = ["Iris Moss", "Éva Lorn", "She"]
+            .map(|name| doc.add_signal(Signal::from_text(source, name, "PER", 1.0).unwrap()));
+        doc.create_track_from_signals("Éva Lorn", &[eva, she])
+            .unwrap();
+
+        let result = resolve_for_rag(source, &doc.to_entities(), None);
+        assert_eq!(result.rewrites.len(), 1);
+        let rewrite = &result.rewrites[0];
+        assert_eq!((rewrite.start, rewrite.end), (54, 57));
+        assert_eq!(rewrite.replacement, "Éva Lorn");
+        assert_eq!(result.text, source.replace("She", "Éva Lorn"));
+    }
+
+    #[test]
     fn test_multiple_pronouns() {
         let text = "Bob likes coffee. He drinks it daily.";
         let entities = vec![

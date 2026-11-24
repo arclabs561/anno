@@ -604,7 +604,8 @@ impl IncrementalCorefResolver {
 
     /// Resolve coreference for an entire document.
     ///
-    /// Returns coreference chains linking all coreferent mentions.
+    /// Each call starts with fresh entity memory. Cluster IDs and character offsets
+    /// are scoped to the supplied text, including when the resolver is reused.
     pub fn resolve_document(&self, text: &str) -> Vec<CorefChain> {
         let mut memory = EntityMemory::new(self.config.memory_policy);
         memory.finished = Some(Vec::new());
@@ -1500,6 +1501,52 @@ mod tests {
 
         // Should have at least one chain for John/He
         assert!(!chains.is_empty());
+    }
+
+    #[test]
+    fn document_windows_share_memory_but_separate_calls_start_fresh() {
+        let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+            token_based: true,
+            window_size: 4,
+            window_overlap: 0,
+            grouped_window_size: 0,
+            ..Default::default()
+        });
+        let first = "Nadia checks the seal.";
+        let second = "Omar waits. Nadia logs.";
+        let document = format!("{first}\n{second}");
+
+        // Compare the actual occurrences in each chain, independent of cluster numbering.
+        fn groups(chains: &[CorefChain]) -> Vec<Vec<(&str, usize, usize)>> {
+            let mut groups: Vec<Vec<_>> = chains
+                .iter()
+                .map(|chain| {
+                    chain
+                        .mentions
+                        .iter()
+                        .map(|m| (m.text.as_str(), m.start, m.end))
+                        .collect()
+                })
+                .collect();
+            groups.sort_unstable();
+            groups
+        }
+
+        assert_eq!(
+            groups(&resolver.resolve_document(&document)),
+            [
+                vec![("Nadia", 0, 5), ("Nadia", 35, 40)],
+                vec![("Omar", 23, 27)]
+            ]
+        );
+        assert_eq!(
+            groups(&resolver.resolve_document(first)),
+            [vec![("Nadia", 0, 5)]]
+        );
+        assert_eq!(
+            groups(&resolver.resolve_document(second)),
+            [vec![("Nadia", 12, 17)], vec![("Omar", 0, 4)]]
+        );
     }
 
     #[test]

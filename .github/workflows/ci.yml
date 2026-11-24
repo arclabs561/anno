@@ -235,6 +235,8 @@ jobs:
           fi
       - name: Verify reviewed catalog assignments
         run: bash scripts/verification/check_reviewed_kb.sh
+      - name: Replay index revisions and downstream queries
+        run: bash scripts/verification/check_index_replay.sh
       - run: cargo test --package anno --lib
       # `anno::metrics`/coref helpers and the JSON-schema unit tests exist only
       # under the `analysis` and `schema` features. `clippy-extra` type-checks
@@ -642,8 +644,8 @@ jobs:
           run_sample() {
             cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           }
-          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          run_sample
+          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/AnnoNerSmoke.cache"
+          ANNO_MUXER_FIXED_DATASETS=AnnoNerSmoke run_sample
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
 
           install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexSmoke.cache"

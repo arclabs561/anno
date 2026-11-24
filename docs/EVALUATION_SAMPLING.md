@@ -109,10 +109,11 @@ an exit code of zero alone is not acceptance. Check that outcome rows exist,
 the expected cells ran, and recorded failures are understood.
 
 CI first runs the sampler with the heuristic backend on one checked-in sentence
-with known entity spans. The fixture is the dataset registry's WikiGold format
-example. It lives in a separate temporary cache, with downloads disabled, and
-must produce one completed result with F1 of 1. Its receipt is separate from
-evaluation results on real corpora.
+with known entity spans. The registry's WikiGold format example is staged as
+`AnnoNerSmoke.cache` in a separate temporary cache with downloads disabled.
+The loader verifies the fixture digest, and CI requires one completed
+`AnnoNerSmoke` result with F1 of 1. The five-example bootstrap uses the
+pinned WikiGold release and records its own `WikiGold` result.
 
 External sampling restores the newest compatible checkpoint produced by this
 workflow on the default branch. The artifact contains muxer windows, evaluation

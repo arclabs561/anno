@@ -125,5 +125,30 @@
         ]
       }
     ]
+  },
+  {
+    "id": "currency-print-spacing",
+    "family": "currency-symbol-boundaries",
+    "text": "The ticket costs $\u202f48, payable today. The legend lists $, then other symbols.",
+    "assertions": [
+      {
+        "kind": "exact_span",
+        "start": 17,
+        "end": 21,
+        "text": "$\u202f48",
+        "types": [
+          "MONEY"
+        ]
+      },
+      {
+        "kind": "no_overlap",
+        "start": 55,
+        "end": 57,
+        "text": "$,",
+        "types": [
+          "MONEY"
+        ]
+      }
+    ]
   }
 ]

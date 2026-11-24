@@ -1,5 +1,7 @@
 # What does a track score measure?
 
+For evidence on when to publish or revise a track assignment, see the [index reconciliation experiments](index-reconciliation.md) and [downstream search, archive and review workflows](index-consumers.md).
+
 A `Track` records the within-document membership a caller can act on. Three different questions arise when a model produces it. Did the detector find a mention? Do two mentions refer to the same entity? Does the entire predicted track equal a gold track, including all its members? Each question needs its own labels and denominator.
 
 ## Evidence available in anno

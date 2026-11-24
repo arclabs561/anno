@@ -1167,10 +1167,31 @@ pub use optional_field_num;
 // - speech: Audio/speech NER
 // - long_document: Long-document (>10k tokens) processing
 
+/// A checked-in evaluation source identified by its exact bytes.
+pub(crate) struct CheckoutFixture {
+    pub path: &'static str,
+    pub bytes: usize,
+    pub digest: &'static str,
+}
+
 define_datasets! {
     // =========================================================================
     // Core NER Datasets
     // =========================================================================
+    AnnoNerSmoke {
+        name: "Anno NER Smoke",
+        description: "One checked-in CoNLL format example for the offline matrix smoke test.",
+        url: "",
+        entity_types: ["PER", "LOC"],
+        language: "en",
+        domain: "example",
+        format: "CoNLL",
+        annotation_scheme: "IOB2",
+        splits: ["fixture"],
+        tasks: ["ner"],
+        access_status: Local,
+        categories: [ner],
+    },
     WikiGold {
         name: "WikiGold",
         description: "Wikipedia-based NER (PER, LOC, ORG, MISC). Historically significant as early Wikipedia NER resource.",
@@ -9599,6 +9620,27 @@ define_datasets! {
 
 #[allow(clippy::items_after_test_module)]
 impl DatasetId {
+    pub(crate) fn checkout_fixture(self) -> Option<CheckoutFixture> {
+        match self {
+            Self::AnnoNerSmoke => Some(CheckoutFixture {
+                path: "scripts/qa/fixtures/matrix-smoke.conll",
+                bytes: 97,
+                digest: "61f31304f1ba3c348e154f23930e436b84e0b58f437934db26858f4bfd79e479",
+            }),
+            Self::AnnoTimexSmoke => Some(CheckoutFixture {
+                path: "scripts/qa/fixtures/matrix-smoke-timex.jsonl",
+                bytes: 430,
+                digest: "6ea2b070e37f5b04376b167215caf35bcc54e1dda28571fc0c7eaf5a7aef70bb",
+            }),
+            Self::AnnoTimexContrast => Some(CheckoutFixture {
+                path: "scripts/qa/fixtures/timex-contrast/rows.jsonl",
+                bytes: 5621,
+                digest: "c1718c1749c528234fe2007f903bfa48bad3e1da5ff1f25e9b1fd5d5554ec4f9",
+            }),
+            _ => None,
+        }
+    }
+
     /// Get tasks with fallback to category-based inference.
     ///
     /// Many datasets don't have explicit `tasks` defined but have task-like
