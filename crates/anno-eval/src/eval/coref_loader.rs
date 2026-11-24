@@ -28,7 +28,7 @@ use super::coref::{CorefChain, CorefDocument, Mention, MentionType};
 use super::loader::DatasetId;
 use anno::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
@@ -1383,6 +1383,74 @@ pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
 /// Read the original XML ZIP, including all anchored markables from all sentences.
 /// The upstream selected-sentence CSV supplies a separate benchmark filter.
 pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
+    read_ecb_plus_gold_zip(data, None)
+}
+
+type EcbSentenceIndex = BTreeMap<(String, String), BTreeSet<u32>>;
+
+/// Project the original XML annotations onto the supplied ECB+ sentence-index CSV.
+/// Document text and character offsets still refer to the whole document. A mention
+/// is included only when every anchored token belongs to a selected sentence.
+pub fn parse_ecb_plus_selected_gold_zip(
+    data: &[u8],
+    sentence_index: &str,
+) -> Result<Vec<EcbPlusDocument>> {
+    let mut lines = sentence_index.trim_start_matches('\u{feff}').lines();
+    if lines.next().map(str::trim) != Some("Topic,File,Sentence Number") {
+        return Err(Error::InvalidInput(
+            "ECB+ sentence index requires the header Topic,File,Sentence Number".into(),
+        ));
+    }
+    let mut index = EcbSentenceIndex::new();
+    for (line_number, line) in lines.enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut fields = line.split(',').map(str::trim);
+        let invalid = || {
+            Error::InvalidInput(format!(
+                "Invalid ECB+ sentence-index row {}",
+                line_number + 2
+            ))
+        };
+        let topic = fields
+            .next()
+            .filter(|field| !field.is_empty() && field.bytes().all(|c| c.is_ascii_digit()))
+            .ok_or_else(invalid)?;
+        let file = fields
+            .next()
+            .filter(|field| !field.is_empty() && field.bytes().all(|c| c.is_ascii_alphanumeric()))
+            .ok_or_else(invalid)?;
+        let sentence = fields
+            .next()
+            .and_then(|field| field.parse::<u32>().ok())
+            .ok_or_else(invalid)?;
+        if fields.next().is_some() {
+            return Err(invalid());
+        }
+        let doc_name = format!("{topic}_{file}");
+        if !index
+            .entry((topic.to_owned(), doc_name))
+            .or_default()
+            .insert(sentence)
+        {
+            return Err(Error::InvalidInput(format!(
+                "Duplicate ECB+ sentence-index coordinate {topic},{file},{sentence}"
+            )));
+        }
+    }
+    if index.is_empty() {
+        return Err(Error::InvalidInput(
+            "ECB+ sentence index contains no selected sentences".into(),
+        ));
+    }
+    read_ecb_plus_gold_zip(data, Some(&index))
+}
+
+fn read_ecb_plus_gold_zip(
+    data: &[u8],
+    selection: Option<&EcbSentenceIndex>,
+) -> Result<Vec<EcbPlusDocument>> {
     use std::io::Cursor;
 
     let cursor = Cursor::new(data);
@@ -1390,6 +1458,7 @@ pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
         .map_err(|e| Error::InvalidInput(format!("Failed to open ECB+ zip: {}", e)))?;
 
     let mut all_docs = Vec::new();
+    let mut selected_docs = BTreeSet::new();
 
     for i in 0..archive.len() {
         let Ok(mut file) = archive.by_index(i) else {
@@ -1399,10 +1468,6 @@ pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
             Ok(name) if name.ends_with(".xml") => name.into_owned(),
             _ => continue,
         };
-
-        let mut xml_content = String::new();
-        std::io::Read::read_to_string(&mut file, &mut xml_content)
-            .map_err(|e| Error::InvalidInput(format!("Failed to read XML {}: {}", name, e)))?;
 
         let mut components = name.split('/').rev();
         let doc_name = components.next().unwrap_or(&name).trim_end_matches(".xml");
@@ -1415,11 +1480,37 @@ pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
                 .filter(is_topic)
         });
 
-        match parse_ecb_plus_xml(&xml_content, topic, doc_name) {
-            Ok(doc) => all_docs.push(doc),
-            Err(e) => {
-                log::debug!("Skipping {}: {}", name, e);
+        let selected_sentences = if let Some(index) = selection {
+            let Some(topic) = topic else { continue };
+            let key = (topic.to_owned(), doc_name.to_owned());
+            let Some(sentences) = index.get(&key) else {
+                continue;
+            };
+            if !selected_docs.insert(key) {
+                return Err(Error::InvalidInput(format!(
+                    "Duplicate selected ECB+ document {name}"
+                )));
             }
+            Some(sentences)
+        } else {
+            None
+        };
+        let mut xml_content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut xml_content)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read XML {}: {}", name, e)))?;
+
+        match parse_ecb_plus_xml(&xml_content, topic, doc_name, selected_sentences) {
+            Ok(doc) => all_docs.push(doc),
+            Err(e) if selection.is_some() => return Err(e),
+            Err(e) => log::debug!("Skipping {}: {}", name, e),
+        }
+    }
+
+    if let Some(index) = selection {
+        if let Some((topic, name)) = index.keys().find(|key| !selected_docs.contains(*key)) {
+            return Err(Error::InvalidInput(format!(
+                "Missing selected ECB+ document {topic}/{name}"
+            )));
         }
     }
 
@@ -1435,7 +1526,12 @@ pub fn parse_ecb_plus_gold_zip(data: &[u8]) -> Result<Vec<EcbPlusDocument>> {
 }
 
 /// Decode the markable IDs, relation IDs and cross-document instance IDs in their own scopes.
-fn parse_ecb_plus_xml(xml: &str, topic: Option<&str>, doc_name: &str) -> Result<EcbPlusDocument> {
+fn parse_ecb_plus_xml(
+    xml: &str,
+    topic: Option<&str>,
+    doc_name: &str,
+    selection: Option<&BTreeSet<u32>>,
+) -> Result<EcbPlusDocument> {
     use quick_xml::events::{BytesStart, Event};
     use quick_xml::Reader;
     use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -1480,6 +1576,8 @@ fn parse_ecb_plus_xml(xml: &str, topic: Option<&str>, doc_name: &str) -> Result<
     }
 
     let mut tokens = BTreeMap::new();
+    let mut seen_sentences = BTreeSet::new();
+    let mut selected_tokens = HashSet::new();
     let mut token: Option<(u32, String)> = None;
     let mut mentions = BTreeMap::new();
     let mut markable: Option<(u32, &'static str, Vec<u32>)> = None;
@@ -1496,7 +1594,20 @@ fn parse_ecb_plus_xml(xml: &str, topic: Option<&str>, doc_name: &str) -> Result<
                 let name = e.name();
                 let tag = name.as_ref();
                 match tag {
-                    b"token" => token = id(&e, b"t_id").map(|tid| (tid, String::new())),
+                    b"token" => {
+                        token = id(&e, b"t_id").map(|tid| (tid, String::new()));
+                        if let (Some(index), Some((tid, _))) = (selection, &token) {
+                            let sentence = id(&e, b"sentence").ok_or_else(|| {
+                                Error::InvalidInput(format!(
+                                    "Missing sentence number for ECB+ token {tid} in {doc_name}"
+                                ))
+                            })?;
+                            seen_sentences.insert(sentence);
+                            if index.contains(&sentence) {
+                                selected_tokens.insert(*tid);
+                            }
+                        }
+                    }
                     b"token_anchor" => {
                         if let (Some((_, _, anchors)), Some(tid)) = (&mut markable, id(&e, b"t_id"))
                         {
@@ -1579,6 +1690,15 @@ fn parse_ecb_plus_xml(xml: &str, topic: Option<&str>, doc_name: &str) -> Result<
         return Err(Error::InvalidInput(format!(
             "ECB+ XML {doc_name} contains no tokens"
         )));
+    }
+
+    if let Some(index) = selection {
+        if let Some(sentence) = index.difference(&seen_sentences).next() {
+            return Err(Error::InvalidInput(format!(
+                "Missing selected ECB+ sentence {sentence} in {doc_name}"
+            )));
+        }
+        mentions.retain(|_, (_, anchors)| anchors.iter().all(|tid| selected_tokens.contains(tid)));
     }
 
     let mut text = String::new();
@@ -2301,31 +2421,109 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
         }
     }
 
+    #[test]
+    fn ecb_plus_selected_gold_validates_coordinates_and_keeps_full_document_offsets() {
+        use std::io::{Cursor, Write};
+        use zip::{write::SimpleFileOptions, ZipWriter};
+
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        for name in ["ECB+/4/4_1ecb.xml", "ECB+/4/4_1ecbplus.xml"] {
+            zip.start_file(name, SimpleFileOptions::default()).unwrap();
+            zip.write_all(r#"<Document>
+                <token t_id="1" sentence="0">Zoë</token><token t_id="2" sentence="2">fixes</token>
+                <token t_id="3" sentence="2">it</token><token t_id="4" sentence="3">today</token>
+                <Markables>
+                <HUMAN_PART_PER m_id="1"><token_anchor t_id="1"/></HUMAN_PART_PER>
+                <ACTION_OCCURRENCE m_id="2"><token_anchor t_id="2"/></ACTION_OCCURRENCE>
+                <TIME_DATE m_id="3"><token_anchor t_id="3"/><token_anchor t_id="4"/></TIME_DATE>
+                </Markables>
+                <Relations><CROSS_DOC_COREF note="A17"><source m_id="1"/><source m_id="2"/></CROSS_DOC_COREF></Relations>
+                </Document>"#.as_bytes()).unwrap();
+        }
+        let bytes = zip.finish().unwrap().into_inner();
+        let header = "Topic,File,Sentence Number";
+        let selected = format!("\u{feff}{header}\r\n4,1ecb, 2 \r\n");
+        let docs = parse_ecb_plus_selected_gold_zip(&bytes, &selected).unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].doc_id, "4_4_1ecb");
+        assert_eq!(docs[0].text, "Zoë fixes it today");
+        assert_eq!(docs[0].chains.len(), 1);
+        let chain = &docs[0].chains[0];
+        assert_eq!(chain.cross_document_id.as_deref(), Some("A17"));
+        let mentions = &chain.chain.mentions;
+        assert_eq!(mentions.len(), 1);
+        assert_eq!(
+            (
+                mentions[0].text.as_str(),
+                mentions[0].start,
+                mentions[0].end
+            ),
+            ("fixes", 4, 9)
+        );
+
+        for (csv, diagnostic) in [
+            ("Bad header".to_owned(), "header"),
+            (header.to_owned(), "no selected sentences"),
+            (format!("{header}\n4,1ecb,bad"), "row 2"),
+            (format!("{header}\n4,1ecb,2,extra"), "row 2"),
+            (
+                format!("{header}\n5,1ecb,2"),
+                "Missing selected ECB+ document",
+            ),
+            (
+                format!("{header}\n4,1ecb,1"),
+                "Missing selected ECB+ sentence",
+            ),
+            (format!("{header}\n4,1ecb,2\n4,1ecb,2 "), "Duplicate"),
+        ] {
+            let error = parse_ecb_plus_selected_gold_zip(&bytes, &csv)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(diagnostic), "{error}");
+        }
+    }
+
     /// Opt-in fixture for the original cltl/ecbPlus LREC 2014 XML release.
     #[test]
-    #[ignore = "set ANNO_ECB_PLUS_ARCHIVE to the local ECB+.zip"]
+    #[ignore = "set ANNO_ECB_PLUS_ARCHIVE to ECB+.zip beside ECBplus_coreference_sentences.csv"]
     fn ecb_plus_published_archive_gold_counts() {
         use std::collections::HashSet;
-        let archive = std::env::var_os("ANNO_ECB_PLUS_ARCHIVE").expect("ANNO_ECB_PLUS_ARCHIVE");
-        let docs = parse_ecb_plus_gold_zip(&std::fs::read(archive).unwrap()).unwrap();
-        let mut scoped_ids = HashSet::new();
-        let mut cross_mentions = 0;
-        let mut local_mentions = 0;
-        for doc in &docs {
-            let topic = doc.topic.as_ref().unwrap();
-            for chain in &doc.chains {
-                if let Some(id) = &chain.cross_document_id {
-                    scoped_ids.insert((topic, id));
-                    cross_mentions += chain.chain.len();
-                } else {
-                    local_mentions += chain.chain.len();
+        let archive = PathBuf::from(
+            std::env::var_os("ANNO_ECB_PLUS_ARCHIVE").expect("ANNO_ECB_PLUS_ARCHIVE"),
+        );
+        let bytes = std::fs::read(&archive).unwrap();
+        let index =
+            std::fs::read_to_string(archive.with_file_name("ECBplus_coreference_sentences.csv"))
+                .unwrap();
+        for (docs, expected) in [
+            (
+                parse_ecb_plus_gold_zip(&bytes).unwrap(),
+                (982, 2319, 17856, 14441),
+            ),
+            (
+                parse_ecb_plus_selected_gold_zip(&bytes, &index).unwrap(),
+                (976, 1832, 11892, 3230),
+            ),
+        ] {
+            let mut scoped_ids = HashSet::new();
+            let mut cross_mentions = 0;
+            let mut local_mentions = 0;
+            for doc in &docs {
+                let topic = doc.topic.as_ref().unwrap();
+                for chain in &doc.chains {
+                    if let Some(id) = &chain.cross_document_id {
+                        scoped_ids.insert((topic, id));
+                        cross_mentions += chain.chain.len();
+                    } else {
+                        local_mentions += chain.chain.len();
+                    }
                 }
             }
+            assert_eq!(
+                (docs.len(), scoped_ids.len(), cross_mentions, local_mentions),
+                expected
+            );
         }
-        assert_eq!(docs.len(), 982);
-        assert_eq!(scoped_ids.len(), 2319);
-        assert_eq!(cross_mentions, 17856);
-        assert_eq!(local_mentions, 14441);
     }
 
     #[test]
@@ -2343,7 +2541,7 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
             <CROSS_DOC_COREF r_id="37614" note="HUM16236184328979740"><source m_id="21"/><target m_id="43"/></CROSS_DOC_COREF>
           </Relations>
         </Document>"#;
-        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_10ecb")
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_10ecb", None)
             .unwrap()
             .into_coref_document();
         assert_eq!(doc.chains.len(), 2);
@@ -2388,7 +2586,7 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
   </Relations>
 </Document>"#;
 
-        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_1ecb")
+        let doc = parse_ecb_plus_xml(xml, Some("1"), "1_1ecb", None)
             .unwrap()
             .into_coref_document();
         assert_eq!(doc.doc_id.as_deref(), Some("1_1_1ecb"));

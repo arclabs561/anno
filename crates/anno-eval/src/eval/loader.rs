@@ -5526,6 +5526,27 @@ impl DatasetLoader {
     pub fn load_or_download_ecb_plus_gold(
         &self,
     ) -> Result<Vec<super::coref_loader::EcbPlusDocument>> {
+        self.load_ecb_plus_xml(super::coref_loader::parse_ecb_plus_gold_zip)
+    }
+
+    /// Read only mentions whose anchored tokens all occur in the supplied ECB+ sentence index.
+    /// Pass the contents of the upstream `ECBplus_coreference_sentences.csv` or a subset with
+    /// the same header. The XML archive uses the same download and local cache as the full panel.
+    #[cfg(feature = "eval")]
+    pub fn load_or_download_ecb_plus_selected_gold(
+        &self,
+        sentence_index: &str,
+    ) -> Result<Vec<super::coref_loader::EcbPlusDocument>> {
+        self.load_ecb_plus_xml(|bytes| {
+            super::coref_loader::parse_ecb_plus_selected_gold_zip(bytes, sentence_index)
+        })
+    }
+
+    #[cfg(feature = "eval")]
+    fn load_ecb_plus_xml(
+        &self,
+        parse: impl FnOnce(&[u8]) -> Result<Vec<super::coref_loader::EcbPlusDocument>>,
+    ) -> Result<Vec<super::coref_loader::EcbPlusDocument>> {
         let cache_path = self.cache_path_for(DatasetId::ECBPlus);
         if cache_path.exists() {
             let bytes = std::fs::read(&cache_path)
@@ -5535,14 +5556,14 @@ impl DatasetLoader {
                     "ECB+ cross-document gold requires the XML archive at {cache_path:?}. A sentence index or legacy CSV cannot identify cross-document relations."
                 )));
             }
-            return super::coref_loader::parse_ecb_plus_gold_zip(&bytes);
+            return parse(&bytes);
         }
 
         // The registry's text URL identifies the separate selected-sentence index.
         // The upstream release licenses the annotations under CC BY 3.0.
         let url = "https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip";
         let bytes = self.download_attempt_bytes(url)?;
-        let documents = super::coref_loader::parse_ecb_plus_gold_zip(&bytes)?;
+        let documents = parse(&bytes)?;
         self.replace_cache_content(&cache_path, &bytes)?;
         Ok(documents)
     }
