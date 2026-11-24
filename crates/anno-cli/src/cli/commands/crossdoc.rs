@@ -25,6 +25,15 @@ use super::super::parser::{ModelBackend, OutputFormat};
 #[cfg(feature = "eval")]
 use glob::glob;
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CandidateMode {
+    /// Compare every pair of mentions.
+    Exhaustive,
+    /// Compare only pairs proposed by locality-sensitive hashing of mention text.
+    Lsh,
+}
+
 /// Cross-document entity coalescing: cluster entities across multiple documents
 #[derive(clap::Parser, Debug)]
 pub struct CrossDocArgs {
@@ -39,6 +48,10 @@ pub struct CrossDocArgs {
     /// Similarity threshold for clustering (0.0-1.0)
     #[arg(short, long, default_value = "0.6")]
     pub threshold: f64,
+
+    /// Raw directory candidate generation (default: exhaustive up to 100 documents, then lsh)
+    #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
+    pub candidates: Option<CandidateMode>,
 
     /// Require entity type match for clustering
     #[arg(long)]
@@ -250,6 +263,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut use_corpus = false;
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
+    let candidate_mode;
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
         || args.stdin
@@ -431,6 +445,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             );
         }
 
+        candidate_mode = CandidateMode::Exhaustive;
         let resolver = Resolver::new()
             .with_threshold(args.threshold as f32)
             .require_type_match(args.require_type_match);
@@ -555,10 +570,15 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         }
 
         // Configure and run cross-doc coref using CDCRResolver (for raw text files)
+        candidate_mode = args.candidates.unwrap_or(if documents.len() > 100 {
+            CandidateMode::Lsh
+        } else {
+            CandidateMode::Exhaustive
+        });
         let config = CDCRConfig {
             min_similarity: args.threshold,
             require_type_match: args.require_type_match,
-            use_lsh: documents.len() > 100, // Use LSH for large document sets
+            use_lsh: matches!(candidate_mode, CandidateMode::Lsh),
             ..Default::default()
         };
 
@@ -646,6 +666,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
             output.insert("metadata".to_string(), serde_json::json!({
+                "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
+                "candidate_mode": candidate_mode,
                 "documents_processed": doc_count,
                 "total_entities": total_entities,
                 "clusters_found": final_clusters.len(),
