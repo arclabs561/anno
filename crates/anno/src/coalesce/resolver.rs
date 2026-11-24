@@ -39,7 +39,8 @@
 //! - **Embedding similarity** (cosine): \( \cos(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a} \cdot \mathbf{b}}{||\mathbf{a}|| \cdot ||\mathbf{b}||} \)
 //! - **String similarity** (Jaccard on words): \( J(A, B) = \frac{|A \cap B|}{|A \cup B|} \)
 //!
-//! Compatible nonempty embeddings use cosine. Other pairs use Jaccard on word sets.
+//! Compatible nonempty embeddings use cosine. Other pairs use Jaccard when both
+//! surfaces contain text. A pair with neither evidence source has no similarity score.
 //!
 //! ## Example
 //!
@@ -101,7 +102,8 @@ impl Resolver {
     /// usable embedding of an identity this resolver created. Imported and KB-linked
     /// records retain their representative metadata.
     /// Returns the current coreference IDs, including KB-linked clusters from earlier
-    /// runs, in deterministic order. A singleton has no measured pairwise support.
+    /// runs, in deterministic order. A cluster reports its weakest pair only when
+    /// it has at least two members and every pair has comparable evidence.
     pub fn resolve_inter_doc_coref(
         &self,
         corpus: &mut Corpus,
@@ -120,13 +122,32 @@ impl Resolver {
             embedding: Option<Vec<f32>>,
         }
 
-        fn similarity(a: &TrackData, b: &TrackData) -> f32 {
+        fn similarity(a: &TrackData, b: &TrackData) -> Option<f32> {
             match (&a.embedding, &b.embedding) {
-                (Some(left), Some(right)) if !left.is_empty() && left.len() == right.len() => {
-                    embedding_similarity(left, right)
+                (Some(left), Some(right)) if left.len() == right.len() => {
+                    Some(embedding_similarity(left, right))
                 }
-                _ => string_similarity(&a.canonical_surface, &b.canonical_surface),
+                _ if a.canonical_surface.trim().is_empty()
+                    || b.canonical_surface.trim().is_empty() =>
+                {
+                    None
+                }
+                _ => Some(string_similarity(
+                    &a.canonical_surface,
+                    &b.canonical_surface,
+                )),
             }
+        }
+
+        fn weakest_pair(members: &[usize], tracks: &[TrackData]) -> Option<crate::Confidence> {
+            let mut minimum = None;
+            for (position, &left) in members.iter().enumerate() {
+                for &right in &members[position + 1..] {
+                    let score = similarity(&tracks[left], &tracks[right])?;
+                    minimum = Some(minimum.map_or(score, |previous: f32| previous.min(score)));
+                }
+            }
+            minimum.map(crate::Confidence::from)
         }
 
         let mut track_data = Vec::new();
@@ -208,7 +229,7 @@ impl Resolver {
                     continue;
                 }
 
-                if similarity(track_a, track_b) >= threshold {
+                if similarity(track_a, track_b).is_some_and(|score| score >= threshold) {
                     union(&mut union_find, &mut rank, i, j);
                 }
             }
@@ -230,18 +251,7 @@ impl Resolver {
                 .iter()
                 .map(|&i| track_data[i].track_ref.clone())
                 .collect();
-            let minimum = members
-                .iter()
-                .enumerate()
-                .flat_map(|(position, left)| {
-                    let left = &track_data[*left];
-                    let data = &track_data;
-                    members[position + 1..]
-                        .iter()
-                        .map(move |right| similarity(left, &data[*right]))
-                })
-                .min_by(f32::total_cmp)
-                .map(crate::Confidence::from);
+            let minimum = weakest_pair(members, &track_data);
             let score = minimum.unwrap_or(crate::Confidence::ZERO);
             if let Some(id) = by_members.get(refs.as_slice()) {
                 let mut identity = corpus.get_identity(*id).expect("current identity").clone();
@@ -646,6 +656,84 @@ mod tests {
             doc.create_track_from_signals(surface, &signal_ids).unwrap();
         }
         doc
+    }
+
+    #[test]
+    fn resolver_abstains_on_missing_surface_evidence_even_at_zero_threshold() {
+        let mut corpus = Corpus::new();
+        for (id, surface, embedding) in [
+            ("a", "", Some(vec![1., 0.])),
+            ("b", "  \t", Some(vec![1.])),
+            ("c", "Morgan", None),
+            ("d", " ", Some(vec![0., 0.])),
+            ("e", "Rowan", None),
+        ] {
+            let mut doc = GroundedDocument::new(id, surface);
+            let mut track = Track::new(0, surface);
+            track.embedding = embedding;
+            doc.add_track(track);
+            corpus.add_document(doc);
+        }
+        let resolver = Resolver::new();
+        assert_eq!(
+            resolver
+                .resolve_inter_doc_coref(&mut corpus, None, None)
+                .len(),
+            5
+        );
+        assert_eq!(
+            resolver
+                .resolve_inter_doc_coref(&mut corpus, Some(0.0), None)
+                .len(),
+            4
+        );
+        let identity = |id| {
+            corpus
+                .get_document(id)
+                .unwrap()
+                .identity_for_track(TrackId::ZERO)
+                .unwrap()
+        };
+        for id in ["a", "b", "d"] {
+            assert_eq!(identity(id).source.as_ref().unwrap().track_refs().len(), 1);
+            assert_eq!(identity(id).minimum_pair_similarity, None);
+        }
+        // Two observed, disjoint names have a measured similarity of zero.
+        assert_eq!(identity("c").id, identity("e").id);
+        assert_eq!(
+            identity("c").minimum_pair_similarity,
+            Some(crate::Confidence::ZERO)
+        );
+    }
+
+    #[test]
+    fn blank_tracks_can_use_embeddings_but_a_missing_pair_leaves_support_unmeasured() {
+        let mut corpus = Corpus::new();
+        for (id, surface) in [("a", ""), ("a2", " "), ("b", "Morgan")] {
+            let mut doc = GroundedDocument::new(id, surface);
+            let mut track = Track::new(0, surface);
+            track.embedding = Some(vec![1., 0.]);
+            doc.add_track(track);
+            corpus.add_document(doc);
+        }
+        let resolver = Resolver::new();
+        let embedded = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(embedded.len(), 1);
+        assert_eq!(
+            corpus
+                .get_identity(embedded[0])
+                .unwrap()
+                .minimum_pair_similarity,
+            Some(crate::Confidence::ONE)
+        );
+
+        // b and c share a name. The blank tracks share no evidence channel with c.
+        add_track_doc(&mut corpus, "c", "Morgan");
+        let linked = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(linked.len(), 1);
+        let clustered = corpus.get_identity(linked[0]).unwrap();
+        assert_eq!(clustered.minimum_pair_similarity, None);
+        assert_eq!(clustered.confidence, crate::Confidence::ZERO);
     }
 
     #[test]

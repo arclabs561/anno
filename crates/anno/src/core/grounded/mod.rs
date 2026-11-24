@@ -1240,11 +1240,11 @@ pub struct Identity {
     /// Alias names (other known surface forms)
     pub aliases: Vec<String>,
     /// Producer-supplied score. The automatic coreference resolver mirrors
-    /// `minimum_pair_similarity` here, using zero when there is no pair to score.
+    /// `minimum_pair_similarity` here, using zero when the minimum is unavailable.
     /// A direct corpus KB link also uses zero when no score was supplied.
     pub confidence: Confidence,
     /// Weakest pairwise similarity in this resolver cluster, including pairs joined
-    /// transitively. A singleton or an unmeasured identity has no such score.
+    /// transitively. A singleton or a cluster with any unmeasured pair has no minimum.
     /// Similarity is evidence for a grouping, not a calibrated probability.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimum_pair_similarity: Option<Confidence>,
