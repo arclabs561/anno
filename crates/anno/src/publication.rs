@@ -251,6 +251,7 @@ impl<'a> IndexDelta<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use serde_json::json;
 
     fn snapshot(stream: &str, version: u64, rows: &[(&[&str], Value)]) -> IndexSnapshot {
@@ -401,5 +402,34 @@ mod tests {
             IndexSnapshot::new(" ", 0, BTreeMap::new()),
             Err(PublicationError::EmptyStream)
         ));
+    }
+
+    proptest! {
+        #[test]
+        fn sparse_delta_reconstructs_exact_target(
+            original in prop::collection::btree_map(0u8..8, prop::option::of(0u8..4), 0..8),
+            revised in prop::collection::btree_map(0u8..8, prop::option::of(0u8..4), 0..8),
+        ) {
+            // Explicit JSON null, absent keys, and unchanged neighboring rows coexist.
+            let project = |input: BTreeMap<u8, Option<u8>>| -> BTreeMap<_, _> {
+                input.into_iter().map(|(id, value)| (vec![id.to_string()], json!(value))).collect()
+            };
+            let mut replica = project(original);
+            let expected = project(revised);
+            let old = IndexSnapshot::new("property", 2, replica.clone()).unwrap();
+            let new = IndexSnapshot::new("property", 7, expected.clone()).unwrap();
+            let delta = new.changes_since(&old).unwrap();
+            prop_assert!(delta.needs_apply(old.checkpoint()).unwrap());
+            for &(key, old_value) in delta.removed() {
+                prop_assert_ne!(expected.get(key), Some(old_value));
+                let removed = replica.remove(key);
+                prop_assert_eq!(removed.as_ref(), Some(old_value));
+            }
+            for &(key, new_value) in delta.upserted() {
+                prop_assert!(replica.insert(key.to_vec(), new_value.clone()).is_none());
+            }
+            prop_assert_eq!(replica, expected);
+            prop_assert!(!delta.needs_apply(new.checkpoint()).unwrap());
+        }
     }
 }
