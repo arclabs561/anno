@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import sqlite3
 import subprocess
+import sys
 
 import replay_reviewed_kb
 import replay_typed_spans
@@ -18,6 +19,13 @@ import replay_wikigold
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold}
 DB_NAME = "replay-feedback.db"
+MAX_WITNESSES = 512
+MAX_RECEIPT_BYTES = 2048
+IDENTITY_FIELDS = ("corpus", "scope", "family", "source_sha256", "oracle_sha256")
+EVENT_FIELDS = {*IDENTITY_FIELDS, "case", "schema_version", "revision", "outcome",
+                "signature", "producer_sha256", "replays"}
+WITNESS_FIELDS = ("id", "corpus", "family", "case_name", "source_sha256",
+                  "oracle_sha256", "latest", "unresolved", "generation", "last_slot")
 
 
 def stamp(root):
@@ -33,7 +41,11 @@ def key(data):
 
 def database(cache):
     cache.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(cache / DB_NAME, timeout=30)
+    return create_database(cache / DB_NAME)
+
+
+def create_database(path):
+    db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
     db.executescript("""
       CREATE TABLE IF NOT EXISTS observations (id TEXT PRIMARY KEY, receipt TEXT NOT NULL);
@@ -150,6 +162,54 @@ def observe(root, cache, corpus, case, selected=None):
     return {"observation_id": obs_id, **event}
 
 
+def current_event(root, row):
+    """Admit current, bounded public metadata from the local ledger or a transfer."""
+    # The old WikiGold receipt can be large and can contain full gold-span
+    # differences. Recognize that identity from its index, without parsing it.
+    if row["corpus"] == "wikigold":
+        old = {k: row[k] for k in ("corpus", "family", "source_sha256", "oracle_sha256")}
+        if key({**old, "scope": "pinned_source_contract"}) == row["id"]:
+            return None
+
+    receipt = row["receipt"]
+    if not isinstance(receipt, str) or len(receipt.encode()) > MAX_RECEIPT_BYTES:
+        raise ValueError("missing or oversized replay receipt")
+    event = json.loads(receipt)
+    if not isinstance(event, dict) or set(event) != EVENT_FIELDS:
+        raise ValueError("unexpected replay receipt fields")
+    adapter = ADAPTERS.get(event["corpus"])
+    if adapter is None or event["scope"] != adapter.SCOPE or event["schema_version"] != 1:
+        return None
+
+    failed = event["outcome"] == "fail"
+    if (event["outcome"] not in ("pass", "fail") or type(event["schema_version"]) is not int
+            or type(event["replays"]) is not int or event["replays"] != (2 if failed else 1)):
+        raise ValueError("invalid replay confirmation")
+    signature = event["signature"]
+    if not isinstance(signature, str):
+        raise ValueError("replay signature must be a string")
+    if failed and not re.fullmatch(adapter.FAIL_SIGNATURE, signature):
+        raise ValueError("unexpected replay failure signature")
+    if not failed and signature != adapter.PASS_SIGNATURE:
+        raise ValueError("unexpected replay success signature")
+    if (not isinstance(event["revision"], str)
+            or not re.fullmatch(r"[a-f0-9]{40}(?:[a-f0-9]{24})?", event["revision"])
+            or any(not isinstance(event[k], str) or not re.fullmatch(r"[a-f0-9]{64}", event[k])
+                   for k in ("source_sha256", "oracle_sha256", "producer_sha256"))):
+        raise ValueError("invalid replay digest")
+
+    identity = {k: event[k] for k in IDENTITY_FIELDS}
+    if (key(event) != row["latest"] or key(identity) != row["id"]
+            or row["case_name"] != event["case"] or not isinstance(event["case"], str)
+            or adapter.family_for_case(root, event["case"]) != event["family"]
+            or any(row[k] != event[k] for k in ("corpus", "family", "source_sha256", "oracle_sha256"))
+            or row["unresolved"] != int(failed)
+            or type(row["generation"]) is not int or not 1 <= row["generation"] < 2**63 - 1
+            or type(row["last_slot"]) is not int or not 0 <= row["last_slot"] < 2**63 - 1):
+        raise ValueError("replay history has an inconsistent observation")
+    return event
+
+
 def next_case(root, cache):
     path = cache / DB_NAME
     if not path.is_file():
@@ -166,24 +226,10 @@ def next_case(root, cache):
     finally:
         db.close()
     for row in rows:
-        event = json.loads(row["receipt"])
-        identity = {
-            k: event[k] for k in ("corpus", "scope", "family", "source_sha256", "oracle_sha256")
-        }
-        if (
-            key(event) != row["latest"]
-            or key(identity) != row["id"]
-            or event["case"] != row["case_name"]
-            or event["outcome"] != "fail"
-            or event["replays"] != 2
-            or any(
-                row[k] != event[k] for k in ("corpus", "family", "source_sha256", "oracle_sha256")
-            )
-        ):
-            raise ValueError("replay history has an inconsistent observation")
-        adapter = ADAPTERS.get(row["corpus"])
-        if adapter is None or event["scope"] != adapter.SCOPE or event["schema_version"] != 1:
+        event = current_event(root, row)
+        if event is None:
             continue
+        adapter = ADAPTERS[event["corpus"]]
         try:
             pins = describe(adapter, root, row["case_name"])
         except (FileNotFoundError, ValueError):
@@ -198,18 +244,44 @@ def next_case(root, cache):
     return None
 
 
-def backup(source, target):
-    """Transfer a trusted local ledger, including committed WAL pages."""
-    # schema verification prevents an unrelated SQLite file being promoted.
+def backup(source, target, root=ROOT):
+    """Build a fresh checkpoint of eligible current witnesses in one read transaction."""
     with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as src:
-        src.execute("SELECT id,latest,unresolved,generation,last_slot FROM witnesses LIMIT 0")
-        src.execute("SELECT id,receipt FROM observations LIMIT 0")
+        src.row_factory = sqlite3.Row
+        src.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 1 << 20)
+        src.execute("PRAGMA trusted_schema=OFF")
+        src.execute("BEGIN")
+        tables = {row[0] for row in src.execute(
+            "SELECT name FROM sqlite_schema WHERE type='table' AND name IN ('witnesses','observations')"
+        )}
+        if tables != {"observations", "witnesses"}:
+            raise ValueError("missing replay ledger tables")
+        # Bound memory before reading arbitrary receipt strings. Old WikiGold
+        # scopes may contain raw span lists; keep them in the original local ledger.
+        columns = ",".join("w." + k for k in WITNESS_FIELDS)
+        rows = src.execute(f"""SELECT {columns}, CASE WHEN length(CAST(o.receipt AS BLOB)) <= ?
+                               THEN o.receipt END AS receipt FROM witnesses w
+                               LEFT JOIN observations o ON w.latest=o.id ORDER BY w.id LIMIT ?""",
+                           (MAX_RECEIPT_BYTES, MAX_WITNESSES + 1))
         target.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
-            staged = Path(tmp) / "snapshot.db"
-            with closing(sqlite3.connect(staged)) as dest:
-                src.backup(dest)
-            os.link(staged, target)  # publish complete data without replacing an existing ledger
+            staged = Path(tmp) / DB_NAME
+            skipped = 0
+            with closing(create_database(staged)) as dest, dest:
+                for idx, row in enumerate(rows):
+                    if idx >= MAX_WITNESSES:
+                        raise ValueError(f"replay checkpoint exceeds {MAX_WITNESSES} witnesses")
+                    event = current_event(root, row)
+                    if event is None:
+                        skipped += 1
+                        continue
+                    dest.execute("INSERT INTO observations VALUES (?,?)",
+                                 (row["latest"], json.dumps(event, sort_keys=True, separators=(",", ":"))))
+                    dest.execute("INSERT INTO witnesses VALUES (?,?,?,?,?,?,?,?,?,?)",
+                                 tuple(row[k] for k in WITNESS_FIELDS))
+            os.link(staged, target)
+            if skipped:
+                print(f"Omitted {skipped} witnesses with obsolete or unknown scope", file=sys.stderr)
 
 
 def main():
@@ -228,9 +300,9 @@ def main():
     if args.command in ("snapshot", "restore"):
         ledger = args.cache_dir / DB_NAME
         if args.command == "snapshot":
-            backup(ledger, args.file)
+            backup(ledger, args.file, args.repo.resolve())
         else:
-            backup(args.file, ledger)
+            backup(args.file, ledger, args.repo.resolve())
         return
     root = args.repo.resolve()
     result = (

@@ -12,6 +12,11 @@ from brief_round import evidence
 
 class Oracle:
     SCOPE = "synthetic_contract"
+    PASS_SIGNATURE = ""
+    FAIL_SIGNATURE = "assertion-A"
+
+    def family_for_case(self, root, case):
+        return case.split("--")[0]
 
     def __init__(self):
         self.outcomes = {}
@@ -113,6 +118,66 @@ class Feedback(unittest.TestCase):
         self.assertTrue((out / "replay.json").exists())
         self.assertFalse((cold / "eval-results.jsonl").exists())
         self.assertNotEqual(self.pick(), None)
+
+    def test_transfer_contains_latest_receipts_and_no_private_storage(self):
+        old = self.record("a", "fail")
+        current = self.record("a", "pass")
+        private = "PRIVATE-CANARY-92a1"
+        with sqlite3.connect(self.cache / rf.DB_NAME) as db:
+            db.execute("CREATE TABLE auxiliary (raw TEXT)")
+            db.execute("INSERT INTO auxiliary VALUES (?)", (private,))
+            db.execute("ALTER TABLE witnesses ADD COLUMN debug TEXT")
+            db.execute("UPDATE witnesses SET debug=?", (private,))
+            db.execute("UPDATE observations SET receipt=? WHERE id=?", (private, old["observation_id"]))
+        snap = self.root / "snapshot.db"
+        rf.backup(self.cache / rf.DB_NAME, snap)
+        self.assertNotIn(private.encode(), snap.read_bytes())
+        with sqlite3.connect(snap) as db:
+            self.assertEqual(db.execute("SELECT id FROM observations").fetchall(), [(current["observation_id"],)])
+            self.assertEqual({r[1] for r in db.execute("PRAGMA table_info(witnesses)")}, set(rf.WITNESS_FIELDS))
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_schema WHERE name='auxiliary'").fetchone())
+
+    def test_legacy_wikigold_span_lists_never_enter_snapshot(self):
+        self.record("a", "pass")
+        legacy = dict(corpus="wikigold", scope="pinned_source_contract", family="wikigold-stacked-exact-spans",
+                      source_sha256="1" * 64, oracle_sha256="2" * 64)
+        raw = "PRIVATE-GOLD-DIFFERENCES" * 200
+        with sqlite3.connect(self.cache / rf.DB_NAME) as db:
+            db.execute("INSERT INTO observations VALUES (?,?)", (rf.key(raw), raw))
+            db.execute("INSERT INTO witnesses VALUES (?,?,?,?,?,?,?,?,?,?)", (
+                rf.key(legacy), legacy["corpus"], legacy["family"], "sentence-0", legacy["source_sha256"],
+                legacy["oracle_sha256"], rf.key(raw), 1, 1, 0))
+        snap = self.root / "snapshot.db"
+        rf.backup(self.cache / rf.DB_NAME, snap)
+        self.assertNotIn(b"PRIVATE-GOLD", snap.read_bytes())
+        with sqlite3.connect(snap) as db:
+            self.assertEqual(db.execute("SELECT corpus FROM witnesses").fetchall(), [("fixture",)])
+
+    def test_transfer_rejects_current_free_text_and_oversized_history_atomically(self):
+        original = self.record("a", "fail")
+        self.record("b", "pass")
+        source = self.cache / rf.DB_NAME
+        target = self.root / "out.db"
+        with patch.object(rf, "MAX_WITNESSES", 1), self.assertRaisesRegex(ValueError, "exceeds"):
+            rf.backup(source, target)
+        self.assertFalse(target.exists())
+        event = {k: v for k, v in original.items() if k != "observation_id"}
+        event["signature"] = "private source passage"
+        with sqlite3.connect(source) as db:
+            db.execute("UPDATE observations SET id=?,receipt=? WHERE id=?",
+                       (rf.key(event), json.dumps(event), original["observation_id"]))
+            db.execute("UPDATE witnesses SET latest=? WHERE case_name='a'", (rf.key(event),))
+        with self.assertRaisesRegex(ValueError, "signature"):
+            rf.backup(source, target)
+        self.assertFalse(target.exists())
+        with self.assertRaisesRegex(ValueError, "signature"):
+            self.pick()
+
+    def test_tracked_unreviewed_catalog_seed_is_ineligible(self):
+        with self.assertRaisesRegex(ValueError, "unknown reviewed KB seed"):
+            rf.replay_reviewed_kb.seed_path(self.root, "changed-and-restored--unreviewed")
+        for case in rf.replay_reviewed_kb.REVIEWED:
+            self.assertTrue(rf.replay_reviewed_kb.seed_path(rf.ROOT, case).is_file())
 
     def test_plan_does_not_consume_or_relabel_evidence(self):
         self.record("a", "fail")

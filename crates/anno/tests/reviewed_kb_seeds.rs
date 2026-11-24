@@ -55,33 +55,51 @@ fn shared_seeds_replay_against_the_catalog_assignment_oracle() {
     );
 }
 
+fn hash(input: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(input)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+fn failure_signature(payload: Box<dyn std::any::Any + Send>) -> String {
+    if payload.is::<harness::VisibleBindingMismatch>() {
+        return hash(b"anno:reviewed-kb:visible-binding-mismatch:v1");
+    }
+    let detail = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied());
+    match detail {
+        Some(detail) => hash(detail.as_bytes()),
+        None => std::panic::resume_unwind(payload),
+    }
+}
+
+#[test]
+fn visible_binding_receipt_is_stable_and_distinct_from_an_assertion() {
+    let direct = failure_signature(Box::new(harness::VisibleBindingMismatch));
+    let actual =
+        std::panic::catch_unwind(|| std::panic::panic_any(harness::VisibleBindingMismatch))
+            .unwrap_err();
+    assert_eq!(direct, failure_signature(actual));
+    assert_ne!(direct, failure_signature(Box::new("unexpected assertion")));
+}
+
 /// Machine-readable, single-case replay for the opt-in QA scheduler.
 #[test]
 #[ignore = "the scheduler supplies a reviewed seed and a new receipt path"]
 fn replay_one_reviewed_seed() {
-    use sha2::{Digest, Sha256};
-
     let path =
         std::path::PathBuf::from(std::env::var_os("ANNO_REVIEWED_SEED").expect("missing seed"));
     let seed = fs::read(&path).unwrap();
     let name = path.file_name().unwrap().to_str().unwrap();
-    let hash = |input: &[u8]| -> String {
-        Sha256::digest(input)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    };
+    assert!(regressions().contains_key(name), "unknown reviewed seed");
     let result = std::panic::catch_unwind(|| replay_case(name, &seed));
     let (outcome, signature) = match result {
         Ok(_) => ("pass", String::new()),
-        Err(payload) => {
-            let detail = payload
-                .downcast_ref::<String>()
-                .map(String::as_str)
-                .or_else(|| payload.downcast_ref::<&str>().copied())
-                .expect("oracle panic needs a string diagnostic");
-            ("fail", hash(detail.as_bytes()))
-        }
+        Err(payload) => ("fail", failure_signature(payload)),
     };
     let receipt = serde_json::json!({
         "outcome": outcome, "signature": signature,

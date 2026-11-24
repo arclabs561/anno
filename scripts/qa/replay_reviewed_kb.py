@@ -3,11 +3,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 
-SCOPE = "synthetic_contract"
+SCOPE = "reviewed_kb_synthetic_contract_v2"
+PASS_SIGNATURE = ""
+FAIL_SIGNATURE = r"[0-9a-f]{64}"
 ORACLE_FILES = ("crates/anno/tests/reviewed_kb_seeds.rs",
                 "crates/anno/tests/support/reviewed_kb_fuzz.rs")
 
@@ -17,9 +18,21 @@ def digest(path):
         return hashlib.file_digest(f, "sha256").hexdigest()
 
 
+# These seven repository-authored traces have reviewed redistribution terms.
+REVIEWED = frozenset({
+    "changed-and-restored", "foreign-owner", "independent-same-key", "local-rebind",
+    "local-siblings", "shared-namespace-change", "unlinked-track",
+})
+
+
+def family_for_case(root, case):
+    if case not in REVIEWED:
+        raise ValueError("unknown reviewed KB seed")
+    return case
+
+
 def seed_path(root, case):
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", case):
-        raise ValueError("invalid reviewed KB seed name")
+    family_for_case(root, case)
     path = root / "fuzz/seeds/reviewed_kb" / case
     if path.is_symlink() or not path.is_file():
         raise ValueError("expected a reviewed seed file")
@@ -35,8 +48,7 @@ def describe(root, case):
     parts.append(digest(Path(__file__)))
     return {"source_sha256": digest(seed_path(root, case)),
             "oracle_sha256": hashlib.sha256("\n".join(parts).encode()).hexdigest(),
-            # Related minimized witnesses can use '<family>--<variant>'.
-            "family": case.partition("--")[0]}
+            "family": case}
 
 
 def replay(root, case):

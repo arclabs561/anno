@@ -7,6 +7,8 @@ import check_span_assertions as judge
 import domain_coverage
 
 SCOPE = "synthetic_contract"
+PASS_SIGNATURE = "all_assertions_passed"
+FAIL_SIGNATURE = r"failed_rules:[0-9]{1,2}(?:,[0-9]{1,2}){0,31}"
 MODEL = "stacked"
 
 
@@ -16,6 +18,10 @@ def _case(root, case):
     if case not in cases:
         raise ValueError(f"unknown typed-span case {case!r}")
     return cases[case]
+
+
+def family_for_case(root, case):
+    return _case(root, case).get("family", case)
 
 
 def describe(root, case):

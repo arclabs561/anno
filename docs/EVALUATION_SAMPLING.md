@@ -431,7 +431,8 @@ case, with a second replay only to confirm a failure. Random controls, the
 reserved coverage slot and other triage slots run the native selection. The
 oldest-served eligible corpus gets the next turn, then its oldest-served
 family and case.
-Use `family--variant` for related catalog seeds with the same named oracle.
+The catalog adapter admits the seven named, repository-authored regression seeds.
+A new seed needs provenance review and admission before it can enter the ledger.
 Rerunning the same evidence adds no observations. A clean replay closes that
 witness alone. When a seed or oracle changes, re-observe it under the new
 hashes. A changed producer can close a finding against unchanged inputs.
@@ -448,7 +449,9 @@ compares exact PER, ORG, LOC and MISC spans. Both extraction adapters require
 the native backend ID and source hash in the batch output. Install the pinned
 `datasets/WikiGold.cache` under `--cache-dir`, or set `ANNO_CACHE_DIR` to a
 separate verified corpus cache. Each sentence remains independently
-addressable. Its replay result is a sentence-scoped contract assertion;
+addressable. Replays retain a domain-separated digest of a discrepancy. Source
+text, gold spans and predicted spans stay in the local scorer. Its replay
+result is a sentence-scoped contract assertion;
 only the native evaluator contributes corpus-level model observations.
 
 The slot receipt and adversarial round handoff identify the corpus, case,
@@ -461,8 +464,13 @@ python3 scripts/qa/replay_feedback.py --cache-dir "$cache" snapshot "$trusted_ba
 python3 scripts/qa/replay_feedback.py --cache-dir "$fresh_cache" restore "$trusted_backup"
 ```
 
-Snapshot and restore require new destinations. Store the replay snapshot in a
-trusted project archive. On a new machine, restore the existing native matrix
+Snapshot and restore build a new database from each witness's latest validated
+receipt, generation and rotation position. Earlier observations, auxiliary
+tables and free-text fields stay in the local ledger. These transfers support
+up to 512 witnesses and 2 KiB per receipt. Obsolete scopes, including the
+old WikiGold span-list format, are omitted. Re-observe those cases with the
+current adapter. Both commands require a new destination and a trusted input.
+Store the replay snapshot in a trusted project archive. On a new machine, restore the existing native matrix
 checkpoint into the fresh cache, then restore the separate replay snapshot
 into that same directory using the command above. Native CI checkpoints keep
 their existing file list, provenance checks and publication rules. They
