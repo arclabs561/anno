@@ -1,4 +1,8 @@
+import hashlib
 import json
+import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -46,6 +50,68 @@ class RoundEvidenceTest(unittest.TestCase):
             self.assertIn("3/4 unmatched predictions", brief(temporal))
             self.assertIn("Reserve a labeled negative panel", brief(temporal))
             self.assertNotIn("gold-empty", brief({}))
+
+    def test_crossdoc_handoff_accepts_only_consistent_bounded_assertion_counts(self):
+        digests = {k + "_sha256": "a" * 64 for k in ("source", "oracle", "producer")}
+        receipt = dict(digests, kind="anno.qa.crossdoc-case.v1", runner="cli",
+                       passed=2, failed=0, outcome="pass")
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "receipt.json"
+
+            def brief(**changes):
+                path.write_text(json.dumps(dict(receipt, **changes)))
+                return evidence(path)
+
+            self.assertIn("2 assertions (2 passed, 0 failed)", brief())
+            self.assertIn("eval case outcome fail", brief(runner="eval", failed=254, outcome="fail"))
+            for bad in (dict(passed=True), dict(failed=0.0), dict(passed=-1), dict(passed=0),
+                        dict(passed=257), dict(outcome="fail"), dict(failed=1),
+                        dict(runner=["cli"]), dict(source_sha256="A" * 64),
+                        dict(expected="PRIVATE_EXPECTATION")):
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    brief(**bad)
+            receipt.pop("oracle_sha256")
+            with self.assertRaises(ValueError):
+                brief()
+
+    def test_direct_reviewed_replay_distinguishes_unmeasured_and_hides_case_details(self):
+        digests = {k + "_sha256": "b" * 64 for k in ("source", "oracle", "producer")}
+        receipt = dict(digests, corpus="typed_spans", case="PRIVATE_CASE",
+                       outcome="fail", signature="failed_rules:2")
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "replay.json"
+
+            def brief(row):
+                path.write_text(json.dumps(row))
+                return evidence(path)
+
+            self.assertEqual(brief(receipt), "Reviewed replay evaluated 1 case. Outcome fail.")
+            self.assertIn("Outcome pass", brief(dict(receipt, outcome="pass", signature="all_assertions_passed")))
+            for bad in (dict(outcome="error"), dict(signature="PRIVATE"), dict(corpus=[]),
+                        dict(producer_sha256="bad"), dict(case=3), dict(extra=True)):
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    brief(dict(receipt, **bad))
+            for outcome in ("unavailable", "error"):
+                self.assertEqual(brief(dict(outcome=outcome, detail="PRIVATE_REASON")),
+                                 f"Reviewed replay reported {outcome}. Evaluated 0 cases.")
+
+    def test_crossdoc_cli_initializes_trace_from_aggregate_handoff(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PRIVATE_CASE_FILENAME.json"
+            trace = Path(tmp) / "run.sqlite"
+            receipt = dict(kind="anno.qa.crossdoc-case.v1", runner="eval", passed=1,
+                           failed=2, outcome="fail", source_sha256="a" * 64,
+                           oracle_sha256="b" * 64, producer_sha256="c" * 64)
+            path.write_text(json.dumps(receipt))
+            cli = [sys.executable, str(Path(__file__).with_name("brief_round.py")),
+                   str(path), "Compare revisions", "--trace", str(trace)]
+            run = subprocess.run(cli, capture_output=True, check=True)
+            self.assertIn(b"3 assertions (1 passed, 2 failed)", run.stdout)
+            self.assertNotIn(b"PRIVATE_CASE_FILENAME", run.stdout)
+            self.assertNotIn(receipt["oracle_sha256"].encode(), run.stdout)
+            with sqlite3.connect(trace) as db:
+                prompt_digest, = db.execute("SELECT prompt_sha256 FROM spans WHERE kind='round'").fetchone()
+            self.assertEqual(prompt_digest, hashlib.sha256(run.stdout).hexdigest())
 
     def test_unknown_directory_fails(self):
         with TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError, "expected panel"):
