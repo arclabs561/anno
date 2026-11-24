@@ -34,3 +34,31 @@ For a custom Cargo target directory, pass the resulting binary's path to `--anno
 | Independent collector | The optional harness invokes upstream code in a separate local checkout against independently verified input. Its results describe that program's fallback when a supplied ID is withheld. [Setup and results](collector-study.md) |
 
 The project-authored harnesses use `MIT OR Apache-2.0`. The local tests need no model weights. [Design decision and limitations](../../../docs/decisions/catalog-publication-pilot.md)
+
+## Score native cross-document coreference
+
+The earlier committee replay ranks candidates from a known catalog. This replay asks which unlinked document-local tracks the native `anno::coalesce::Resolver` puts together. Run it with the same two projected JSONL inputs created above:
+
+```sh
+cargo build --release --locked -p anno --no-default-features --example cross_doc_track_partition
+python3 "$pilot/cross_doc_partition.py" "$scratch/roster.jsonl" "$scratch/committee.jsonl" \
+  target/release/examples/cross_doc_track_partition --timing-runs 5
+```
+
+At midnight UTC on July 1 in 2021, 2023 and 2025, we reconstructed the latest published view strictly before that date. Each cut has four projected documents: the House and Senate sections of the full current roster, House Homeland Security (HSHM), and Senate Finance (SSFI). We selected these committees to exercise the known Menendez collision. Every row with a Bioguide ID and a printed name enters the evaluation. One roster occurrence lacked `official_full` and was omitted. The twelve documents contribute 1,798 occurrences for 707 publisher-assigned IDs. Publications and people recur across dates. These counts describe this selected workload.
+
+The native process receives a projected occurrence per printed name, a supplied singleton PER track, and no catalog assignments or embeddings. Only the evaluator has the gold ID. The metric compares every unordered pair of occurrences from different documents, including negatives. There are 1,310,369 such pairs, of which 1,858 share the publisher's ID. Within-document pairs can affect the native grouping and are excluded from the evaluation denominator. Span detection, creation of local tracks, and prose understanding are outside this experiment. [Native caller](../../../crates/anno/examples/cross_doc_track_partition.rs) · [Evaluator](cross_doc_partition.py)
+
+| Publication or reader rule | Correct links | False links | Missed links |
+|---|---:|---:|---:|
+| Native default threshold (0.7) | 1,810 | 12 | 48 |
+| Native threshold 1.0 | 1,810 | 12 | 48 |
+| Native threshold 0.5 | 1,851 | 101 | 7 |
+| Native default, one independent pool per chamber across all years | 1,788 | 0 | 70 |
+| Native default, divide a group by chamber only after observing a simultaneous roster conflict | 1,810 | 0 | 48 |
+
+All twelve default false links involve the two records printed as “Robert Menendez.” Five missed pairs involve the same record printed as “Carlos A. Gimenez” and “Carlos Giménez.” Lowering the threshold recovered 41 correct pairs and added 89 incorrect ones. Twelve of the lower-threshold errors joined Mark E. Amodei to Mark E. Green. A permanent chamber boundary resolved the Menendez collision but lost another 22 pairs across ten actual transfers, including Andy Kim and Elissa Slotkin.
+
+The last row is a post-hoc, retrospective reader experiment. It trusts differently labeled chamber sections of the same dated roster as evidence that two tracks need separate review. Exactly one native group triggered the rule. Two people can serve in the same chamber, and a namesake can coincide with a transfer. In that combined case, splitting every historical member by chamber can introduce a new error. [Scoring and policy controls](test_cross_doc_partition.py)
+
+Resolving the entire accumulated corpus after each dated cut in forward and reverse arrival order yielded the same final memberships as bulk. Final numeric IDs differed from bulk on 1,785 and 1,798 occurrences, respectively. The median default run in five fresh optimized processes took 1.821 s on the shared four-CPU Xeon container. This duration includes pipe I/O, checked track construction, resolving and reading back identities. It excludes reconstruction of the dated views and gold scoring. The experiment appends distinct dated documents; it does not model source replacement, a catalog authority, or a latency guarantee. The input licenses and acquisition receipts are above.
