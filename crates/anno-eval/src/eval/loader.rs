@@ -1359,16 +1359,12 @@ impl std::fmt::Display for DatasetStats {
 ///
 /// # Caching Strategy (Tiered)
 ///
-/// 1. **Local cache** (`~/.cache/anno/datasets/`): Checked first, fastest
-/// 2. **S3 cache** (`s3://anno-data/`): Checked if `ANNO_S3_CACHE=1` and AWS credentials available
-/// 3. **URL download**: Original source URL, last resort
+/// 1. The loader checks the local dataset cache first.
+/// 2. With `ANNO_S3_CACHE=1`, eligible datasets can be read from the configured
+///    bucket using the AWS CLI credential chain.
+/// 3. On a cache miss, the loader tries the configured source when permitted.
 ///
-/// This tiered approach:
-/// - Maximizes speed (local cache hit is instant)
-/// - Provides redundancy (S3 backup if original URLs go down)
-/// - Allows sharing datasets across machines via S3
-///
-/// # Environment Variables
+////// # Environment Variables
 ///
 /// - `ANNO_CACHE_DIR`: Override default cache location
 /// - `ANNO_S3_CACHE`: Set to "1" to enable S3 fallback (requires AWS credentials)
@@ -1379,7 +1375,7 @@ impl std::fmt::Display for DatasetStats {
 /// ```bash
 /// # Enable S3 caching
 /// export ANNO_S3_CACHE=1
-/// export AWS_PROFILE=default  # or set AWS_ACCESS_KEY_ID, etc.
+/// export AWS_PROFILE=anno-reader  # use a profile authorized to read this bucket
 ///
 /// # Now load_or_download() will try S3 before URL
 /// ```

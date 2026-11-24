@@ -2,7 +2,7 @@
 
 This repo's dataset loader supports a tiered cache:
 
-- local cache (`ANNO_CACHE_DIR`, default is platform cache)
+- local cache (`$ANNO_CACHE_DIR/datasets`, default is the platform cache under `anno/datasets`)
 - optional S3 cache (`ANNO_S3_CACHE=1`, `ANNO_S3_BUCKET=...`) via **AWS CLI** (`aws s3 cp`)
 - fallback URL download (last resort)
 
@@ -46,7 +46,8 @@ Trust policy (restrict to this repo + selected branches):
 
 Notes:
 
-- For PRs (including same-repo PRs), we do **not** enable S3 in CI (see workflow guards).
+- Pull request jobs, including same-repository and fork PRs, run without the AWS role.
+- The regular trusted jobs run on `main` or `master`. A manual full evaluation can also use a branch named `eval-*` when IAM allows it. A branch named `eval/experiment` does not match that pattern.
 - If you do not run `eval-*` branches, remove that line to reduce scope.
 
 ### 2) Attach a minimal S3 read policy
@@ -76,9 +77,9 @@ Replace `<BUCKET>` (default is `arc-anno-data`):
 
 This is enough for:
 
-- `aws s3 cp s3://<BUCKET>/datasets/<id>.json -`
-- `aws s3 cp s3://<BUCKET>/datasets/<id>.latest.json -`
-- `aws s3 cp s3://<BUCKET>/datasets/by-sha256/<sha>/<id>.json -`
+- `aws s3 cp s3://<BUCKET>/datasets/<DatasetId>.cache -`
+- `aws s3 cp s3://<BUCKET>/datasets/<DatasetId>.cache.latest.json -`
+- `aws s3 cp s3://<BUCKET>/datasets/by-sha256/<sha>/<DatasetId>.cache -`
 
 ### 3) Configure GitHub Actions variables
 
