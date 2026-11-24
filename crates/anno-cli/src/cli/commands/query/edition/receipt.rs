@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Read the ordinary query-publication wire format, including its hidden source row.
-use super::super::publication::{occurrence_key, source_marker};
+use super::super::publication::{occurrence_key, source_marker, stream_name, CatalogRecord};
 use super::Result;
 use anno::publication::{IndexCheckpoint, IndexSnapshot};
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,50 @@ pub(super) struct Delta {
     upserted: Vec<Value>,
 }
 
+/// Only the CLI projection defines this tuple. Generic Rust IndexSnapshot streams remain opaque.
+pub(super) struct Projection {
+    document: String,
+    selection: Option<CatalogRecord>,
+}
+
+impl Projection {
+    pub fn from_checkpoint(checkpoint: &IndexCheckpoint) -> Result<Self> {
+        let (_, source, document, record): (String, String, String, Option<[String; 2]>) =
+            serde_json::from_str(checkpoint.stream())
+                .map_err(|_| "invalid native query publication stream tuple")?;
+        let selection = match record {
+            Some(pair) => CatalogRecord::from_args(&pair)?,
+            None => None,
+        };
+        if source.trim().is_empty()
+            || document.trim().is_empty()
+            || stream_name(&source, &document, selection.as_ref()) != checkpoint.stream()
+        {
+            return Err("invalid or noncanonical native query publication stream".into());
+        }
+        Ok(Self {
+            document,
+            selection,
+        })
+    }
+
+    fn check_posting(&self, row: &Value) -> Result<()> {
+        if row["document"].as_str() != Some(&self.document) {
+            return Err("posting document differs from the checkpoint stream".into());
+        }
+        if let Some(record) = &self.selection {
+            let (catalog, accession) = record.as_ref();
+            let posting = &row["catalog_record"];
+            if posting["catalog"].as_str() != Some(catalog)
+                || posting["accession"].as_str() != Some(accession)
+            {
+                return Err("posting catalog record differs from the checkpoint selection".into());
+            }
+        }
+        Ok(())
+    }
+}
+
 fn key(row: &Value, hash: &str, revision: Option<&str>) -> Result<Vec<String>> {
     if row["source_sha256"].as_str() != Some(hash)
         || row.get("source_revision") != Some(&serde_json::json!(revision))
@@ -52,8 +96,10 @@ fn key(row: &Value, hash: &str, revision: Option<&str>) -> Result<Vec<String>> {
 
 impl Snapshot {
     fn postings(&self) -> Result<BTreeMap<Vec<String>, Value>> {
+        let projection = Projection::from_checkpoint(&self.checkpoint)?;
         let mut map = BTreeMap::new();
         for row in &self.rows {
+            projection.check_posting(row)?;
             let key = key(row, &self.source_sha256, self.source_revision.as_deref())?;
             if map.insert(key, row.clone()).is_some() {
                 return Err("duplicate posting key".into());

@@ -66,6 +66,16 @@ struct Revision {
     document: GroundedDocument,
 }
 
+pub(super) fn stream_name(source: &str, document: &str, record: Option<&CatalogRecord>) -> String {
+    json!([
+        "anno.query.publication.v1",
+        source,
+        document,
+        record.map(CatalogRecord::as_ref)
+    ])
+    .to_string()
+}
+
 pub(super) fn source_marker(hash: &str, revision: Option<&str>) -> Value {
     json!({"source_sha256": hash, "source_revision": revision})
 }
@@ -109,13 +119,7 @@ impl Revision {
 
         // A tuple retains exact, case-sensitive domain, document and query boundaries,
         // even when any of their identifiers contain separators.
-        let stream = json!([
-            "anno.query.publication.v1",
-            self.stream,
-            doc.id(),
-            filter.map(CatalogRecord::as_ref)
-        ])
-        .to_string();
+        let stream = stream_name(&self.stream, doc.id(), filter);
         let hash = source_sha256(doc.text());
         let mut rows = BTreeMap::new();
         // Bind empty documents to their source edition too. An empty key can never

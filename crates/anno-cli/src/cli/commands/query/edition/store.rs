@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    receipt::{Delivery, Snapshot},
+    receipt::{Delivery, Projection, Snapshot},
     Result,
 };
 use anno::publication::{IndexCheckpoint, IndexEdition, IndexEditionScope};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 
 // Sequence and edition numbers cover all u64 values. Fixed-width decimal orders
@@ -32,6 +33,10 @@ impl EditionStore {
              ) WITHOUT ROWID;
              CREATE TABLE IF NOT EXISTS published_editions (
                  scope TEXT NOT NULL, edition TEXT NOT NULL, manifest BLOB NOT NULL,
+                 PRIMARY KEY(scope, edition)
+             ) WITHOUT ROWID;
+             CREATE TABLE IF NOT EXISTS edition_manifest_digests (
+                 scope TEXT NOT NULL, edition TEXT NOT NULL, sha256 BLOB NOT NULL,
                  PRIMARY KEY(scope, edition)
              ) WITHOUT ROWID;",
         )?;
@@ -115,6 +120,7 @@ impl EditionStore {
     }
 
     pub fn evict(&mut self, cp: &IndexCheckpoint) -> Result<bool> {
+        Projection::from_checkpoint(cp)?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -138,6 +144,7 @@ impl EditionStore {
 }
 
 fn member(db: &Connection, scope: &str, cp: &IndexCheckpoint) -> Result<Option<Snapshot>> {
+    Projection::from_checkpoint(cp)?;
     let row: Option<(Vec<u8>, Option<Vec<u8>>)> = db.query_row(
         "SELECT checkpoint,snapshot FROM edition_versions WHERE scope=?1 AND stream=?2 AND seq=?3",
         params![scope, cp.stream(), ordinal(cp.sequence())],
@@ -159,14 +166,42 @@ fn member(db: &Connection, scope: &str, cp: &IndexCheckpoint) -> Result<Option<S
 }
 
 fn published(db: &Connection, scope: &str, edition: Option<u64>) -> Result<Option<IndexEdition>> {
-    let row: Option<(String, Vec<u8>)> = db.query_row(
-        "SELECT edition,manifest FROM published_editions WHERE scope=?1 AND (?2 IS NULL OR edition=?2)
-         ORDER BY edition DESC LIMIT 1",
-        params![scope, edition.map(ordinal)], |r| Ok((r.get(0)?, r.get(1)?)),
-    ).optional()?;
-    let Some((number, bytes)) = row else {
+    let row = db
+        .query_row(
+            // Either half can identify a damaged release. Keep a missing body from
+            // silently moving the visible head backwards and unpinning its members.
+            "WITH requested(edition) AS (
+                 SELECT coalesce(?2, (SELECT max(latest) FROM (
+                     SELECT max(edition) AS latest FROM published_editions WHERE scope=?1
+                     UNION ALL
+                     SELECT max(edition) AS latest FROM edition_manifest_digests WHERE scope=?1
+                 )))
+             )
+             SELECT r.edition,p.manifest,d.sha256 FROM requested r
+             LEFT JOIN published_editions p ON p.scope=?1 AND p.edition=r.edition
+             LEFT JOIN edition_manifest_digests d ON d.scope=?1 AND d.edition=r.edition
+             WHERE p.edition IS NOT NULL OR d.edition IS NOT NULL",
+            params![scope, edition.map(ordinal)],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<Vec<u8>>>(1)?,
+                    r.get::<_, Option<Vec<u8>>>(2)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((number, bytes, expected)) = row else {
         return Ok(None);
     };
+    let bytes =
+        bytes.ok_or("stored manifest body missing; recover from the publisher's manifest")?;
+    if expected.as_deref() != Some(Sha256::digest(&bytes).as_slice()) {
+        return Err(
+            "stored manifest digest mismatch or missing; recover from the publisher's manifest"
+                .into(),
+        );
+    }
     let manifest: IndexEdition = serde_json::from_slice(&bytes)?;
     if ordinal(manifest.edition()) != number || serde_json::to_string(manifest.scope())? != scope {
         return Err("stored manifest does not match its edition and scope".into());
@@ -181,6 +216,9 @@ fn publish_in(
 ) -> Result<Value> {
     if serde_json::to_string(manifest.scope())? != scope {
         return Err("manifest scope differs from requested scope".into());
+    }
+    for cp in manifest.members() {
+        Projection::from_checkpoint(cp)?;
     }
     let current = published(db, scope, None)?;
     if let Some(head) = &current {
@@ -201,13 +239,15 @@ fn publish_in(
         return Ok(json!({"status":"waiting", "missing":missing,
             "current_edition":current.as_ref().map(IndexEdition::edition)}));
     }
+    let bytes = serde_json::to_vec(manifest)?;
+    let number = ordinal(manifest.edition());
     db.execute(
         "INSERT INTO published_editions(scope, edition, manifest) VALUES (?1,?2,?3)",
-        params![
-            scope,
-            ordinal(manifest.edition()),
-            serde_json::to_vec(manifest)?
-        ],
+        params![scope, number, bytes],
+    )?;
+    db.execute(
+        "INSERT INTO edition_manifest_digests(scope, edition, sha256) VALUES (?1,?2,?3)",
+        params![scope, number, Sha256::digest(&bytes).as_slice()],
     )?;
     Ok(json!({"status":"published","current_edition":manifest.edition()}))
 }

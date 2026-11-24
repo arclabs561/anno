@@ -72,9 +72,9 @@ edition=(anno query edition --collection program --source editor --audience publ
 "${edition[@]}" read catalog.sqlite 12
 ```
 
-The producer can supply ordinary `--since` delta receipts to `stage`. The subscriber reconstructs the full projection, including its source marker, and checks the native fingerprint. A missing delta base can be recovered by staging the target snapshot directly. Staging can occur in any order for full snapshots. A delta requires its exact retained base. Stage scope-qualified receipts supplied by a trusted publisher. Enforce reader authorization before opening the selected audience projection.
+The producer can supply ordinary `--since` delta receipts to `stage`. The subscriber reconstructs the full projection, including its source marker, and checks the native fingerprint. A missing delta base can be recovered by staging the target snapshot directly. Staging can occur in any order for full snapshots. A delta requires its exact retained base. The subscriber also checks each posting against the document and optional catalog selection in its canonical native stream. The publisher supplies the collection, source and audience. An empty projection has no posting from which to independently confirm its document or selection. Enforce reader authorization before opening the selected audience projection.
 
-Publication verifies the required versions and inserts the manifest in one SQLite write transaction. A `waiting` result names missing checkpoints and the currently visible edition. Retry the manifest after staging the missing versions. Reading without a number returns the latest published manifest and all its members in one read transaction. Republishing a historical manifest reports the current edition. Each read includes the edition it actually returned.
+Publication verifies the required versions and commits the manifest and its SHA-256 digest in one SQLite write transaction. Reads, eviction and manifest redelivery check the persisted digest. Recover a damaged manifest or a preview store without digests by staging trusted snapshots and republishing the original manifests into a fresh database. A `waiting` result names missing checkpoints and the currently visible edition. Retry the manifest after staging the missing versions. Reading without a number returns the latest published manifest and all its members in one read transaction. Republishing a historical manifest reports the current edition. Each read includes the edition it actually returned.
 
 Retain versions needed for historical reads and replay. To release rows, pass a native checkpoint JSON file to `evict catalog.sqlite checkpoint.json`. The current edition's members remain pinned. Historical manifests and checkpoint identities remain available after row eviction. Reading an evicted edition reports the missing member until the exact full snapshot is restored. SQLite can reuse the freed pages. Keep an assertion history when a query needs to explain changes between published editions. In the fixture the direct endpoint delta for Blair is empty even though the intervening release credits Blair.
 
@@ -82,8 +82,8 @@ The [CLI replay](../../verification/index_consumers/check_editions.py) compares 
 
 | Members | Postings per edition | Two editions of retained snapshot bodies | SQLite file | First delta to publication | Last member staged to publication | Full snapshot catch-up |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1,000 | 579,658 B | 610,304 B | 0.259 s | 0.079 s | 0.199 s |
-| 24 | 6,000 | 3,484,988 B | 3,592,192 B | 1.444 s | 0.517 s | 1.423 s |
+| 4 | 1,000 | 579,658 B | 614,400 B | 0.271 s | 0.083 s | 0.225 s |
+| 24 | 6,000 | 3,484,988 B | 3,596,288 B | 1.532 s | 0.496 s | 2.121 s |
 
 Each figure comes from one synthetic local run. Deployments choose retention from their required historical coverage, delivery lag and storage budget.
 

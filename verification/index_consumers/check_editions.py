@@ -231,6 +231,58 @@ def failure_cases(binary, client, temp, baseline, snapshots, deltas, manifests, 
     assert client.call("publish", db, manifests[1])["current_edition"] == 2**64-1
 
 
+def integrity_cases(client, temp, baseline, snapshots, manifests, bulk):
+    db = temp/"integrity.sqlite"
+    shutil.copyfile(baseline, db)
+    native = json.loads(snapshots[0, 0].read_text())
+    original = json.loads(native["checkpoint"]["stream"])
+    for part, value, error in [(2, "other-document", "posting document"),
+                               (3, ["credit", "understudy"], "posting catalog record")]:
+        altered = copy.deepcopy(native)
+        stream = original.copy()
+        stream[part] = value
+        altered["checkpoint"]["stream"] = json.dumps(stream, separators=(",", ":"))
+        receipt = save(temp/"relabeled", altered)
+        client.call("stage", db, receipt, error=error)
+        client.call("manifest", 7, receipt, error=error)
+
+    # A second encoding of one tuple at the same sequence must not introduce
+    # another stream or bypass the guard on the published member.
+    alternate = copy.deepcopy(native)
+    alternate["checkpoint"]["stream"] = json.dumps(original)  # extra spaces
+    path = save(temp/"ambiguous-stream", alternate)
+    client.call("stage", db, path, error="noncanonical")
+    client.call("manifest", 7, path, snapshots[0, 0], error="noncanonical")
+    client.call("evict", db, save(temp/"ambiguous-checkpoint", alternate["checkpoint"]),
+                error="noncanonical")
+    manifest = json.loads(manifests[0].read_text())
+    ambiguous = {**manifest, "members": [*manifest["members"], alternate["checkpoint"]]}
+    client.call("publish", db, save(temp/"ambiguous-manifest", ambiguous), error="noncanonical")
+    assert client.call("read", db)["members"] == bulk[0]
+
+    # Only the persisted manifest body changes. It still parses, and every
+    # remaining checkpoint still names a verified native snapshot.
+    subset = {**manifest, "members": manifest["members"][:1]}
+    with sqlite3.connect(db) as writer:
+        writer.execute("UPDATE published_editions SET manifest=?", (json.dumps(subset).encode(),))
+    client.call("read", db, 0, error="manifest digest")
+    client.call("read", db, error="manifest digest")
+    dropped = save(temp/"still-pinned", manifest["members"][1])
+    client.call("evict", db, dropped, error="manifest digest")
+    client.call("publish", db, manifests[0], error="manifest digest")
+    client.call("publish", db, save(temp/"truncated-manifest", subset), error="manifest digest")
+    client.call("publish", db, manifests[1], error="manifest digest")
+    with sqlite3.connect(db) as reader:
+        assert reader.execute("SELECT count(*) FROM edition_versions WHERE snapshot IS NOT NULL").fetchone() == (3,)
+        assert reader.execute("SELECT count(*) FROM published_editions").fetchone() == (1,)
+
+    with sqlite3.connect(db) as writer:
+        writer.execute("DELETE FROM published_editions")
+    client.call("read", db, error="manifest body missing")
+    client.call("evict", db, dropped, error="manifest body missing")
+    client.call("publish", db, manifests[0], error="manifest body missing")
+
+
 def run(binary):
     with tempfile.TemporaryDirectory() as temp:
         directory = Path(temp)
@@ -238,6 +290,7 @@ def run(binary):
         snapshots, deltas, manifests, bulk = prepare(binary, directory, client)
         base = schedules(client, directory, snapshots, deltas, manifests, bulk)
         failure_cases(binary, client, directory, base, snapshots, deltas, manifests, bulk)
+        integrity_cases(client, directory, base, snapshots, manifests, bulk)
     print("90 schedules, 540 process-isolated reads matched complete bulk editions; recovery checks passed")
 
 
