@@ -196,3 +196,22 @@ The June 3, 2024 issue yielded 53 anchors in 47 abstracts. A separate September 
 2024 issue yielded 50 in 44. Save each response and its reported SHA-256 for
 repeat comparisons. Use `--cases PATH` to inspect individual spans and look
 up the corresponding Federal Register document number.
+
+## Score cross-document linkage on ECB+
+
+Run the cross-document example with the pinned ECB+ release in the dataset cache, or let the loader fetch it. Pass the published sentence-index CSV to restrict annotations to the recommended sentences. `ANNO_CDCR_MAX_DOCS=12` selects a sorted prefix for a bounded diagnostic. Omit the variable to score the full panel. CI runs independently authored fixtures without downloading the release.
+
+```sh
+ANNO_CDCR_MAX_DOCS=12 just cdcr-eval --sentence-index /path/to/ECBplus_coreference_sentences.csv
+cargo test --locked -p anno-eval --features eval --example cdcr_eval
+```
+
+For the cited release, the archive SHA-256 is `fe6ac2d76d8f7015f773ccc969927d7f3c33b331ed643b71efe31f28373eca90` and the sentence-index SHA-256 is `afee49e0f5fe5084eec690e934aaade842d5eeff7a5704a36f59e7a49505f434`. The report identifies the sentence index used and the number of panel documents scored.
+
+The example measures merging of supplied mention spans in known numeric topics. It compares two inputs to the same heuristic character-trigram encoder and cosine scorer. One begins with singletons. The other supplies true within-document chains. Transitive closure can connect two seeds from the same document through a third seed elsewhere. The example reports pooled clustering metrics alongside correct, reference and predicted cross-document mention-pair counts. Pair precision divides correct by predicted links. Pair recall divides correct by reference links. Neither depends on the large number of unrelated pairs.
+
+Across the complete archive there are 32,297 supplied mentions in 982 documents and 216,535 reference cross-document pairs. The recommended sentence selection gives 15,122 mentions in 976 documents and 91,185 such pairs. Seven raw instance labels recur in different topics. Group by the supplied topic and instance label together. A relation confined to one document or an unlinked singleton cannot supply a cross-document gold link.
+
+The numbers from this command depend on the selected documents, supplied mention boundaries, local seeds and gold topic grouping. They do not measure detection, infer unknown topics, identify people in a catalog, or score the native production track resolver. A deployment threshold needs validation on held-out topics and on the downstream cost of false merges and splits.
+
+Cybulska and Vossen (2014) describe ECB+ and its annotation process. The annotation license is CC BY 3.0. Underlying news text has separate provenance. The source ZIP and sentence list are obtained from the publisher. [Paper](https://aclanthology.org/L14-1646/) · [Pinned release, sentence index and license](https://github.com/cltl/ecbPlus/tree/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014)

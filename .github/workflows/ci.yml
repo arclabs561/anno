@@ -789,6 +789,8 @@ jobs:
         run: cargo build -p anno --examples --features "onnx"
       - name: Test provider diagnostic validation (no GPU required)
         run: cargo test -p anno --no-default-features --example onnx_bert_cuda_provider_probe --example onnx_bert_provider_probe
+      - name: Check ECB+ cross-document gold and scoring on offline fixtures
+        run: cargo test --locked -p anno-eval --example cdcr_eval --features "eval discourse"
       - name: Check CUAD passage ranking on a labeled offline fixture
         run: cargo test --locked -p anno-eval --example cuad_retrieval --features "eval discourse"
       - name: Run muxer decision-loop example (offline smoke)
