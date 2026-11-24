@@ -132,5 +132,12 @@ Record the baseline and candidate separately even when their outputs match. A co
 
 The weekly and manual live QA job also scores up to eight discovery anchors per group on pinned English, Dutch, Spanish and Chinese datasets. The `live-document-qa` artifact includes the source pins and split counts in `domain-manifest.json`, the revision, backend and aggregate scores in `domain-discovery.json`, and the reviewer prompt in `labeled-round.md`. Source text, individual predictions and reserved examples stay on the ephemeral runner. Use the same fixture digest for comparisons over time. A missed anchor counts toward the reported error rate. Failure to download, verify, run or score the fixture fails the job.
 
+To give a minimized, reviewed counterexample a future triage slot, run its
+registered corpus oracle and retain the resulting source and producer hashes.
+An adjudicator's report can nominate a case. Reproducing the same oracle
+failure twice opens the witness. The next eligible slot names and replays the
+case, while passing controls and model scores keep their own denominators.
+[Replay state and slot selection](EVALUATION_SAMPLING.md#replay-a-reviewed-corpus-witness-in-a-triage-slot)
+
 For a completed synthetic organization-span round, the [reviewed seed replay](../scripts/qa/reviewed_span_seeds/README.md)
 binds the independent oracle to native results and emits digest-keyed regression evidence for scheduling.

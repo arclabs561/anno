@@ -405,6 +405,79 @@ anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
 
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
 
+## Replay a reviewed corpus witness in a triage slot
+
+Native matrix history records which dataset/backend/task cells ran. A catalog
+operation trace instead checks a document-edit contract. Give it a separate
+persistent ledger (Python 3.11 or newer) when reproducing a finding from fuzzing or adversarial QA.
+A clean checkout and a tracked seed pin the case, source and oracle. The
+`reviewed_kb` adapter executes the named Cargo regression directly. Build
+errors, missing cases and inconsistent reruns cannot open a finding. A failure
+must reproduce twice with the same diagnostic and producer hash.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" observe reviewed_kb changed-and-restored
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" next
+python3 scripts/qa/run_matrix_slot.py --cache-dir "$cache" --receipts "$slot_receipts" \
+  --policy mixed --slot 1 --period 4 --coverage-slot 2 --seed 41
+```
+
+The mixed-slot coordinator consults an existing vetted ledger by default.
+An absent ledger leaves native selection intact. Pass `--no-replay-history` to
+reproduce a native-only comparison. Direct `anno sampler --strategy ...`
+continues to select native evaluation cells. A passing reviewed seed yields no priority. An unresolved witness can occupy
+the first eligible triage slot in each block. Each such slot runs one named
+case, with a second replay only to confirm a failure. Random controls, the
+reserved coverage slot and other triage slots run the native selection. The
+oldest-served eligible corpus gets the next turn, then its oldest-served
+family and case.
+The catalog adapter admits the seven named, repository-authored regression seeds.
+A new seed needs provenance review and admission before it can enter the ledger.
+Rerunning the same evidence adds no observations. A clean replay closes that
+witness alone. When a seed or oracle changes, re-observe it under the new
+hashes. A changed producer can close a finding against unchanged inputs.
+
+The `typed_spans` adapter runs one authored case from the typed assertion panel
+through the offline stacked CLI (`ANNO_BIN` or `anno` on PATH). It records the
+actual executable hash and the pinned span scorer. Its result is scoped to
+the enumerated assertions for that case. Judge comments may nominate cases;
+they cannot insert an observation without a successful oracle invocation.
+
+For labeled data, `observe wikigold sentence-0` runs the stacked backend on
+one zero-based sentence from the checksum-pinned WikiGold source. The oracle
+compares exact PER, ORG, LOC and MISC spans. Both extraction adapters require
+the native backend ID and source hash in the batch output. Install the pinned
+`datasets/WikiGold.cache` under `--cache-dir`, or set `ANNO_CACHE_DIR` to a
+separate verified corpus cache. Each sentence remains independently
+addressable. Replays retain a domain-separated digest of a discrepancy. Source
+text, gold spans and predicted spans stay in the local scorer. Its replay
+result is a sentence-scoped contract assertion;
+only the native evaluator contributes corpus-level model observations.
+
+The slot receipt and adversarial round handoff identify the corpus, case,
+scope and oracle. A plan-only call spends no turn or evidence. Contract
+replays add no dataset quality score, backend failure or live URL observation.
+Keep an intentionally faulty producer's ledger in its own experiment directory.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" snapshot "$trusted_backup"
+python3 scripts/qa/replay_feedback.py --cache-dir "$fresh_cache" restore "$trusted_backup"
+```
+
+Snapshot and restore build a new database from each witness's latest validated
+receipt, generation and rotation position. Earlier observations, auxiliary
+tables and free-text fields stay in the local ledger. These transfers support
+up to 512 witnesses and 2 KiB per receipt. Obsolete scopes, including the
+old WikiGold span-list format, are omitted. Re-observe those cases with the
+current adapter. When a validated typed-span fixture retires a case, selection
+and transfer skip that witness so the remaining cases can still be replayed. Both commands require a new destination and a trusted input.
+Store the replay snapshot in a trusted project archive. On a new machine, restore the existing native matrix
+checkpoint into the fresh cache, then restore the separate replay snapshot
+into that same directory using the command above. Native CI checkpoints keep
+their existing file list, provenance checks and publication rules. They
+continue to restore without a replay ledger. Do not import a replay snapshot
+from an untrusted PR artifact.
+
 For an English mention-proposal experiment, run the same sampler command with
 `ANNO_COREF_GOLD=0 ANNO_COREF_ENGLISH_PRONOUNS=1` and a separate decision file.
 This supplies the entity resolver with NER proposals plus exact source spans from

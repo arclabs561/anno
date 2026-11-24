@@ -110,6 +110,20 @@ def evidence(directory):
     if not result.is_file():
         return lines[0] + " The slot did not produce a validated result. Investigate execution first."
     run = json.loads(result.read_text())
+    if plan["requested_strategy"] == "reviewed-replay":
+        case = plan["selected_case"]
+        label = f"{case['scope']} {case['corpus']}/{case['case']} (family {case['family']})"
+        if plan["plan_only"]:
+            return lines[0] + f" Selected {label}; oracle replay pending."
+        actual = json.loads((directory / "replay.json").read_text())
+        from replay_feedback import key
+        outcome_id = actual.pop("observation_id")
+        if (key(actual) != outcome_id or outcome_id != run["outcome_observation_id"]
+                or any(case[k] != actual[k] for k in
+                       ("corpus", "case", "scope", "family", "source_sha256", "oracle_sha256"))):
+            raise ValueError("saved oracle outcome does not match the selected witness")
+        return (lines[0] + f" Replayed {label}. Oracle result: {actual['outcome']}. "
+                f"Case SHA-256 {case['source_sha256']}; oracle SHA-256 {case['oracle_sha256']}.")
     if not run["strategy_matches"]:
         return lines[0] + " The observed strategy differed. Exclude this slot from policy comparisons."
     if run["plan_only"]:
