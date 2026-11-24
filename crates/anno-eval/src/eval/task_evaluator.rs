@@ -4931,6 +4931,14 @@ mod tests {
             r#"{"id":"pronouns","sentences":[["She","left","."]],"mention_clusters":[[[0,0,1]]]}"#,
         )
         .unwrap();
+        // A model-enabled stacked backend can already propose this pronoun.
+        // Measure its input on the same source; supplementing must be additive.
+        let baseline_has_pronoun = BackendFactory::create("stacked")
+            .unwrap()
+            .extract_entities("She left .", None)
+            .unwrap()
+            .iter()
+            .any(|e| (e.start(), e.end(), e.text.as_str()) == (0, 3, "She"));
         for policy in [
             CorefPredictedMentions::BackendDefault,
             CorefPredictedMentions::NerWithEnglishPronouns,
@@ -4943,7 +4951,9 @@ mod tests {
                     backends: vec!["coref_resolver".into()],
                     require_cached: true,
                     coref_predicted_mentions: policy,
-                    custom_coref_resolver: Some(std::sync::Arc::new(CheckInput(enabled))),
+                    custom_coref_resolver: Some(std::sync::Arc::new(CheckInput(
+                        baseline_has_pronoun || enabled,
+                    ))),
                     ..Default::default()
                 })
                 .unwrap();
