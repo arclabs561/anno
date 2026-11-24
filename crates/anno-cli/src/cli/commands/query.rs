@@ -1,6 +1,7 @@
 //! Query command - Query and filter entities/clusters
 
 mod edition;
+mod memberships;
 mod publication;
 
 use clap::{Parser, Subcommand};
@@ -19,6 +20,8 @@ pub enum QueryCommand {
     Publication(publication::PublicationArgs),
     /// Stage, publish or read a coherent catalog edition in SQLite.
     Edition(edition::EditionArgs),
+    /// Publish derived track memberships for a complete corpus or compare two corpus editions.
+    Memberships(memberships::MembershipArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -136,6 +139,7 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
         return match command {
             QueryCommand::Publication(args) => publication::run(args),
             QueryCommand::Edition(args) => edition::run(args),
+            QueryCommand::Memberships(args) => memberships::run(args),
         };
     }
     let catalog = CatalogRecord::from_args(&args.catalog_record)?;

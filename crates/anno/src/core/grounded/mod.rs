@@ -5002,6 +5002,16 @@ impl Corpus {
         }
     }
 
+    /// The track handle supplied by this document edition before replacement remapping.
+    pub(crate) fn submitted_track_id(&self, document: &str, live: TrackId) -> TrackId {
+        self.state()
+            .submitted_track_ids
+            .get(document)
+            .and_then(|ids| ids.get(&live))
+            .copied()
+            .unwrap_or(live)
+    }
+
     // Members arrive sorted by document and live track ID. Retiring a handle must
     // not reorder this edition's submitted tracks when choosing its representative.
     fn set_coref_representative(&self, identity: &mut Identity, members: &[TrackRef]) {
