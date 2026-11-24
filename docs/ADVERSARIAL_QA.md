@@ -27,7 +27,7 @@ Choose the claim before choosing a binary. A production report groups supplied t
 Build the executables and copy a suitable fixture into the private round directory. These commands run one authored case and pass its aggregate result to the same coordinator used by other QA rounds.
 
 ```sh
-cargo build --locked -p anno-cli --features eval
+cargo build --locked -p anno-cli --no-default-features --features "eval extractor-html2text"
 cargo build --locked -p anno-eval --example cdcr_eval --features eval
 round_dir=$(mktemp -d)
 cp scripts/qa/fixtures/crossdoc/catalog-revision.json "$round_dir/case.json"

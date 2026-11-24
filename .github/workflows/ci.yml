@@ -300,6 +300,7 @@ jobs:
           --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
       - name: Replay authored cross-document agent cases offline
         run: |
+          cargo build --locked -p anno-cli --no-default-features --features "eval extractor-html2text"
           cargo build --locked -p anno-eval --features "eval discourse" --example cdcr_eval
           export ANNO_BIN="$PWD/target/debug/anno" ANNO_CDCR_BIN="$PWD/target/debug/examples/cdcr_eval"
           python3 scripts/qa/replay_feedback.py replay crossdoc_cases catalog-revision
