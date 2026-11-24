@@ -136,6 +136,7 @@ dependencies = [
  "oxiri",
  "rayon",
  "regex",
+ "rusqlite",
  "same-file",
  "serde",
  "serde_json",

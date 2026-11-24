@@ -14,3 +14,4 @@ python3 verification/index_consumers/check_projection.py
 python3 verification/index_consumers/congress/test_committee_pilot.py
 python3 verification/index_consumers/congress/test_cross_doc_partition.py
 python3 verification/index_consumers/congress/check_catalog_history.py
+python3 verification/index_consumers/check_editions.py
