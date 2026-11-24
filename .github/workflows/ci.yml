@@ -298,6 +298,13 @@ jobs:
         run: >-
           cargo test -p anno-cli --all-targets --no-default-features
           --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
+      - name: Replay authored cross-document agent cases offline
+        run: |
+          cargo build --locked -p anno-eval --features "eval discourse" --example cdcr_eval
+          export ANNO_BIN="$PWD/target/debug/anno" ANNO_CDCR_BIN="$PWD/target/debug/examples/cdcr_eval"
+          python3 scripts/qa/replay_feedback.py replay crossdoc_cases catalog-revision
+          python3 scripts/qa/replay_feedback.py replay crossdoc_cases topic-scoped-homonyms
+          python3 -m unittest discover -s scripts/qa -p 'test_crossdoc*.py'
       - name: Run integration tests
         run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
