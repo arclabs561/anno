@@ -1,9 +1,10 @@
 import io
 import json
 import unittest
+
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_smoke, check_wikigold
+from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_wikigold
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -88,6 +89,14 @@ class CoverageTest(unittest.TestCase):
                 self.assertFalse(accepts(primary_f1=score))
             self.assertFalse(accepts(cost_units=389))
             self.assertFalse(accepts(hard_junk=True))
+
+    def test_contrast_control_requires_the_whole_offline_panel(self):
+        row = dict(outcome("temporal", examples=34), dataset="TimexRecognitionSentenceOriginal",
+                   backend="pattern", primary_f1=0.4)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertTrue(check_temporal_contrast([json.dumps(row)]))
+            for change in ({"cost_units": 390}, {"cost_units": 2}, {"hard_junk": True}):
+                self.assertFalse(check_temporal_contrast([json.dumps(row | change)]))
 
     def test_temporal_fixture_requires_the_positive_and_negative_documents(self):
         row = dict(outcome("temporal", examples=2), dataset="TimexRecognitionSentenceOriginal",

@@ -43,16 +43,9 @@ micro F1. The generic tokenized NER view has a different denominator.
 
 Matrix rows report `unmatched_predictions_overlapping_missed_gold`. Each unmatched prediction counts once if it intersects any missed annotation in its sentence. Several predictions can overlap the same missed annotation. Use `gold_empty_sentences_with_predictions` and `gold_empty_sentences` to measure how often a sentence with no gold spans raises a false alarm.
 
-Run a complete baseline with `anno dataset download --dataset TimexRecognitionSentenceOriginal`,
-then `anno sampler run --task temporal --fixed-backend pattern --require-cached --runs 1 --max-examples 390`.
-The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
-still be evaluated from their original row text and annotations. [Pinned test split](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl)
+CI scores the checked-in 34-document English contrast panel from an isolated local cache. The separate two-sentence synthetic smoke control checks a known positive and negative. Both use the native temporal reader and pattern backend. [Fixture sources and local replay](../scripts/qa/fixtures/timex-contrast/README.md)
 
-Default-branch CI verifies the pinned public file and scores all 390 sentences with the
-pattern backend. The check requires a finite score and the full sentence count. Its receipt
-is archived separately from the five-example adaptive history. PRs exercise the two-sentence
-offline temporal fixture. For paired model comparisons that include date-free documents, use the
-[34-document contrast panel](../scripts/qa/fixtures/timex-contrast/README.md).
+The public metadata for the historical 390-sentence split identifies TimeBank 1.2 as its source. Its pinned Hugging Face repository provides no separate license. The LDC catalog names the underlying news and annotation rights holders. Its non-member agreement limits use and redistribution. For independent reproduction, obtain the applicable source permissions first. Stage an authorized local file in a private cache with `ANNO_CACHE_DIR=/private/cache python3 scripts/qa/prepare_matrix_timex.py /path/to/test.jsonl`. The helper verifies the historical file digest offline. Keep original text and annotations out of shared caches and artifacts. [Pinned dataset card](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/README.md) · [TimeBank 1.2](https://catalog.ldc.upenn.edu/LDC2006T08) · [LDC non-member agreement](https://catalog.ldc.upenn.edu/license/ldc-non-members-agreement.pdf)
 
 ### Compare temporal decoders
 

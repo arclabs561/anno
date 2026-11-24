@@ -68,6 +68,11 @@ def check_temporal_smoke(lines):
                                       "unmatched_predictions_overlapping_missed_gold": 0})
 
 
+def check_temporal_contrast(lines):
+    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
+                              backend="pattern", examples=34, exact=False)
+
+
 def check(lines, report=False):
     attempts = Counter()
     completions = Counter()
@@ -149,12 +154,15 @@ if __name__ == "__main__":
     mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
     mode.add_argument("--temporal-smoke", action="store_true",
                       help="require two scored temporal documents and perfect fixture F1")
+    mode.add_argument("--temporal-contrast", action="store_true", help="require the 34-document offline temporal panel")
     mode.add_argument("--public-timex", action="store_true", help="require the full pinned TIMEX test split")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            if args.public_timex:
+            if args.temporal_contrast:
+                passed = check_temporal_contrast(stream)
+            elif args.public_timex:
                 passed = check_fixed_sample(stream, task="temporal", dataset="TimexRecognitionSentenceOriginal",
                                             backend="pattern", examples=390, exact=False)
             elif args.temporal_smoke:
