@@ -6,8 +6,6 @@ use std::fs;
 use super::super::output::{color, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::{link_tracks_to_kb, resolve_coreference};
-#[cfg(feature = "eval")]
-use anno::{Entity, EntityType};
 use anno::{GroundedDocument, SignalId};
 
 /// Unified pipeline command
@@ -39,11 +37,12 @@ pub struct PipelineArgs {
     #[arg(long, requires = "coref", value_name = "JSON")]
     pub speaker_turns: Option<std::path::PathBuf>,
 
-    /// Link tracks to KB identities
+    /// Attach offline demo KB identifiers to tracks (including generated names).
     #[arg(long)]
     pub link_kb: bool,
 
-    /// Run cross-document clustering
+    /// Resolve document tracks across inputs. Without --coref, detections seed tracks.
+    /// Grounded output preserves source documents and assignments. JSON emits cluster rows.
     #[arg(long)]
     pub cross_doc: bool,
 
@@ -70,49 +69,62 @@ pub struct PipelineArgs {
 
 /// Execute the pipeline command.
 pub fn run(args: PipelineArgs) -> Result<(), String> {
-    // Collect input texts
-    let mut texts: Vec<(String, String)> = Vec::new(); // (id, text)
+    #[cfg(not(feature = "eval"))]
+    if args.cross_doc {
+        return Err("Cross-document clustering requires 'eval' feature".into());
+    }
 
-    if !args.text.is_empty() {
-        for (idx, text) in args.text.iter().enumerate() {
-            texts.push((format!("text{}", idx + 1), text.clone()));
+    #[cfg(feature = "eval")]
+    let mut sources = std::collections::HashMap::new();
+    let mut texts = Vec::new();
+    let mut add_input = |id: String, text: String, _source: String| -> Result<(), String> {
+        #[cfg(feature = "eval")]
+        if args.cross_doc {
+            super::super::utils::register_document_source(&mut sources, &id, _source)?;
         }
+        texts.push((id, text));
+        Ok(())
+    };
+    for (idx, text) in args.text.iter().enumerate() {
+        let number = idx + 1;
+        add_input(
+            format!("text{number}"),
+            text.clone(),
+            format!("positional input {number}"),
+        )?;
     }
 
-    for file_path in &args.files {
-        let text = fs::read_to_string(file_path)
-            .map_err(|e| format!("Failed to read {}: {}", file_path, e))?;
-        let doc_id = std::path::Path::new(file_path)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| file_path.clone());
-        texts.push((doc_id, text));
-    }
-
+    let mut paths: Vec<std::path::PathBuf> = args.files.iter().map(Into::into).collect();
     if let Some(dir) = &args.dir {
-        let dir_path = std::path::Path::new(dir);
-        let entries = fs::read_dir(dir_path)
-            .map_err(|e| format!("Failed to read directory {}: {}", dir, e))?;
-
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    if ext == "txt" || ext == "md" {
-                        let text = fs::read_to_string(&path)
-                            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-                        let doc_id = path
-                            .file_stem()
-                            .and_then(|s| s.to_str())
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| format!("doc{}", texts.len()));
-                        texts.push((doc_id, text));
-                    }
-                }
+        let mut directory_paths = Vec::new();
+        for entry in
+            fs::read_dir(dir).map_err(|e| format!("Failed to read directory {dir}: {e}"))?
+        {
+            let path = entry
+                .map_err(|e| format!("Failed to read entry: {e}"))?
+                .path();
+            if path.is_file()
+                && matches!(
+                    path.extension().and_then(|s| s.to_str()),
+                    Some("txt" | "md")
+                )
+            {
+                directory_paths.push(path);
             }
         }
+        directory_paths.sort();
+        paths.extend(directory_paths);
+    }
+    for path in paths {
+        let source = path.display().to_string();
+        let id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&source)
+            .to_owned();
+        let text =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read {source}: {e}"))?;
+        add_input(id, text, source)?;
     }
 
     if texts.is_empty() {
@@ -163,11 +175,15 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         let entities = model
             .extract_entities(text, None)
             .map_err(|e| format!("Extraction failed for {}: {}", doc_id, e))?;
-        let mut doc = GroundedDocument::from_entity_signals(doc_id, text, &entities);
-        let signal_ids: Vec<SignalId> = doc.signals().iter().map(|signal| signal.id).collect();
+        let mut doc = if args.cross_doc && !args.coref {
+            GroundedDocument::from_entities(doc_id, text, &entities)
+        } else {
+            GroundedDocument::from_entity_signals(doc_id, text, &entities)
+        };
 
         // Apply enhancements
         if args.coref {
+            let signal_ids: Vec<SignalId> = doc.signals().iter().map(|signal| signal.id).collect();
             #[cfg(feature = "discourse")]
             if let Some(clusters) = &speaker_clusters {
                 let tracks_added = super::super::utils::append_coref_clusters(&mut doc, clusters)?;
@@ -198,124 +214,93 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         pb.finish_with_message("Processing complete");
     }
 
-    // Cross-document clustering if requested
+    #[cfg(feature = "eval")]
     if args.cross_doc {
-        #[cfg(feature = "eval")]
-        {
-            use anno_eval::cdcr::{CDCRConfig, CDCRResolver, Document};
+        return output_cross_doc(&args, documents);
+    }
 
-            // Convert GroundedDocuments to CDCR Documents
-            let cdcr_docs: Vec<Document> = documents
-                .iter()
-                .map(|doc| {
-                    let entities: Vec<_> = doc
-                        .signals()
-                        .iter()
-                        .map(|s| {
-                            let (start, end) = s.text_offsets().unwrap_or((0, 0));
-                            anno::Entity::new(
-                                s.surface(),
-                                anno::EntityType::from_label(s.label()),
-                                start,
-                                end,
-                                f64::from(s.confidence),
-                            )
-                        })
-                        .collect();
-                    Document::new(doc.id(), doc.text()).with_entities(entities)
-                })
-                .collect();
-
-            let config = CDCRConfig {
-                min_similarity: args.threshold,
-                require_type_match: false,
-                ..Default::default()
-            };
-            let resolver = CDCRResolver::with_config(config);
-            let clusters = resolver.resolve(&cdcr_docs);
-
-            // Output clusters
-            match args.format {
-                OutputFormat::Json | OutputFormat::Grounded => {
-                    let output = serde_json::to_string_pretty(&clusters)
-                        .map_err(|e| format!("Failed to serialize clusters: {}", e))?;
-                    if let Some(output_path) = &args.output {
-                        fs::write(output_path, output)
-                            .map_err(|e| format!("Failed to write output: {}", e))?;
-                    } else {
-                        println!("{}", output);
-                    }
-                }
-                OutputFormat::Tree => {
-                    // Build doc_index for looking up entity text
-                    let doc_index: std::collections::HashMap<_, _> =
-                        cdcr_docs.iter().map(|doc| (doc.id.clone(), doc)).collect();
-
-                    // Tree format output
-                    for cluster in &clusters {
-                        println!("Cluster {}: {}", cluster.id, cluster.canonical_name);
-                        for (doc_id, entity_idx) in &cluster.mentions {
-                            // Get entity text from document if available
-                            let mention_text = doc_index
-                                .get(doc_id.as_str())
-                                .and_then(|doc| doc.entities.get(*entity_idx))
-                                .map(|e| e.text.clone())
-                                .unwrap_or_else(|| format!("entity_{}", entity_idx));
-                            println!("  - {} (doc: {})", mention_text, doc_id);
-                        }
-                        println!();
-                    }
-                }
-                _ => {
-                    // Human-readable summary
-                    println!();
-                    println!(
-                        "{} Cross-document clusters: {}",
-                        color("1;36", "Found"),
-                        clusters.len()
-                    );
-                    for cluster in &clusters {
-                        println!(
-                            "  {}: {} mentions across {} documents",
-                            cluster.canonical_name,
-                            cluster.mentions.len(),
-                            cluster.doc_count()
-                        );
-                    }
-                }
-            }
+    match args.format {
+        OutputFormat::Json | OutputFormat::Grounded => {
+            write_json(&documents, args.output.as_deref())?
         }
-
-        #[cfg(not(feature = "eval"))]
-        {
-            return Err("Cross-document clustering requires 'eval' feature".to_string());
-        }
-    } else {
-        // Output individual documents
-        match args.format {
-            OutputFormat::Json | OutputFormat::Grounded => {
-                let output = serde_json::to_string_pretty(&documents)
-                    .map_err(|e| format!("Failed to serialize documents: {}", e))?;
-                if let Some(output_path) = &args.output {
-                    fs::write(output_path, output)
-                        .map_err(|e| format!("Failed to write output: {}", e))?;
-                } else {
-                    println!("{}", output);
+        _ => {
+            // Human-readable output
+            for doc in &documents {
+                println!();
+                println!("{}", color("1;36", &format!("Document: {}", doc.id())));
+                if let Some(backend) = doc.coref_backend() {
+                    println!("Coreference backend: {backend}");
                 }
-            }
-            _ => {
-                // Human-readable output
-                for doc in &documents {
-                    println!();
-                    println!("{}", color("1;36", &format!("Document: {}", doc.id())));
-                    if let Some(backend) = doc.coref_backend() {
-                        println!("Coreference backend: {backend}");
-                    }
-                    print_signals(doc, doc.text(), 0);
-                }
+                print_signals(doc, doc.text(), 0);
             }
         }
     }
 
+    Ok(())
+}
+
+fn write_json<T: serde::Serialize>(value: &T, path: Option<&str>) -> Result<(), String> {
+    let output = serde_json::to_string_pretty(value)
+        .map_err(|e| format!("Failed to serialize output: {e}"))?;
+    if let Some(path) = path {
+        fs::write(path, output).map_err(|e| format!("Failed to write {path}: {e}"))?;
+    } else {
+        println!("{output}");
+    }
+    Ok(())
+}
+
+#[cfg(feature = "eval")]
+fn output_cross_doc(args: &PipelineArgs, documents: Vec<GroundedDocument>) -> Result<(), String> {
+    use anno::{coalesce::Resolver, Corpus};
+
+    let mut corpus = Corpus::new();
+    let ids: Vec<_> = documents.iter().map(|doc| doc.id().to_owned()).collect();
+    for doc in documents {
+        corpus.add_document(doc);
+    }
+    Resolver::new()
+        .with_threshold(args.threshold as f32)
+        .resolve_inter_doc_coref(&mut corpus, None, None);
+    if matches!(args.format, OutputFormat::Grounded) {
+        let docs: Vec<_> = ids
+            .iter()
+            .map(|id| corpus.get_document(id).expect("inserted document"))
+            .collect();
+        return write_json(&docs, args.output.as_deref());
+    }
+    let clusters = super::crossdoc::corpus_clusters(&corpus);
+    match args.format {
+        OutputFormat::Json => write_json(&clusters, args.output.as_deref())?,
+        OutputFormat::Tree => {
+            for cluster in &clusters {
+                println!("Cluster {}: {}", cluster.id, cluster.canonical_name);
+                for (doc_id, entity_idx) in &cluster.mentions {
+                    let mention = corpus
+                        .get_document(doc_id)
+                        .and_then(|doc| doc.signals().get(*entity_idx))
+                        .map(|signal| signal.surface().to_owned())
+                        .unwrap_or_else(|| format!("entity_{entity_idx}"));
+                    println!("  - {mention} (doc: {doc_id})");
+                }
+                println!();
+            }
+        }
+        _ => {
+            println!(
+                "\n{} Cross-document clusters: {}",
+                color("1;36", "Found"),
+                clusters.len()
+            );
+            for cluster in &clusters {
+                println!(
+                    "  {}: {} mentions across {} documents",
+                    cluster.canonical_name,
+                    cluster.mentions.len(),
+                    cluster.doc_count()
+                );
+            }
+        }
+    }
     Ok(())
 }
