@@ -116,6 +116,7 @@
     "assertions": [
       {
         "kind": "exact_span",
+        "expected_count": 1,
         "start": 28,
         "end": 31,
         "text": "CPA",

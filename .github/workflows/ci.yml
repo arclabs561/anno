@@ -484,6 +484,9 @@ jobs:
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
+        env:
+          # Default-stack tests can use cached weights; a cold runner uses the bundled layers.
+          ANNO_NO_DOWNLOADS: "1"
         run: cargo test --workspace --lib --features "metal"
       # Compile-only coverage for hardware-gated features no other job enables.
       # These paths (`#[cfg(feature = "onnx-cuda")]` provider registration in
