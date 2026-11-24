@@ -10,6 +10,7 @@ use anno_eval::eval::cross_context_eval::{
 };
 use anno_eval::eval::loader::DatasetLoader;
 use anno_eval::{Error, Result};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -46,15 +47,19 @@ fn main() -> Result<()> {
         })?;
         (
             loader.load_or_download_ecb_plus_selected_gold(&index)?,
-            "fully anchored annotations in the supplied sentence index",
+            format!(
+                "fully anchored annotations in sentence index SHA-256 {:x}",
+                Sha256::digest(index.as_bytes())
+            ),
         )
     } else {
         (
             loader.load_or_download_ecb_plus_gold()?,
-            "all anchored XML annotations",
+            String::from("all anchored XML annotations"),
         )
     };
     docs.sort_by(|a, b| (&a.topic, &a.doc_id).cmp(&(&b.topic, &b.doc_id)));
+    let panel_docs = docs.len();
     if let Some(max) = max_docs {
         docs.truncate(max);
     }
@@ -73,7 +78,7 @@ fn main() -> Result<()> {
         .sum();
     println!("## ECB+ cross-document merging on annotated XML mentions\n");
     println!("UnifiedCrossContextResolver with heuristic cluster embeddings and cosine scoring. The input covers {coverage}, including singletons.\n");
-    println!("Documents {documents} · Topics {} · Supplied mentions {mentions}. Link counts cover mention pairs from different documents.\n", topics.len());
+    println!("Scored {documents} of {panel_docs} panel documents in topic/document order · Topics {} · Supplied mentions {mentions}. Link counts cover mention pairs from different documents.\n", topics.len());
     println!("| Local seeds | Threshold | CoNLL F1 | MUC F1 | B³ F1 | CEAF-e F1 | Gold clusters | Pred clusters | Correct links | Gold links | Pred links |");
     println!("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
 

@@ -206,6 +206,8 @@ ANNO_CDCR_MAX_DOCS=12 just cdcr-eval --sentence-index /path/to/ECBplus_coreferen
 cargo test --locked -p anno-eval --features eval --example cdcr_eval
 ```
 
+For the cited release, the archive SHA-256 is `fe6ac2d76d8f7015f773ccc969927d7f3c33b331ed643b71efe31f28373eca90` and the sentence-index SHA-256 is `afee49e0f5fe5084eec690e934aaade842d5eeff7a5704a36f59e7a49505f434`. The report identifies the sentence index used and the number of panel documents scored.
+
 The example measures merging of supplied mention spans in known numeric topics. It compares two inputs to the same heuristic character-trigram encoder and cosine scorer. One begins with singletons. The other supplies true within-document chains. Transitive closure can connect two seeds from the same document through a third seed elsewhere. The example reports pooled clustering metrics alongside correct, reference and predicted cross-document mention-pair counts. Pair precision divides correct by predicted links. Pair recall divides correct by reference links. Neither depends on the large number of unrelated pairs.
 
 Across the complete archive there are 32,297 supplied mentions in 982 documents and 216,535 reference cross-document pairs. The recommended sentence selection gives 15,122 mentions in 976 documents and 91,185 such pairs. Seven raw instance labels recur in different topics. Group by the supplied topic and instance label together. A relation confined to one document or an unlinked singleton cannot supply a cross-document gold link.
