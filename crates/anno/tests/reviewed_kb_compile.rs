@@ -6,6 +6,13 @@ use anno::core::grounded::{
     Corpus, GroundedDocument, Identity, IdentityId, KbAssignmentPreview, TrackId,
 };
 
+// The fixture compiles the private mutation gateway standalone. Its ledger field
+// has no methods involved in these visibility checks.
+mod delivery {
+    #[derive(Clone, Debug, Default)]
+    pub(super) struct DeliveryState;
+}
+
 // Compile the real storage module. Inside this fixture, `sibling` has exactly
 // the access granted to a sibling module under `core::grounded`.
 #[path = "../src/core/grounded/corpus_state.rs"]
