@@ -23,8 +23,10 @@ def seed_path(root, case):
     path = root / "fuzz/seeds/reviewed_kb" / case
     if path.is_symlink() or not path.is_file():
         raise ValueError("expected a reviewed seed file")
-    subprocess.run(["git", "ls-files", "--error-unmatch", "--", str(path.relative_to(root))],
-                   cwd=root, check=True, stdout=subprocess.DEVNULL)
+    tracked = subprocess.check_output(["git", "ls-files", "-z", "--", str(path.relative_to(root))],
+                                      cwd=root)
+    if not tracked:
+        raise ValueError("replay seed is untracked")
     return path
 
 

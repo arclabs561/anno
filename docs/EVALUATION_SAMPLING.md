@@ -388,3 +388,47 @@ anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
 ```
 
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
+
+## Replay a reviewed corpus witness in a triage slot
+
+Native matrix history records which dataset/backend/task cells ran. A catalog
+operation trace instead checks a document-edit contract. Give it a separate
+persistent ledger when reproducing a finding from fuzzing or adversarial QA.
+A clean checkout and a tracked seed pin the case, source and oracle. The
+`reviewed_kb` adapter executes the named Cargo regression directly. Build
+errors, missing cases and inconsistent reruns cannot open a finding. A failure
+must reproduce twice with the same diagnostic and producer hash.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" observe reviewed_kb changed-and-restored
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" next
+python3 scripts/qa/run_matrix_slot.py --cache-dir "$cache" --receipts "$slot_receipts" \
+  --policy mixed --slot 1 --period 4 --coverage-slot 2 --seed 41 --replay-history
+```
+
+A passing reviewed seed yields no priority. An unresolved witness can occupy
+the first eligible triage slot in each block. Each such slot runs one named
+case, with a second replay only to confirm a failure. Random controls, the
+reserved coverage slot and other triage slots run the native selection. The
+oldest-served eligible family gets the next turn, then its oldest-served case.
+Use `family--variant` for related catalog seeds with the same named oracle.
+Rerunning the same evidence adds no observations. A clean replay closes that
+witness alone. When a seed or oracle changes, re-observe it under the new
+hashes. A changed producer can close a finding against unchanged inputs.
+
+The slot receipt and adversarial round handoff identify the corpus, case,
+scope and oracle. A plan-only call spends no turn or evidence. Contract
+replays add no dataset quality score, backend failure or live URL observation.
+Keep an intentionally faulty producer's ledger in its own experiment directory.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" snapshot "$trusted_backup"
+python3 scripts/qa/replay_feedback.py --cache-dir "$fresh_cache" restore "$trusted_backup"
+```
+
+Snapshot and restore require new destinations. Use a trusted local backup or
+the existing verified default-branch matrix checkpoint path. Those checkpoints
+also carry the optional replay ledger when actual external evaluator outcomes
+already qualify the checkpoint for publication. Old checkpoints without a
+ledger continue to use native selection. An untrusted PR artifact or a judge's
+verdict alone cannot authorize a replay finding.

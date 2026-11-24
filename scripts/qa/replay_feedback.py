@@ -2,6 +2,8 @@
 import argparse
 import hashlib
 import json
+import os
+import tempfile
 from pathlib import Path
 import re
 import sqlite3
@@ -131,6 +133,21 @@ def next_case(root, cache):
     return None
 
 
+def backup(source, target):
+    """Transfer a trusted local ledger, including committed WAL pages."""
+    # schema verification prevents an unrelated SQLite file being promoted.
+    with sqlite3.connect(source.resolve().as_uri()+"?mode=ro",uri=True) as src:
+        src.execute("SELECT id,latest,unresolved,generation,last_slot FROM witnesses LIMIT 0")
+        src.execute("SELECT id,receipt FROM observations LIMIT 0")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
+            staged = Path(tmp) / "snapshot.db"
+            with sqlite3.connect(staged) as dest:
+                src.backup(dest)
+            os.link(staged, target)  # publish complete data without replacing an existing ledger
+
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--cache-dir",required=True,type=Path)
@@ -140,7 +157,16 @@ def main():
     add.add_argument("corpus",choices=sorted(ADAPTERS))
     add.add_argument("case")
     sub.add_parser("next")
+    sub.add_parser("snapshot").add_argument("file", type=Path)
+    sub.add_parser("restore").add_argument("file", type=Path)
     args = p.parse_args()
+    if args.command in ("snapshot","restore"):
+        ledger = args.cache_dir / DB_NAME
+        if args.command == "snapshot":
+            backup(ledger, args.file)
+        else:
+            backup(args.file, ledger)
+        return
     root = args.repo.resolve()
     result = (observe(root,args.cache_dir,args.corpus,args.case) if args.command=="observe"
               else next_case(root,args.cache_dir))
