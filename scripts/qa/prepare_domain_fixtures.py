@@ -200,6 +200,9 @@ def prepare(data_dir, output, *, seed, per_split, domains, pins):
                           "reserved": len(picked) - boundary, "shortfall": 2 * per_split - len(picked)}
     manifest = {"seed": seed, "per_split": per_split, "groups": groups,
                 "sources": {name: pins[name]["sha256"] for name in sorted(source_names)}}
+    credits = {name: pins[name]["credits"] for name in sorted(source_names) if "credits" in pins[name]}
+    if credits:
+        manifest["source_credits"] = credits
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temp:
         stage = Path(temp) / "panel"

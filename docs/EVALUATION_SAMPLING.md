@@ -41,16 +41,27 @@ baseline maps DATE and TIME spans to TIMEX. The GLiNER multi-task backend receiv
 this metric. The receipt records raw annotations, distinct gold spans, predictions, matches and
 micro F1. The generic tokenized NER view has a different denominator.
 
-Run a complete baseline with `anno dataset download --dataset TimexRecognitionSentenceOriginal`,
-then `anno sampler run --task temporal --fixed-backend pattern --require-cached --runs 1 --max-examples 390`.
-The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
-still be evaluated from their original row text and annotations. [Pinned test split](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl)
+Matrix rows report `unmatched_predictions_overlapping_missed_gold`. Each unmatched prediction counts once if it intersects any missed annotation in its sentence. Several predictions can overlap the same missed annotation. Use `gold_empty_sentences_with_predictions` and `gold_empty_sentences` to measure how often a sentence with no gold spans raises a false alarm.
 
-Default-branch CI verifies the pinned public file and scores all 390 sentences with the
-pattern backend. The check requires a finite score and the full sentence count. Its receipt
-is archived separately from the five-example adaptive history. PRs exercise the two-sentence
-offline temporal fixture. For paired model comparisons that include date-free documents, use the
-[34-document contrast panel](../scripts/qa/fixtures/timex-contrast/README.md).
+CI scores the 34-document English contrast panel as `AnnoTimexContrast` and the two-sentence synthetic smoke control as `AnnoTimexSmoke`. Each has its own cache filename, pinned digest and sampling history. Stage the checked-in file before requesting that fixture. The native temporal reader rejects a replacement file with different bytes. [Fixture sources and local replay](../scripts/qa/fixtures/timex-contrast/README.md)
+
+The public metadata for the historical 390-sentence split identifies TimeBank 1.2 as its source. Its pinned Hugging Face repository provides no separate license. The LDC catalog names the underlying news and annotation rights holders. Its non-member agreement limits use and redistribution. For independent reproduction, obtain the applicable source permissions first. Stage an authorized local file in a private cache with `ANNO_CACHE_DIR=/private/cache python3 scripts/qa/prepare_matrix_timex.py /path/to/test.jsonl`. The helper verifies the historical file digest offline. Keep original text and annotations out of shared caches and artifacts. [Pinned dataset card](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/README.md) · [TimeBank 1.2](https://catalog.ldc.upenn.edu/LDC2006T08) · [LDC non-member agreement](https://catalog.ldc.upenn.edu/license/ldc-non-members-agreement.pdf)
+
+### Compare temporal decoders
+
+The GLiNER multitask token-level ONNX graph scores start, end and inside independently.
+The Rust decoder follows GLiNER v0.2.16's flat, single-label selection. An exact span needs both
+ends above the threshold and every word inside at or above it. A strong start with a weak end
+can disappear entirely. [Upstream decoder](https://github.com/urchade/GLiNER/blob/a865555af53920321c4593f7c091dfc9059e9028/gliner/decoding/decoder.py#L61-L94)
+
+Two English panels show why exact boundaries and false alarms belong together. With the same
+graph, labels and threshold, correcting the decoder raised exact matches from 23 to 26 of 53
+Wikinews spans and from 14 to 18 of 40 Microsoft specification spans. The latter change gained
+six spans and lost two compact slash dates. False alarms occurred in zero of 34 gold-empty news
+sentences and three of 16 gold-empty specification cases after the correction. An additional
+English phrase-expansion rule gave no incremental gain on either panel. Researchers with authorized access can replay the 390-sentence news split.
+Both now-inspected independent panels are regression controls under their source terms. Freeze new source
+documents before evaluating a subsequent candidate. [Prepare the independent panels](../scripts/qa/temporal_sources/README.md)
 
 ## Choose a mode
 
@@ -112,7 +123,7 @@ An active default-branch run can finish its checkpoint before the next run
 starts. A retry stays read-only if that run or a newer run already published
 the same cohort. Each retry retains its own sampling receipt.
 
-Both kinds of run measure five examples per dataset from a local cache. A
+Both kinds of run measure five examples per selected dataset from job-local storage. A
 checksum-pinned public WikiGold corpus supplies a real input even after cache
 eviction. A cold default-branch run records a heuristic baseline on that corpus.
 The synthetic offline checks use separate storage. A temporal check scores two
@@ -380,11 +391,105 @@ Gold JSONL records may carry their source `text`, `source_sha256`, and a documen
 
 The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection. The resolver receives the spans in document order and any type attached to each mention. On corpora with many singletons, report correct links and total gold links alongside CoNLL F1. A system that places every mention in a separate chain can score well on B³ and CEAF-e while recovering zero links.
 
-The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. To compare the modes on the full PreCo validation split, run the same cached command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`:
+Matrix decision logs store the following counts in the `structural_counts` object on each scored outcome. Coreference rows record `matched_coref_links`, `predicted_coref_links` and `gold_coref_links`. For resolvers that take mention spans, divide `matched_input_mentions` by `input_mentions` for exact mention precision and by `gold_mentions` for recall. Divide `reachable_gold_links` by `gold_coref_links` to see how many gold links the resolver could form from its inputs. Counts sum distinct spans and pairs within each document. A zero denominator leaves the corresponding rate undefined. Raw-text FCoref exposes its final clusters only, so its rows omit input coverage.
+
+The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. PreCo’s authors limit the compilation to academic study and research and identify third-party rights in its passages. For an authorized evaluation, put the original development JSONL at `$ANNO_CACHE_DIR/datasets/PreCo.cache` on your own machine. Keep passages and per-example outputs local. About two thirds of the passages come from RACE, whose authors specify noncommercial research use. The mirror labels its license unknown. [RACE release](https://www.cs.cmu.edu/~glai1/data/race/) · [Authors’ Copyright and Privacy Notice](https://preschool-lab.github.io/PreCo/) · [Pinned mirror card](https://huggingface.co/datasets/coref-data/preco_raw/blob/02c8ffedb9d0b49168809a572ff553c2f6f9f7ca/README.md)
+
+To compare mention sources on all 500 development documents, run the same command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`.
 
 ```sh
+ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1 ANNO_NO_DOWNLOADS=1 ANNO_S3_CACHE=0 \
 anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
   --fixed-backend coref_resolver --require-cached --max-examples 500 --runs 1 --seed-base 42
 ```
 
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
+
+## Replay a reviewed corpus witness in a triage slot
+
+Native matrix history records which dataset/backend/task cells ran. A catalog
+operation trace instead checks a document-edit contract. Give it a separate
+persistent ledger (Python 3.11 or newer) when reproducing a finding from fuzzing or adversarial QA.
+A clean checkout and a tracked seed pin the case, source and oracle. The
+`reviewed_kb` adapter executes the named Cargo regression directly. Build
+errors, missing cases and inconsistent reruns cannot open a finding. A failure
+must reproduce twice with the same diagnostic and producer hash.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" observe reviewed_kb changed-and-restored
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" next
+python3 scripts/qa/run_matrix_slot.py --cache-dir "$cache" --receipts "$slot_receipts" \
+  --policy mixed --slot 1 --period 4 --coverage-slot 2 --seed 41
+```
+
+The mixed-slot coordinator consults an existing vetted ledger by default.
+An absent ledger leaves native selection intact. Pass `--no-replay-history` to
+reproduce a native-only comparison. Direct `anno sampler --strategy ...`
+continues to select native evaluation cells. A passing reviewed seed yields no priority. An unresolved witness can occupy
+the first eligible triage slot in each block. Each such slot runs one named
+case, with a second replay only to confirm a failure. Random controls, the
+reserved coverage slot and other triage slots run the native selection. The
+oldest-served eligible corpus gets the next turn, then its oldest-served
+family and case.
+The catalog adapter admits the seven named, repository-authored regression seeds.
+A new seed needs provenance review and admission before it can enter the ledger.
+Rerunning the same evidence adds no observations. A clean replay closes that
+witness alone. When a seed or oracle changes, re-observe it under the new
+hashes. A changed producer can close a finding against unchanged inputs.
+
+The `typed_spans` adapter runs one authored case from the typed assertion panel
+through the offline stacked CLI (`ANNO_BIN` or `anno` on PATH). It records the
+actual executable hash and the pinned span scorer. Its result is scoped to
+the enumerated assertions for that case. Judge comments may nominate cases;
+they cannot insert an observation without a successful oracle invocation.
+
+For labeled data, `observe wikigold sentence-0` runs the stacked backend on
+one zero-based sentence from the checksum-pinned WikiGold source. The oracle
+compares exact PER, ORG, LOC and MISC spans. Both extraction adapters require
+the native backend ID and source hash in the batch output. Install the pinned
+`datasets/WikiGold.cache` under `--cache-dir`, or set `ANNO_CACHE_DIR` to a
+separate verified corpus cache. Each sentence remains independently
+addressable. Replays retain a domain-separated digest of a discrepancy. Source
+text, gold spans and predicted spans stay in the local scorer. Its replay
+result is a sentence-scoped contract assertion;
+only the native evaluator contributes corpus-level model observations.
+
+The slot receipt and adversarial round handoff identify the corpus, case,
+scope and oracle. A plan-only call spends no turn or evidence. Contract
+replays add no dataset quality score, backend failure or live URL observation.
+Keep an intentionally faulty producer's ledger in its own experiment directory.
+
+```sh
+python3 scripts/qa/replay_feedback.py --cache-dir "$cache" snapshot "$trusted_backup"
+python3 scripts/qa/replay_feedback.py --cache-dir "$fresh_cache" restore "$trusted_backup"
+```
+
+Snapshot and restore build a new database from each witness's latest validated
+receipt, generation and rotation position. Earlier observations, auxiliary
+tables and free-text fields stay in the local ledger. These transfers support
+up to 512 witnesses and 2 KiB per receipt. Obsolete scopes, including the
+old WikiGold span-list format, are omitted. Re-observe those cases with the
+current adapter. When a validated typed-span fixture retires a case, selection
+and transfer skip that witness so the remaining cases can still be replayed. Both commands require a new destination and a trusted input.
+Store the replay snapshot in a trusted project archive. On a new machine, restore the existing native matrix
+checkpoint into the fresh cache, then restore the separate replay snapshot
+into that same directory using the command above. Native CI checkpoints keep
+their existing file list, provenance checks and publication rules. They
+continue to restore without a replay ledger. Do not import a replay snapshot
+from an untrusted PR artifact.
+
+For an English mention-proposal experiment, run the same sampler command with
+`ANNO_COREF_GOLD=0 ANNO_COREF_ENGLISH_PRONOUNS=1` and a separate decision file.
+This supplies the entity resolver with NER proposals plus exact source spans from
+Anno's English pronoun detector. Existing NER types take precedence on matching
+spans. Compare proposal coverage, correct and extra links, link precision and
+corpus CoNLL F1 on the same documents. Repeated pronouns, quoted tokens and
+complementizers such as “that” can introduce false links. Tests on
+397 held-back PreCo documents raised simple-resolver link recall from 1.55% to
+28.30% and precision from 47.17% to 55.02%. On 12 independently selected LitBank
+excerpts, recall rose from 0.96% to 22.25% while precision fell from 69.13% to
+45.83%. The extra false links exceeded the three-percentage-point precision
+limit set before testing. [LitBank source](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref)
+The sampler keeps a separate history cohort for this opt-in research mode.
+Gold mentions and raw-text FCoref runs have their own mention sources and reject
+the additional proposals.

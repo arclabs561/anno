@@ -111,8 +111,6 @@ DATASETS = [
     "FewNERD",
     # Coreference
     "GAP",
-    "PreCo",
-    "LitBank",
 ]
 
 # Seeds for statistical significance

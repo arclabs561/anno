@@ -8,6 +8,7 @@ import subprocess
 
 from compare_matrix_picks import PLAN_TEST, build_test_binary, record
 from replay_matrix_feedback import ROOT, TEST
+import replay_feedback
 
 
 def choose_strategy(policy, slot, period, coverage_slot):
@@ -20,7 +21,7 @@ def choose_strategy(policy, slot, period, coverage_slot):
     return "estimate" if (slot - 1) % period + 1 == coverage_slot else "worst-first"
 
 
-def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed, plan_only=False):
+def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed, plan_only=False, replay_history=True):
     strategy = choose_strategy(policy, slot, period, coverage_slot)
     if not 0 <= seed < 2**64:
         raise ValueError("seed must fit an unsigned 64-bit integer")
@@ -30,6 +31,26 @@ def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed,
     receipts.mkdir(parents=True, exist_ok=False)
     plan = dict(policy=policy, slot=slot, period=period, coverage_slot=coverage_slot,
                 requested_strategy=strategy, seed=seed, plan_only=plan_only)
+    # Only the first triage slot of each block may be spent on a reviewed case.
+    replay_position = 1 if coverage_slot != 1 else 2
+    if (replay_history and strategy == "worst-first"
+            and (slot - 1) % period + 1 == replay_position):
+        case = replay_feedback.next_case(ROOT, cache)
+        if case is not None:
+            plan.update(requested_strategy="reviewed-replay", selected_case=case)
+            record(receipts / "schedule.json", plan)
+            outcome_id = None
+            if plan_only:
+                record(receipts / "selection.json", plan)
+            else:
+                outcome = replay_feedback.observe(ROOT, cache, case["corpus"], case["case"], case)
+                record(receipts / "replay.json", outcome)
+                outcome_id = outcome["observation_id"]
+            record(receipts / "result.json", {**plan, "observed_strategies":
+                   [] if plan_only else ["reviewed-replay"], "selection_only": plan_only, "outcome_observation_id": outcome_id})
+            return
+    if binary is None:
+        binary = build_test_binary()
     record(receipts / "schedule.json", plan)
     env = dict(os.environ, ANNO_CACHE_DIR=str(cache), ANNO_EVAL_HISTORY=str(cache / "eval-results.jsonl"),
                ANNO_SAMPLE_STRATEGY=strategy, ANNO_CI_SEED=str(seed),
@@ -66,10 +87,13 @@ def main():
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--test-binary", type=Path, help="previously built anno-eval library test executable")
     p.add_argument("--plan-only", action="store_true", help="seal a selection without scoring it")
+    p.add_argument("--replay-history", action=argparse.BooleanOptionalAction, default=True,
+                   help="use a vetted ledger for at most one triage slot per block (default: enabled)")
     args = p.parse_args()
-    binary = args.test_binary.resolve() if args.test_binary else build_test_binary()
+    os.environ.setdefault("ANNO_CACHE_DIR", str(args.cache_dir.resolve()))
+    binary = args.test_binary.resolve() if args.test_binary else None
     run_slot(binary, args.cache_dir, args.receipts, args.policy, args.slot, args.period,
-             args.coverage_slot, args.seed, args.plan_only)
+             args.coverage_slot, args.seed, args.plan_only, args.replay_history)
 
 
 if __name__ == "__main__":

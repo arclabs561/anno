@@ -1,4 +1,5 @@
 //! Exact TIMEX span evaluation on the original sentence and its stand-off annotations.
+use super::dataset_registry::DatasetId;
 use anno::{Error, Model, Result};
 use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap};
@@ -6,6 +7,35 @@ use std::collections::{BTreeSet, HashMap};
 pub(super) const TEST_SHA256: &str =
     "58cd74b68da63ff8acbb70e8acd0302f4edea6151a2f73787aa57799a57e93d3";
 pub(super) const LABEL: &str = "time expression";
+
+/// The two reviewed sources are supplied by the checkout and are never fetched.
+pub(crate) struct TimexFixture {
+    pub path: &'static str,
+    pub bytes: usize,
+    pub digest: &'static str,
+}
+
+impl DatasetId {
+    pub(crate) fn timex_fixture(self) -> Option<TimexFixture> {
+        match self {
+            Self::AnnoTimexSmoke => Some(TimexFixture {
+                path: "scripts/qa/fixtures/matrix-smoke-timex.jsonl",
+                bytes: 430,
+                digest: "6ea2b070e37f5b04376b167215caf35bcc54e1dda28571fc0c7eaf5a7aef70bb",
+            }),
+            Self::AnnoTimexContrast => Some(TimexFixture {
+                path: "scripts/qa/fixtures/timex-contrast/rows.jsonl",
+                bytes: 5621,
+                digest: "c1718c1749c528234fe2007f903bfa48bad3e1da5ff1f25e9b1fd5d5554ec4f9",
+            }),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn has_timex_span_reader(self) -> bool {
+        self == Self::TimexRecognitionSentenceOriginal || self.timex_fixture().is_some()
+    }
+}
 
 #[derive(Deserialize)]
 pub(crate) struct TimexSentence {
@@ -53,6 +83,9 @@ pub(super) fn score(
     let mut gold_count = 0;
     let mut predicted_count = 0;
     let mut correct = 0;
+    let mut overlapping_unmatched = 0;
+    let mut gold_empty_sentences = 0;
+    let mut gold_empty_with_predictions = 0;
     for sentence in sentences {
         let source: Vec<char> = sentence.text.chars().collect();
         let gold = sentence.gold_spans(&source)?;
@@ -78,6 +111,21 @@ pub(super) fn score(
             }
             predicted.insert((start, end));
         }
+        // Both differences iterate in start order. Count each unmatched prediction
+        // once, even if it intersects several missed or nested annotations.
+        let mut missed = gold.difference(&predicted).peekable();
+        for &(start, end) in predicted.difference(&gold) {
+            while missed.peek().is_some_and(|span| span.1 <= start) {
+                missed.next();
+            }
+            if missed.peek().is_some_and(|span| span.0 < end) {
+                overlapping_unmatched += 1;
+            }
+        }
+        if gold.is_empty() {
+            gold_empty_sentences += 1;
+            gold_empty_with_predictions += usize::from(!predicted.is_empty());
+        }
         correct += predicted.intersection(&gold).count();
         predicted_count += predicted.len();
         gold_count += gold.len();
@@ -90,6 +138,15 @@ pub(super) fn score(
         ),
         ("precision".into(), ratio(correct, predicted_count)),
         ("recall".into(), ratio(correct, gold_count)),
+        (
+            "unmatched_predictions_overlapping_missed_gold".into(),
+            overlapping_unmatched as f64,
+        ),
+        ("gold_empty_sentences".into(), gold_empty_sentences as f64),
+        (
+            "gold_empty_sentences_with_predictions".into(),
+            gold_empty_with_predictions as f64,
+        ),
         ("gold_annotations".into(), raw_annotations as f64),
         ("gold_spans".into(), gold_count as f64),
         ("predicted_spans".into(), predicted_count as f64),
@@ -127,6 +184,37 @@ mod tests {
         assert_eq!(metrics["predicted_spans"], 2.0);
         assert_eq!(metrics["matched_spans"], 1.0);
         assert_eq!(metrics["f1"], 0.5);
+        assert_eq!(metrics["gold_empty_sentences"], 1.0);
+        assert_eq!(metrics["gold_empty_sentences_with_predictions"], 1.0);
+        assert_eq!(
+            metrics["unmatched_predictions_overlapping_missed_gold"],
+            0.0
+        );
+    }
+
+    #[test]
+    fn counts_overlapping_unmatched_predictions_once_and_excludes_touching_spans() {
+        let rows: Vec<TimexSentence> = serde_json::from_value(serde_json::json!([{
+            "text":"a b c d", "time_expressions":[
+                {"text":"a b c","start_char":0,"end_char":5},
+                {"text":"b c","start_char":2,"end_char":5},
+                {"text":"d","start_char":6,"end_char":7}]
+        }]))
+        .unwrap();
+        let model = AnyModel::new("boundary-test", "", vec![], |_, _| {
+            Ok(vec![
+                Entity::new("a b", EntityType::Date, 0, 3, 1.0),
+                Entity::new("c", EntityType::Time, 4, 5, 1.0),
+                Entity::new(" d", EntityType::Date, 5, 7, 1.0),
+                Entity::new("d", EntityType::Date, 6, 7, 1.0),
+            ])
+        });
+        let (metrics, _) = score(&rows, &model).unwrap();
+        assert_eq!(metrics["matched_spans"], 1.0);
+        assert_eq!(
+            metrics["unmatched_predictions_overlapping_missed_gold"],
+            2.0
+        );
     }
 
     #[test]

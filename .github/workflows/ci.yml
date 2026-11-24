@@ -262,7 +262,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Set ANNO cache dir and eval history path (matches actions/cache)
+      - name: Set job-local dataset and eval history paths
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
@@ -284,13 +284,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Cache datasets
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
-          restore-keys: |
-            anno-datasets-${{ runner.os }}-v3-
       - name: Build with eval features
         run: cargo build --workspace --features eval
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
@@ -387,13 +380,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-hub-models-${{ runner.os }}-
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
@@ -432,13 +418,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-hub-models-${{ runner.os }}-
       - name: Build Candle backend
         run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
@@ -460,11 +439,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
@@ -488,11 +462,6 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
@@ -512,11 +481,6 @@ jobs:
         with:
           cache-all-crates: true
           env-vars: ImageVersion
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
@@ -626,7 +590,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Set ANNO cache dir and eval history path (matches actions/cache)
+      - name: Set job-local dataset and eval history paths
         run: |
           {
             echo "MATRIX_CHECKPOINT=matrix-feedback-v1-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('crates/anno-eval/src/eval/provenance.rs', 'crates/anno-eval/src/muxer_history.rs') }}"
@@ -635,7 +599,7 @@ jobs:
             echo "ANNO_MAX_EXAMPLES=5"
             echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
             echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
-            # PRs use restored datasets and weights. Main and scheduled runs can refill them.
+            # PRs use job-local inputs and cached model weights. Trusted runs can fetch eligible origins.
             echo "ANNO_NO_DOWNLOADS=${{ github.event_name == 'pull_request' && '1' || '0' }}"
             echo "ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=${{ github.event_name == 'pull_request' && '0' || '1' }}"
             # Keep current-run evidence outside restored cache state so the outcome gate cannot
@@ -656,20 +620,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-hub-models-${{ runner.os }}-
-      - name: Cache external datasets
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.anno_cache/datasets
-          key: anno-matrix-datasets-${{ runner.os }}-v1-${{ github.run_id }}
-          restore-keys: |
-            anno-matrix-datasets-${{ runner.os }}-v1-
       - name: Check the offline sampler on a labeled fixture
         env:
           ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
@@ -693,9 +643,9 @@ jobs:
           run_sample
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
 
-          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/TimexRecognitionSentenceOriginal.cache"
+          install -D scripts/qa/fixtures/matrix-smoke-timex.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexSmoke.cache"
           export ANNO_MUXER_DECISIONS_FILE="$ANNO_CACHE_DIR/temporal-outcomes.jsonl"
-          ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
+          ANNO_MUXER_FIXED_DATASETS=AnnoTimexSmoke ANNO_MATRIX_TASK=temporal ANNO_MUXER_PIN_BACKEND=pattern ANNO_MAX_EXAMPLES=2 run_sample
           python3 scripts/qa/check_matrix_outcomes.py --temporal-smoke "$ANNO_MUXER_DECISIONS_FILE"
       - name: Replay adaptive selection across isolated CI histories
         run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
@@ -726,9 +676,9 @@ jobs:
         run: |
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --bootstrap "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
-      - name: Score the pinned public TIMEX test split
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      - name: Score the checked-in temporal contrast fixture
         env:
+          ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-temporal-contrast
           ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-timex-control.jsonl
           ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-timex-history.jsonl
           ANNO_HISTORY_FILE: ${{ runner.temp }}/matrix-timex-arms.json
@@ -737,15 +687,15 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: "42"
           ANNO_MUXER_PIN_BACKEND: pattern
-          ANNO_MUXER_FIXED_DATASETS: TimexRecognitionSentenceOriginal
-          ANNO_MAX_EXAMPLES: "390"
+          ANNO_MUXER_FIXED_DATASETS: AnnoTimexContrast
+          ANNO_MAX_EXAMPLES: "34"
           ANNO_NO_DOWNLOADS: "1"
           ANNO_S3_CACHE: "0"
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
         run: |
-          python3 scripts/qa/prepare_matrix_timex.py
+          install -D scripts/qa/fixtures/timex-contrast/rows.jsonl "$ANNO_CACHE_DIR/datasets/AnnoTimexContrast.cache"
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
-          python3 scripts/qa/check_matrix_outcomes.py --public-timex "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/check_matrix_outcomes.py --temporal-contrast "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
       - name: Run worst-first matrix test (+ regression detection)
         run: |
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
@@ -894,7 +844,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Set ANNO cache dir and eval history path (matches actions/cache)
+      - name: Set job-local dataset and eval history paths
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
@@ -912,20 +862,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-hub-models-${{ runner.os }}-
-      - name: Cache datasets
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
-          restore-keys: |
-            anno-datasets-${{ runner.os }}-v3-
       # Restore eval history so CLI benchmark accumulates observation counts across runs.
       # Uses the same anno-muxer key family as matrix-test to share state.
       - name: Cache eval history (persistent observation counts)
@@ -989,7 +925,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
-      - name: Set ANNO cache dir and eval history path (matches actions/cache)
+      - name: Set job-local dataset and eval history paths
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
@@ -1007,20 +943,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-hub-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-hub-models-${{ runner.os }}-
-      - name: Cache datasets
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
-          restore-keys: |
-            anno-datasets-${{ runner.os }}-v3-
       # Restore eval history so full evals seed from accumulated observation counts.
       - name: Cache eval history (persistent observation counts)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

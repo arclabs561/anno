@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Check every named query in the reviewed catalog assignment model using Z3."""
 
 from pathlib import Path

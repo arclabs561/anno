@@ -736,12 +736,22 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
 ///
 /// # Performance
 ///
-/// Runs sequentially on a single [`StackedNER`] instance constructed per call.
+/// A nonempty batch runs sequentially on one [`StackedNER`] instance.
+/// An empty batch returns immediately without initializing a backend.
 /// For parallel execution, enable the `parallel` feature and use
 /// `Model::par_extract_batch` on a shared model instance.
 pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
-    let model = StackedNER::default();
-    model.extract_batch(texts, None)
+    extract_batch_with_factory(texts, StackedNER::default)
+}
+
+fn extract_batch_with_factory(
+    texts: &[&str],
+    make_model: impl FnOnce() -> StackedNER,
+) -> Vec<Result<Vec<Entity>>> {
+    if texts.is_empty() {
+        return Vec::new();
+    }
+    make_model().extract_batch(texts, None)
 }
 
 pub use annotated::{
@@ -1174,8 +1184,9 @@ mod batch_tests {
     use super::*;
 
     #[test]
-    fn extract_batch_empty_slice() {
-        let results = extract_batch(&[]);
+    fn extract_batch_empty_slice_skips_model_initialization() {
+        assert!(extract_batch(&[]).is_empty());
+        let results = extract_batch_with_factory(&[], || panic!("initialized an empty batch"));
         assert!(results.is_empty());
     }
 

@@ -37,6 +37,14 @@
     "url": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
     "sha256": "007b6a40b0c65247f881627375c3d2e9b6aeeb5dfa89957494feed0765a1a073",
     "member": "test.json",
+    "credits": {
+      "work": "Contract Understanding Atticus Dataset (CUAD) v1, The Atticus Project, 2021",
+      "source": "https://doi.org/10.5281/zenodo.4595826",
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "scope": "The publisher licenses CUAD and gives no warranty on the copyright status of the underlying third-party contracts filed with EDGAR.",
+      "terms": "https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information",
+      "changes": "Sampled contract windows and mapped qualifying Parties answers to ORG span assertions."
+    },
     "download_bytes": 18309308,
     "archive_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a"
   },

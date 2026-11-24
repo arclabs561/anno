@@ -24,6 +24,21 @@ class DomainFixturesTest(unittest.TestCase):
         self.assertEqual((record.text[record.start:record.end], record.label), ("new york", "LOC"))
         self.assertIsNone(panel.sentence("snips", "s", ["band"], ["B-artist"]))
 
+    def test_cuad_manifest_retains_rights_and_omits_contract_text(self):
+        source = {"data": [{"title": "synthetic", "paragraphs": [{"context": "Sample Corporation.",
+                  "qas": [{"id": "test__Parties", "answers": [{"answer_start": 0, "text": "Sample Corporation"}]}]}]}]}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "cuad.json"
+            path.write_text(json.dumps(source))
+            pins = json.loads(panel.SOURCES.read_text())
+            credits = pins["cuad.json"]["credits"]
+            self.assertIn("underlying third-party contracts", credits["scope"])
+            pins["cuad.json"]["sha256"] = panel.digest(path.read_bytes())
+            manifest = panel.prepare(root, root / "output", seed="s", per_split=1, domains=["cuad"], pins=pins)
+            self.assertEqual(manifest["source_credits"], {"cuad.json": credits})
+            self.assertNotIn("Sample Corporation", json.dumps(manifest))
+
     def test_fetch_and_prepare_select_the_same_source_group(self):
         selections = [([], panel.ENGLISH), (["--group", "multilingual"], panel.MULTILINGUAL),
                       (["--group", "all"], panel.FAMILIES), (["--domain", "weibo-zh"], ["weibo-zh"])]

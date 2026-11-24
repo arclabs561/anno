@@ -102,6 +102,17 @@ On 1,696 WikiGold sentences the ordinary rendering produced identical prediction
 
 For a policy comparison, give the seeded random control the same candidate set, starting history and budget. For a historical blind replay, give the scout a pre-fix revision, withhold the patch and its tests, and count distinct rediscovered failures per runner-minute. Use a fresh case when the agent has already seen the public fix.
 
+## Start from a measured muxer outcome
+
+Pass the sampler's decision JSONL directly to the coordinator. The same analysis runs on a completed matrix slot. A low score with few reachable gold links prompts a mention-proposal experiment. If most gold links are reachable, the brief quantifies a lower bound on missed reachable links and suggests holding proposals fixed. Temporal near misses prompt a reference-decoder comparison. A sample without gold-empty sentences calls for a separate negative control.
+
+```sh
+python3 scripts/qa/brief_round.py /path/to/decisions.jsonl \
+  "Which stage accounts for the missed links?" --trace /tmp/anno-muxer-round.sqlite
+```
+
+The brief reads counts and registry identifiers. Earlier receipts that contain only the overall score still work. Scope a proposed replay to the source permissions, pin the corpus and evaluation version, and give the scout fresh examples that were outside the selection history. Confirm the verdict with an independent oracle and a reproducible native run before retaining a regression seed.
+
 ## Choose a challenge that fits the claim
 
 | Target | Scout's challenge | Oracle and skeptic |
@@ -120,3 +131,13 @@ For a policy comparison, give the seeded random control the same candidate set, 
 Record the baseline and candidate separately even when their outputs match. A count such as “3 gained, 0 lost across 175 anchors in 92 contracts” lets the next reviewer audit a claim; whole-document precision requires labels for the other mentions too. [Fixtures and dataset commands](QA.md) · [Muxer modes](EVALUATION_SAMPLING.md)
 
 The weekly and manual live QA job also scores up to eight discovery anchors per group on pinned English, Dutch, Spanish and Chinese datasets. The `live-document-qa` artifact includes the source pins and split counts in `domain-manifest.json`, the revision, backend and aggregate scores in `domain-discovery.json`, and the reviewer prompt in `labeled-round.md`. Source text, individual predictions and reserved examples stay on the ephemeral runner. Use the same fixture digest for comparisons over time. A missed anchor counts toward the reported error rate. Failure to download, verify, run or score the fixture fails the job.
+
+To give a minimized, reviewed counterexample a future triage slot, run its
+registered corpus oracle and retain the resulting source and producer hashes.
+An adjudicator's report can nominate a case. Reproducing the same oracle
+failure twice opens the witness. The next eligible slot names and replays the
+case, while passing controls and model scores keep their own denominators.
+[Replay state and slot selection](EVALUATION_SAMPLING.md#replay-a-reviewed-corpus-witness-in-a-triage-slot)
+
+For a completed synthetic organization-span round, the [reviewed seed replay](../scripts/qa/reviewed_span_seeds/README.md)
+binds the independent oracle to native results and emits digest-keyed regression evidence for scheduling.

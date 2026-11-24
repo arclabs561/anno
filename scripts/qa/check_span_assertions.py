@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -74,16 +75,32 @@ def source_sha256(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def run_batch(cases, binary, model):
+def binary_and_digest():
+    resolved = shutil.which(os.environ.get("ANNO_BIN", "anno"))
+    if resolved is None:
+        raise FileNotFoundError("offline replay needs anno on PATH or ANNO_BIN")
+    binary = Path(resolved).resolve()
+    with binary.open("rb") as handle:
+        return binary, hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def run_batch(cases, binary, model, *, require_native_metadata=False):
     inputs = "".join(json.dumps({"id": key, "text": case["text"]}) + "\n"
                      for key, case in cases.items())
     cmd = [binary, "batch", "--stdin", "--format", "jsonl", "--model", model]
     output = subprocess.run(cmd, input=inputs, encoding="utf-8", stdout=subprocess.PIPE,
                             check=True, env={**os.environ, "ANNO_NO_DOWNLOADS": "1"}).stdout
     rows = jsonl_rows(output)
-    # Older binaries omit this field. Bind their live output to the text we sent.
     for key, row in indexed(rows, "batch output").items():
-        if key in cases and "source_sha256" not in row:
+        if require_native_metadata:
+            # JSONL reports the selected CLI backend, e.g. "stacked". Its runtime
+            # description "stacked(regex+heuristic)" is written to stderr.
+            if row.get("model") != model:
+                raise ValueError(f"{key}: requested {model!r}, batch reported {row.get('model')!r}")
+            if "source_sha256" not in row:
+                raise ValueError(f"{key}: batch output lacks native source_sha256")
+        elif key in cases and "source_sha256" not in row:
+            # Older binaries omit this field. Bind their live output to the text we sent.
             row["source_sha256"] = source_sha256(cases[key]["text"])
     return rows
 

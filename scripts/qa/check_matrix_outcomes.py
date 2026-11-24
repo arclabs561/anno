@@ -35,15 +35,20 @@ def outcomes(lines, decisions=None):
         yield task if strategy == "random" else strategy, row
 
 
-def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
+def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts=None):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
         score = row.get("primary_f1")
+        observed = row.get("structural_counts")
+        counts_match = counts is None or (isinstance(observed, dict) and all(
+            type(observed.get(key)) in (float, int) and observed[key] == value
+            for key, value in counts.items()))
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
                 and not row["hard_junk"] and row["cost_units"] == examples
                 and type(score) in (float, int) and 0 <= score <= 1
-                and (not exact or score == 1.0)):
+                and (not exact or score == 1.0)
+                and counts_match):
             print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
     print(f"Unexpected fixed sample result for {task} / {dataset} / {backend}.", file=sys.stderr)
@@ -56,8 +61,16 @@ def check_wikigold(lines, bootstrap=False):
 
 
 def check_temporal_smoke(lines):
-    return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
-                              backend="pattern", examples=2, exact=True)
+    return check_fixed_sample(lines, task="temporal", dataset="AnnoTimexSmoke",
+                              backend="pattern", examples=2, exact=True,
+                              counts={"gold_spans": 1, "predicted_spans": 1, "matched_spans": 1,
+                                      "gold_empty_sentences": 1, "gold_empty_sentences_with_predictions": 0,
+                                      "unmatched_predictions_overlapping_missed_gold": 0})
+
+
+def check_temporal_contrast(lines):
+    return check_fixed_sample(lines, task="temporal", dataset="AnnoTimexContrast",
+                              backend="pattern", examples=34, exact=False)
 
 
 def check(lines, report=False):
@@ -141,12 +154,15 @@ if __name__ == "__main__":
     mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
     mode.add_argument("--temporal-smoke", action="store_true",
                       help="require two scored temporal documents and perfect fixture F1")
+    mode.add_argument("--temporal-contrast", action="store_true", help="require the 34-document offline temporal panel")
     mode.add_argument("--public-timex", action="store_true", help="require the full pinned TIMEX test split")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            if args.public_timex:
+            if args.temporal_contrast:
+                passed = check_temporal_contrast(stream)
+            elif args.public_timex:
                 passed = check_fixed_sample(stream, task="temporal", dataset="TimexRecognitionSentenceOriginal",
                                             backend="pattern", examples=390, exact=False)
             elif args.temporal_smoke:

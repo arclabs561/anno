@@ -662,6 +662,27 @@ impl CorefLoader {
         self.inner.load_coref(DatasetId::PreCo)
     }
 
+    /// Read one LitBank BRAT annotation file and its same-stem .txt without using the cache.
+    /// The document ID is the annotation file stem. Call once per selected book.
+    pub fn load_litbank_from_path(
+        &self,
+        annotation_path: impl AsRef<std::path::Path>,
+    ) -> Result<CorefDocument> {
+        let path = annotation_path.as_ref();
+        if path.extension().and_then(|e| e.to_str()) != Some("ann") {
+            return Err(Error::InvalidInput(
+                "LitBank requires a .ann path with a matching .txt file".into(),
+            ));
+        }
+        let annotations = fs::read_to_string(path)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read {}: {e}", path.display())))?;
+        let mut doc = super::litbank::SourcePair::from_annotations(path, annotations)?.coref()?;
+        doc.doc_id = path
+            .file_stem()
+            .map(|name| name.to_string_lossy().into_owned());
+        Ok(doc)
+    }
+
     /// Load a CorefUD CoNLL-U file from an explicit local path (no caching, no network).
     ///
     /// This is the easiest way to run CorefUD experiments without wiring up downloads:

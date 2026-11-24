@@ -1,10 +1,10 @@
 #!/bin/bash
 # Sync anno artifacts to/from S3 cache bucket
 #
-# Supports datasets, models, scripts, and other artifacts.
+# Publishes models and scripts. Reads permitted datasets from existing owner-provisioned storage.
 #
 # Usage:
-#   ./scripts/sync_datasets_s3.sh upload    # Upload local cache to S3
+#   ./scripts/sync_datasets_s3.sh upload    # Upload local models, scripts and manifest to S3
 #   ./scripts/sync_datasets_s3.sh download  # Download from S3
 #   ./scripts/sync_datasets_s3.sh sync      # Bidirectional sync (local wins)
 #   ./scripts/sync_datasets_s3.sh status    # Show what's cached
@@ -101,28 +101,8 @@ generate_manifest() {
     "datasets": [
 MANIFEST_HEADER
 
-    # Add datasets
+    # No raw dataset package has been approved for shared publication.
     local first=true
-    if [ -d "$DATASETS_DIR" ]; then
-        for f in "$DATASETS_DIR"/*; do
-            if [ -f "$f" ]; then
-                local basename=$(basename "$f")
-                local size=$(stat -f%z "$f" 2>/dev/null || stat --format=%s "$f" 2>/dev/null || echo 0)
-                local md5=$(md5 -q "$f" 2>/dev/null || md5sum "$f" 2>/dev/null | cut -d' ' -f1 || echo "unknown")
-                
-                if [ "$first" = true ]; then
-                    first=false
-                else
-                    echo "," >> "$manifest_path"
-                fi
-                
-                cat >> "$manifest_path" << ENTRY
-      {"filename": "$basename", "size_bytes": $size, "md5": "$md5"}
-ENTRY
-            fi
-        done
-    fi
-    
     cat >> "$manifest_path" << MID_SECTION
     ],
     "models": [
@@ -189,19 +169,18 @@ upload_all() {
     
     mkdir -p "$DATASETS_DIR" "$MODELS_DIR" "$SCRIPTS_DIR"
     
+    log_info "Skipping raw datasets: no reviewed publication package. Existing objects are preserved."
     # Generate manifest before upload
     local local_manifest="$LOCAL_CACHE/$MANIFEST_FILE"
     generate_manifest "$local_manifest"
     
     if [[ "$S3_CMD" == "s5cmd" ]]; then
         # s5cmd is much faster for bulk operations
-        [[ -d "$DATASETS_DIR" ]] && s5cmd sync --size-only "$DATASETS_DIR/" "$S3_BUCKET/datasets/" 2>/dev/null || true
         [[ -d "$MODELS_DIR" ]] && s5cmd sync --size-only "$MODELS_DIR/" "$S3_BUCKET/models/" 2>/dev/null || true
         [[ -d "$SCRIPTS_DIR" ]] && s5cmd sync --size-only "$SCRIPTS_DIR/" "$S3_BUCKET/scripts/" 2>/dev/null || true
         s5cmd cp "$local_manifest" "$S3_BUCKET/$MANIFEST_FILE"
     else
         # aws cli fallback
-        [[ -d "$DATASETS_DIR" ]] && aws s3 sync "$DATASETS_DIR" "$S3_BUCKET/datasets/" --size-only --exclude "*.tmp"
         [[ -d "$MODELS_DIR" ]] && aws s3 sync "$MODELS_DIR" "$S3_BUCKET/models/" --size-only
         [[ -d "$SCRIPTS_DIR" ]] && aws s3 sync "$SCRIPTS_DIR" "$S3_BUCKET/scripts/" --size-only
         aws s3 cp "$local_manifest" "$S3_BUCKET/$MANIFEST_FILE"
@@ -211,16 +190,23 @@ upload_all() {
 }
 
 download_all() {
-    log_info "Downloading all artifacts from S3..."
+    local cache_policy pattern
+    local -a dataset_filters=()
+    # Filter legacy names and content-addressed paths in pre-provisioned stores.
+    cache_policy="$(python3 "$(dirname "$0")/qa/shared_dataset_cache.py")"
+    while IFS= read -r pattern; do
+        dataset_filters+=(--exclude "$pattern")
+    done <<< "$cache_policy"
+    log_info "Downloading permitted artifacts from S3..."
     
     mkdir -p "$DATASETS_DIR" "$MODELS_DIR" "$SCRIPTS_DIR"
     
     if [[ "$S3_CMD" == "s5cmd" ]]; then
-        s5cmd sync --size-only "$S3_BUCKET/datasets/*" "$DATASETS_DIR/" 2>/dev/null || true
+        s5cmd sync --size-only "${dataset_filters[@]}" "$S3_BUCKET/datasets/*" "$DATASETS_DIR/" 2>/dev/null || true
         s5cmd sync --size-only "$S3_BUCKET/models/*" "$MODELS_DIR/" 2>/dev/null || true
         s5cmd sync --size-only "$S3_BUCKET/scripts/*" "$SCRIPTS_DIR/" 2>/dev/null || true
     else
-        aws s3 sync "$S3_BUCKET/datasets/" "$DATASETS_DIR" --size-only
+        aws s3 sync "$S3_BUCKET/datasets/" "$DATASETS_DIR" --size-only "${dataset_filters[@]}"
         aws s3 sync "$S3_BUCKET/models/" "$MODELS_DIR" --size-only
         aws s3 sync "$S3_BUCKET/scripts/" "$SCRIPTS_DIR" --size-only
     fi

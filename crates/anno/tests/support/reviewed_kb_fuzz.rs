@@ -7,6 +7,10 @@ use anno::core::grounded::{
 use anno::{Location, Signal, SignalId};
 
 pub const MAX_INPUT_BYTES: usize = 48;
+
+/// The observed track binding disagreed with the independent fixture model.
+#[derive(Debug)]
+pub struct VisibleBindingMismatch;
 type Target = (&'static str, &'static str, &'static str);
 const ORIGINAL: Target = ("library", "42", "Ada");
 const REVIEWED: Target = ("review", "7", "Reviewed");
@@ -122,14 +126,16 @@ impl Fixture {
                     corpus.is_shared_identity(record),
                 )
             });
-            assert_eq!(
-                visible,
-                expected.map(|b| {
-                    let (catalog, key, name) = b.target;
-                    (b.id, Some((catalog, key)), name, b.corpus_owned)
-                }),
-                "{track:?}"
-            );
+            let expected = expected.map(|b| {
+                let (catalog, key, name) = b.target;
+                (b.id, Some((catalog, key)), name, b.corpus_owned)
+            });
+            if visible != expected {
+                eprintln!(
+                    "binding mismatch at {track:?}: expected {expected:?}, observed {visible:?}"
+                );
+                std::panic::panic_any(VisibleBindingMismatch);
+            }
         }
 
         let doc = corpus.get_document("local").unwrap();
@@ -242,6 +248,14 @@ impl Fixture {
 
 /// Return the number of tracks in the final applied receipt, or `None` for a stale review.
 pub fn replay(bytes: &[u8]) -> Option<usize> {
+    replay_observed(bytes, |_, _| {})
+}
+
+/// Report checked apply outcomes, including intermediate reviews.
+pub fn replay_observed(
+    bytes: &[u8],
+    mut observe: impl FnMut(usize, Option<usize>),
+) -> Option<usize> {
     let mut fixture = Fixture::new();
     let mut selected = 0;
     let mut reviewed = selected;
@@ -258,7 +272,7 @@ pub fn replay(bytes: &[u8]) -> Option<usize> {
             b'0'..=b'5' => selected = usize::from(command - b'0'),
             b'p' | b'!' => {
                 if command == b'!' {
-                    let _ = fixture.apply(reviewed, pending, fresh);
+                    observe(reviewed, fixture.apply(reviewed, pending, fresh));
                 }
                 reviewed = selected;
                 pending = fixture.prepare(reviewed);
@@ -299,5 +313,7 @@ pub fn replay(bytes: &[u8]) -> Option<usize> {
         }
         fixture.check_views(&fixture.corpus);
     }
-    fixture.apply(reviewed, pending, fresh)
+    let outcome = fixture.apply(reviewed, pending, fresh);
+    observe(reviewed, outcome);
+    outcome
 }
