@@ -5518,6 +5518,35 @@ impl DatasetLoader {
         Ok(documents)
     }
 
+    /// Load the original ECB+ XML archive with topic-scoped cross-document labels.
+    ///
+    /// Reads the existing ECB+ cache, or downloads and validates the XML archive.
+    /// The upstream sentence index and legacy CSV caches lack typed cross-document relations.
+    #[cfg(feature = "eval")]
+    pub fn load_or_download_ecb_plus_gold(
+        &self,
+    ) -> Result<Vec<super::coref_loader::EcbPlusDocument>> {
+        let cache_path = self.cache_path_for(DatasetId::ECBPlus);
+        if cache_path.exists() {
+            let bytes = std::fs::read(&cache_path)
+                .map_err(|e| Error::InvalidInput(format!("Failed to read {cache_path:?}: {e}")))?;
+            if !bytes.starts_with(b"PK\x03\x04") {
+                return Err(Error::InvalidInput(format!(
+                    "ECB+ cross-document gold requires the XML archive at {cache_path:?}. A sentence index or legacy CSV cannot identify cross-document relations."
+                )));
+            }
+            return super::coref_loader::parse_ecb_plus_gold_zip(&bytes);
+        }
+
+        // The registry's text URL identifies the separate selected-sentence index.
+        // The upstream release licenses the annotations under CC BY 3.0.
+        let url = "https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip";
+        let bytes = self.download_attempt_bytes(url)?;
+        let documents = super::coref_loader::parse_ecb_plus_gold_zip(&bytes)?;
+        self.replace_cache_content(&cache_path, &bytes)?;
+        Ok(documents)
+    }
+
     /// Load coreference dataset, downloading if needed.
     #[cfg(feature = "eval")]
     pub fn load_or_download_coref(
@@ -5535,22 +5564,15 @@ impl DatasetLoader {
                 )));
             }
 
-            let cache_path = self.cache_path_for(id);
             if matches!(id, DatasetId::ECBPlus) {
-                // ECB+ is a ZIP file -- download as raw bytes
-                let url = id.download_url();
-                let bytes = self.download_attempt_bytes(url)?;
-                let documents = super::coref_loader::parse_ecb_plus_zip(&bytes)?;
-                if documents.is_empty() {
-                    return Err(Error::InvalidInput(
-                        "ECB+ dataset parsed to 0 documents".to_string(),
-                    ));
-                }
-                self.replace_cache_content(&cache_path, &bytes)?;
-            } else {
-                let (content, _) = self.download_with_resolved_url(id)?;
-                self.validate_and_cache_coref_content(id, &content)?;
+                return Ok(self
+                    .load_or_download_ecb_plus_gold()?
+                    .into_iter()
+                    .map(super::coref_loader::EcbPlusDocument::into_coref_document)
+                    .collect());
             }
+            let (content, _) = self.download_with_resolved_url(id)?;
+            self.validate_and_cache_coref_content(id, &content)?;
         }
         self.load_coref(id)
     }
@@ -7531,6 +7553,20 @@ mod tests {
         std::fs::write(loader.cache_path_for(DatasetId::ECBPlus), bytes).unwrap();
 
         assert_eq!(loader.load_coref(DatasetId::ECBPlus).unwrap().len(), 1);
+        #[cfg(feature = "eval")]
+        {
+            let gold = loader.load_or_download_ecb_plus_gold().unwrap();
+            assert_eq!(gold[0].topic.as_deref(), Some("1"));
+            let cache = loader.cache_path_for(DatasetId::ECBPlus);
+            let sentence_index = b"Topic,File,Sentence Number\n1,2ecb,0\n";
+            std::fs::write(&cache, sentence_index).unwrap();
+            assert!(loader
+                .load_or_download_ecb_plus_gold()
+                .unwrap_err()
+                .to_string()
+                .contains("requires the XML archive"));
+            assert_eq!(std::fs::read(cache).unwrap(), sentence_index);
+        }
     }
 
     #[test]
