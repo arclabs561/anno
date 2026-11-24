@@ -22,6 +22,8 @@ cargo test --locked -p anno-cli --no-default-features --features eval,extractor-
 
 To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once. The preparation script verifies the pinned corpus digest and downloads it if needed. The panel disables dataset and model downloads. It expects a measured result from each of two backends on up to 20 examples at seed 42.
 
+The authors’ versioned Figshare release lists the manual annotations in `wikigold.conll.txt` under CC BY 4.0. Its file 9446377 is 318,530 bytes with MD5 `0c1a4f91b9ea70f84ed43f4ff62fdfd5`. The pinned Git mirror used here has those same bytes, verified locally, and the preparation script checks SHA-256 `c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f`. The underlying Wikipedia passages retain separate reuse terms, including attribution, applicable share-alike provisions and notices. Raw corpus files stay in the job-local dataset directory. [Author release](https://doi.org/10.6084/m9.figshare.5462500.v1) · [Annotation paper](https://aclanthology.org/W09-3302/) · [Wikimedia reuse terms, §7](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content)
+
 ```sh
 cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
 export ANNO_CACHE_DIR="$PWD/.generated/qa-cache"
@@ -42,6 +44,14 @@ just qa-round "$OUT" "Does removing spaces inside parentheses change organizatio
 The same command accepts a matrix slot's receipt directory. To time agent calls and their replay, follow the [traced round](ADVERSARIAL_QA.md#trace-one-author-and-one-replay). Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
 
 #For an equal-budget comparison on public, labeled text across ten domains, prepare [the domain fixtures](DOMAIN_QA.md).
+
+## Score a LitBank book or cohort
+
+The registry selector `LitBank` downloads one pinned *Bleak House* excerpt. Its score describes one book. The upstream collection has 100 excerpts. For a cohort, record the upstream revision and the selected filenames, then call `CorefLoader::load_litbank_from_path` once per `coref/brat/*_brat.ann`. Keep each same-stem `.txt` beside its annotations. The loader returns the exact source and document-local gold chains, including singletons. Report the number of books, mentions and gold links with the result. [LitBank corpus and license](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8)
+
+The pinned LitBank release grants CC BY 4.0, which permits commercial reuse of the licensors’ material with attribution, a license link and an indication of changes. The authors selected pre-1923 Project Gutenberg source texts under U.S. public-domain criteria. When distributing prose, check the particular edition and the countries where it will be distributed. Anno’s plain cache lacks an attribution package. [Release terms](https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md) · [Source selection, §2](https://aclanthology.org/N19-1220/) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+
+For an older local cache containing raw annotations in `LitBank.cache`, place the matching source beside it as `LitBank.txt`. An annotation-only cache returns an error naming the missing path. New downloads store both files together as one JSON object. Flat NER uses the leftmost outer mention when labels nest.
 
 ## Check what a negative span means
 

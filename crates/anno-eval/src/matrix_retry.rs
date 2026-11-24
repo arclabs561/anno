@@ -277,6 +277,7 @@ pub(super) fn next_cell(
                     max_examples,
                     cached,
                     matrix_uses_gold_mentions(),
+                    matrix_predicted_mentions(),
                 )
         {
             continue;

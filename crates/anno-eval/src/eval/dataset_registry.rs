@@ -1054,8 +1054,7 @@ macro_rules! impl_category_checks {
                     DatasetId::MitRestaurant |
                     DatasetId::CoNLL2003Sample |
                     DatasetId::BC5CDR |
-                    DatasetId::GAP |
-                    DatasetId::PreCo
+                    DatasetId::GAP
                 ))
                 .collect()
         }
@@ -1175,18 +1174,19 @@ define_datasets! {
     WikiGold {
         name: "WikiGold",
         description: "Wikipedia-based NER (PER, LOC, ORG, MISC). Historically significant as early Wikipedia NER resource.",
-        url: "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/wikigold/CONLL-format/data/wikigold.conll.txt",
+        url: "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt",
         entity_types: ["PER", "LOC", "ORG", "MISC"],
         language: "en",
         domain: "wikipedia",
-        license: "CC-BY-4.0",
+        license: "Annotations: CC-BY-4.0; text: Wikipedia reuse terms",
         citation: "Balasuriya et al. (2009)",
-        paper_url: "https://aclanthology.org/U09-1001/",
+        paper_url: "https://aclanthology.org/W09-3302/",
         year: 2009,
         format: "CoNLL",
         annotation_scheme: "IOB2",
         size_hint: "~40k tokens, ~3,500 entities",
         example: "Japan B-LOC\n's O\nMinister O\nShinzo B-PER\nAbe I-PER\nvisited O\nthe O\nUnited B-LOC\nStates I-LOC\n. O",
+        notes: "Authors’ Figshare release 10.6084/m9.figshare.5462500.v1 identifies the manual CoNLL annotations. Wikipedia article text has separate attribution and share-alike terms.",
         splits: ["all"],
         tasks: ["ner"],
         expected_docs: 145,
@@ -1741,14 +1741,14 @@ define_datasets! {
         entity_types: ["PER", "LOC", "ORG"],
         language: "en",
         domain: "reading_comprehension",
-        license: "CC-BY-4.0",
+        license: "Research",
         citation: "Chen et al. (2018)",
         paper_url: "https://aclanthology.org/D18-1016/",
         year: 2018,
         format: "JSONL",
         annotation_scheme: "CoNLLCoref",
         size_hint: "38k documents, includes singletons",
-        notes: "The public held-out split is validation (dev.jsonl), with 500 documents and singleton mentions.",
+        notes: "The authors limit the compilation to academic study and research and identify third-party copyrights. Provide an authorized local dev.jsonl (500 documents), including singletons. See https://preschool-lab.github.io/PreCo/.",
         splits: ["train", "validation"],
         tasks: ["coref"],
         hf_id: "coref-data/preco_raw",
@@ -1757,22 +1757,22 @@ define_datasets! {
     },
     LitBank {
         name: "LitBank",
-        description: "Literary coreference. 100 public-domain English fiction works (1719-1922) with ACE-style entities.",
-        url: "https://raw.githubusercontent.com/dbamman/litbank/master/coref/brat/1023_bleak_house_brat.ann",
+        description: "Literary coreference. 100 works of English fiction selected from Project Gutenberg under U.S. public-domain criteria (1719-1922) with ACE-style entities.",
+        url: "https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann",
         entity_types: ["PER", "LOC", "ORG", "GPE", "FAC", "VEH"],
         language: "en",
         domain: "literature",
         license: "CC-BY-4.0",
-        citation: "Bamman et al. (2019)",
-        paper_url: "https://aclanthology.org/P19-1353/",
-        year: 2019,
+        citation: "Bamman, Lewke and Mansoor (2020)",
+        paper_url: "https://aclanthology.org/2020.lrec-1.6/",
+        year: 2020,
         format: "BRAT",
         annotation_scheme: "Standoff",
-        size_hint: "100 novels, ~2k tokens each",
-        notes: "Focus on character coreference; includes event coref; public domain texts",
+        size_hint: "Registry sample: 1 book excerpt. Upstream corpus: 100 works, ~2k tokens each.",
+        notes: "The pinned release declares CC BY 4.0 for LitBank. Source-work rights depend on jurisdiction. The registry downloads one paired Bleak House excerpt. Legacy LitBank.cache annotations require the matching LitBank.txt beside them. Flat NER uses leftmost outermost mentions.",
         splits: ["all"],
         tasks: ["ner", "coref", "event_coref"],
-        expected_docs: 100,
+        expected_docs: 1,
         categories: [coref, literary],
     },
     ECBPlus {
@@ -4061,21 +4061,48 @@ define_datasets! {
         tasks: ["ner", "temporal"],
         categories: [ner],
     },
+    AnnoTimexSmoke {
+        name: "Anno TIMEX Smoke",
+        description: "Two repository-authored positive and negative temporal controls.",
+        url: "",
+        entity_types: ["TIMEX"],
+        language: "en",
+        domain: "synthetic",
+        license: "Repository terms",
+        format: "TIMEX JSONL",
+        splits: ["fixture"],
+        tasks: ["temporal"],
+        access_status: Local,
+        categories: [temporal],
+    },
+    AnnoTimexContrast {
+        name: "Anno TIMEX Contrast",
+        description: "Reviewed temporal contrasts drawn from original probes and public-domain texts in the United States.",
+        url: "",
+        entity_types: ["TIMEX"],
+        language: "en",
+        domain: "mixed",
+        license: "See scripts/qa/fixtures/timex-contrast/README.md",
+        format: "TIMEX JSONL",
+        splits: ["fixture"],
+        tasks: ["temporal"],
+        access_status: Local,
+        categories: [temporal],
+    },
     TimexRecognitionSentenceOriginal {
         name: "TIMEX Recognition (Sentence, Original)",
         description: "Sentence-level temporal extraction dataset with TIMEX spans (and optional EVENT/SIGNAL). Provided as HF rows with character offsets.",
-        url: "https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/resolve/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl",
+        url: "",
         entity_types: ["TIMEX", "EVENT", "SIGNAL"],
         language: "en",
         domain: "news",
-        license: "Research",
+        license: "TimeBank 1.2 source terms; derivative license unspecified",
         year: 2024,
         format: "HF-rows",
-        notes: "The pinned test split provides Unicode scalar offsets in time_expressions. Temporal evaluation scores the original spans. The generic token-level NER view also accepts older HF Viewer caches.",
+        notes: "The dataset card identifies TimeBank 1.2 (LDC2006T08) as its source and supplies no separate license. Stage an authorized local copy for original-span scoring. The generic NER reader also accepts older local HF Viewer caches.",
         splits: ["train", "validation", "test"],
         tasks: ["ner", "temporal", "events"],
-        hf_id: "mdg-nlp/timex-recognition-sentence-original",
-        access_status: HuggingFace,
+        access_status: DependsOnOther,
         categories: [ner, temporal],
     },
     TimeBank12 {
@@ -7490,13 +7517,13 @@ define_datasets! {
         entity_types: ["Party", "Date", "Amount", "Clause", "Jurisdiction"],
         language: "en",
         domain: "legal",
-        license: "CC-BY-4.0",
+        license: "Mixed: CUAD is CC-BY-4.0; third-party contract text has separate, unverified rights",
         citation: "Hendrycks et al. (2021)",
         paper_url: "https://arxiv.org/abs/2103.06268",
         year: 2021,
         format: "SQuAD JSON",
         size_hint: "510 contracts, 13k+ annotations, 41 clause types",
-        notes: "Official nested question/answer release: use anno_eval::eval::cuad::read for character spans and unanswerable questions. Token-level JSONL uses the generic NER loader.",
+        notes: "Official nested question/answer release: use anno_eval::eval::cuad::read for character spans and unanswerable questions. Token-level JSONL uses the generic NER loader. The Atticus Project disclaims warranties on underlying EDGAR contracts; verify rights before redistributing source passages. See https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information.",
         categories: [ner],
     },
 
@@ -9646,12 +9673,52 @@ impl DatasetId {
         )
     }
 
+    // Shared with the CI and bulk S3 cache filters. Each row contains the registry
+    // cache filename, permitted source (local or publisher), and legacy object aliases.
+    fn raw_source_rule(&self) -> Option<&'static str> {
+        include_str!("shared_cache_exclusions.tsv")
+            .lines()
+            .find_map(|row| {
+                let mut fields = row.split('\t');
+                let filename = fields.next()?;
+                let rule = fields.next()?;
+                (filename == self.cache_filename()).then_some(rule)
+            })
+    }
+
+    /// The current public mirrors do not establish raw redistribution rights. Researchers
+    /// can supply an authorized local copy using the normal dataset cache layout.
+    #[must_use]
+    pub fn requires_local_source(&self) -> bool {
+        self.raw_source_rule()
+            .is_some_and(|rule| rule != "publisher")
+    }
+
+    /// Dataset-specific exclusions for shared cache reads and writes. The LitBank pair
+    /// also needs attribution and a source-work rights check that the raw mirror lacks.
+    /// This policy does not establish permissions for other registry entries.
+    #[must_use]
+    pub fn excluded_from_shared_cache(&self) -> bool {
+        self.raw_source_rule().is_some()
+    }
+
+    /// Publication needs a reviewed artifact, matching rights and any required notices.
+    /// The current S3 writer packages only raw data and technical cache metadata.
+    /// No registry entry has such an approved publication package yet.
+    #[must_use]
+    pub const fn approved_for_shared_publication(&self) -> bool {
+        false
+    }
+
     /// Whether this dataset is currently automatable by our loader without manual intervention.
     ///
     /// This is intentionally conservative: it can be `false` for datasets that are “public”
     /// but do not offer a stable export path we can consume yet.
     #[must_use]
     pub fn is_automatable_download(&self) -> bool {
+        if self.requires_local_source() {
+            return false;
+        }
         // Hard exclusions (known to fail under current loader automation).
         //
         // These datasets have HuggingFace or direct URLs that pass the heuristic checks
@@ -9707,5 +9774,33 @@ impl DatasetId {
             ".tgz",
         ];
         EXT_OK.iter().any(|ext| url.ends_with(ext))
+    }
+}
+
+#[cfg(test)]
+mod source_rights_tests {
+    use super::DatasetId;
+
+    #[test]
+    fn source_rights_route_conformance() {
+        use DatasetId::{LitBank, PreCo, TimeBank12, TimexRecognitionSentenceOriginal, CUAD};
+        // Reviewed witnesses are intentionally independent of the registry's source table.
+        for (source, local_only) in [
+            (PreCo, true),
+            (TimeBank12, true),
+            (TimexRecognitionSentenceOriginal, true),
+            (LitBank, false),
+            (CUAD, false),
+        ] {
+            assert_eq!(source.requires_local_source(), local_only, "{source:?}");
+            assert!(source.excluded_from_shared_cache(), "{source:?}");
+            if local_only {
+                assert!(!source.is_automatable_download(), "{source:?}");
+            }
+        }
+        // The writer currently sends raw files without source-specific notice packages.
+        assert!(DatasetId::all()
+            .iter()
+            .all(|id| !id.approved_for_shared_publication()));
     }
 }

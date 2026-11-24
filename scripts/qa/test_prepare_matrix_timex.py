@@ -9,33 +9,31 @@ import prepare_matrix_timex as timex
 
 
 class PrepareTimexTest(unittest.TestCase):
-    def test_stale_manifest_and_repeated_preparation(self):
+    def test_local_source_replaces_only_its_own_manifest_entry(self):
         data = b"verified test input"
-        digest = sha256(data).hexdigest()
-
-        def download(args, *, check):
-            self.assertTrue(check)
-            Path(args[args.index("-o") + 1]).write_bytes(data)
-
         with TemporaryDirectory() as tmp, patch.object(timex, "SIZE", len(data)), \
-                patch.object(timex, "DIGEST", digest), patch.object(timex.subprocess, "run", download):
+                patch.object(timex, "DIGEST", sha256(data).hexdigest()):
             directory = Path(tmp)
+            source = directory / "licensed-local-input"
+            source.write_bytes(data)
             manifest = directory / "manifest.json"
             manifest.write_text(json.dumps({"version": 1, "entries": {
                 timex.NAME: {"source_url": "old"}, "other.cache": {"unrelated": True}}}))
-            timex.prepare(directory)
-            self.assertEqual((directory / timex.NAME).read_bytes(), data)
+            timex.prepare(directory, source)
+            corpus = directory / timex.NAME
+            self.assertEqual(corpus.read_bytes(), data)
             self.assertEqual(json.loads(manifest.read_text())["entries"], {"other.cache": {"unrelated": True}})
-            with patch.object(timex.subprocess, "run", side_effect=AssertionError("unnecessary download")):
-                timex.prepare(directory)
+            original_inode = corpus.stat().st_ino
+            timex.prepare(directory, corpus)
+            self.assertEqual(corpus.stat().st_ino, original_inode)
 
-    def test_rejects_corrupt_download(self):
-        def corrupt(args, *, check):
-            Path(args[args.index("-o") + 1]).write_bytes(b"bad")
-
-        with TemporaryDirectory() as tmp, patch.object(timex, "SIZE", 3), \
-                patch.object(timex.subprocess, "run", corrupt):
+    def test_invalid_source_leaves_existing_cache_alone(self):
+        with TemporaryDirectory() as tmp, patch.object(timex, "SIZE", 3):
             directory = Path(tmp)
+            source = directory / "incoming"
+            source.write_bytes(b"bad")
+            corpus = directory / timex.NAME
+            corpus.write_bytes(b"existing")
             with self.assertRaisesRegex(ValueError, "SHA-256"):
-                timex.prepare(directory)
-            self.assertEqual(list(directory.iterdir()), [])
+                timex.prepare(directory, source)
+            self.assertEqual(corpus.read_bytes(), b"existing")

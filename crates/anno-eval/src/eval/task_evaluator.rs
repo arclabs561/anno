@@ -154,6 +154,17 @@ enum CachedBackend {
     UniversalNER(anno::backends::universal_ner::UniversalNER),
 }
 
+/// Mention proposals supplied to an entity-based resolver in predicted-mention evaluation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CorefPredictedMentions {
+    /// Use the backend's usual detector.
+    #[default]
+    BackendDefault,
+    /// Supplement NER output with the native English pronominal mention detector.
+    NerWithEnglishPronouns,
+}
+
 /// Configuration for task evaluation.
 #[derive(Serialize, Deserialize)]
 pub struct TaskEvalConfig {
@@ -193,6 +204,17 @@ pub struct TaskEvalConfig {
     /// This is critical for datasets like CorefUD where mentions include pronouns/nominals
     /// and empty nodes (zero anaphora) that typical NER backends do not emit.
     pub coref_use_gold_mentions: bool,
+    /// Experimental input policy for entity-based resolvers. Incompatible with gold input.
+    #[serde(default)]
+    pub coref_predicted_mentions: CorefPredictedMentions,
+}
+
+impl TaskEvalConfig {
+    fn experimental_coref_policy(&self, task: Task) -> Option<CorefPredictedMentions> {
+        (matches!(task, Task::IntraDocCoref | Task::AbstractAnaphora)
+            && self.coref_predicted_mentions != CorefPredictedMentions::BackendDefault)
+            .then_some(self.coref_predicted_mentions)
+    }
 }
 
 impl Default for TaskEvalConfig {
@@ -211,6 +233,7 @@ impl Default for TaskEvalConfig {
             confidence_intervals: true, // Default to true for better reporting
             custom_coref_resolver: None,
             coref_use_gold_mentions: false,
+            coref_predicted_mentions: Default::default(),
         }
     }
 }
@@ -230,6 +253,7 @@ impl std::fmt::Debug for TaskEvalConfig {
             .field("temporal_stratification", &self.temporal_stratification)
             .field("confidence_intervals", &self.confidence_intervals)
             .field("coref_use_gold_mentions", &self.coref_use_gold_mentions)
+            .field("coref_predicted_mentions", &self.coref_predicted_mentions)
             .field(
                 "custom_coref_resolver",
                 &if self.custom_coref_resolver.is_some() {
@@ -884,6 +908,7 @@ impl TaskEvaluator {
                 confidence_intervals: input.config.confidence_intervals,
                 robustness: input.config.robustness,
                 relation_threshold: input.config.relation_threshold,
+                coref_predicted_mentions: input.config.experimental_coref_policy(input.task),
                 ner_inference: Self::ner_inference_provenance(
                     input.task,
                     input.effective_backend_name,
@@ -900,6 +925,7 @@ impl TaskEvaluator {
                 input.config.max_examples,
                 input.config.require_cached,
                 input.config.coref_use_gold_mentions,
+                input.config.coref_predicted_mentions,
             ),
             ner_label_policy: input.ner_label_policy,
         };
@@ -969,6 +995,7 @@ impl TaskEvaluator {
                 confidence_intervals: config.confidence_intervals,
                 robustness: config.robustness,
                 relation_threshold: config.relation_threshold,
+                coref_predicted_mentions: config.experimental_coref_policy(task),
                 scheduling: EvaluationScheduling::NotRun {
                     reason: reason.to_string(),
                 },
@@ -984,6 +1011,7 @@ impl TaskEvaluator {
                 config.max_examples,
                 config.require_cached,
                 config.coref_use_gold_mentions,
+                config.coref_predicted_mentions,
             ),
             ner_label_policy: None,
         };
@@ -1334,7 +1362,7 @@ impl TaskEvaluator {
             | "gliner_candle" | "gliner_multitask" | "gliner_pii" | "gliner_relex" | "w2ner"
             | "gliner_poly" | "deberta_v3" | "albert" | "universal_ner" => true,
             // Pattern only does structured entities (not named entities)
-            "pattern" => dataset == DatasetId::TimexRecognitionSentenceOriginal,
+            "pattern" => dataset.has_timex_span_reader(),
             // Heuristic only does Person, Organization, Location
             "heuristic" => {
                 let supported = [
@@ -2847,9 +2875,17 @@ impl TaskEvaluator {
             Entities(std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver>),
         }
         let name = canonical_coref_name(task, backend_name);
+        let supplement_pronouns =
+            config.coref_predicted_mentions == CorefPredictedMentions::NerWithEnglishPronouns;
+        if supplement_pronouns && config.coref_use_gold_mentions {
+            return Err(crate::Error::InvalidInput("English pronoun proposals require predicted mentions; gold mentions were also requested".into()));
+        }
         let resolver = if let Some(custom) = &config.custom_coref_resolver {
             Resolver::Entities(custom.clone())
         } else if name == "fcoref" {
+            if supplement_pronouns {
+                return Err(crate::Error::FeatureNotAvailable("FCoref detects mentions from raw text and cannot accept English pronoun proposals".into()));
+            }
             if config.coref_use_gold_mentions {
                 return Err(crate::Error::FeatureNotAvailable(
                     "FCoref detects mentions from raw text and cannot evaluate gold mentions"
@@ -2894,6 +2930,13 @@ impl TaskEvaluator {
             // Collect gold chains from the document
             all_gold_chains.extend(offset_chains(doc.chains.clone(), doc_base));
 
+            let mut input_spans = None;
+            let mut resolve_entities =
+                |resolver: &dyn crate::eval::coref_resolver::CoreferenceResolver,
+                 entities: &[crate::Entity]| {
+                    input_spans = Some(entities.iter().map(|e| (e.start(), e.end())).collect());
+                    entities_to_chains(&resolver.resolve(entities))
+                };
             let predicted_chains = match &resolver {
                 Resolver::Text(backend) => {
                     use crate::eval::coref::{CorefChain, Mention};
@@ -2962,8 +3005,7 @@ impl TaskEvaluator {
                     // Clusters may group distant mentions together. Expose only document
                     // order to a resolver that uses previous mentions as antecedents.
                     gold_entities.sort_by_key(|entity| (entity.start(), entity.end()));
-                    let resolved_entities = resolver.resolve(&gold_entities);
-                    entities_to_chains(&resolved_entities)
+                    resolve_entities(resolver.as_ref(), &gold_entities)
                 }
                 Resolver::Entities(resolver) => {
                     // End-to-end mode: extract mentions via NER backend, then cluster.
@@ -2975,13 +3017,17 @@ impl TaskEvaluator {
                     };
                     let ner_backend = BackendFactory::create(ner_backend_name)?;
 
-                    let entities = ner_backend.extract_entities(&doc.text, None).map_err(|e| {
+                    let mut entities = ner_backend.extract_entities(&doc.text, None).map_err(|e| {
                         crate::Error::Inference(format!(
                             "NER backend '{ner_backend_name}' inference failed for coreference document {:?}: {e}",
                             doc.doc_id
                         ))
                     })?;
-                    entities_to_chains(&resolver.resolve(&entities))
+                    if supplement_pronouns {
+                        anno::backends::coref::mention_ranking::MentionRankingCoref::new()
+                            .supplement_with_pronouns(&doc.text, &mut entities)?;
+                    }
+                    resolve_entities(resolver.as_ref(), &entities)
                 }
             };
 
@@ -2999,7 +3045,7 @@ impl TaskEvaluator {
                     fs.missing_mentions_in_multiwindow_chains;
             }
 
-            blanc.add_document(&predicted_chains, &doc.chains);
+            blanc.add_document_with_inputs(&predicted_chains, &doc.chains, input_spans.as_ref());
             all_predicted_chains.extend(offset_chains(predicted_chains, doc_base));
         }
 
@@ -3012,6 +3058,22 @@ impl TaskEvaluator {
 
         let mut metrics = HashMap::new();
         metrics.insert("num_docs".to_string(), gold_docs.len() as f64);
+        let links = blanc.coreferent_links();
+        metrics.insert("matched_coref_links".into(), links.matched as f64);
+        metrics.insert("predicted_coref_links".into(), links.predicted as f64);
+        metrics.insert("gold_coref_links".into(), links.gold as f64);
+        if let Some(inputs) = blanc.resolver_inputs() {
+            metrics.insert("input_mentions".into(), inputs.proposed_mentions as f64);
+            metrics.insert(
+                "matched_input_mentions".into(),
+                inputs.matched_mentions as f64,
+            );
+            metrics.insert("gold_mentions".into(), inputs.gold_mentions as f64);
+            metrics.insert(
+                "reachable_gold_links".into(),
+                inputs.reachable_gold_links as f64,
+            );
+        }
         metrics.insert("muc_precision".to_string(), eval.muc.precision);
         metrics.insert("muc_recall".to_string(), eval.muc.recall);
         metrics.insert("muc_f1".to_string(), eval.muc.f1);
@@ -4844,6 +4906,66 @@ mod tests {
     }
 
     #[test]
+    fn english_pronoun_proposals_reach_the_resolver_only_when_selected() {
+        struct CheckInput(bool);
+        impl crate::eval::coref_resolver::CoreferenceResolver for CheckInput {
+            fn name(&self) -> &'static str {
+                "check_pronouns"
+            }
+
+            fn resolve(&self, entities: &[crate::Entity]) -> Vec<crate::Entity> {
+                assert_eq!(
+                    entities
+                        .iter()
+                        .any(|e| (e.start(), e.end(), e.text.as_str()) == (0, 3, "She")),
+                    self.0
+                );
+                entities.to_vec()
+            }
+        }
+
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        std::fs::write(
+            cache.path().join(DatasetId::PreCo.cache_filename()),
+            r#"{"id":"pronouns","sentences":[["She","left","."]],"mention_clusters":[[[0,0,1]]]}"#,
+        )
+        .unwrap();
+        // A model-enabled stacked backend can already propose this pronoun.
+        // Measure its input on the same source; supplementing must be additive.
+        let baseline_has_pronoun = BackendFactory::create("stacked")
+            .unwrap()
+            .extract_entities("She left .", None)
+            .unwrap()
+            .iter()
+            .any(|e| (e.start(), e.end(), e.text.as_str()) == (0, 3, "She"));
+        for policy in [
+            CorefPredictedMentions::BackendDefault,
+            CorefPredictedMentions::NerWithEnglishPronouns,
+        ] {
+            let enabled = policy == CorefPredictedMentions::NerWithEnglishPronouns;
+            let run = evaluator
+                .evaluate_all(TaskEvalConfig {
+                    tasks: vec![Task::IntraDocCoref],
+                    datasets: vec![DatasetId::PreCo],
+                    backends: vec!["coref_resolver".into()],
+                    require_cached: true,
+                    coref_predicted_mentions: policy,
+                    custom_coref_resolver: Some(std::sync::Arc::new(CheckInput(
+                        baseline_has_pronoun || enabled,
+                    ))),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert!(run.results[0].success, "{:?}", run.results[0].error);
+            assert_eq!(
+                run.results[0].provenance.runtime.coref_predicted_mentions,
+                enabled.then_some(policy)
+            );
+        }
+    }
+
+    #[test]
     fn gold_mentions_reach_the_resolver_in_document_order() {
         struct CheckInputOrder;
 
@@ -4856,7 +4978,7 @@ mod tests {
                 let spans: Vec<_> = entities.iter().map(|e| (e.start(), e.end())).collect();
                 assert_eq!(spans, [(0, 3), (0, 9), (14, 17), (22, 25)]);
                 assert!(entities.iter().all(|e| e.canonical_id.is_none()));
-                entities.to_vec()
+                Vec::new()
             }
         }
 
@@ -4880,6 +5002,14 @@ mod tests {
             .unwrap();
         assert_eq!(report.results.len(), 1);
         assert!(report.results[0].success, "{:?}", report.results[0].error);
+        let metrics = &report.results[0].metrics;
+        assert_eq!(metrics["input_mentions"], 4.0);
+        assert_eq!(metrics["matched_input_mentions"], 4.0);
+        assert_eq!(metrics["gold_mentions"], 4.0);
+        assert_eq!(metrics["reachable_gold_links"], 1.0);
+        assert_eq!(metrics["gold_coref_links"], 1.0);
+        assert_eq!(metrics["predicted_coref_links"], 0.0);
+        assert_eq!(metrics["matched_coref_links"], 0.0);
     }
 
     #[test]
@@ -4915,6 +5045,25 @@ mod tests {
             Some(EvalSkipReason::CapabilityUnavailable)
         );
         assert!(report.results[0].is_skipped());
+        let mut supplemented = config();
+        supplemented.coref_use_gold_mentions = false;
+        supplemented.coref_predicted_mentions = CorefPredictedMentions::NerWithEnglishPronouns;
+        let run = evaluator.evaluate_all(supplemented).unwrap();
+        assert!(run.results[0].is_skipped());
+        assert!(run.results[0]
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("cannot accept English pronoun proposals"));
+        let mut conflicting = config();
+        conflicting.coref_predicted_mentions = CorefPredictedMentions::NerWithEnglishPronouns;
+        let run = evaluator.evaluate_all(conflicting).unwrap();
+        assert!(run.results[0]
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("gold mentions were also requested"));
+        assert!(run.results[0].provenance.policy_cohort_key.is_none());
         #[cfg(not(feature = "onnx"))]
         {
             let mut predicted_mentions = config();

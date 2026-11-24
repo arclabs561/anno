@@ -1,0 +1,3 @@
+# These local dataset identities verify the exact bytes of the staged source.
+scripts/qa/fixtures/matrix-smoke-timex.jsonl text eol=lf
+scripts/qa/fixtures/timex-contrast/rows.jsonl text eol=lf

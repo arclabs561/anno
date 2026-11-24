@@ -152,6 +152,7 @@ pub(crate) fn policy_cohort_key(
     max_examples: Option<usize>,
     cached_only: bool,
     coref_use_gold_mentions: bool,
+    coref_predicted_mentions: crate::eval::task_evaluator::CorefPredictedMentions,
 ) -> Option<String> {
     let build = current_build_provenance();
     serde_json::to_string(&PolicyCohortConditions {
@@ -164,9 +165,11 @@ pub(crate) fn policy_cohort_key(
         // Legacy coreference rows did not record whether the resolver received gold mentions.
         scorer: match task {
             Task::Temporal => "anno-timex-source-spans-v1",
+            Task::IntraDocCoref | Task::AbstractAnaphora if coref_use_gold_mentions && coref_predicted_mentions != crate::eval::task_evaluator::CorefPredictedMentions::BackendDefault => return None,
             Task::IntraDocCoref | Task::AbstractAnaphora if coref_use_gold_mentions => {
                 "anno-coref-gold-mentions-document-order-v1"
             }
+            Task::IntraDocCoref | Task::AbstractAnaphora if coref_predicted_mentions == crate::eval::task_evaluator::CorefPredictedMentions::NerWithEnglishPronouns => "anno-coref-ner-with-english-pronouns-v1",
             Task::IntraDocCoref | Task::AbstractAnaphora => "anno-coref-predicted-mentions-v1",
             _ => "anno-eval-primary-score-v1",
         },
@@ -182,16 +185,42 @@ mod tests {
 
     #[test]
     fn policy_cohort_allows_repeated_seed_coverage() {
-        let first = policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(20), true, false);
-        let replay = policy_cohort_key(Task::NER, DatasetId::WikiGold, 73, Some(20), true, false);
+        let first = policy_cohort_key(
+            Task::NER,
+            DatasetId::WikiGold,
+            42,
+            Some(20),
+            true,
+            false,
+            Default::default(),
+        );
+        let replay = policy_cohort_key(
+            Task::NER,
+            DatasetId::WikiGold,
+            73,
+            Some(20),
+            true,
+            false,
+            Default::default(),
+        );
         assert_eq!(first, replay);
     }
 
     #[test]
     fn coref_cohorts_distinguish_mention_sources_and_legacy_rows() {
         for task in [Task::IntraDocCoref, Task::AbstractAnaphora] {
-            let key =
-                |gold| policy_cohort_key(task, DatasetId::PreCo, 42, Some(5), true, gold).unwrap();
+            let key = |gold| {
+                policy_cohort_key(
+                    task,
+                    DatasetId::PreCo,
+                    42,
+                    Some(5),
+                    true,
+                    gold,
+                    Default::default(),
+                )
+                .unwrap()
+            };
             let predicted = key(false);
             let supplied = key(true);
             let mut legacy: serde_json::Value = serde_json::from_str(&predicted).unwrap();
@@ -203,8 +232,30 @@ mod tests {
                 );
             }
             assert_ne!(predicted, supplied);
+            let supplemented = policy_cohort_key(
+                task,
+                DatasetId::PreCo,
+                42,
+                Some(5),
+                true,
+                false,
+                crate::eval::task_evaluator::CorefPredictedMentions::NerWithEnglishPronouns,
+            )
+            .unwrap();
+            assert_ne!(predicted, supplemented);
+            assert_ne!(supplied, supplemented);
         }
-        let ner = |gold| policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(5), true, gold);
+        let ner = |gold| {
+            policy_cohort_key(
+                Task::NER,
+                DatasetId::WikiGold,
+                42,
+                Some(5),
+                true,
+                gold,
+                Default::default(),
+            )
+        };
         assert_eq!(ner(false), ner(true));
     }
 }
@@ -434,6 +485,9 @@ pub struct EvalRuntimeProvenance {
     pub robustness: bool,
     /// Relation confidence threshold in effect for relation tasks.
     pub relation_threshold: f32,
+    /// Requested experimental mention policy, when selected for a coreference task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coref_predicted_mentions: Option<crate::eval::task_evaluator::CorefPredictedMentions>,
     /// NER inference controls observed by this evaluator.
     pub ner_inference: NerInferenceProvenance,
     /// Observed sentence scheduling and actual worker participation.

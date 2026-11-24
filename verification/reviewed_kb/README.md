@@ -18,3 +18,5 @@ bash scripts/verification/check_reviewed_kb.sh
 | [Invalidation mutation](../../scripts/verification/check_review_invalidation.py) | The unchanged code failed its positive control, or a test failed to detect removing invalidation from the production mutation gateway in a temporary source copy. |
 
 When adding a corpus writer, obtain mutable storage through the private state module. Add a concrete action to the Rust sequence test when the writer introduces a new way to invalidate or preserve a review. Change the SMT transitions when the observable contract changes. The model assumes the implementation invalidates its revision correctly and finds all members. The concrete Rust checks exercise those assumptions.
+
+The project-authored models, verification code and synthetic seed fixtures use the repository's `MIT OR Apache-2.0` license. Source rights for other corpora and the seed admission properties are documented separately. [Source-rights verification](../source_rights/README.md)

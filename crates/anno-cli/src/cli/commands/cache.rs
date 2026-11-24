@@ -42,10 +42,7 @@ pub enum CacheAction {
         file: Option<String>,
     },
 
-    /// Upload cached datasets to S3 (best-effort).
-    ///
-    /// This is useful when you have a warm local cache and want to periodically refresh the
-    /// shared S3 cache used by CI.
+    /// Publish approved dataset packages to S3. Raw caches have no reviewed packages yet.
     #[cfg(feature = "eval")]
     SyncS3 {
         /// S3 bucket name (defaults to `ANNO_S3_BUCKET` or `arc-anno-data`).
@@ -299,12 +296,24 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
                 entries.retain(|e| wanted_keys.contains(e.dataset_id.as_str()));
             }
 
+            entries.retain(|entry| {
+                if DatasetId::from_cache_filename(&entry.dataset_id)
+                    .is_some_and(|id| !id.approved_for_shared_publication())
+                {
+                    eprintln!(
+                        "Skip {}: no reviewed artifact and notice package for shared cache publication",
+                        entry.dataset_id
+                    );
+                    return false;
+                }
+                true
+            });
             if let Some(lim) = limit {
                 entries.truncate(lim);
             }
 
             if entries.is_empty() {
-                println!("No cached datasets found in manifest; nothing to upload.");
+                println!("No eligible cached datasets to upload.");
                 return Ok(());
             }
 
