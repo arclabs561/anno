@@ -12,6 +12,8 @@ Use this panel to ask whether a change recovers exact entity mentions across sub
 
 The [source catalog](../scripts/qa/domain-sources.json) lists exact upstream files, revisions and hashes. Keep datasets, generated fixtures and predictions local. Upstream data terms apply to reuse of the texts.
 
+The Atticus Project licenses CUAD under CC BY 4.0 and disclaims warranties on the underlying third-party agreements. Its source is SEC EDGAR. The CUAD manifest credits the dataset and describes how the labels were adapted. Keep contract windows and predictions that reproduce them in local replay. Sharing complete passages requires a separate basis for the underlying contract and a check for incidental names, signatures, addresses or contact details. The CI artifact contains counts, provenance and hashes. [CUAD v1](https://doi.org/10.5281/zenodo.4595826) · [Publisher’s terms](https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information)
+
 ## Prepare the fixtures
 
 The fetch command is optional and makes network requests. To work offline, place the exact source files in the data directory under the filenames from the catalog. For CUAD, use the archive's `test.json` as `cuad.json`. Preparation always checks the uncompressed file hashes.
