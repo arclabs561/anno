@@ -2832,10 +2832,12 @@ fn run_info(dataset: &str) -> Result<(), String> {
             // Check if loadable
             println!();
             if loadable_match.is_some() {
-                println!(
-                    "  Status: {} (can be downloaded)",
-                    color("1;32", "Loadable")
-                );
+                let access = if registry_id.requires_local_source() {
+                    "requires a local source"
+                } else {
+                    registry_id.access_status().as_str()
+                };
+                println!("  Status: {} ({access})", color("1;32", "Loadable"));
 
                 // Try to load and show stats if `eval` is enabled
                 #[cfg(feature = "eval")]

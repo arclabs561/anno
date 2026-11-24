@@ -285,6 +285,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
     match task {
         Task::NER => &[
             DatasetId::WikiGold,
+            DatasetId::AnnoNerSmoke,
             DatasetId::Wnut17,
             DatasetId::MitMovie,
             DatasetId::MitRestaurant,

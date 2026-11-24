@@ -67,6 +67,21 @@ range `8..23`. The document includes the exact text used for extraction. Keep
 your source document ID and revision alongside this file. For a compact entity
 list use `--format json`. [Offset and provenance contract](CONTRACT.md)
 
+## Review a catalog link from a source mention
+
+This Rust example opens an original synthetic quay log. Two occurrences of “Ora Venn” start with the same catalog key. Inspect the proposal for the occurrence that signed the cargo log, then choose whether to apply it. Run these commands from the repository root.
+
+```sh
+review_mention() { cargo run --quiet --locked -p anno --no-default-features --example review_mention -- "$@"; }
+review_mention preview
+review_mention review > correction.json
+review_mention show < correction.json
+```
+
+During `review`, read the source, selected occurrence, and affected tracks in the terminal. Enter `apply` or `defer`, then enter your reason on the next line. The same process holds the live proposal until you decide. For example, applying with the reason “The selected occurrence signed the cargo log” changes its binding to `quay-catalog/clerk`. Deferring with “The signature alone is inconclusive” keeps `quay-catalog/musician`. The other occurrence keeps its original binding in both cases.
+
+The caller saves the grounded document, the selected source occurrence, the recorded origin of its prior identity, the reader’s reason, and the decision together. The saved quote, Unicode scalar range, and source-text digest let a later reader check which occurrence was reviewed. Only an applied decision contains a write receipt. The example file represents one decision on one document. [Example source](../crates/anno/examples/review_mention.rs) · [Catalog write contract](CONTRACT.md#grouping-flat-entities)
+
 ## CLI: redact a document
 
 `anno extract --threshold` filters which entities appear in the extraction

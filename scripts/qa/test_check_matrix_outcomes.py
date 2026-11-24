@@ -4,7 +4,7 @@ import unittest
 
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_wikigold
+from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -68,12 +68,18 @@ class CoverageTest(unittest.TestCase):
         self.assertNotIn("heuristic", output.getvalue())
 
     def test_smoke_requires_exact_fixture_result(self):
-        row = dict(outcome("ner"), backend="heuristic", dataset="WikiGold", primary_f1=1.0)
+        row = dict(outcome("ner"), backend="heuristic", dataset="AnnoNerSmoke", primary_f1=1.0)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            self.assertTrue(check_wikigold([json.dumps(row)]))
-            self.assertFalse(check_wikigold([]))
-            for mutation in ({"primary_f1": 0.0}, {"backend": "crf"}, {"cost_units": 0}):
-                self.assertFalse(check_wikigold([json.dumps(row | mutation)]))
+            self.assertTrue(check_ner_smoke([json.dumps(row)]))
+            self.assertFalse(check_ner_smoke([]))
+            for mutation in ({"primary_f1": 0.0}, {"backend": "crf"}, {"cost_units": 0}, {"dataset": "WikiGold"}):
+                self.assertFalse(check_ner_smoke([json.dumps(row | mutation)]))
+
+    def test_wikigold_bootstrap_requires_real_dataset_identity(self):
+        row = dict(outcome("ner", examples=5), backend="heuristic", dataset="WikiGold")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertTrue(check_wikigold_bootstrap([json.dumps(row)]))
+            self.assertFalse(check_wikigold_bootstrap([json.dumps(row | {"dataset": "AnnoNerSmoke"})]))
 
     def test_public_timex_requires_a_valid_f1_over_the_whole_split(self):
         dataset = "TimexRecognitionSentenceOriginal"

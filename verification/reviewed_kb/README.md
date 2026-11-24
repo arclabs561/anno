@@ -10,6 +10,7 @@ bash scripts/verification/check_reviewed_kb.sh
 
 | Check | What a failure tells you |
 |---|---|
+| [Reader correction](../../scripts/verification/check_review_mention.py) | A saved apply or deferral disagrees with the selected source mention, the other namesake, or the catalog binding read in a fresh process. [Try the example](../../docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention) |
 | [Assignment scope](../../crates/anno/tests/reviewed_kb_assignment.rs) | The Rust API reported the wrong members, changed a binding outside the receipt, or accepted a stale or ambiguous assignment. The fixture includes distinct identities with identical catalog keys and labels. |
 | [Action sequences](../../crates/anno/tests/reviewed_kb_sequences.rs) | An actual edit, review or apply disagreed with the independent oracle. The test tries all 4,681 sequences of up to four actions from an eight-action alphabet on a two-document corpus. The failing prefix identifies the operations to reproduce. |
 | [Shared fuzz seeds](../../crates/anno/tests/reviewed_kb_seeds.rs) | A retained operation trace changed the wrong binding or produced an unexpected review outcome on a corpus containing both local and shared identities. [Run a local campaign or promote a minimized input](../../fuzz/README.md) |

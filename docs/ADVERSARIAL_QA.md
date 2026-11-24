@@ -110,6 +110,19 @@ On 1,696 WikiGold sentences the ordinary rendering produced identical prediction
 
 For a policy comparison, give the seeded random control the same candidate set, starting history and budget. For a historical blind replay, give the scout a pre-fix revision, withhold the patch and its tests, and count distinct rediscovered failures per runner-minute. Use a fresh case when the agent has already seen the public fix.
 
+### Replay a price-span regression
+
+A typography trial generated eight variants of each of 16 labeled documents across eight domains. With a budget of 16 probes, Muxer's domain selector and balanced round-robin each found a failure in 17 of the same 24 orderings. Across all 128 variants, the stacked extractor missed three prices with narrow no-break spacing and five dates with nonbreaking hyphens. Domain selection showed no discovery advantage on this panel. The orderings reused the same documents.
+
+The reviewed `currency-print-spacing` case pairs one exact price with a bare currency sign followed by punctuation. The old CLI failed both assertions on two replays. After fixing price boundaries, the same case passed after restoring the checkpoint into an empty cache. To replay it against a local CLI, run:
+
+```sh
+ANNO_BIN=target/debug/anno python3 scripts/qa/replay_feedback.py \
+  --cache-dir /tmp/anno-price-replay observe typed_spans currency-print-spacing
+```
+
+The separate date candidate recovered printed dates and also mislabeled date-shaped identifiers. Both outcomes are recorded in [the date issue](https://github.com/arclabs561/anno/issues/295).
+
 ## Start from a measured muxer outcome
 
 Pass the sampler's decision JSONL directly to the coordinator. The same analysis runs on a completed matrix slot. A low score with few reachable gold links prompts a mention-proposal experiment. If most gold links are reachable, the brief quantifies a lower bound on missed reachable links and suggests holding proposals fixed. Temporal near misses prompt a reference-decoder comparison. A sample without gold-empty sentences calls for a separate negative control.
