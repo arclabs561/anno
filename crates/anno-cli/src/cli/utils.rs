@@ -192,6 +192,26 @@ pub fn parse_grounded_document(json: &str) -> Result<GroundedDocument, String> {
         .map_err(|e| format_error("parse GroundedDocument JSON", &e.to_string()))
 }
 
+/// Keep raw inputs addressable by their inferred document IDs.
+pub(super) fn register_document_source(
+    sources: &mut HashMap<String, String>,
+    id: &str,
+    source: impl Into<String>,
+) -> Result<(), String> {
+    use std::collections::hash_map::Entry;
+    match sources.entry(id.to_owned()) {
+        Entry::Vacant(entry) => {
+            entry.insert(source.into());
+            Ok(())
+        }
+        Entry::Occupied(entry) => Err(format!(
+            "Duplicate document ID {id:?} for {} and {}. Cross-document inputs need distinct document IDs.",
+            entry.get(),
+            source.into(),
+        )),
+    }
+}
+
 /// Format error message consistently
 pub fn format_error(operation: &str, details: &str) -> String {
     format!("Failed to {}: {}", operation, details)
@@ -580,7 +600,7 @@ fn validate_coref_clusters(
 
 /// Attach demo KB-style identities to tracks.
 ///
-/// This is a debug-only helper used by `anno debug --link-kb`.
+/// Existing KB assignments remain authoritative when running the offline demo linker.
 /// It is **offline** and does **not** query a real knowledge base.
 pub fn link_tracks_to_kb(doc: &mut GroundedDocument) {
     // Small embedded demo table (no claim of completeness).
@@ -642,6 +662,12 @@ pub fn link_tracks_to_kb(doc: &mut GroundedDocument) {
     let track_ids: Vec<TrackId> = doc.tracks().map(|t| t.id).collect();
 
     for track_id in track_ids {
+        if doc
+            .identity_for_track(track_id)
+            .is_some_and(|identity| identity.kb_id.is_some())
+        {
+            continue;
+        }
         let (canonical, entity_type) = {
             let track = match doc.get_track(track_id) {
                 Some(t) => t,
@@ -766,6 +792,21 @@ pub fn get_config_dir() -> Result<std::path::PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn demo_linking_preserves_an_existing_catalog_assignment() {
+        use anno::{GroundedDocument, Identity, Location, Signal};
+        let mut doc = GroundedDocument::new("office", "Berlin");
+        let signal = doc.add_signal(Signal::new(0, Location::text(0, 6), "Berlin", "LOC", 1.0));
+        let track = doc.create_track_from_signals("Berlin", &[signal]).unwrap();
+        let record = doc.add_identity(Identity::from_kb(0, "Berlin", "gazetteer", "17"));
+        doc.link_track_to_identity(track, record);
+        super::link_tracks_to_kb(&mut doc);
+        assert_eq!(
+            doc.identity_for_signal(signal).unwrap().qualified_kb_ref(),
+            Some(("gazetteer", "17"))
+        );
+    }
+
     #[test]
     fn malformed_coref_clusters_leave_prior_document_untouched() {
         use anno::backends::coref::resolve::CorefCluster;

@@ -1,8 +1,8 @@
 //! Own the corpus maps and their review revision together. Writers in sibling
 //! modules must go through `state_mut` to change a binding or hand out mutable access.
 
-use super::{GroundedDocument, Identity, IdentityId};
-use std::collections::HashMap;
+use super::{GroundedDocument, Identity, IdentityId, TrackId};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 /// A corpus of grounded documents for cross-document operations.
@@ -20,6 +20,9 @@ pub(super) struct CorpusData {
     pub(super) documents: HashMap<String, GroundedDocument>,
     pub(super) identities: HashMap<IdentityId, Identity>,
     pub(super) next_identity_id: IdentityId,
+    pub(super) resolver_identity_ids: HashSet<IdentityId>,
+    // Live handle -> submitted local ID, only for tracks rekeyed in the current edition.
+    pub(super) submitted_track_ids: HashMap<String, HashMap<TrackId, TrackId>>,
 }
 
 impl Clone for Corpus {

@@ -1,4 +1,4 @@
-"""Persist vetted reproductions for QA slots without changing native evaluator history."""
+"""Replay a named QA case locally or record a confirmed observation for a matrix slot."""
 
 from contextlib import closing
 import argparse
@@ -12,12 +12,17 @@ import sqlite3
 import subprocess
 import sys
 
+import replay_crossdoc_case
+import replay_crossdoc_native
 import replay_reviewed_kb
 import replay_typed_spans
 import replay_wikigold
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold}
+ADAPTERS = {
+    "crossdoc_cases": replay_crossdoc_case, "crossdoc_native": replay_crossdoc_native,
+    "reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold,
+}
 DB_NAME = "replay-feedback.db"
 MAX_WITNESSES = 512
 MAX_RECEIPT_BYTES = 2048
@@ -67,14 +72,14 @@ def validate_signature(adapter, outcome, signature):
         raise ValueError("unexpected replay success signature")
 
 
-def measured(adapter, root, case):
+def measured(adapter, root, case, *, confirm_failure=True):
     result = adapter.replay(root, case)
     if set(result) != {"outcome", "signature", "producer_sha256"}:
         raise ValueError("unexpected oracle result fields")
     validate_signature(adapter, result["outcome"], result["signature"])
     if not isinstance(result["producer_sha256"], str) or not re.fullmatch("[a-f0-9]{64}", result["producer_sha256"]):
         raise ValueError("missing producer digest")
-    if result["outcome"] == "fail":
+    if confirm_failure and result["outcome"] == "fail":
         if not result["signature"] or adapter.replay(root, case) != result:
             raise ValueError("failure was not confirmed by two matching replays")
     return result
@@ -93,7 +98,33 @@ def describe(adapter, root, case):
         raise ValueError("unexpected oracle description fields")
     if description["family"] != adapter.family_for_case(root, case):
         raise ValueError("unreviewed replay family")
+    if not all(isinstance(description[k], str) and re.fullmatch("[a-f0-9]{64}", description[k])
+               for k in ("source_sha256", "oracle_sha256")):
+        raise ValueError("case and oracle must be pinned by SHA-256")
     return description
+
+
+def replay_once(root, corpus, case):
+    """Measure the working copy without stamping a revision or modifying the replay ledger."""
+    adapter = ADAPTERS[corpus]
+    try:
+        before = describe(adapter, root, case)
+    except FileNotFoundError as exc:
+        cache = os.environ.get("ANNO_CACHE_DIR")
+        missing_dataset = not cache or exc.filename == str(Path(cache) / "datasets/WikiGold.cache")
+        if corpus == "wikigold" and missing_dataset:
+            return 3, {
+                "outcome": "unavailable",
+                "detail": "Set ANNO_CACHE_DIR to an authorized cache containing datasets/WikiGold.cache.",
+            }
+        raise
+    result = measured(adapter, root, case, confirm_failure=False)
+    if describe(adapter, root, case) != before:
+        raise ValueError("source or oracle changed during replay")
+    return int(result["outcome"] == "fail"), {
+        "corpus": corpus, "case": case, "source_sha256": before["source_sha256"],
+        "oracle_sha256": before["oracle_sha256"], **result,
+    }
 
 
 def observe(root, cache, corpus, case, selected=None):
@@ -101,10 +132,6 @@ def observe(root, cache, corpus, case, selected=None):
     revision = stamp(root)
     scope = adapter.SCOPE
     description = describe(adapter, root, case)
-    if not all(
-        re.fullmatch("[a-f0-9]{64}", description[k]) for k in ("source_sha256", "oracle_sha256")
-    ):
-        raise ValueError("case and oracle must be pinned by SHA-256")
     identity = {"corpus": corpus, "scope": scope, **description}
     witness = key(identity)
     if selected is not None and selected["id"] != witness:
@@ -300,9 +327,12 @@ def backup(source, target, root=ROOT):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--cache-dir", required=True, type=Path)
+    p.add_argument("--cache-dir", type=Path, help="required for replay ledger commands")
     p.add_argument("--repo", type=Path, default=ROOT)
     sub = p.add_subparsers(dest="command", required=True)
+    replay = sub.add_parser("replay", help="check a named case once offline, including uncommitted changes")
+    replay.add_argument("corpus", choices=sorted(ADAPTERS))
+    replay.add_argument("case")
     add = sub.add_parser("observe")
     add.add_argument("corpus", choices=sorted(ADAPTERS))
     add.add_argument("case")
@@ -310,7 +340,37 @@ def main():
     sub.add_parser("snapshot").add_argument("file", type=Path)
     sub.add_parser("restore").add_argument("file", type=Path)
     args = p.parse_args()
-    os.environ.setdefault("ANNO_CACHE_DIR", str(args.cache_dir.resolve()))
+    if args.cache_dir is not None:
+        os.environ.setdefault("ANNO_CACHE_DIR", str(args.cache_dir.resolve()))
+    elif args.command != "replay":
+        p.error(f"--cache-dir is required for {args.command}")
+
+    if args.command == "replay":
+        root = args.repo.resolve()
+        os.environ.update(ANNO_NO_DOWNLOADS="1", ANNO_S3_CACHE="0")
+        local_binary = root / "target/debug" / ("anno.exe" if os.name == "nt" else "anno")
+        if local_binary.is_file():
+            os.environ.setdefault("ANNO_BIN", str(local_binary))
+        # Child diagnostics can quote source documents. This CLI branch emits
+        # only its own JSON receipt, including on native tool errors.
+        with open(os.devnull, "wb") as sink:
+            os.dup2(sink.fileno(), 2)
+        try:
+            status, receipt = replay_once(root, args.corpus, args.case)
+        except FileNotFoundError:
+            status, receipt = 2, {
+                "outcome": "error",
+                "detail": "Check ANNO_BIN (or Cargo for reviewed_kb) and the checkout files.",
+            }
+        except Exception:
+            # At the public CLI boundary every execution or protocol error is
+            # distinct from a failed assertion, even for an unexpected tool error.
+            status, receipt = 2, {
+                "outcome": "error",
+                "detail": "Check the case name, pinned inputs and the local executable.",
+            }
+        print(json.dumps(receipt, sort_keys=True))
+        return status
     if args.command in ("snapshot", "restore"):
         ledger = args.cache_dir / DB_NAME
         if args.command == "snapshot":
@@ -328,4 +388,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

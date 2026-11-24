@@ -116,10 +116,16 @@ The loader verifies the fixture digest, and CI requires one completed
 pinned WikiGold release and records its own `WikiGold` result.
 
 External sampling restores the newest compatible checkpoint produced by this
-workflow on the default branch. The artifact contains muxer windows, evaluation
-JSONL, and its SQLite index. Checkpoints expire after 60 days. A new cohort
-starts when the history or provenance implementation changes. PRs can read
-this state. Only default-branch runs with new external observations publish it.
+workflow on the default branch. The artifact carries typed muxer windows,
+registered arm IDs, scores, observation IDs and a SQLite index rebuilt from
+the exported journal. Full evaluator receipts and diagnostic messages stay in
+the writer's cache. For repeated infrastructure failures, the exporter assigns
+a group to each distinct diagnostic within the run. Confirmed groups survive
+later exports. A new private diagnostic cannot confirm an older exported group,
+so a cell with one failure per run can remain eligible for ordinary retries.
+Checkpoints expire after 60 days. A new cohort starts when the history,
+provenance or export schema changes. PRs can read this state. Only
+default-branch runs with new external observations publish it.
 An active default-branch run can finish its checkpoint before the next run
 starts. A retry stays read-only if that run or a newer run already published
 the same cohort. Each retry retains its own sampling receipt.
@@ -137,6 +143,14 @@ the restored run and reports the first worst-first selection, its observed
 result, completed or missing coverage by task, and which dataset/backend pairs
 failed. The job log names the selected datasets and backends before evaluation
 starts, so an interrupted run can still identify its intended inputs.
+
+The Actions summary prints the evaluator checkout, features and a command for each recorded cell with replay coordinates. For example, replay the one-sentence checked-in NER control from the repository root:
+
+```sh
+python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic --seed 42 --max-examples 1
+```
+
+The helper stages checked-in controls in a fresh temporary cache. For an external cell, supply its authorized local dataset cache and any required model assets. The command fixes the measured task, backend, dataset, seed and example limit. A reported dataset digest checks the input version. For a WikiGold cache without a manifest, the loader recognizes the pinned public release by hashing the bytes it parsed. When CI has prepared that release, each scored WikiGold outcome must carry its digest. Without a digest or pinned model weights, a rerun can establish the cell’s current score but cannot establish identity with the original inputs.
 
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the
@@ -407,6 +421,11 @@ anno sampler --strategy random run --task intra-coref --fixed-datasets PreCo \
 Use separate decision files for the two runs. The sampler pools document-scoped chains for corpus CoNLL F1; the dataset CLI averages the individual document scores.
 
 ## Replay a reviewed corpus witness in a triage slot
+
+For a single developer replay use `just qa-replay typed_spans currency-print-spacing`
+or the fixed-cell command in the Actions matrix summary. The single-case command
+works on the current working tree. Use the ledger below to persist a confirmed
+outcome for future Muxer selections. [Local replay](QA.md#run-a-check)
 
 Native matrix history records which dataset/backend/task cells ran. A catalog
 operation trace instead checks a document-edit contract. Give it a separate

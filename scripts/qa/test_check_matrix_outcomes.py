@@ -4,7 +4,7 @@ import unittest
 
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
+from check_matrix_outcomes import RANDOM_TASKS, WIKIGOLD, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -67,6 +67,29 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("re / WikiGold / gliner_relex: backend (1)", output.getvalue())
         self.assertNotIn("heuristic", output.getvalue())
 
+    def test_resolved_replay_uses_requested_limit_and_loader_digest(self):
+        row = dict(outcome("ner", examples=1), dataset="AnnoNerSmoke", backend="heuristic",
+                   task="ner", max_examples=5, seed=913, dataset_sha256="a" * 64,
+                   coref_gold=False, coref_english_pronouns=False)
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(io.StringIO()):
+            self.assertTrue(check(map(json.dumps, [row, row]), report=True))
+        cmd = "python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic"
+        self.assertEqual(output.getvalue().count(cmd), 1)
+        self.assertIn(cmd + " --seed 913 --max-examples 5 --dataset-sha256 " + "a" * 64,
+                      output.getvalue())
+
+    def test_legacy_and_untrusted_fields_cannot_form_a_command(self):
+        row = dict(outcome("ner"), task="ner", dataset="WikiGold", backend="heuristic",
+                   max_examples=5, seed=42, coref_gold=False, coref_english_pronouns=False)
+        for change in ({"task": None}, {"dataset": "../foreign"}, {"backend": "bad;command"},
+                       {"seed": True}, {"max_examples": -1}, {"dataset_sha256": "bad`receipt"},
+                       {"coref_gold": 1}):
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                self.assertTrue(check([json.dumps(row | change)], report=True))
+            self.assertNotIn("replay_matrix_cell.py", output.getvalue())
+
     def test_smoke_requires_exact_fixture_result(self):
         row = dict(outcome("ner"), backend="heuristic", dataset="AnnoNerSmoke", primary_f1=1.0)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -76,10 +99,25 @@ class CoverageTest(unittest.TestCase):
                 self.assertFalse(check_ner_smoke([json.dumps(row | mutation)]))
 
     def test_wikigold_bootstrap_requires_real_dataset_identity(self):
-        row = dict(outcome("ner", examples=5), backend="heuristic", dataset="WikiGold")
+        row = dict(outcome("ner", examples=5), backend="heuristic", dataset="WikiGold", dataset_sha256=WIKIGOLD)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertTrue(check_wikigold_bootstrap([json.dumps(row)]))
             self.assertFalse(check_wikigold_bootstrap([json.dumps(row | {"dataset": "AnnoNerSmoke"})]))
+            for digest in (None, "0" * 64):
+                self.assertFalse(check_wikigold_bootstrap([json.dumps(row | {"dataset_sha256": digest})]))
+
+    def test_prepared_wikigold_digest_required_even_in_advisory_report(self):
+        row = dict(outcome("ner"), dataset="WikiGold")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            for digest in (None, "0" * 64, WIKIGOLD):
+                self.assertEqual(
+                    check([json.dumps(row | {"dataset_sha256": digest})], report=True, verify_wikigold=True),
+                    digest == WIKIGOLD,
+                )
+            self.assertTrue(check([json.dumps(row)], report=True))
+            self.assertTrue(check([], report=True, verify_wikigold=True))
+            self.assertTrue(check([json.dumps(row | {"hard_junk": True, "cost_units": 0})],
+                                  report=True, verify_wikigold=True))
 
     def test_public_timex_requires_a_valid_f1_over_the_whole_split(self):
         dataset = "TimexRecognitionSentenceOriginal"

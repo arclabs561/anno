@@ -731,6 +731,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--backends", "-b", help="Comma-separated backends (default: stacked)")
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
     p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
+    p.add_argument("--public-summary", type=Path,
+                   help="also write a catalog-and-counts JSON summary; keep detailed reports and stdout local")
     selection = p.add_mutually_exclusive_group()
     selection.add_argument("--cross-domain", dest="category", action="store_const", const="cross-domain",
                            help="Sample pages and feed entries from distinct publishers per pass; use --no-rss for fixed pages only")
@@ -917,6 +919,9 @@ def main() -> int:
     out_path = Path(args.output) if args.output else Path("qa/reports") / f"qa-random-{ts}.md"
     json_path = out_path.with_suffix(".json")
     try:
+        if args.public_summary and any(same_file(args.public_summary, path) for path in
+                                       (out_path, json_path, args.replay) if path is not None):
+            raise ValueError("public summary needs a separate path from reports and replay inputs")
         if args.replay:
             if args.count is not None or args.seed is not None or args.lang or args.no_rss:
                 raise ValueError("--replay uses the recorded selection; omit count, seed and source filters")
@@ -959,6 +964,11 @@ def main() -> int:
         if (len(set(backends)) != len(backends)
                 or any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", b) for b in backends)):
             raise ValueError("expected distinct backend names")
+        if args.public_summary:
+            if set(backends) - {"pattern", "heuristic", "stacked"}:
+                raise ValueError("public summaries support the offline pattern, heuristic and stacked models")
+            if cross_domain and set(eligible) - {source.domain for source in CROSS_DOMAIN_SOURCES}:
+                raise ValueError("public summary contains an unknown catalog domain")
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1056,6 +1066,23 @@ def main() -> int:
     ok_count = sum(1 for r in all_results if r.status == "OK")
     total = len(all_results)
     print(f"Done: {ok_count}/{total} checks OK")
+    if args.public_summary:
+        # The full receipts can carry fetched URLs, extracted labels and backend
+        # diagnostics. Build the public view from catalog identities and counts.
+        summary = {
+            "kind": "anno.qa.live-summary", "schema_version": 1, "seed": args.seed,
+            "category": category, "backends": backends, "selected": count,
+            "sources": [
+                {"catalog_name": source.name, "resolved": urls[source] is not None,
+                 "checks": {r.backend: r.status for r in all_results if r.source == source and r.backend}}
+                for source in selected
+            ],
+            "outcomes": dict(Counter(r.status for r in all_results)),
+        }
+        if cross_domain:
+            summary["coverage"] = coverage_summary(receipt)
+        args.public_summary.parent.mkdir(parents=True, exist_ok=True)
+        args.public_summary.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     if cross_domain:
         print(f"Verified inputs: {matched}/{count} selected sources")
         if reference is not None:

@@ -10,18 +10,31 @@ Use this panel to ask whether a change recovers exact entity mentions across sub
 | Flight and assistant queries | ATIS city, state and country name slots, including directional variants. SNIPS city, state and country slots. Both are rendered as LOC. [JointBERT test files](https://github.com/monologg/JointBERT/tree/00324f60dda4a491b2913bc3065ae93966caea3f/data) |
 | Contracts | Source-aligned CUAD Parties answers with company suffixes. Each contract contributes at most one window with up to 250 characters of surrounding context per side. [CUAD release](https://github.com/TheAtticusProject/cuad/tree/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2) |
 
-The [source catalog](../scripts/qa/domain-sources.json) lists exact upstream files, revisions and hashes. Keep datasets, generated fixtures and predictions local. Upstream data terms apply to reuse of the texts.
+The [source catalog](../scripts/qa/domain-sources.json) lists exact upstream files, revisions and hashes. The thirteen groups above use developer-provisioned inputs. Use them only when your authorization covers the intended evaluation. A pinned public mirror identifies bytes without establishing permission for automatic acquisition, hosted processing, redistribution, or model prompts.
 
-The Atticus Project licenses CUAD under CC BY 4.0 and disclaims warranties on the underlying third-party agreements. Its source is SEC EDGAR. The CUAD manifest credits the dataset and describes how the labels were adapted. Keep contract windows and predictions that reproduce them in local replay. Sharing complete passages requires a separate basis for the underlying contract and a check for incidental names, signatures, addresses or contact details. The CI artifact contains counts, provenance and hashes. [CUAD v1](https://doi.org/10.5281/zenodo.4595826) · [Publisher’s terms](https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information)
+The Atticus Project licenses CUAD under CC BY 4.0 and disclaims warranties on the underlying third-party agreements. Its source is SEC EDGAR. The CUAD manifest credits the dataset and describes how the labels were adapted. Keep contract windows and predictions that reproduce them in local replay. Sharing complete passages requires a separate basis for the underlying contract and a check for incidental names, signatures, addresses or contact details. [CUAD v1](https://doi.org/10.5281/zenodo.4595826) · [Publisher’s terms](https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information)
 
-## Prepare the fixtures
+## Run the hosted panel locally
 
-The fetch command is optional and makes network requests. To work offline, place the exact source files in the data directory under the filenames from the catalog. For CUAD, use the archive's `test.json` as `cuad.json`. Preparation always checks the uncompressed file hashes.
+The weekly/manual job uses the Snips publisher’s two validation files for weather and restaurant queries (100 queries each). These have distinct catalog IDs from the lowercased third-party SNIPS BIO split. Preserve the original case, punctuation and spaces; map the publisher’s city, state and country slots to exact LOC assertions. Both intents come from the same English query benchmark. The receipt records the source pins, authors, license, adaptation and split sizes. [Dataset and citation request](https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/README.md) · [CC0 1.0](https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/LICENSE)
+
+Coucke A. et al., *Snips Voice Platform: an embedded Spoken Language Understanding system for private-by-design voice interfaces*, 2018. [Paper](https://arxiv.org/abs/1805.10190)
 
 ```sh
 data=.generated/anno-qa/domain-sources
+panel=.generated/anno-qa/snips-validation
+python3 scripts/qa/prepare_domain_fixtures.py fetch "$data" --group hosted
+python3 scripts/qa/prepare_domain_fixtures.py prepare "$data" "$panel" --group hosted --per-split 8
+```
+
+Each source was reviewed for fetching and scoring on a hosted runner and publishing aggregate results. Raw utterances, detailed predictions and both generated splits stay on that runner. The published artifact contains `domain-discovery.json` and `domain-manifest.json`. Web coverage is reported separately in `documents-summary.json`, `feeds-summary.json` and `publishers-summary.json`. Those files give the seed, selected catalog sources and counts; detailed reports, discovered URLs and free-form diagnostics stay local. An unmet discovery assertion is recorded as a measurement. Input and execution errors fail the job.
+
+## Prepare another authorized local panel
+
+Place the exact files you are entitled to use under the names from the catalog. The acquisition command handles only the two reviewed publisher sources above. For CUAD, use the archive's `test.json` as `cuad.json`. Preparation verifies the uncompressed file hashes offline.
+
+```sh
 panel=.generated/anno-qa/domain-panel
-python3 scripts/qa/prepare_domain_fixtures.py fetch "$data"
 just qa-prepare-domains "$data" "$panel"
 ```
 
@@ -31,11 +44,10 @@ The default selects up to 32 discovery and 32 reserved inputs per domain. Set th
 
 ## Add Dutch, Spanish and Chinese
 
-The optional `multilingual` group selects Dutch and Spanish CoNLL-2002 news and Chinese WeiboNER social posts. Use a separate output directory. Use `--group all` on both commands to include all thirteen domains. The default selects the ten English domains.
+The optional `multilingual` group selects Dutch and Spanish CoNLL-2002 news and Chinese WeiboNER social posts. Use a separate output directory. Use `prepare --group all` to include all thirteen local domains. The historical `just qa-prepare-domains` recipe selects the ten English groups. Both direct Python commands default to the hosted group.
 
 ```sh
 panel=.generated/anno-qa/multilingual-panel
-python3 scripts/qa/prepare_domain_fixtures.py fetch "$data" --group multilingual
 python3 scripts/qa/prepare_domain_fixtures.py prepare "$data" "$panel" --group multilingual
 ```
 

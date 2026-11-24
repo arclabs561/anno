@@ -271,7 +271,7 @@ eval-sanity:
 
 # Prepare local pinned sources for paired exact-span QA.
 qa-prepare-domains $DATA $OUT $PER_SPLIT="32" $SEED="anno-domain-transfer-20261123-v1":
-    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --per-split "$PER_SPLIT" --seed "$SEED"
+    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --group english --per-split "$PER_SPLIT" --seed "$SEED"
 
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
@@ -288,6 +288,14 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
 # Prepare a coordinator prompt from a fixed panel or a muxer slot.
 qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
+
+# Replay one named case from the working tree, with no scheduler or ledger writes.
+qa-replay $CORPUS $CASE:
+    @python3 scripts/qa/replay_feedback.py replay "$CORPUS" "$CASE"
+
+# Run a local, independently labeled cross-document case against a selected producer.
+qa-challenge $CASE $BINARY:
+    @python3 scripts/qa/replay_crossdoc_case.py "$CASE" "$BINARY"
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
 qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":
@@ -481,11 +489,12 @@ cache-warm-s3:
     ANNO_S3_CACHE=1 cargo run -p anno-eval --example cache_warm --features "eval discourse"
     ./scripts/sync_datasets_s3.sh upload
 
-# Run CDCR evaluation on cached coref datasets.
-# Example:
-#   ANNO_CDCR_DATASETS=ECBPlus cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
-cdcr-eval:
-    cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
+# Evaluate cross-document merging on supplied ECB+ XML annotation spans.
+# Set ANNO_CDCR_MAX_DOCS to evaluate a prefix of the sorted archive.
+# Pass --sentence-index PATH to restrict gold to the published sentence panel.
+[positional-arguments]
+cdcr-eval *args:
+    cargo run -p anno-eval --example cdcr_eval --features "eval discourse" -- "$@"
 
 # === Release ===
 

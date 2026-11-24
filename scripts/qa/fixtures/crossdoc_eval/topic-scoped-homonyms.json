@@ -1,0 +1,15 @@
+{
+  "id": "topic-scoped-homonyms",
+  "kind": "cross_doc_eval",
+  "description": "The same surface represents two people in topic 1 and one person in topic 2. The raw label A and both document names recur across topics. In topic 2, Q is a within-document alias affecting the local-seed run.",
+  "documents": [
+    {"topic": 1, "id": "a", "sentences": [["Nia"]], "mentions": [{"tokens": [1], "cross": "A"}]},
+    {"topic": 1, "id": "b", "sentences": [["Nia"]], "mentions": [{"tokens": [1], "cross": "B"}]},
+    {"topic": 2, "id": "a", "sentences": [["Nia", "Q"]], "mentions": [{"tokens": [1], "cross": "A"}, {"tokens": [2], "cross": "A"}]},
+    {"topic": 2, "id": "b", "sentences": [["Nia"]], "mentions": [{"tokens": [1], "cross": "A"}]}
+  ],
+  "assertions": [
+    {"seeds": "singletons", "threshold": 0.7, "gold_clusters": 3, "predicted_clusters": 3, "correct_links": 1, "gold_links": 2, "predicted_links": 2},
+    {"seeds": "gold_local", "threshold": 0.7, "gold_clusters": 3, "predicted_clusters": 2, "correct_links": 2, "gold_links": 2, "predicted_links": 3}
+  ]
+}

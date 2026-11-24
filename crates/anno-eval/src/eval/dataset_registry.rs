@@ -1799,7 +1799,7 @@ define_datasets! {
     ECBPlus {
         name: "ECB+",
         description: "Event Coreference Bank Plus. Standard benchmark for cross-document event coreference resolution.",
-        url: "https://raw.githubusercontent.com/cltl/ecbPlus/master/ECB%2B_LREC2014/ECBplus_coreference_sentences.csv",
+        url: "https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip",
         entity_types: ["EVENT", "TIME", "LOC", "PARTICIPANT"],
         language: "en",
         domain: "news",
@@ -1807,11 +1807,11 @@ define_datasets! {
         citation: "Cybulska & Vossen (2014)",
         paper_url: "https://aclanthology.org/L14-1646/",
         year: 2014,
-        format: "Custom",
-        size_hint: "43 topics, 982 docs, ~7k events",
+        format: "ECB+ XML (ZIP)",
+        size_hint: "43 topics, 982 documents. The published sentence index selects 1,840 sentences in 976 documents.",
         example: "Doc1: 'The earthquake [struck] at 3am.' Doc2: 'The [tremor] caused damage.'\nEvents: struck_1, tremor_2 -> coreferent (same event)",
-        notes: "De facto CDCR standard; topic-clustered structure may cause overfitting",
-        splits: ["train", "dev", "test"],
+        notes: "Cybulska and Vossen license the annotations under CC BY 3.0. Original news articles retain their source rights. Read the XML archive for gold chains. The separate ECBplus_coreference_sentences.csv selects evaluation sentences.",
+        splits: ["all"],
         tasks: ["coref", "event_coref", "cdcr"],
         expected_docs: 982,
         categories: [coref, event_coref],
@@ -9825,13 +9825,16 @@ mod source_rights_tests {
 
     #[test]
     fn source_rights_route_conformance() {
-        use DatasetId::{LitBank, PreCo, TimeBank12, TimexRecognitionSentenceOriginal, CUAD};
+        use DatasetId::{
+            ECBPlus, LitBank, PreCo, TimeBank12, TimexRecognitionSentenceOriginal, CUAD,
+        };
         // Reviewed witnesses are intentionally independent of the registry's source table.
         for (source, local_only) in [
             (PreCo, true),
             (TimeBank12, true),
             (TimexRecognitionSentenceOriginal, true),
             (LitBank, false),
+            (ECBPlus, false),
             (CUAD, false),
         ] {
             assert_eq!(source.requires_local_source(), local_only, "{source:?}");

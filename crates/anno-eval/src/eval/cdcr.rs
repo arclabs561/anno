@@ -544,6 +544,9 @@ impl CDCRResolver {
     }
 
     /// Resolve cross-document coreference.
+    ///
+    /// Cluster IDs are zero-based ordinals assigned by the first entity encountered
+    /// in document and entity input order. They are local to this resolution.
     #[must_use]
     pub fn resolve(&self, documents: &[Document]) -> Vec<CrossDocCluster> {
         // 1. Collect all mentions
@@ -577,30 +580,21 @@ impl CDCRResolver {
             }
         }
 
-        // 4. Build clusters from union-find
-        let mut cluster_map: HashMap<usize, Vec<usize>> = HashMap::new();
-        for i in 0..mentions.len() {
+        // Assign report IDs in mention order. Union-find roots are only lookup keys.
+        let mut cluster_indices = HashMap::new();
+        let mut clusters = Vec::new();
+        for (i, mention) in mentions.iter().enumerate() {
             let root = Self::find(&mut union_find, i);
-            cluster_map.entry(root).or_default().push(i);
+            let idx = *cluster_indices.entry(root).or_insert_with(|| {
+                let idx = clusters.len();
+                let mut cluster = CrossDocCluster::new(idx as u64, &mention.text);
+                cluster.entity_type = Some(mention.entity_type.clone());
+                clusters.push(cluster);
+                idx
+            });
+            clusters[idx].add_mention(&mention.doc_id, mention.entity_idx);
         }
-
-        // 5. Convert to CrossDocCluster
-        cluster_map
-            .into_iter()
-            .enumerate()
-            .map(|(cluster_idx, (_, member_indices))| {
-                let first = &mentions[member_indices[0]];
-                let mut cluster = CrossDocCluster::new(cluster_idx as u64, &first.text);
-                cluster.entity_type = Some(first.entity_type.clone());
-
-                for idx in member_indices {
-                    let m = &mentions[idx];
-                    cluster.add_mention(&m.doc_id, m.entity_idx);
-                }
-
-                cluster
-            })
-            .collect()
+        clusters
     }
 
     /// Check if two mentions should be clustered.
@@ -630,7 +624,7 @@ impl CDCRResolver {
                 let mut c = LocalCluster::new(0, 0);
                 c.add_mention(ClusterMention {
                     start: 0,
-                    end: a.text.len(),
+                    end: a.text.chars().count(),
                     text: a.text.clone(),
                     context_id: 0,
                 });
@@ -641,7 +635,7 @@ impl CDCRResolver {
                 let mut c = LocalCluster::new(1, 0);
                 c.add_mention(ClusterMention {
                     start: 0,
-                    end: b.text.len(),
+                    end: b.text.chars().count(),
                     text: b.text.clone(),
                     context_id: 0,
                 });
@@ -1241,6 +1235,96 @@ mod tests {
             candidates.contains(&(0, 1)),
             "Identical texts should be candidate pairs"
         );
+    }
+
+    #[test]
+    fn report_ordinals_follow_first_mention() {
+        let first = Document::new("first", "Zia Lio Mae").with_entities(vec![
+            Entity::new("Zia", EntityType::Person, 0, 3, 1.0),
+            Entity::new("Lio", EntityType::Person, 4, 7, 1.0),
+            Entity::new("Mae", EntityType::Person, 8, 11, 1.0),
+        ]);
+        let next = Document::new("next", "Mae ZIA").with_entities(vec![
+            Entity::new("Mae", EntityType::Person, 0, 3, 1.0),
+            Entity::new("ZIA", EntityType::Person, 4, 7, 1.0),
+        ]);
+        let docs = [first, next];
+        for use_lsh in [false, true] {
+            let resolver = CDCRResolver::with_config(CDCRConfig {
+                use_lsh,
+                ..Default::default()
+            });
+            let clusters = resolver.resolve(&docs);
+            let labels: Vec<_> = clusters
+                .iter()
+                .map(|c| (c.id, c.canonical_name.as_str()))
+                .collect();
+            assert_eq!(labels, [(0, "Zia"), (1, "Lio"), (2, "Mae")]);
+            assert_eq!(
+                clusters[0].mentions,
+                [("first".into(), 0), ("next".into(), 1)]
+            );
+            assert_eq!(clusters[1].mentions, [("first".into(), 1)]);
+            assert_eq!(
+                clusters[2].mentions,
+                [("first".into(), 2), ("next".into(), 0)]
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "eval")]
+    fn cluster_encoder_receives_character_offsets() {
+        use crate::eval::cluster_encoder::{ClusterEmbedding, ClusterEncoder, LocalCluster};
+        use std::sync::Arc;
+
+        struct SpanCheckingEncoder;
+        impl ClusterEncoder for SpanCheckingEncoder {
+            fn encode_cluster(
+                &self,
+                cluster: &LocalCluster,
+                _hidden_states: Option<&[Vec<f32>]>,
+            ) -> ClusterEmbedding {
+                let mention = &cluster.mentions[0];
+                assert_eq!(
+                    (mention.start, mention.end),
+                    (0, mention.text.chars().count())
+                );
+                ClusterEmbedding {
+                    embedding: vec![1.0],
+                    cluster_id: cluster.id,
+                    context_id: cluster.context_id,
+                    mention_count: cluster.mentions.len(),
+                }
+            }
+
+            fn embedding_dim(&self) -> usize {
+                1
+            }
+        }
+
+        let docs = [
+            Document::new("first", "É海").with_entities(vec![Entity::new(
+                "É海",
+                EntityType::Person,
+                0,
+                2,
+                1.0,
+            )]),
+            Document::new("next", "岚").with_entities(vec![Entity::new(
+                "岚",
+                EntityType::Person,
+                0,
+                1,
+                1.0,
+            )]),
+        ];
+        let resolver = CDCRResolver::with_config(CDCRConfig {
+            use_lsh: false,
+            ..Default::default()
+        })
+        .with_cluster_encoder(Arc::new(SpanCheckingEncoder));
+        assert_eq!(resolver.resolve(&docs).len(), 1);
     }
 
     #[test]
