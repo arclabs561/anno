@@ -12,12 +12,25 @@ import domain_coverage
 WIKIGOLD = export_muxer_summary.WIKIGOLD
 
 SCOPE = "pinned_source_contract_digest_v2"
+PASS_SIGNATURE = ""
+FAIL_SIGNATURE = r"sha256:[0-9a-f]{64}"
+FAMILY = "wikigold-stacked-exact-spans"
 LABELS = {"PER", "ORG", "LOC", "MISC"}
 
 
-def sentence(case):
-    if not re.fullmatch(r"sentence-(0|[1-9][0-9]{0,3})", case):
+def sentence_index(case):
+    if not isinstance(case, str) or not re.fullmatch(r"sentence-(0|[1-9][0-9]{0,3})", case):
         raise ValueError("expected sentence-<zero-based WikiGold ordinal>")
+    return int(case.removeprefix("sentence-"))
+
+
+def family_for_case(root, case):
+    sentence_index(case)
+    return FAMILY
+
+
+def sentence(case):
+    index = sentence_index(case)
     cache = os.environ.get("ANNO_CACHE_DIR")
     if not cache:
         raise FileNotFoundError("set ANNO_CACHE_DIR to the existing pinned dataset cache")
@@ -29,7 +42,6 @@ def sentence(case):
     # WikiGold has blank-line-separated sentences and standalone document markers.
     blocks = [s for s in data.decode("utf-8").strip().split("\n\n")
               if s.strip() and s.strip() != "-DOCSTART- O"]
-    index = int(case.removeprefix("sentence-"))
     if index >= len(blocks):
         raise ValueError("WikiGold sentence ordinal exceeds the corpus")
     return annotated_sentence(blocks[index])
@@ -71,7 +83,7 @@ def describe(root, case):
     oracle = json.dumps([WIKIGOLD, case, gold, sources], separators=(",", ":")).encode()
     return {"source_sha256": judge.source_sha256(text),
             "oracle_sha256": hashlib.sha256(oracle).hexdigest(),
-            "family": "wikigold-stacked-exact-spans"}
+            "family": FAMILY}
 
 
 def replay(root, case):
@@ -94,7 +106,7 @@ def replay(root, case):
     missing = sorted(set(gold) - predicted)
     extra = sorted(predicted - set(gold))
     if not missing and not extra:
-        return {"outcome": "pass", "signature": "", "producer_sha256": producer}
+        return {"outcome": "pass", "signature": PASS_SIGNATURE, "producer_sha256": producer}
     # Receipts and the shared ledger carry an equality witness for the replay.
     # Keep the sentence-specific gold and prediction differences local.
     differences = json.dumps([SCOPE, WIKIGOLD, case, missing, extra], separators=(",", ":"))

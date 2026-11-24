@@ -15,6 +15,13 @@ class WikiGoldReplay(unittest.TestCase):
         self.assertEqual(text, "🧭 Zé Quill Vale Oak")
         self.assertEqual(spans, [(2, 10, "PER"), (11, 15, "LOC"), (16, 19, "LOC")])
 
+    def test_family_for_case_without_a_dataset_cache(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(adapter.family_for_case(Path.cwd(), "sentence-0"), adapter.FAMILY)
+            for case in ("sentence-01", "sentence-10000", "../0", None):
+                with self.subTest(case=case), self.assertRaises(ValueError):
+                    adapter.family_for_case(Path.cwd(), case)
+
     def test_pin_and_sentence_number(self):
         with tempfile.TemporaryDirectory() as temp, mock.patch.dict(os.environ, ANNO_CACHE_DIR=temp):
             path = Path(temp) / "datasets/WikiGold.cache"
