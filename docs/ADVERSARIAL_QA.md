@@ -14,6 +14,33 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 >
 > Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
+## Challenge cross-document identity decisions
+
+Choose the claim before choosing a binary. A production report groups supplied tracks and qualified catalog records. The ECB+ evaluator measures a different heuristic on annotated mentions in known topics. Each accepts a small, independently authored JSON case. The scout can propose a new source history in a private directory, and an independent oracle can freeze its assertions before either version of the producer runs.
+
+| Claim | Input the agent can change | Replay |
+|---|---|---|
+| Two sources refer to the same catalog record, a correction supersedes a link, or a mention is unassigned | Grounded observations in submission order, Unicode character spans, local track memberships, namespaces/accessions, type settings or supplied embeddings. Assertions target the active edition after a named number of submissions. | [Catalog revision case](../scripts/qa/fixtures/crossdoc/catalog-revision.json) and [coverage control](../scripts/qa/fixtures/crossdoc/coverage-control.json) with the `anno` CLI. |
+| A scorer confuses local and shared IDs, counts a same-document pair, or overmerges same-spelling names | Tiny synthetic documents grouped by topic, token anchors, local chains, cross-document labels, optional sentence selection, and expected counters for each seed condition and threshold. | [Topic-scoped homonyms](../scripts/qa/fixtures/crossdoc_eval/topic-scoped-homonyms.json) and [local seeds](../scripts/qa/fixtures/crossdoc_eval/local-seeds.json) with the `cdcr_eval` executable. |
+| A clean rebuild and a series of source revisions disagree, blocking drops a candidate, or a corrected catalog posting fails to reach the reader | Select the compiled regression that exercises the full production entry point. Its assertions cover retry/withdrawal, representative metadata, input order, the 100/101-document threshold, or catalog posting changes as applicable. | `just qa-replay crossdoc_native unlinked-revision-history`. Other names include `guarded-catalog-checkpoints`, `raw-blocking-boundary`, `grounded-candidate-policy`, `grounded-replacement-order` and `query-catalog-publication`. |
+
+Build the executables and copy a suitable fixture into the private round directory. These commands run one authored case and pass its aggregate result to the same coordinator used by other QA rounds.
+
+```sh
+cargo build --locked -p anno-cli --no-default-features --features "eval extractor-html2text"
+cargo build --locked -p anno-eval --example cdcr_eval --features eval
+round_dir=$(mktemp -d)
+cp scripts/qa/fixtures/crossdoc/catalog-revision.json "$round_dir/case.json"
+just qa-challenge "$round_dir/case.json" target/debug/anno > "$round_dir/result.json"
+just qa-round "$round_dir/result.json" 'Did correcting the stage record change the harbor record?' "$round_dir/round.sqlite3"
+```
+
+Run the same frozen file with a separately built baseline executable to compare versions. Exit 0 means every assertion passed, 1 means at least one measured assertion failed, and 2 means the case could not be evaluated. Inspect a failed run locally with `python3 scripts/qa/replay_crossdoc_case.py CASE BINARY --details`. A completed receipt carries the binary hash, separate source and oracle hashes, and assertion counts. The oracle hash includes the scorer code. Keep the case and detailed output with the authorized reviewers. A named reviewed case can enter the existing replay ledger through its normal two-run failure confirmation. Set `ANNO_BIN` for CLI cases and `ANNO_CDCR_BIN` for evaluator cases when using `just qa-replay crossdoc_cases CASE`.
+
+For a historical or model-quality comparison, record which assertions distinguish the revisions, which both pass, and which both fail. A name collision can be a real matching error even when ingestion and publication behave correctly. `separate` requires two reported memberships. Use `unresolved` for a supplied signal without a reported group, and `absent` when that source occurrence is missing. An identical numeric report ID across runs is insufficient evidence for a shared referent. Public, project-authored examples can be reviewed for promotion into the named corpus. Raw source text, externally licensed annotations and local witness directories stay out of shared reports unless their terms and the user permit sharing.
+
+The coordinator uses the agent host selected for the round. The repository’s Codex example dispatches a subagent with the oracle prompt. The local replay commands call the selected binary and need no LLM service or API key.
+
 ## Start from a rotating domain sample
 
 The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. A local run retains the detailed receipt for replay or an optional reviewer brief. The hosted job exports catalog coverage counts.

@@ -12,12 +12,17 @@ import sqlite3
 import subprocess
 import sys
 
+import replay_crossdoc_case
+import replay_crossdoc_native
 import replay_reviewed_kb
 import replay_typed_spans
 import replay_wikigold
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTERS = {"reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold}
+ADAPTERS = {
+    "crossdoc_cases": replay_crossdoc_case, "crossdoc_native": replay_crossdoc_native,
+    "reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold,
+}
 DB_NAME = "replay-feedback.db"
 MAX_WITNESSES = 512
 MAX_RECEIPT_BYTES = 2048

@@ -88,13 +88,63 @@ def outcome_evidence(path):
     return "\n".join(lines)
 
 
+REPLAY_DIGESTS = {"source_sha256", "oracle_sha256", "producer_sha256"}
+
+
+def check_replay_digests(receipt):
+    if not all(isinstance(receipt[k], str) and re.fullmatch("[a-f0-9]{64}", receipt[k])
+               for k in REPLAY_DIGESTS):
+        raise ValueError("invalid source, oracle or producer digest")
+
+
+def crossdoc_evidence(receipt):
+    if set(receipt) != REPLAY_DIGESTS | {"kind", "runner", "passed", "failed", "outcome"}:
+        raise ValueError("unexpected cross-document receipt fields")
+    runner, passed, failed = receipt["runner"], receipt["passed"], receipt["failed"]
+    if runner not in ("cli", "eval"):
+        raise ValueError("invalid cross-document runner")
+    check_replay_digests(receipt)
+    if (type(passed) is not int or type(failed) is not int or min(passed, failed) < 0
+            or not 1 <= passed + failed <= 256):
+        raise ValueError("expected 1 to 256 evaluated assertions")
+    expected_outcome = "fail" if failed else "pass"
+    if receipt["outcome"] != expected_outcome:
+        raise ValueError("cross-document outcome disagrees with assertion counts")
+    return (f"Cross-document {runner} case outcome {expected_outcome}. "
+            f"Evaluated {passed + failed} assertions ({passed} passed, {failed} failed).")
+
+
+def replay_evidence(receipt):
+    from replay_feedback import ADAPTERS, validate_signature
+
+    outcome = receipt["outcome"]
+    if outcome in ("error", "unavailable"):
+        if (set(receipt) != {"outcome", "detail"} or not isinstance(receipt["detail"], str)
+                or not 1 <= len(receipt["detail"]) <= 256):
+            raise ValueError("unexpected unmeasured replay receipt")
+        return f"Reviewed replay reported {outcome}. Evaluated 0 cases."
+    if set(receipt) != REPLAY_DIGESTS | {"corpus", "case", "signature", "outcome"}:
+        raise ValueError("unexpected reviewed replay receipt fields")
+    check_replay_digests(receipt)
+    if (not isinstance(receipt["corpus"], str) or receipt["corpus"] not in ADAPTERS
+            or not isinstance(receipt["case"], str) or not 1 <= len(receipt["case"]) <= 128):
+        raise ValueError("invalid reviewed replay corpus or case")
+    validate_signature(ADAPTERS[receipt["corpus"]], outcome, receipt["signature"])
+    return f"Reviewed replay evaluated 1 case. Outcome {outcome}."
+
+
 def evidence(directory):
     if directory.is_file():
         if directory.suffix == ".jsonl":
             return outcome_evidence(directory)
         receipt = json.loads(directory.read_text(encoding="utf-8"))
-        if isinstance(receipt, dict) and receipt.get("kind") == "anno.qa.domain-spans":
-            return render_domain_scores(receipt)
+        if isinstance(receipt, dict):
+            if receipt.get("kind") == "anno.qa.crossdoc-case.v1":
+                return crossdoc_evidence(receipt)
+            if "kind" not in receipt and "outcome" in receipt:
+                return replay_evidence(receipt)
+            if receipt.get("kind") == "anno.qa.domain-spans":
+                return render_domain_scores(receipt)
         return render_coverage(receipt)
     panel = directory / "panel-summary.json"
     schedule = directory / "schedule.json"
@@ -103,7 +153,7 @@ def evidence(directory):
     if panel.is_file():
         return render_markdown(json.loads(panel.read_text())["results"]).rstrip()
     if not schedule.is_file():
-        raise ValueError("expected panel-summary.json or schedule.json in the run directory, or a cross-domain receipt file")
+        raise ValueError("expected panel-summary.json or schedule.json in the run directory, or a supported QA receipt file")
     plan = json.loads(schedule.read_text())
     lines = [f"Matrix slot {plan['slot']}, requested {plan['requested_strategy']}, seed {plan['seed']}."]
     result = directory / "result.json"
@@ -112,9 +162,8 @@ def evidence(directory):
     run = json.loads(result.read_text())
     if plan["requested_strategy"] == "reviewed-replay":
         case = plan["selected_case"]
-        label = f"{case['scope']} {case['corpus']}/{case['case']} (family {case['family']})"
         if plan["plan_only"]:
-            return lines[0] + f" Selected {label}; oracle replay pending."
+            return lines[0] + " Selected one reviewed case, oracle replay pending."
         actual = json.loads((directory / "replay.json").read_text())
         from replay_feedback import key
         outcome_id = actual.pop("observation_id")
@@ -122,8 +171,12 @@ def evidence(directory):
                 or any(case[k] != actual[k] for k in
                        ("corpus", "case", "scope", "family", "source_sha256", "oracle_sha256"))):
             raise ValueError("saved oracle outcome does not match the selected witness")
-        return (lines[0] + f" Replayed {label}. Oracle result: {actual['outcome']}. "
-                f"Case SHA-256 {case['source_sha256']}; oracle SHA-256 {case['oracle_sha256']}.")
+        outcome = actual["outcome"]
+        if (outcome not in ("pass", "fail") or type(actual["replays"]) is not int
+                or actual["replays"] != (2 if outcome == "fail" else 1)):
+            raise ValueError("inconsistent reviewed replay outcome or attempt count")
+        attempts = "2 attempts" if outcome == "fail" else "1 attempt"
+        return lines[0] + f" Evaluated 1 reviewed case in {attempts}. Oracle result: {outcome}."
     if not run["strategy_matches"]:
         return lines[0] + " The observed strategy differed. Exclude this slot from policy comparisons."
     if run["plan_only"]:
@@ -140,7 +193,7 @@ def main():
     try:
         summary = evidence(args.receipts)
         handoff = (f"# Coordinator handoff\n\nClaim to investigate: {args.claim}\n\n"
-                   f"Starting evidence from {args.receipts}\n\n{summary}\n\n{GUIDE.read_text()}\n")
+                   f"Starting evidence\n\n{summary}\n\n{GUIDE.read_text()}\n")
         if args.trace:
             trace_id = initialize(args.trace, handoff)
             print(f"QA trace {trace_id} at {args.trace}", file=sys.stderr)

@@ -17,6 +17,12 @@ command with the reported revision and features. Run a new sampling campaign
 when the question concerns selection or coverage. Use a brief when another
 reviewer needs context. [Developer commands and seed rights](../../../docs/QA.md#run-a-check)
 
+For a cross-document claim, choose the grounded track CLI, the fixed-mention benchmark,
+or a named native lifecycle replay. Use `just qa-challenge CASE BINARY` for a private
+scout-authored case and `just qa-round RECEIPT CLAIM` for an aggregate handoff. Give a
+fresh oracle the inputs and contract before collecting producer output. [Cases, scopes
+and replay commands](../../../docs/ADVERSARIAL_QA.md#challenge-cross-document-identity-decisions)
+
 ## Procedure for a campaign
 
 1. Define the changed boundary and evaluation budget: tasks, datasets, backends,

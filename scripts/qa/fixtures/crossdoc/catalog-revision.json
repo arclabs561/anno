@@ -1,0 +1,21 @@
+{
+  "kind": "cross_doc",
+  "id": "catalog-revision",
+  "documents": [
+    {"id": "matinee", "text": "Été: Ari Sol played viola.", "signals": [{"start": 5, "end": 12, "label": "PER"}], "tracks": [{"name": "Ari Sol", "members": [0], "record": ["stage", "17"]}]},
+    {"id": "harbor", "text": "Ari Sol took the helm.", "signals": [{"start": 0, "end": 7, "label": "PER"}], "tracks": [{"name": "Ari Sol", "members": [0], "record": ["pilots", "17"]}]},
+    {"id": "tour", "text": "Mira played the encore.", "signals": [{"start": 0, "end": 4, "label": "PER"}], "tracks": [{"name": "Mira", "members": [0], "record": ["stage", "17"]}]},
+    {"id": "matinee", "text": "Été: Mira Sol played. Ari Sol appeared on the old card.", "signals": [{"start": 5, "end": 13, "label": "PER"}, {"start": 22, "end": 29, "label": "PER"}], "tracks": [{"name": "Mira Sol", "members": [0], "record": ["stage", "22"]}]}
+  ],
+  "assertions": [
+    {"after": 3, "kind": "same", "mentions": [["matinee", 5, 12], ["tour", 0, 4]]},
+    {"after": 3, "kind": "separate", "mentions": [["matinee", 5, 12], ["harbor", 0, 7]]},
+    {"after": 3, "kind": "record", "mentions": [["matinee", 5, 12]], "record": ["stage", "17"]},
+    {"after": 3, "kind": "record", "mentions": [["harbor", 0, 7]], "record": ["pilots", "17"]},
+    {"after": 4, "kind": "separate", "mentions": [["matinee", 5, 13], ["tour", 0, 4]]},
+    {"after": 4, "kind": "record", "mentions": [["matinee", 5, 13]], "record": ["stage", "22"]},
+    {"after": 4, "kind": "record", "mentions": [["tour", 0, 4]], "record": ["stage", "17"]},
+    {"after": 4, "kind": "unresolved", "mentions": [["matinee", 22, 29]]},
+    {"after": 4, "kind": "absent", "mentions": [["matinee", 5, 12]]}
+  ]
+}
