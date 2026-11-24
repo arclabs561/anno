@@ -1,0 +1,15 @@
+{
+  "kind": "cross_doc",
+  "id": "lamp-ledger",
+  "documents": [
+    {"id":"lamp","text":"Nacre Elow signed the lamp inventory.","signals":[{"start":0,"end":10,"label":"PER"}],"tracks":[{"name":"Nacre Elow","members":[0],"record":["inventory","19"]}]},
+    {"id":"lift","text":"Oriel Veck inspected the lift.","signals":[{"start":0,"end":10,"label":"PER"}],"tracks":[{"name":"Oriel Veck","members":[0],"record":["rigging","19"]}]},
+    {"id":"receipt","text":"The receipt names Nacre Elow.","signals":[{"start":18,"end":28,"label":"PER"}],"tracks":[{"name":"Nacre Elow","members":[0],"record":["inventory","19"]}]}
+  ],
+  "assertions": [
+    {"kind":"same","after":3,"mentions":[["lamp",0,10],["receipt",18,28]]},
+    {"kind":"separate","after":3,"mentions":[["lamp",0,10],["lift",0,10]]},
+    {"kind":"record","after":3,"mentions":[["receipt",18,28]],"record":["inventory","19"]},
+    {"kind":"record","after":3,"mentions":[["lift",0,10]],"record":["rigging","19"]}
+  ]
+}

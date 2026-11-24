@@ -210,7 +210,7 @@ def _observe(rule, editions, membership):
     return {**rule, "passed": passed, "observed": observations, "same_report_group": comparison}
 
 
-def run_case(case: dict, binary: Path) -> dict:
+def run_case(case: dict, binary: Path, *, reports=None) -> dict:
     """Replay explicit grounded data with the selected executable. Contract or CLI errors raise ValueError."""
     wires = validate_case(case)
     path = Path(binary).resolve()
@@ -224,7 +224,10 @@ def run_case(case: dict, binary: Path) -> dict:
     lines = [json.dumps(doc, ensure_ascii=False, allow_nan=False) + "\n" for doc in wires]
     deadline = time.monotonic() + 30
     snapshots = {}
-    for after in sorted({rule["after"] for rule in case["assertions"]}):
+    checkpoints = {rule["after"] for rule in case["assertions"]} | set(reports or {})
+    if len(checkpoints) > 8:
+        raise ValueError("a case and its reader may select at most eight revision checkpoints")
+    for after in sorted(checkpoints):
         try:
             result = subprocess.run(args, input="".join(lines[:after]).encode(), capture_output=True,
                                     env=env, timeout=min(10, max(0, deadline - time.monotonic())))
@@ -238,4 +241,6 @@ def run_case(case: dict, binary: Path) -> dict:
             raise ValueError(f"invalid cross-doc JSON at checkpoint {after}") from exc
         editions = _editions(wires, after)
         snapshots[after] = editions, _membership(report, editions)
+        if reports and after in reports:
+            reports[after].write_bytes(result.stdout)
     return {"checks": [_observe(rule, *snapshots[rule["after"]]) for rule in case["assertions"]]}
