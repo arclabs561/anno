@@ -55,7 +55,27 @@ impl IndexCheckpoint {
         self.sequence
     }
 
+    /// Check a received delta's base and target against this stored checkpoint.
+    /// Identical redelivery returns false. Persist the row updates and the target
+    /// checkpoint in one transaction to keep the guard effective after a crash.
+    /// This validates revision ordering and predecessor identity. To check the
+    /// received rows themselves, reconstruct the complete resulting snapshot and
+    /// compare its checkpoint with the target before committing.
+    pub fn needs_delta(&self, base: &Self, target: &Self) -> Result<bool, PublicationError> {
+        target.advances(base)?;
+        if !target.advances(self)? {
+            return Ok(false);
+        }
+        if base != self {
+            return Err(PublicationError::WrongPredecessor);
+        }
+        Ok(true)
+    }
+
     fn advances(&self, previous: &Self) -> Result<bool, PublicationError> {
+        if self.stream.trim().is_empty() {
+            return Err(PublicationError::EmptyStream);
+        }
         if self.stream != previous.stream {
             return Err(PublicationError::DifferentStream);
         }
@@ -224,13 +244,7 @@ impl<'a> IndexDelta<'a> {
     /// Returns false for a redelivery of an already published result. On a missing
     /// or divergent predecessor, obtain a fresh full snapshot or the missing changes.
     pub fn needs_apply(&self, current: &IndexCheckpoint) -> Result<bool, PublicationError> {
-        if !self.target.advances(current)? {
-            return Ok(false);
-        }
-        if self.base != current {
-            return Err(PublicationError::WrongPredecessor);
-        }
-        Ok(true)
+        current.needs_delta(self.base, self.target)
     }
 }
 
@@ -287,6 +301,15 @@ mod tests {
         assert_eq!(local, new.rows().collect());
         assert_eq!(delta.base(), old.checkpoint());
         assert_eq!(delta.target(), new.checkpoint());
+        let wire = serde_json::to_vec(&(delta.base(), delta.target())).unwrap();
+        let (base, target): (IndexCheckpoint, IndexCheckpoint) =
+            serde_json::from_slice(&wire).unwrap();
+        assert!(old.checkpoint().needs_delta(&base, &target).unwrap());
+        assert!(!new.checkpoint().needs_delta(&base, &target).unwrap());
+        assert!(matches!(
+            old.checkpoint().needs_delta(&target, &base),
+            Err(PublicationError::Stale)
+        ));
     }
 
     #[test]
