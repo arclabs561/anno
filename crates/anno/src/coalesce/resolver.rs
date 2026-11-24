@@ -39,7 +39,8 @@
 //! - **Embedding similarity** (cosine): \( \cos(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a} \cdot \mathbf{b}}{||\mathbf{a}|| \cdot ||\mathbf{b}||} \)
 //! - **String similarity** (Jaccard on words): \( J(A, B) = \frac{|A \cap B|}{|A \cup B|} \)
 //!
-//! Compatible nonempty embeddings use cosine. Other pairs use Jaccard on word sets.
+//! Compatible nonempty embeddings use cosine. Other pairs use Jaccard when both
+//! surfaces contain text. A pair with neither evidence source has no similarity score.
 //!
 //! ## Example
 //!
@@ -57,6 +58,7 @@
 //! let identities = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 //! ```
 
+use crate::core::grounded::CorefTrackType;
 use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackRef};
 use std::collections::{BTreeMap, HashMap};
 
@@ -82,7 +84,9 @@ impl Resolver {
         self
     }
 
-    /// Set whether to require entity type match for clustering.
+    /// Require equal track types for clustering. An explicit track type takes precedence.
+    /// Otherwise all referenced signals must agree. Empty untyped tracks can match each
+    /// other. Conflicting, blank, or missing signal labels leave a track unpaired.
     pub fn require_type_match(mut self, require: bool) -> Self {
         self.require_type_match = require;
         self
@@ -94,8 +98,12 @@ impl Resolver {
     /// Tracks with KB links stay assigned to their existing identities. The resolver
     /// evaluates the remaining tracks again, reusing IDs for unchanged memberships.
     /// Newly similar tracks can join an unanchored cluster on subsequent runs.
+    /// The first current member by document ID and submitted local track ID supplies the name, type, and
+    /// usable embedding of an identity this resolver created. Imported and KB-linked
+    /// records retain their representative metadata.
     /// Returns the current coreference IDs, including KB-linked clusters from earlier
-    /// runs, in deterministic order. A singleton has no measured pairwise support.
+    /// runs, in deterministic order. A cluster reports its weakest pair only when
+    /// it has at least two members and every pair has comparable evidence.
     pub fn resolve_inter_doc_coref(
         &self,
         corpus: &mut Corpus,
@@ -110,17 +118,36 @@ impl Resolver {
         struct TrackData {
             track_ref: TrackRef,
             canonical_surface: String,
-            entity_type: Option<crate::TypeLabel>,
+            entity_type: CorefTrackType,
             embedding: Option<Vec<f32>>,
         }
 
-        fn similarity(a: &TrackData, b: &TrackData) -> f32 {
+        fn similarity(a: &TrackData, b: &TrackData) -> Option<f32> {
             match (&a.embedding, &b.embedding) {
-                (Some(left), Some(right)) if !left.is_empty() && left.len() == right.len() => {
-                    embedding_similarity(left, right)
+                (Some(left), Some(right)) if left.len() == right.len() => {
+                    Some(embedding_similarity(left, right))
                 }
-                _ => string_similarity(&a.canonical_surface, &b.canonical_surface),
+                _ if a.canonical_surface.trim().is_empty()
+                    || b.canonical_surface.trim().is_empty() =>
+                {
+                    None
+                }
+                _ => Some(string_similarity(
+                    &a.canonical_surface,
+                    &b.canonical_surface,
+                )),
             }
+        }
+
+        fn weakest_pair(members: &[usize], tracks: &[TrackData]) -> Option<crate::Confidence> {
+            let mut minimum = None;
+            for (position, &left) in members.iter().enumerate() {
+                for &right in &members[position + 1..] {
+                    let score = similarity(&tracks[left], &tracks[right])?;
+                    minimum = Some(minimum.map_or(score, |previous: f32| previous.min(score)));
+                }
+            }
+            minimum.map(crate::Confidence::from)
         }
 
         let mut track_data = Vec::new();
@@ -138,16 +165,8 @@ impl Resolver {
                         track_id: track.id,
                     },
                     canonical_surface: track.canonical_surface.clone(),
-                    entity_type: track.entity_type.clone(),
-                    embedding: track
-                        .embedding
-                        .as_ref()
-                        .filter(|vector| {
-                            !vector.is_empty()
-                                && vector.iter().all(|v| v.is_finite())
-                                && vector.iter().any(|&v| v != 0.0)
-                        })
-                        .cloned(),
+                    entity_type: track.coref_type(doc),
+                    embedding: track.coref_embedding().cloned(),
                 });
             }
         }
@@ -206,11 +225,11 @@ impl Resolver {
                 let track_b = &track_data[j];
 
                 // Type check
-                if type_match && track_a.entity_type != track_b.entity_type {
+                if type_match && !track_a.entity_type.matches(&track_b.entity_type) {
                     continue;
                 }
 
-                if similarity(track_a, track_b) >= threshold {
+                if similarity(track_a, track_b).is_some_and(|score| score >= threshold) {
                     union(&mut union_find, &mut rank, i, j);
                 }
             }
@@ -227,23 +246,11 @@ impl Resolver {
         // Note: Singleton clusters (clusters with only one track) still create identities.
         // This allows tracking entities that appear only once across documents.
         for members in cluster_map.values() {
-            let first = &track_data[members[0]];
             let refs: Vec<_> = members
                 .iter()
                 .map(|&i| track_data[i].track_ref.clone())
                 .collect();
-            let minimum = members
-                .iter()
-                .enumerate()
-                .flat_map(|(position, left)| {
-                    let left = &track_data[*left];
-                    let data = &track_data;
-                    members[position + 1..]
-                        .iter()
-                        .map(move |right| similarity(left, &data[*right]))
-                })
-                .min_by(f32::total_cmp)
-                .map(crate::Confidence::from);
+            let minimum = weakest_pair(members, &track_data);
             let score = minimum.unwrap_or(crate::Confidence::ZERO);
             if let Some(id) = by_members.get(refs.as_slice()) {
                 let mut identity = corpus.get_identity(*id).expect("current identity").clone();
@@ -254,15 +261,16 @@ impl Resolver {
                 continue;
             }
 
-            let mut identity = Identity::new(IdentityId::ZERO, &first.canonical_surface);
-            identity.entity_type = first.entity_type.clone();
-            identity.embedding = first.embedding.clone();
+            let mut identity = Identity::new(IdentityId::ZERO, "");
             identity.minimum_pair_similarity = minimum;
             identity.confidence = score;
             identity.source = Some(IdentitySource::CrossDocCoref {
                 track_refs: refs.clone(),
             });
-            if corpus.add_identity_for_tracks(identity, &refs).is_none() {
+            if corpus
+                .add_resolved_identity_for_tracks(identity, &refs)
+                .is_none()
+            {
                 log::warn!("Could not bind coalesced identity for tracks {:?}", refs);
             }
         }
@@ -620,6 +628,279 @@ mod tests {
             .unwrap()
             .track_ref(track)
             .unwrap()
+    }
+
+    fn observed_track(doc_id: &str, surface: &str, labels: &[&str]) -> GroundedDocument {
+        let text = vec![surface; labels.len()].join(" ");
+        let mut doc = GroundedDocument::new(doc_id, &text);
+        if labels.is_empty() {
+            doc.add_track(Track::new(0, surface));
+        } else {
+            let signal_ids: Vec<_> = labels
+                .iter()
+                .enumerate()
+                .map(|(n, &label)| {
+                    let start = n * (surface.chars().count() + 1);
+                    doc.add_signal(Signal::new(
+                        0,
+                        Location::text(start, start + surface.chars().count()),
+                        surface,
+                        label,
+                        1.0,
+                    ))
+                })
+                .collect();
+            doc.create_track_from_signals(surface, &signal_ids).unwrap();
+        }
+        doc
+    }
+
+    #[test]
+    fn resolver_abstains_on_missing_surface_evidence_even_at_zero_threshold() {
+        let mut corpus = Corpus::new();
+        for (id, surface, embedding) in [
+            ("a", "", Some(vec![1., 0.])),
+            ("b", "  \t", Some(vec![1.])),
+            ("c", "Morgan", None),
+            ("d", " ", Some(vec![0., 0.])),
+            ("e", "Rowan", None),
+        ] {
+            let mut doc = GroundedDocument::new(id, surface);
+            let mut track = Track::new(0, surface);
+            track.embedding = embedding;
+            doc.add_track(track);
+            corpus.add_document(doc);
+        }
+        let resolver = Resolver::new();
+        assert_eq!(
+            resolver
+                .resolve_inter_doc_coref(&mut corpus, None, None)
+                .len(),
+            5
+        );
+        assert_eq!(
+            resolver
+                .resolve_inter_doc_coref(&mut corpus, Some(0.0), None)
+                .len(),
+            4
+        );
+        let identity = |id| {
+            corpus
+                .get_document(id)
+                .unwrap()
+                .identity_for_track(TrackId::ZERO)
+                .unwrap()
+        };
+        for id in ["a", "b", "d"] {
+            assert_eq!(identity(id).source.as_ref().unwrap().track_refs().len(), 1);
+            assert_eq!(identity(id).minimum_pair_similarity, None);
+        }
+        // Two observed, disjoint names have a measured similarity of zero.
+        assert_eq!(identity("c").id, identity("e").id);
+        assert_eq!(
+            identity("c").minimum_pair_similarity,
+            Some(crate::Confidence::ZERO)
+        );
+    }
+
+    #[test]
+    fn blank_tracks_can_use_embeddings_but_a_missing_pair_leaves_support_unmeasured() {
+        let mut corpus = Corpus::new();
+        for (id, surface) in [("a", ""), ("a2", " "), ("b", "Morgan")] {
+            let mut doc = GroundedDocument::new(id, surface);
+            let mut track = Track::new(0, surface);
+            track.embedding = Some(vec![1., 0.]);
+            doc.add_track(track);
+            corpus.add_document(doc);
+        }
+        let resolver = Resolver::new();
+        let embedded = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(embedded.len(), 1);
+        assert_eq!(
+            corpus
+                .get_identity(embedded[0])
+                .unwrap()
+                .minimum_pair_similarity,
+            Some(crate::Confidence::ONE)
+        );
+
+        // b and c share a name. The blank tracks share no evidence channel with c.
+        add_track_doc(&mut corpus, "c", "Morgan");
+        let linked = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(linked.len(), 1);
+        let clustered = corpus.get_identity(linked[0]).unwrap();
+        assert_eq!(clustered.minimum_pair_similarity, None);
+        assert_eq!(clustered.confidence, crate::Confidence::ZERO);
+    }
+
+    #[test]
+    fn type_guard_uses_unanimous_signal_types_and_respects_explicit_track_types() {
+        let mut corpus = Corpus::new();
+        for (id, labels) in [
+            ("person", &["PER", "PERSON"][..]),
+            ("persisted", &["PER"]),
+            ("org", &["ORG"]),
+            ("override", &["PER"]),
+            ("mixed", &["PER", "ORG"]),
+            ("mixed2", &["ORG", "PER"]),
+            ("blank", &["  "]),
+            ("missing", &["PER"]),
+            ("empty", &[]),
+            ("empty2", &[]),
+        ] {
+            let mut doc = observed_track(id, "Morgan", labels);
+            let track = doc.tracks_map_mut().get_mut(&TrackId::ZERO).unwrap();
+            if id == "override" {
+                track.entity_type = Some("ORG".into());
+            } else if id == "missing" {
+                track.add_signal(99, 1);
+            } else if id == "persisted" {
+                let mut wire = serde_json::to_value(&doc).unwrap();
+                wire["tracks"]["0"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("entity_type");
+                doc = serde_json::from_value(wire).unwrap();
+            }
+            corpus.add_document(doc);
+        }
+        let resolver = Resolver::new();
+        let clusters = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        let identity = |doc_id: &str| {
+            corpus
+                .get_document(doc_id)
+                .unwrap()
+                .identity_for_track(TrackId::ZERO)
+                .unwrap()
+        };
+        assert_eq!(identity("person").entity_type, Some("PER".into()));
+        assert_eq!(identity("person").id, identity("persisted").id);
+        assert_ne!(identity("person").id, identity("org").id);
+        assert_eq!(identity("org").id, identity("override").id);
+        assert_eq!(identity("empty").id, identity("empty2").id);
+        assert_eq!(clusters.len(), 7);
+        for id in ["mixed", "mixed2", "blank", "missing"] {
+            let identity = identity(id);
+            assert!(identity.entity_type.is_none());
+            assert_eq!(identity.source.as_ref().unwrap().track_refs().len(), 1);
+        }
+        assert_eq!(
+            resolver
+                .resolve_inter_doc_coref(&mut corpus, None, Some(false))
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn withdrawal_and_retry_publish_the_current_representative() {
+        let mut corpus = Corpus::new();
+        let resolver = Resolver::new().require_type_match(false);
+        for (doc_id, name, label, embedding) in [
+            ("a", "Morgan Lee", "PER", vec![1., 0.]),
+            ("z", "Lee", "ORG", vec![0.9, 0.2]),
+        ] {
+            let mut doc = observed_track(doc_id, name, &[label]);
+            doc.tracks_map_mut()
+                .get_mut(&TrackId::ZERO)
+                .unwrap()
+                .embedding = Some(embedding);
+            corpus.add_document(doc);
+        }
+        let ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(ids.len(), 1);
+        assert_eq!(
+            corpus.get_identity(ids[0]).unwrap().canonical_name,
+            "Morgan Lee"
+        );
+        corpus.add_document(GroundedDocument::new("a", ""));
+        let survivor = corpus.get_document("z").unwrap();
+        let remaining = corpus.get_identity(ids[0]).unwrap();
+        assert_eq!(remaining.canonical_name, "Lee");
+        assert_eq!(remaining.entity_type, Some("ORG".into()));
+        assert_eq!(remaining.embedding, Some(vec![0.9, 0.2]));
+        assert_eq!(remaining.minimum_pair_similarity, None);
+        assert_eq!(survivor.identity_for_track(TrackId::ZERO), Some(remaining));
+        let survivor = corpus
+            .get_document_mut("z")
+            .unwrap()
+            .tracks_map_mut()
+            .get_mut(&TrackId::ZERO)
+            .unwrap();
+        survivor.canonical_surface = "Lee Group".into();
+        survivor.entity_type = Some("GROUP".into());
+        survivor.embedding = Some(vec![0., 0.]);
+        assert_eq!(
+            resolver.resolve_inter_doc_coref(&mut corpus, None, None),
+            ids
+        );
+        let remaining = corpus.get_identity(ids[0]).unwrap();
+        assert_eq!(remaining.canonical_name, "Lee Group");
+        assert_eq!(remaining.entity_type, Some("GROUP".into()));
+        assert_eq!(remaining.embedding, None);
+        assert_eq!(
+            corpus
+                .get_document("z")
+                .unwrap()
+                .identity_for_track(TrackId::ZERO),
+            Some(remaining)
+        );
+    }
+
+    #[test]
+    fn retries_and_withdrawals_preserve_curated_representatives() {
+        let resolver = Resolver::new();
+        for catalog_owned in [false, true] {
+            let mut corpus = Corpus::new();
+            let first = add_track_doc(&mut corpus, "a", "Morgan");
+            let second = add_track_doc(&mut corpus, "b", "Morgan");
+            let members = vec![first.clone(), second.clone()];
+            let id = if catalog_owned {
+                resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+                corpus
+                    .link_track_to_kb(&first, "catalog", "42", "Curated Morgan")
+                    .unwrap()
+            } else {
+                let mut curated = Identity::new(0, "Curated Morgan");
+                curated.entity_type = Some("curated_type".into());
+                curated.embedding = Some(vec![3., 2.]);
+                curated.aliases.push("Editorial alias".into());
+                curated.source = Some(IdentitySource::CrossDocCoref {
+                    track_refs: members.clone(),
+                });
+                let id = corpus.add_identity(curated.clone());
+                for member in &members {
+                    let doc = corpus.get_document_mut(&member.doc_id).unwrap();
+                    assert_eq!(doc.add_identity(curated.clone()), id);
+                    doc.link_track_to_identity(member.track_id, id);
+                }
+                id
+            };
+            let before = corpus.get_identity(id).unwrap().clone();
+            assert_eq!(
+                resolver.resolve_inter_doc_coref(&mut corpus, None, None),
+                vec![id]
+            );
+            corpus.add_document(GroundedDocument::new("a", ""));
+            assert_eq!(
+                resolver.resolve_inter_doc_coref(&mut corpus, None, None),
+                vec![id]
+            );
+            let current = corpus.get_identity(id).unwrap();
+            assert_eq!(current.source.as_ref().unwrap().track_refs(), &[second]);
+            assert_eq!(current.canonical_name, before.canonical_name);
+            assert_eq!(current.entity_type, before.entity_type);
+            assert_eq!(current.embedding, before.embedding);
+            assert_eq!(current.aliases, before.aliases);
+            assert_eq!(current.qualified_kb_ref(), before.qualified_kb_ref());
+            assert_eq!(
+                corpus
+                    .get_document("b")
+                    .unwrap()
+                    .identity_for_track(TrackId::ZERO),
+                Some(current)
+            );
+        }
     }
 
     #[test]

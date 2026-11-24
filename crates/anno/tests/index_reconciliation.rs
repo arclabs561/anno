@@ -365,3 +365,124 @@ fn catalog_decisions_preserve_the_members_reviewed_at_each_checkpoint() {
         }
     }
 }
+
+#[test]
+fn unlinked_revision_histories_match_fresh_members_and_identity_metadata() {
+    // Local track IDs can change on every replacement, including when just one
+    // of two submitted IDs is retired. Each track has one independently anchored signal.
+    fn edition(id: &str, mentions: &[(&str, &str)]) -> GroundedDocument {
+        let text = mentions
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join(" / ");
+        let mut doc = GroundedDocument::new(id, text);
+        let mut start = 0;
+        for &(name, label) in mentions {
+            let end = start + name.chars().count();
+            let signal = doc
+                .add_signal_validated(Signal::new(0, Location::text(start, end), name, label, 1.0))
+                .unwrap();
+            doc.create_track_from_signals(name, &[signal]).unwrap();
+            start = end + 3;
+        }
+        doc
+    }
+
+    fn snapshot(corpus: &Corpus) -> BTreeMap<Vec<Anchor>, anno::Identity> {
+        let mut view = BTreeMap::new();
+        for (id, refs) in corpus.current_coref_clusters() {
+            let identity = corpus.get_identity(id).unwrap();
+            assert_eq!(identity.source.as_ref().unwrap().track_refs(), &refs);
+            let mut anchors = Vec::new();
+            for member in refs {
+                let doc = corpus.get_document(&member.doc_id).unwrap();
+                assert_eq!(doc.identity_for_track(member.track_id), Some(identity));
+                anchors.push(observed(corpus, &member));
+            }
+            anchors.sort();
+            let mut metadata = identity.clone();
+            metadata.id = anno::IdentityId::ZERO;
+            metadata.source = None; // The map key carries the source-qualified membership.
+            assert!(view.insert(anchors, metadata).is_none());
+        }
+        assert_eq!(view.len(), corpus.identities().len());
+        assert_eq!(
+            view.keys().map(Vec::len).sum::<usize>(),
+            corpus
+                .documents()
+                .map(|doc| doc.tracks().count())
+                .sum::<usize>()
+        );
+        view
+    }
+
+    let revisions = [
+        edition("a", &[("Nia", "PER")]),
+        edition("a", &[("Nia Vale", "PER"), ("Vale", "PER")]),
+        edition("a", &[]),
+        edition("b", &[("Vale", "PER")]),
+        edition("b", &[("Vale", "ORG")]),
+        edition("b", &[]),
+    ];
+    let resolver = Resolver::new().with_threshold(0.5);
+    let actions = revisions.len() + 1; // The final action retries without changing an input.
+    for history in 0..actions.pow(4) {
+        let mut live = Corpus::new();
+        let mut latest = BTreeMap::new();
+        let mut state = history;
+        let trace = std::array::from_fn::<_, 4, _>(|_| {
+            let action = state % actions;
+            state /= actions;
+            action
+        });
+        for action in trace {
+            if let Some(doc) = revisions.get(action) {
+                latest.insert(doc.id(), doc);
+                live.add_document(doc.clone());
+            }
+            resolver.resolve_inter_doc_coref(&mut live, None, None);
+        }
+        let mut fresh = Corpus::new();
+        for doc in latest.into_values().rev() {
+            fresh.add_document(doc.clone());
+        }
+        resolver.resolve_inter_doc_coref(&mut fresh, None, None);
+        assert_eq!(
+            snapshot(&live),
+            snapshot(&fresh),
+            "revision indices {trace:?}"
+        );
+    }
+}
+
+#[test]
+fn rekeying_preserves_submitted_priority_for_coincident_or_unlocated_aliases() {
+    for use_signal in [true, false] {
+        let mut corpus = Corpus::new();
+        let mut prior = GroundedDocument::new("doc", "");
+        prior.add_track(anno::Track::new(0, "old"));
+        corpus.add_document(prior);
+        let mut current = GroundedDocument::new("doc", "Nia");
+        for canonical in ["Nia Vale", "Vale"] {
+            let mut track = anno::Track::new(0, canonical);
+            if use_signal {
+                let signal = current
+                    .add_signal_validated(Signal::new(0, Location::text(0, 3), "Nia", "PER", 1.0))
+                    .unwrap();
+                track.add_signal(signal, 0);
+            }
+            current.add_track(track);
+        }
+        corpus.add_document(current);
+        let ids =
+            Resolver::new()
+                .with_threshold(0.5)
+                .resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(ids.len(), 1);
+        assert_eq!(
+            corpus.get_identity(ids[0]).unwrap().canonical_name,
+            "Nia Vale"
+        );
+    }
+}

@@ -27,7 +27,7 @@ pub struct QueryArgs {
     #[arg(value_name = "FILE", required = true)]
     pub input: Option<String>,
 
-    /// Only show occurrences bound to this exact catalog and accession.
+    /// Select occurrences or clusters bound to this exact catalog and accession.
     #[arg(long, num_args = 2, value_names = ["CATALOG", "ACCESSION"], conflicts_with_all = ["untracked", "unlinked"])]
     pub catalog_record: Vec<String>,
 
@@ -254,94 +254,121 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             }
         }
     } else {
-        if catalog.is_some() {
-            return Err("catalog-record filtering requires a GroundedDocument".into());
-        }
-        // Try to parse as cross-doc clusters (requires cross-doc support).
         #[cfg(feature = "eval")]
-        {
-            if let Ok(clusters) =
-                serde_json::from_str::<Vec<anno_eval::cdcr::CrossDocCluster>>(&json_content)
-                    .map_err(|e| format_error("parse cross-doc clusters JSON", &e.to_string()))
-            {
-                let mut filtered: Vec<_> = clusters.iter().collect();
-
-                // Apply filters
-                if let Some(ref filter_type) = args.r#type {
-                    filtered.retain(|c| {
-                        c.entity_type
-                            .as_ref()
-                            .map(|t| t.as_label().eq_ignore_ascii_case(filter_type))
-                            .unwrap_or(false)
-                    });
-                }
-
-                if let Some(ref filter_type) = expression.entity_type {
-                    filtered.retain(|c| {
-                        c.entity_type
-                            .as_ref()
-                            .map(|t| t.as_label().eq_ignore_ascii_case(filter_type))
-                            .unwrap_or(false)
-                    });
-                }
-
-                if expression.confidence_greater_than.is_some() {
-                    return Err(
-                        "confidence filters are only supported for GroundedDocument input"
-                            .to_string(),
-                    );
-                }
-
-                if let Some(ref entity_text) = args.entity {
-                    filtered.retain(|c| {
-                        c.canonical_name
-                            .to_lowercase()
-                            .contains(&entity_text.to_lowercase())
-                    });
-                }
-
-                // Output results
-                match args.format {
-                    OutputFormat::Tree => {
-                        for cluster in &filtered {
-                            println!("Cluster {}: {}", cluster.id, cluster.canonical_name);
-                            for (doc_id, entity_idx) in &cluster.mentions {
-                                println!("  - entity[{}] (doc: {})", entity_idx, doc_id);
-                            }
-                            println!();
-                        }
-                    }
-                    OutputFormat::Json | OutputFormat::Grounded => {
-                        let output = serde_json::to_string_pretty(&filtered)
-                            .map_err(|e| format!("Failed to serialize: {}", e))?;
-                        if let Some(output_path) = &args.output {
-                            fs::write(output_path, output)
-                                .map_err(|e| format!("Failed to write output: {}", e))?;
-                        } else {
-                            println!("{}", output);
-                        }
-                    }
-                    _ => {
-                        println!("Found {} clusters:", filtered.len());
-                        for cluster in &filtered {
-                            println!(
-                                "  {}: {} mentions across {} documents",
-                                cluster.canonical_name,
-                                cluster.mentions.len(),
-                                cluster.doc_count()
-                            );
-                        }
-                    }
-                }
-                return Ok(());
-            }
-        }
-
-        // If we get here with eval feature but failed to parse as clusters, error out
-        return Err("Failed to parse input as GroundedDocument".to_string());
+        return query_clusters(&json_content, &args, &expression, catalog.as_ref());
+        #[cfg(not(feature = "eval"))]
+        return Err("Failed to parse input as GroundedDocument. Cross-document queries require the eval feature.".into());
     }
 
     Ok(())
+}
+
+/// Query the JSON report emitted by cross-doc, or a bare cluster array from older callers.
+#[cfg(feature = "eval")]
+fn query_clusters(
+    json: &str,
+    args: &QueryArgs,
+    expression: &FilterExpression,
+    catalog: Option<&CatalogRecord>,
+) -> Result<(), String> {
+    use anno_eval::cdcr::CrossDocCluster;
+    use std::io::Write;
+
+    #[derive(serde::Deserialize)]
+    struct Report {
+        clusters: Vec<CrossDocCluster>,
+    }
+
+    let mut clusters: Vec<CrossDocCluster> = if json.trim_start().starts_with('[') {
+        serde_json::from_str(json)
+    } else {
+        serde_json::from_str::<Report>(json).map(|report| report.clusters)
+    }
+    .map_err(|e| format!("Expected GroundedDocument, cross-doc report or cluster array: {e}"))?;
+
+    if expression.confidence_greater_than.is_some() || args.min_confidence.is_some() {
+        return Err("confidence filters are only supported for GroundedDocument input".into());
+    }
+    if args.start_offset.is_some()
+        || args.end_offset.is_some()
+        || args.negated
+        || args.quantified
+        || args.linked
+        || args.unlinked
+        || args.untracked
+    {
+        return Err(
+            "Offset, signal-property and track-membership filters require GroundedDocument input"
+                .into(),
+        );
+    }
+    for entity_type in [args.r#type.as_ref(), expression.entity_type.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        clusters.retain(|cluster| {
+            cluster
+                .entity_type
+                .as_ref()
+                .is_some_and(|ty| ty.as_label().eq_ignore_ascii_case(entity_type))
+        });
+    }
+    if let Some(entity) = &args.entity {
+        let name = entity.to_lowercase();
+        clusters.retain(|cluster| cluster.canonical_name.to_lowercase().contains(&name));
+    }
+    if let Some(record) = catalog {
+        clusters.retain(|cluster| {
+            cluster.kb_name.as_deref().zip(cluster.kb_id.as_deref()) == Some(record.as_ref())
+        });
+    }
+
+    let output = match args.format {
+        OutputFormat::Json => {
+            let mut json = serde_json::to_string_pretty(&clusters)
+                .map_err(|e| format!("Failed to serialize clusters: {e}"))?;
+            json.push('\n');
+            json
+        }
+        OutputFormat::Tree => {
+            let mut output = String::new();
+            for cluster in clusters {
+                output.push_str(&format!(
+                    "Cluster {}: {}\n",
+                    cluster.id, cluster.canonical_name
+                ));
+                for (doc_id, entity_idx) in cluster.mentions {
+                    output.push_str(&format!("  - entity[{entity_idx}] (doc: {doc_id})\n"));
+                }
+                output.push('\n');
+            }
+            output
+        }
+        OutputFormat::Human | OutputFormat::Summary => {
+            let mut output = format!("Found {} clusters:\n", clusters.len());
+            for cluster in clusters {
+                output.push_str(&format!(
+                    "  {}: {} mentions across {} documents\n",
+                    cluster.canonical_name,
+                    cluster.mentions.len(),
+                    cluster.doc_count()
+                ));
+            }
+            output
+        }
+        other => {
+            let formats = "human, summary, tree or json";
+            return Err(format!(
+                "Format {other:?} is unsupported for cluster queries. Use {formats}."
+            ));
+        }
+    };
+    if let Some(path) = &args.output {
+        fs::write(path, output)
+    } else {
+        io::stdout().lock().write_all(output.as_bytes())
+    }
+    .map_err(|e| format_error("write query output", &e.to_string()))
 }
 
 #[cfg(test)]

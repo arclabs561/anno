@@ -14,7 +14,7 @@ use anno::coalesce::Resolver;
 #[cfg(feature = "eval")]
 use anno::offset::TextSpan;
 #[cfg(feature = "eval")]
-use anno::{Corpus, GroundedDocument, Signal, SignalId};
+use anno::{Corpus, GroundedDocument};
 #[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 
@@ -24,6 +24,15 @@ use super::super::parser::{ModelBackend, OutputFormat};
 
 #[cfg(feature = "eval")]
 use glob::glob;
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CandidateMode {
+    /// Compare every pair of mentions.
+    Exhaustive,
+    /// Compare only pairs proposed by locality-sensitive hashing of mention text.
+    Lsh,
+}
 
 /// Cross-document entity coalescing: cluster entities across multiple documents
 #[derive(clap::Parser, Debug)]
@@ -40,6 +49,10 @@ pub struct CrossDocArgs {
     #[arg(short, long, default_value = "0.6")]
     pub threshold: f64,
 
+    /// Raw directory candidate generation (default: exhaustive up to 100 documents, then lsh)
+    #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
+    pub candidates: Option<CandidateMode>,
+
     /// Require entity type match for clustering
     #[arg(long)]
     pub require_type_match: bool,
@@ -48,12 +61,14 @@ pub struct CrossDocArgs {
     #[arg(short, long, default_value = "json")]
     pub format: OutputFormat,
 
-    /// Import pre-processed GroundedDocument JSON file(s) instead of processing directory
+    /// Import a GroundedDocument or JSON array of documents per file, in argument order.
+    /// Use - to insert a JSONL stream. A later document with the same ID replaces the earlier one.
     #[arg(long, value_name = "PATH")]
     pub import: Vec<String>,
 
-    /// Read input from stdin (JSONL format, one GroundedDocument per line)
-    #[arg(long)]
+    /// Read only stdin (JSONL format, one GroundedDocument per line).
+    /// To combine stdin with files, use --import - in the desired order.
+    #[arg(long, conflicts_with = "import")]
     pub stdin: bool,
 
     /// File extensions to process (comma-separated)
@@ -137,7 +152,7 @@ fn context_snippet<'a>(
 /// Build the import view from current track assignments. Entity indices in
 /// CLI output refer to the signal's position in the document's flat projection.
 #[cfg(feature = "eval")]
-fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
+pub(super) fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
     #[derive(Hash, PartialEq, Eq)]
     enum Key<'a> {
         Kb(&'a str, &'a str),
@@ -206,6 +221,89 @@ fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
 }
 
 #[cfg(feature = "eval")]
+fn import_documents(
+    args: &CrossDocArgs,
+    corpus: &mut Corpus,
+    doc_paths: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    enum Input {
+        File(PathBuf),
+        Stdin,
+    }
+
+    let mut inputs = Vec::new();
+    if args.stdin {
+        inputs.push(Input::Stdin);
+    }
+    for pattern in &args.import {
+        if pattern == "-" {
+            inputs.push(Input::Stdin);
+        } else if pattern.contains(['*', '?', '[']) {
+            let paths =
+                glob(pattern).map_err(|e| format!("Invalid glob pattern '{pattern}': {e}"))?;
+            for entry in paths {
+                let path =
+                    entry.map_err(|e| format!("Failed to expand import '{pattern}': {e}"))?;
+                if path.is_file() {
+                    inputs.push(Input::File(path));
+                }
+            }
+        } else {
+            inputs.push(Input::File(PathBuf::from(pattern)));
+        }
+    }
+
+    let mut add = |doc: GroundedDocument, source: String| {
+        if args.verbose {
+            eprintln!(
+                "  Imported {} signals, {} tracks from {}",
+                doc.signals().len(),
+                doc.tracks_map().len(),
+                source
+            );
+        }
+        doc_paths.insert(corpus.add_document(doc), source);
+    };
+
+    for input in inputs {
+        match input {
+            Input::Stdin => {
+                for (index, line) in io::stdin().lock().lines().enumerate() {
+                    let line_number = index + 1;
+                    let line =
+                        line.map_err(|e| format!("Failed to read stdin line {line_number}: {e}"))?;
+                    if !line.trim().is_empty() {
+                        let doc = serde_json::from_str(&line).map_err(|e| {
+                            format!("Failed to parse stdin line {line_number}: {e}")
+                        })?;
+                        add(doc, format!("stdin:{line_number}"));
+                    }
+                }
+            }
+            Input::File(path) => {
+                let source = path.display();
+                let json = fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read import file '{source}': {e}"))?;
+                if json.trim_start().starts_with('[') {
+                    let docs: Vec<GroundedDocument> = serde_json::from_str(&json).map_err(|e| {
+                        format!("Failed to parse GroundedDocument array from '{source}': {e}")
+                    })?;
+                    for (index, doc) in docs.into_iter().enumerate() {
+                        add(doc, format!("{source}[{index}]"));
+                    }
+                } else {
+                    let doc = serde_json::from_str(&json).map_err(|e| {
+                        format!("Failed to parse GroundedDocument JSON from '{source}': {e}")
+                    })?;
+                    add(doc, source.to_string());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
     if args.verbose {
@@ -250,162 +348,14 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut use_corpus = false;
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
+    let candidate_mode;
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
         || args.stdin
     {
         // Import mode: use Corpus for proper inter-doc coref with GroundedDocuments
         use_corpus = true;
-        let mut import_files = Vec::new();
-
-        if args.stdin {
-            // Read from stdin (JSONL format)
-            if args.verbose {
-                eprintln!("Reading GroundedDocuments from stdin (JSONL format)...");
-            }
-            let stdin = io::stdin();
-            let reader = stdin.lock();
-            for (line_num, line) in reader.lines().enumerate() {
-                let line =
-                    line.map_err(|e| format!("Failed to read stdin line {}: {}", line_num + 1, e))?;
-                if line.trim().is_empty() {
-                    continue;
-                }
-                let doc: GroundedDocument = serde_json::from_str(&line)
-                    .map_err(|e| format!("Failed to parse stdin line {}: {}", line_num + 1, e))?;
-                if args.verbose {
-                    eprintln!(
-                        "  Imported {} signals, {} tracks from stdin line {}",
-                        doc.signals().len(),
-                        doc.tracks_map().len(),
-                        line_num + 1
-                    );
-                }
-                let id = corpus.add_document(doc);
-                doc_paths.insert(id, format!("stdin:{}", line_num + 1));
-            }
-        } else {
-            // Collect files from import paths (support glob patterns)
-            for import_pattern in &args.import {
-                if import_pattern == "-" {
-                    // Special case: read from stdin
-                    let stdin = io::stdin();
-                    let reader = stdin.lock();
-                    for (line_num, line) in reader.lines().enumerate() {
-                        let line = line.map_err(|e| {
-                            format!("Failed to read stdin line {}: {}", line_num + 1, e)
-                        })?;
-                        if line.trim().is_empty() {
-                            continue;
-                        }
-                        let doc: GroundedDocument = serde_json::from_str(&line).map_err(|e| {
-                            format!("Failed to parse stdin line {}: {}", line_num + 1, e)
-                        })?;
-                        let doc_id = doc.id().to_owned();
-                        corpus.add_document(doc);
-                        doc_paths.insert(doc_id.clone(), format!("stdin:{}", line_num + 1));
-                        if args.verbose {
-                            if let Some(d) = corpus.get_document(&doc_id) {
-                                let stats = d.stats();
-                                eprintln!(
-                                    "  Imported {} signals, {} tracks from stdin line {}",
-                                    stats.signal_count,
-                                    stats.track_count,
-                                    line_num + 1
-                                );
-                            }
-                        }
-                    }
-                } else if import_pattern.contains('*')
-                    || import_pattern.contains('?')
-                    || import_pattern.contains('[')
-                {
-                    // Glob pattern
-                    if args.verbose {
-                        eprintln!("Expanding glob pattern: {}", import_pattern);
-                    }
-                    let matches = glob(import_pattern)
-                        .map_err(|e| format!("Invalid glob pattern '{}': {}", import_pattern, e))?;
-                    for entry in matches {
-                        match entry {
-                            Ok(path) => {
-                                if path.is_file() {
-                                    import_files.push(path);
-                                }
-                            }
-                            Err(e) => {
-                                if args.verbose {
-                                    eprintln!("  Warning: glob match error: {}", e);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Regular file path
-                    let path = Path::new(import_pattern);
-                    if path.exists() && path.is_file() {
-                        import_files.push(path.to_path_buf());
-                    } else {
-                        return Err(format!("Import file not found: {}", import_pattern));
-                    }
-                }
-            }
-
-            // Load all collected files
-            if args.verbose && !import_files.is_empty() {
-                eprintln!(
-                    "Importing {} GroundedDocument file(s)...",
-                    import_files.len()
-                );
-            }
-
-            for (idx, file_path) in import_files.iter().enumerate() {
-                if args.verbose {
-                    eprint!(
-                        "\r  Loading {}/{}: {}...",
-                        idx + 1,
-                        import_files.len(),
-                        file_path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("?")
-                    );
-                    use std::io::Write;
-                    io::stderr().flush().ok();
-                }
-
-                let json_content = fs::read_to_string(file_path).map_err(|e| {
-                    format!(
-                        "Failed to read import file '{}': {}",
-                        file_path.display(),
-                        e
-                    )
-                })?;
-
-                let doc: GroundedDocument = serde_json::from_str(&json_content).map_err(|e| {
-                    format!(
-                        "Failed to parse GroundedDocument JSON from '{}': {}",
-                        file_path.display(),
-                        e
-                    )
-                })?;
-
-                let entity_count = doc.signals().len();
-                let id = corpus.add_document(doc);
-                doc_paths.insert(id, file_path.display().to_string());
-
-                if args.verbose {
-                    eprintln!(
-                        "\r  Loaded {} entities from {}",
-                        entity_count,
-                        file_path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("?")
-                    );
-                }
-            }
-        }
+        import_documents(&args, &mut corpus, &mut doc_paths)?;
 
         let doc_count = corpus.documents().count();
         if doc_count == 0 {
@@ -431,6 +381,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             );
         }
 
+        candidate_mode = CandidateMode::Exhaustive;
         let resolver = Resolver::new()
             .with_threshold(args.threshold as f32)
             .require_type_match(args.require_type_match);
@@ -472,7 +423,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         Some(clusters)
     } else {
         // Normal mode: extract from text files, use CDCRResolver (legacy path)
-        let model = args.model.create_model()?;
         // Normal mode: extract entities from text files
         // Directory is required in normal mode
         let dir = if let Some(ref dir_str) = args.directory {
@@ -490,6 +440,23 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             ));
         }
 
+        files.sort();
+        let mut doc_ids = Vec::with_capacity(files.len());
+        for (idx, path) in files.iter().enumerate() {
+            let id = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("doc{idx}"));
+            super::super::utils::register_document_source(
+                &mut doc_paths,
+                &id,
+                path.display().to_string(),
+            )?;
+            doc_ids.push(id);
+        }
+
+        let model = args.model.create_model()?;
         if args.verbose {
             eprintln!("Found {} files", files.len());
             eprintln!("Extracting entities...");
@@ -498,7 +465,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         // NOTE: Currently operates on raw entities (Level 1: Signal)
         // With --import, can use Level 2 (Tracks) and Level 3 (Identities) from pre-processed docs
         let total_files = files.len();
-        for (idx, file_path) in files.iter().enumerate() {
+        for (idx, (file_path, doc_id)) in files.iter().zip(&doc_ids).enumerate() {
             if args.verbose {
                 eprint!(
                     "\r  Processing {}/{}: {}...",
@@ -516,38 +483,11 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             let text = fs::read_to_string(file_path)
                 .map_err(|e| format!("Failed to read {}: {}", file_path.display(), e))?;
 
-            let doc_id = file_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("doc{}", idx));
-
-            // Store file path for later display
-            doc_paths.insert(doc_id.clone(), file_path.display().to_string());
-
             let entities = model
                 .extract_entities(&text, None)
                 .map_err(|e| format!("Failed to extract entities from {}: {}", doc_id, e))?;
 
-            // Build GroundedDocument and run coreference to create tracks (Level 2)
-            // This enables using tracks instead of just raw signals for better clustering
-            let mut grounded_doc = GroundedDocument::new(&doc_id, &text);
-            let mut signal_ids: Vec<SignalId> = Vec::new();
-
-            for e in &entities {
-                let id = grounded_doc.add_signal(Signal::from(e));
-                signal_ids.push(id);
-            }
-
-            // Auto-create tracks by running within-document coreference
-            // This groups signals into tracks, improving crossdoc clustering quality
-            use super::super::utils::resolve_coreference;
-            resolve_coreference(&mut grounded_doc, &text, &signal_ids);
-
-            // Convert to CDCR Document using entities (tracks are preserved in GroundedDocument
-            // but CDCRResolver works with entities, so we use the original entities)
-            // Future enhancement: CDCRResolver could accept tracks directly
-            documents.push(Document::new(&doc_id, &text).with_entities(entities));
+            documents.push(Document::new(doc_id, &text).with_entities(entities));
         }
 
         if args.verbose {
@@ -566,10 +506,15 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         }
 
         // Configure and run cross-doc coref using CDCRResolver (for raw text files)
+        candidate_mode = args.candidates.unwrap_or(if documents.len() > 100 {
+            CandidateMode::Lsh
+        } else {
+            CandidateMode::Exhaustive
+        });
         let config = CDCRConfig {
             min_similarity: args.threshold,
             require_type_match: args.require_type_match,
-            use_lsh: documents.len() > 100, // Use LSH for large document sets
+            use_lsh: matches!(candidate_mode, CandidateMode::Lsh),
             ..Default::default()
         };
 
@@ -657,6 +602,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
             output.insert("metadata".to_string(), serde_json::json!({
+                "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
+                "candidate_mode": candidate_mode,
                 "documents_processed": doc_count,
                 "total_entities": total_entities,
                 "clusters_found": final_clusters.len(),
@@ -1031,8 +978,8 @@ mod tests {
 
     #[test]
     fn imported_clusters_use_flat_indices_once_after_enrichment() {
-        use super::{corpus_clusters, Corpus, GroundedDocument, Resolver, Signal};
-        use anno::Location;
+        use super::{corpus_clusters, Corpus, GroundedDocument, Resolver};
+        use anno::{Location, Signal};
 
         let mut doc = GroundedDocument::new("d", "x Ada Ada");
         doc.add_signal(Signal::new(0, Location::text(0, 1), "x", "OTHER", 0.5));
