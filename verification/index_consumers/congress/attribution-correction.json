@@ -1,0 +1,94 @@
+{
+  "case": "Elmer Thomas catalog withdrawal",
+  "source": {
+    "id": "wikidata:Q1332996:en-label",
+    "wikidata_revision": 467383067,
+    "published_at": "2017-03-17T18:23:33Z",
+    "text": "Elmer Thomas",
+    "quote": "Elmer Thomas",
+    "start": 0,
+    "end": 12,
+    "unit": "Unicode scalar values, half-open",
+    "source_text_sha256": "bd754a6bf970f9119b8a8ce081b794bd57b28594e377a8994cc73339bfb6a8c0",
+    "url": "https://www.wikidata.org/wiki/Special:EntityData/Q1332996.json?revision=467383067",
+    "field": "entities.Q1332996.labels.en.value",
+    "rights": "CC0-1.0",
+    "rights_url": "https://www.wikidata.org/wiki/Wikidata:Copyright"
+  },
+  "catalog": {
+    "namespace": "bioguide",
+    "path": "legislators-historical.yaml",
+    "timestamp_semantics": "Git committer time of the two default-branch revisions, used as catalog availability times in the replay. No external deployment log was observed.",
+    "repository": "https://github.com/unitedstates/congress-legislators",
+    "before": {
+      "commit": "67f2452399209efcaf93b234f0c4d99e576c8ad8",
+      "published_at": "2017-05-03T18:18:53Z",
+      "upstream_file_sha256": "81093fb7026af5afe1a7e8cf630ab4c0dce44c3d0c51b0a43e5c3d6f682f363b",
+      "names": {
+        "T000165": {
+          "first": "Elmer",
+          "last": "Thomas"
+        },
+        "T000177": {
+          "first": "John",
+          "middle": "William Elmer",
+          "last": "Thomas"
+        }
+      }
+    },
+    "after": {
+      "commit": "0f598e244fb0d092fe507f8d1a5f3e7808279d3f",
+      "published_at": "2017-05-04T20:19:06Z",
+      "upstream_file_sha256": "f0ee9086bd1b44e346b96e85608a16f07aa77586ea2683ffd3f69b84770424f1",
+      "names": {
+        "T000177": {
+          "first": "John",
+          "middle": "William Elmer",
+          "last": "Thomas"
+        }
+      }
+    },
+    "change_commit": "e9032b34362da1552326dc8b6c5c0596cf74debd",
+    "change_url": "https://github.com/unitedstates/congress-legislators/commit/e9032b34362da1552326dc8b6c5c0596cf74debd",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/unitedstates/congress-legislators/blob/0f598e244fb0d092fe507f8d1a5f3e7808279d3f/LICENSE",
+    "license_sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  },
+  "prior_binding": {
+    "catalog": "bioguide",
+    "accession": "T000165",
+    "authority": "Pilot baseline first+last surface matcher. On the selected two before-records, only the withdrawn record exactly matches the label on those two fields. The replay seeds this erroneous prior binding to test subscriber correction. Historical subscriber outputs are unknown."
+  },
+  "surviving_binding": {
+    "catalog": "bioguide",
+    "accession": "T000177",
+    "scope": "only the source occurrence in this fixture",
+    "evidence": {
+      "issuer": "Wikidata revision 467383067",
+      "property": "P1157",
+      "statement_id": "Q1332996$c37cba76-4432-1316-12c6-faaa281b4a5b",
+      "rank": "normal",
+      "reference_count": 0,
+      "value": "T000177",
+      "observed_in_pinned_revision_at": "2017-03-17T18:23:33Z",
+      "additional_source": "https://github.com/unitedstates/congress-legislators/commit/e9032b34362da1552326dc8b6c5c0596cf74debd"
+    }
+  },
+  "cases": [
+    {
+      "id": "withdrawal_only",
+      "action": "withdraw old accession at the catalog correction; do not supply a successor",
+      "expected_old_hits": 0,
+      "expected_surviving_hits": 0,
+      "expected_literal_hits": 1
+    },
+    {
+      "id": "explicit_scoped_rebind",
+      "action": "withdraw old accession and explicitly apply the separately supplied P1157 catalog assignment to this source occurrence",
+      "expected_old_hits": 0,
+      "expected_surviving_hits": 1,
+      "expected_literal_hits": 1
+    }
+  ],
+  "control": "Replaying only when the source digest changes retains T000165 under both cases. Both policies keep the original quote. The official Biographical Directory and this community-maintained roster are distinct sources. This selected case exercises publication of an explicitly scoped correction. Restrict the matcher to label data; only the explicit-scoped-rebind adjudicator receives P1157. The P1157 existed before the correction."
+}

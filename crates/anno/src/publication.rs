@@ -268,6 +268,31 @@ mod tests {
     }
 
     #[test]
+    fn previously_saved_v1_checkpoint_still_recognizes_the_same_json_rows() {
+        // An independent encoder produced this persisted checkpoint. An encoder change
+        // that breaks it requires a migration strategy for already indexed publications.
+        let stored: IndexCheckpoint = serde_json::from_value(json!({
+            "stream": "saved-index", "sequence": 8, "fingerprint": [
+                248,130,145,239,9,69,196,254,159,26,84,243,217,131,29,110,
+                190,155,208,170,231,248,7,40,160,70,59,91,173,116,219,111
+            ]
+        }))
+        .unwrap();
+        let reopened = snapshot(
+            "saved-index",
+            8,
+            &[
+                (&["reprint", "02"], json!({"number": -0.0})),
+                (
+                    &["reprint", "01"],
+                    json!({"text": "Éva", "a": [1, true, null]}),
+                ),
+            ],
+        );
+        assert!(!reopened.needs_replace(&stored).unwrap());
+    }
+
+    #[test]
     fn changed_binding_retracts_old_facets_and_updates_untouched_occurrence() {
         let key = &["report/13", "edition1", "0"][..];
         let old = snapshot(
