@@ -101,6 +101,10 @@
 // This module is compiled under `anno-eval`'s `eval` feature.
 // Tests within this file are still `#[cfg(test)]` as usual.
 
+#[cfg(test)]
+#[path = "matrix_checkpoint.rs"]
+mod checkpoint;
+
 #[path = "matrix_retry.rs"]
 mod retry;
 

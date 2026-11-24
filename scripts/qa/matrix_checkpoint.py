@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import subprocess
 import tempfile
 import zipfile
@@ -83,7 +82,18 @@ def journal_size(root):
         return 0
 
 
-def snapshot(root, target, logs, journal_start=0):
+def export_state(root, stage, features):
+    env = dict(os.environ, ANNO_CHECKPOINT_SOURCE=str(root.resolve()),
+               ANNO_CHECKPOINT_TARGET=str(stage.resolve()))
+    subprocess.run(["cargo", "test", "--locked", "-p", "anno-eval", "--lib", "--features", features,
+                    "muxer_matrix::checkpoint::export", "--", "--exact", "--ignored"],
+                   cwd=Path(__file__).resolve().parents[2], env=env, check=True)
+    if not ((stage / "eval-results.jsonl").is_file() and (stage / "eval-history.db").is_file()
+            and any(stage.glob("muxer_history.*.json"))):
+        raise ValueError("incomplete projected matrix checkpoint")
+
+
+def snapshot(root, target, logs, journal_start=0, features="onnx,eval,discourse"):
     # The evaluator logs an outcome even if appending its history row failed.
     # Only post-restore journal entries prove that the next run can see it.
     expected = set()
@@ -109,20 +119,16 @@ def snapshot(root, target, logs, journal_start=0):
         for line in journal:
             missing.discard(json.loads(line).get("observation_id"))
     if missing:
-        raise ValueError(f"{len(missing)} current observations missing from the appended "
-                         f"evaluation journal, including {min(missing)!r}")
-    files = [p for p in root.iterdir() if p.is_file() and state_file(p.name)]
-    if not any(p.name.startswith("muxer_history.") for p in files):
+        raise ValueError(f"{len(missing)} current observations missing from the appended journal")
+    if not any(root.glob("muxer_history.*.json")):
         raise ValueError("observations recorded but muxer history missing")
-    target.mkdir()
-    for src in files:
-        dest = target / src.name
-        if src.name == "eval-history.db":
-            # A copied main database can miss committed pages in its WAL.
-            with sqlite3.connect(f"{src.resolve().as_uri()}?mode=ro", uri=True) as source, sqlite3.connect(dest) as backup:
-                source.backup(backup)
-        else:
-            shutil.copyfile(src, dest)
+    if target.exists():
+        raise FileExistsError(target)
+    with tempfile.TemporaryDirectory(dir=target.parent) as temp:
+        stage = Path(temp) / "checkpoint"
+        stage.mkdir()
+        export_state(root, stage, features)
+        stage.rename(target)
     return len(expected)
 
 

@@ -1,7 +1,7 @@
 import io
 import json
 from pathlib import Path
-import sqlite3
+from unittest.mock import patch
 import tempfile
 import unittest
 from zipfile import ZipFile
@@ -51,20 +51,24 @@ class MatrixCheckpointTest(unittest.TestCase):
             self.assertEqual(snapshot(root, root / "snapshot", [log]), 0)
             self.assertFalse((root / "snapshot").exists())
 
-    def test_snapshot_restores_windows_and_committed_wal_without_other_files(self):
+    def test_snapshot_transports_only_the_projected_state(self):
+        def export(_root, stage, _features):
+            for name in ("eval-results.jsonl", "eval-history.db", "muxer_history.ner.json"):
+                (stage / name).write_text("projected")
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "muxer_history.ner.json").write_text('{"window": 1}')
-            (root / "unrelated").write_text("excluded")
-            (root / "eval-results.jsonl").write_text('{"observation_id": "current", "score": 0}\n')
+            (root / "muxer_history.ner.json").write_text("private")
+            (root / "eval-history.db").write_text("private")
+            (root / "eval-results.jsonl").write_text('{"observation_id": "current"}\n')
             log = root / "current.jsonl"
             log.write_text(json.dumps({"record_type": "outcome", "observation_id": "current"}) + "\n")
-            with sqlite3.connect(root / "eval-history.db") as conn:
-                conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("CREATE TABLE observations(n)")
-                conn.execute("INSERT INTO observations VALUES (7)")
-                conn.commit()
-                target = root / "saved"
+            target = root / "saved"
+            with patch("matrix_checkpoint.export_state", side_effect=RuntimeError("incomplete")):
+                with self.assertRaises(RuntimeError):
+                    snapshot(root, target, [log])
+            self.assertFalse(target.exists())
+            with patch("matrix_checkpoint.export_state", side_effect=export):
                 self.assertEqual(snapshot(root, target, [log]), 1)
             archive = io.BytesIO()
             with ZipFile(archive, "w") as bundle:
@@ -74,9 +78,7 @@ class MatrixCheckpointTest(unittest.TestCase):
             unpack(archive, restored)
             self.assertEqual({p.name for p in restored.iterdir()}, {
                 "eval-history.db", "eval-results.jsonl", "muxer_history.ner.json"})
-            self.assertEqual((restored / "muxer_history.ner.json").read_text(), '{"window": 1}')
-            with sqlite3.connect(restored / "eval-history.db") as conn:
-                self.assertEqual(conn.execute("SELECT n FROM observations").fetchone(), (7,))
+            self.assertTrue(all(p.read_text() == "projected" for p in restored.iterdir()))
 
     def test_current_receipts_must_join_the_appended_journal(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,15 +90,16 @@ class MatrixCheckpointTest(unittest.TestCase):
             log = root / "current.jsonl"
             target = root / "saved"
             log.write_text('{"record_type":"outcome","observation_id":"old"}\n')
-            with self.assertRaisesRegex(ValueError, "missing.*old"):
+            with self.assertRaisesRegex(ValueError, "observations missing"):
                 snapshot(root, target, [log], start)
             log.write_text('{"record_type":"outcome","observation_id":"current"}\n')
-            with self.assertRaisesRegex(ValueError, "missing.*current"):
+            with self.assertRaisesRegex(ValueError, "observations missing"):
                 snapshot(root, target, [log], start)
             self.assertFalse(target.exists())
             with journal.open("a") as stream:
                 stream.write('{"observation_id":"current"}\n')
-            self.assertEqual(snapshot(root, target, [log, log], start), 1)
+            with patch("matrix_checkpoint.export_state"):
+                self.assertEqual(snapshot(root, target, [log, log], start), 1)
 
     def test_archive_rejects_paths_outside_the_state_directory(self):
         archive = io.BytesIO()

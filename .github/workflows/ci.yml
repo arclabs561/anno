@@ -597,7 +597,7 @@ jobs:
       - name: Set job-local dataset and eval history paths
         run: |
           {
-            echo "MATRIX_CHECKPOINT=matrix-feedback-v1-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('crates/anno-eval/src/eval/provenance.rs', 'crates/anno-eval/src/muxer_history.rs') }}"
+            echo "MATRIX_CHECKPOINT=matrix-feedback-v2-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('crates/anno-eval/src/eval/provenance.rs', 'crates/anno-eval/src/muxer_history.rs', 'crates/anno-eval/src/matrix_checkpoint.rs') }}"
             # Keep the measurement cohort compatible across PR and default-branch runs.
             echo "ANNO_MATRIX_REQUIRE_CACHED=1"
             echo "ANNO_MAX_EXAMPLES=5"

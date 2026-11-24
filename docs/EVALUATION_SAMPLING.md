@@ -116,10 +116,16 @@ The loader verifies the fixture digest, and CI requires one completed
 pinned WikiGold release and records its own `WikiGold` result.
 
 External sampling restores the newest compatible checkpoint produced by this
-workflow on the default branch. The artifact contains muxer windows, evaluation
-JSONL, and its SQLite index. Checkpoints expire after 60 days. A new cohort
-starts when the history or provenance implementation changes. PRs can read
-this state. Only default-branch runs with new external observations publish it.
+workflow on the default branch. The artifact carries typed muxer windows,
+registered arm IDs, scores, observation IDs and a SQLite index rebuilt from
+the exported journal. Full evaluator receipts and diagnostic messages stay in
+the writer's cache. For repeated infrastructure failures, the exporter assigns
+a group to each distinct diagnostic within the run. Confirmed groups survive
+later exports. A new private diagnostic cannot confirm an older exported group,
+so a cell with one failure per run can remain eligible for ordinary retries.
+Checkpoints expire after 60 days. A new cohort starts when the history,
+provenance or export schema changes. PRs can read this state. Only
+default-branch runs with new external observations publish it.
 An active default-branch run can finish its checkpoint before the next run
 starts. A retry stays read-only if that run or a newer run already published
 the same cohort. Each retry retains its own sampling receipt.
