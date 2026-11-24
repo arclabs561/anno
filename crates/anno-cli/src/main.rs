@@ -84,6 +84,7 @@ fn main() -> ExitCode {
         Some(Commands::CrossDoc(args)) => crossdoc::run(args).map_err(CliError::from),
         Some(Commands::Enhance(args)) => enhance::run(args).map_err(CliError::from),
         Some(Commands::Pipeline(args)) => pipeline::run(args).map_err(CliError::from),
+        Some(Commands::Corpus(args)) => corpus::run(args).map_err(CliError::from),
         Some(Commands::Query(args)) => query::run(args).map_err(CliError::from),
         Some(Commands::Compare(args)) => compare::run(args).map_err(CliError::from),
         Some(Commands::Cache(args)) => cache::run(args).map_err(CliError::from),

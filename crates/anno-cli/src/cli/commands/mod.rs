@@ -9,6 +9,7 @@ pub mod batch;
 pub mod cache;
 pub mod compare;
 pub mod config;
+pub mod corpus;
 pub mod context;
 pub mod dataset;
 pub mod debug;
