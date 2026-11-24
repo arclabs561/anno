@@ -2,7 +2,7 @@
 //! modules must go through `state_mut` to change a binding or hand out mutable access.
 
 use super::{GroundedDocument, Identity, IdentityId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 /// A corpus of grounded documents for cross-document operations.
@@ -20,6 +20,7 @@ pub(super) struct CorpusData {
     pub(super) documents: HashMap<String, GroundedDocument>,
     pub(super) identities: HashMap<IdentityId, Identity>,
     pub(super) next_identity_id: IdentityId,
+    pub(super) resolver_identity_ids: HashSet<IdentityId>,
 }
 
 impl Clone for Corpus {

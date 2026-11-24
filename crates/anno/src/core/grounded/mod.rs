@@ -802,7 +802,59 @@ pub struct Track {
     pub embedding: Option<Vec<f32>>,
 }
 
+/// Evidence available to the native resolver's type guard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CorefTrackType {
+    Known(super::types::TypeLabel),
+    Unspecified,
+    Ambiguous,
+}
+
+impl CorefTrackType {
+    pub(crate) fn matches(&self, other: &Self) -> bool {
+        !matches!(self, Self::Ambiguous) && self == other
+    }
+
+    pub(crate) fn into_label(self) -> Option<super::types::TypeLabel> {
+        match self {
+            Self::Known(label) => Some(label),
+            Self::Unspecified | Self::Ambiguous => None,
+        }
+    }
+}
+
 impl Track {
+    pub(crate) fn coref_type(&self, document: &GroundedDocument) -> CorefTrackType {
+        if let Some(label) = &self.entity_type {
+            return if label.as_str().trim().is_empty() {
+                CorefTrackType::Ambiguous
+            } else {
+                CorefTrackType::Known(label.clone())
+            };
+        }
+        let mut labels = self.signals.iter().map(|member| {
+            document
+                .get_signal(member.signal_id)
+                .map(|signal| &signal.label)
+        });
+        let first = match labels.next() {
+            None => return CorefTrackType::Unspecified,
+            Some(None) => return CorefTrackType::Ambiguous,
+            Some(Some(label)) => label,
+        };
+        if !first.as_str().trim().is_empty() && labels.all(|label| label == Some(first)) {
+            CorefTrackType::Known(first.clone())
+        } else {
+            CorefTrackType::Ambiguous
+        }
+    }
+
+    pub(crate) fn coref_embedding(&self) -> Option<&Vec<f32>> {
+        self.embedding.as_ref().filter(|vector| {
+            vector.iter().all(|v| v.is_finite()) && vector.iter().any(|&v| v != 0.0)
+        })
+    }
+
     /// Create a new track.
     #[must_use]
     pub fn new(id: impl Into<TrackId>, canonical_surface: impl Into<String>) -> Self {
@@ -4907,6 +4959,9 @@ impl Corpus {
             return;
         }
         let state = self.state_mut();
+        if identity.kb_id.is_some() {
+            state.resolver_identity_ids.remove(&id);
+        }
         let previous = state
             .identities
             .insert(id, identity.clone())
@@ -4933,7 +4988,18 @@ impl Corpus {
             let Some(previous) = self.get_identity(*id).cloned() else {
                 continue;
             };
+            let members = current.remove(id).unwrap_or_default();
             let mut identity = previous.clone();
+            if self.state().resolver_identity_ids.contains(id) {
+                if let Some((document, track)) = members.first().and_then(|member| {
+                    let document = self.get_document(&member.doc_id)?;
+                    Some((document, document.get_track(member.track_id)?))
+                }) {
+                    identity.canonical_name.clone_from(&track.canonical_surface);
+                    identity.entity_type = track.coref_type(document).into_label();
+                    identity.embedding = track.coref_embedding().cloned();
+                }
+            }
             let Some(refs) = identity
                 .source
                 .as_mut()
@@ -4941,8 +5007,8 @@ impl Corpus {
             else {
                 continue;
             };
-            let members = current.remove(id).unwrap_or_default();
             if *refs == members && !members.is_empty() {
+                self.update_shared_identity(identity);
                 continue;
             }
             if members.is_empty()
@@ -4950,6 +5016,7 @@ impl Corpus {
             {
                 let state = self.state_mut();
                 state.identities.remove(id);
+                state.resolver_identity_ids.remove(id);
                 for document in state.documents.values_mut() {
                     if previous.matches_copy(document.identities.get(id)) {
                         document.identities.remove(id);
@@ -5031,7 +5098,7 @@ impl Corpus {
     /// remain self-contained and their identity invariants continue to hold.
     /// A fresh ID is chosen outside every document's local identity map, which
     /// prevents an unrelated local identity from being overwritten.
-    pub(crate) fn add_identity_for_tracks(
+    fn add_identity_for_tracks(
         &mut self,
         mut identity: Identity,
         track_refs: &[TrackRef],
@@ -5080,6 +5147,18 @@ impl Corpus {
         }
 
         Some(identity_id)
+    }
+
+    // The resolver owns representative metadata only for identities it created.
+    // An imported CrossDocCoref record may carry a curated name, type, or embedding.
+    pub(crate) fn add_resolved_identity_for_tracks(
+        &mut self,
+        identity: Identity,
+        track_refs: &[TrackRef],
+    ) -> Option<IdentityId> {
+        let id = self.add_identity_for_tracks(identity, track_refs)?;
+        self.state_mut().resolver_identity_ids.insert(id);
+        Some(id)
     }
 
     /// Get the next identity ID that would be assigned.
