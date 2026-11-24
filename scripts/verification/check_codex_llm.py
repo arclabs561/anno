@@ -27,6 +27,7 @@ def listener(path, respond):
             pass
 
         def do_POST(self):
+            calls.append(self.path)
             if self.path != path:
                 self.send_error(404)
                 return
@@ -35,8 +36,7 @@ def listener(path, respond):
                 if not 0 < size <= 4 * 1024 * 1024:
                     raise ValueError("unexpected request size")
                 body = json.loads(self.rfile.read(size))
-                content_type, result = respond(body)
-                calls.append(True)
+                content_type, result = respond(body, self.headers)
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(result)))
@@ -56,7 +56,7 @@ def listener(path, respond):
             thread.join()
 
 
-def fixture_response(request):
+def fixture_response(request, _headers):
     # Exercise Codex's Responses wire protocol without a paid inference call.
     if TEXT not in json.dumps(request["input"], ensure_ascii=False):
         raise ValueError("Codex request omitted the Anno fixture")
@@ -91,7 +91,11 @@ def run(args, work, fixture_url=None):
             cmd.extend(["-c", setting])
         cmd.append("--ignore-user-config")
 
-    def complete(request):
+    def complete(request, headers):
+        if request["model"] != "codex-fixture":
+            raise ValueError("Anno omitted the selected endpoint model")
+        if headers.get("Authorization") != f"Bearer {nonce}":
+            raise ValueError("Anno omitted the endpoint-scoped credential")
         messages = request["messages"]
         prompt = "\n\n".join(m["content"] for m in messages)
         if TEXT not in prompt:
@@ -108,21 +112,26 @@ def run(args, work, fixture_url=None):
         data = {"choices": [{"message": {"role": "assistant", "content": answer}}]}
         return "application/json", json.dumps(data).encode()
 
-    with listener(f"/{nonce}/v1/chat/completions", complete) as (host, calls, errors):
+    route = f"/{nonce}/v1/chat/completions"
+    with (listener(route, complete) as (host, calls, errors),
+          listener("/unused", complete) as (ambient, ambient_calls, _)):
         env = os.environ.copy()
         for key in ["OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY"]:
             env[key] = ""  # Also suppress dotenv overrides in the child Anno process.
-        env["OLLAMA_HOST"] = f"{host}/{nonce}"
+        env.update(ANNO_LLM_ENDPOINT=host + route, ANNO_LLM_MODEL="codex-fixture",
+                   ANNO_LLM_API_KEY=nonce, OLLAMA_HOST=ambient)
         command = [args.anno] if args.anno else [
             "cargo", "run", "--quiet", "--manifest-path", str(ROOT / "Cargo.toml"),
             "-p", "anno-cli", "--no-default-features", "--features", "llm,extractor-html2text", "--bin", "anno", "--"]
         output = subprocess.run(command + ["extract", "--model", "universal-ner", "--text", TEXT,
                                 "--format", "json"], env=env, cwd=work, capture_output=True, text=True)
+        if ambient_calls:
+            raise ValueError("Anno contacted the ambient Ollama route despite an explicit endpoint")
         if errors:
             raise RuntimeError(errors[0])
         if output.returncode:
             raise RuntimeError(output.stderr[-800:])
-        if len(calls) != 1:
+        if calls != [route]:
             raise ValueError(f"expected one Anno provider request, got {len(calls)}")
         entities = json.loads(output.stdout)["entities"]
         if not any(e["text"] == "Ada" and (e["start"], e["end"]) == (0, 3)

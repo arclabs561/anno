@@ -18,6 +18,9 @@ fn explicit_destination_and_credentials_apply_to_extraction_and_verification() {
         "GEMINI_API_KEY",
         "ANTHROPIC_API_KEY",
         "OLLAMA_HOST",
+        "ANNO_LLM_ENDPOINT",
+        "ANNO_LLM_MODEL",
+        "ANNO_LLM_API_KEY",
     ] {
         env::remove_var(key);
     }
@@ -109,6 +112,12 @@ fn explicit_destination_and_credentials_apply_to_extraction_and_verification() {
             ),
         ]
     );
+    // A malformed explicit route must not fall back to the available ambient route.
+    env::set_var("ANNO_LLM_ENDPOINT", "/missing-host");
+    let invalid = UniversalNER::new().unwrap();
+    assert!(!invalid.is_available());
+    assert!(invalid.extract_entities("Ada", None).is_err());
+
     env::set_var("OPENROUTER_API_KEY", "unrelated");
     assert!(!UniversalNER::with_config(LlmConfig::groq("test"))
         .unwrap()

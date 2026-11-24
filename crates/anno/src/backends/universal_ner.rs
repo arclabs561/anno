@@ -208,31 +208,44 @@ impl UniversalNER {
     ///
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        let llm_available = llm_provider_available(None);
+        use crate::backends::llm_client::LlmConfig;
+        use std::env::{var, VarError};
 
-        Ok(Self {
-            llm_available,
-            config: None,
-            prompt_strategy: PromptStrategy::default(),
-            domain_context: None,
-            cache: Mutex::new(ResponseCache::new(256)),
-            self_verify: false,
-            max_chunk_chars: 4000,
-        })
+        let endpoint = match var("ANNO_LLM_ENDPOINT") {
+            Ok(url) => url,
+            Err(VarError::NotPresent) => return Ok(Self::from_config(None)),
+            Err(VarError::NotUnicode(_)) => {
+                return Err(crate::Error::ModelInit(
+                    "ANNO_LLM_ENDPOINT must be a UTF-8 URL".into(),
+                ));
+            }
+        };
+        let mut config = LlmConfig {
+            endpoint: Some(endpoint),
+            api_key: var("ANNO_LLM_API_KEY").ok(),
+            ..LlmConfig::default()
+        };
+        if let Some(model) = var("ANNO_LLM_MODEL").ok().filter(|m| !m.trim().is_empty()) {
+            config.model = model;
+        }
+        Self::with_config(config)
     }
 
-    /// Create with a specific LLM configuration.
+    /// Create with a specific LLM configuration, independent of ANNO_LLM_ENDPOINT.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        let llm_available = llm_provider_available(Some(&config));
-        Ok(Self {
-            llm_available,
-            config: Some(config),
+        Ok(Self::from_config(Some(config)))
+    }
+
+    fn from_config(config: Option<crate::backends::llm_client::LlmConfig>) -> Self {
+        Self {
+            llm_available: llm_provider_available(config.as_ref()),
+            config,
             prompt_strategy: PromptStrategy::default(),
             domain_context: None,
             cache: Mutex::new(ResponseCache::new(256)),
             self_verify: false,
             max_chunk_chars: 4000,
-        })
+        }
     }
 
     /// Set the prompting strategy.
@@ -421,7 +434,7 @@ Output:"#
     ) -> Result<Vec<Entity>> {
         let (api_key, provider) = llm_provider(self.config.as_ref()).ok_or_else(|| {
             crate::Error::FeatureNotAvailable(
-                "No LLM API key found. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, or run Ollama locally.".into(),
+                "No available LLM route. Check the configured endpoint and its credentials.".into(),
             )
         })?;
 
@@ -955,7 +968,7 @@ impl Model for UniversalNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }
@@ -1001,7 +1014,7 @@ impl ZeroShotNER for UniversalNER {
     ) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
+                "UniversalNER requires the llm feature and an available route. Check ANNO_LLM_ENDPOINT, provider credentials, or local Ollama."
                     .into(),
             ));
         }

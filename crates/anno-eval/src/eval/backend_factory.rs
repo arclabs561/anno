@@ -639,7 +639,7 @@ impl BackendFactory {
                 let m = UniversalNER::new()?;
                 if !m.is_available() {
                     return Err(crate::Error::FeatureNotAvailable(
-                        "UniversalNER requires the `llm` feature and a non-empty API key. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, or UNIVERSAL_NER_API_KEY."
+                        "UniversalNER requires the `llm` feature and an available LLM route. Configure ANNO_LLM_ENDPOINT, a supported provider key, or local Ollama."
                             .to_string(),
                     ));
                 }
@@ -674,12 +674,11 @@ impl BackendFactory {
             "tplinker",
         ];
 
-        // UniversalNER requires the optional `llm` feature plus a non-empty API key.
-        // If either is missing, treat it as unavailable to avoid “Feature not available”
-        // failures in the matrix harness.
-        if cfg!(feature = "llm") {
+        #[cfg(feature = "llm")]
+        {
+            use anno::backends::universal_ner::UniversalNER;
             anno::env::load_dotenv();
-            if anno::env::has_llm_api_key() || std::env::var("UNIVERSAL_NER_API_KEY").is_ok() {
+            if UniversalNER::new().is_ok_and(|model| model.is_available()) {
                 backends.push("universal_ner");
             }
         }
