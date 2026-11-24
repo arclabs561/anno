@@ -52,7 +52,7 @@ def replay(root, case):
     row = _case(root, case)
     binary, digest = binary_and_digest()
     cases = {case: row}
-    report = judge.score(cases, judge.run_batch(cases, str(binary), MODEL))
+    report = judge.score(cases, judge.run_batch(cases, str(binary), MODEL, require_native_metadata=True))
     if binary_and_digest() != (binary, digest):
         raise ValueError("extractor changed during replay")
     failed = [str(i) for i, finding in enumerate(report["findings"]) if not finding["passed"]]
