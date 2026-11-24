@@ -109,6 +109,10 @@ fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
 }
 
 #[cfg(feature = "llm")]
+const GEMINI_CHAT_URL: &str =
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+#[cfg(feature = "llm")]
 fn llm_provider(
     config: Option<&crate::backends::llm_client::LlmConfig>,
 ) -> Option<(String, &'static str)> {
@@ -120,6 +124,7 @@ fn llm_provider(
         .as_deref()
         .filter(|key| !key.trim().is_empty());
     let (provider, env_key) = match endpoint {
+        GEMINI_CHAT_URL => ("gemini", "GEMINI_API_KEY"),
         "https://api.anthropic.com/v1/messages" => ("anthropic", "ANTHROPIC_API_KEY"),
         "https://openrouter.ai/api/v1/chat/completions" => ("openrouter", "OPENROUTER_API_KEY"),
         "https://api.groq.com/openai/v1/chat/completions" => ("groq", "GROQ_API_KEY"),
@@ -137,6 +142,13 @@ fn llm_provider(
             .filter(|key| !key.trim().is_empty())
     })?;
     Some((key, provider))
+}
+
+#[cfg(feature = "llm")]
+struct LlmTarget {
+    url: String,
+    model: String,
+    headers: Vec<(&'static str, String)>,
 }
 
 /// Whether the configured LLM feature can resolve a provider for extraction.
@@ -421,6 +433,85 @@ Output:"#
         })
     }
 
+    #[cfg(feature = "llm")]
+    fn llm_target(&self, provider: &str, api_key: &str) -> Result<LlmTarget> {
+        let model = self.config.as_ref().map_or_else(
+            || match provider {
+                "anthropic" => "claude-haiku-4-5-20251001",
+                "groq" => "llama-3.3-70b-versatile",
+                "ollama" => "llama3.2:3b",
+                "gemini" => "gemini-2.5-flash-lite",
+                _ => "google/gemini-2.5-flash-lite",
+            },
+            |config| config.model.as_str(),
+        );
+        // The built-in Google presets use OpenRouter's provider-prefixed IDs.
+        let model = if provider == "gemini" {
+            model.strip_prefix("google/").unwrap_or(model)
+        } else {
+            model
+        };
+        let (url, headers): (String, Vec<(&str, String)>) = match provider {
+            "openrouter" => (
+                "https://openrouter.ai/api/v1/chat/completions".to_string(),
+                vec![
+                    ("Authorization", format!("Bearer {}", api_key)),
+                    (
+                        "HTTP-Referer",
+                        "https://github.com/anno-rs/anno".to_string(),
+                    ),
+                    ("X-Title", "Anno NER".to_string()),
+                ],
+            ),
+            "anthropic" => (
+                "https://api.anthropic.com/v1/messages".to_string(),
+                vec![
+                    ("x-api-key", api_key.to_owned()),
+                    ("anthropic-version", "2023-06-01".to_string()),
+                ],
+            ),
+            "groq" => (
+                "https://api.groq.com/openai/v1/chat/completions".to_string(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            "custom" => (
+                self.config
+                    .as_ref()
+                    .and_then(|c| c.endpoint.clone())
+                    .expect("custom route has an explicit endpoint"),
+                if api_key.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![("Authorization", format!("Bearer {}", api_key))]
+                },
+            ),
+            "ollama" => {
+                let host = std::env::var("OLLAMA_HOST")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
+                (
+                    format!("{}/v1/chat/completions", host),
+                    vec![("Authorization", "Bearer ollama".to_string())],
+                )
+            }
+            "gemini" => (
+                GEMINI_CHAT_URL.to_owned(),
+                vec![("Authorization", format!("Bearer {}", api_key))],
+            ),
+            other => {
+                return Err(crate::Error::FeatureNotAvailable(format!(
+                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
+                    other
+                )));
+            }
+        };
+
+        Ok(LlmTarget {
+            url,
+            model: model.to_owned(),
+            headers,
+        })
+    }
+
     /// Extract entities from a single chunk of text.
     ///
     /// `char_offset` is the chunk's starting character offset in the original
@@ -438,23 +529,14 @@ Output:"#
             )
         })?;
 
-        let default_model = |fallback: &str| -> String {
-            self.config
-                .as_ref()
-                .map_or_else(|| fallback.to_string(), |c| c.model.clone())
-        };
-
-        // Determine model name for cache key
-        let model_for_cache = match provider {
-            "openrouter" => default_model("google/gemini-2.5-flash-lite"),
-            "anthropic" => default_model("claude-haiku-4-5-20251001"),
-            "groq" => default_model("llama-3.3-70b-versatile"),
-            "ollama" => default_model("llama3.2:3b"),
-            _ => default_model("google/gemini-2.5-flash-lite"),
-        };
+        let LlmTarget {
+            url,
+            model,
+            headers,
+        } = self.llm_target(provider, &api_key)?;
 
         // Check cache first (keyed on chunk text, not full document)
-        let key = cache_key(chunk_text, entity_types, &model_for_cache);
+        let key = cache_key(chunk_text, entity_types, &model);
         {
             let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = cache.get(key) {
@@ -476,67 +558,6 @@ Output:"#
         let (system_msg, user_msg) = self.build_prompt(chunk_text, entity_types);
 
         let max_tokens = self.config.as_ref().map_or(1024, |c| c.max_tokens);
-
-        let (url, model, headers): (String, String, Vec<(&str, String)>) = match provider {
-            "openrouter" => (
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                default_model("google/gemini-2.5-flash-lite"),
-                vec![
-                    ("Authorization", format!("Bearer {}", api_key)),
-                    (
-                        "HTTP-Referer",
-                        "https://github.com/anno-rs/anno".to_string(),
-                    ),
-                    ("X-Title", "Anno NER".to_string()),
-                ],
-            ),
-            "anthropic" => (
-                "https://api.anthropic.com/v1/messages".to_string(),
-                default_model("claude-haiku-4-5-20251001"),
-                vec![
-                    ("x-api-key", api_key.clone()),
-                    ("anthropic-version", "2023-06-01".to_string()),
-                ],
-            ),
-            "groq" => (
-                "https://api.groq.com/openai/v1/chat/completions".to_string(),
-                default_model("llama-3.3-70b-versatile"),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            "custom" => (
-                self.config
-                    .as_ref()
-                    .and_then(|c| c.endpoint.clone())
-                    .expect("custom route has an explicit endpoint"),
-                model_for_cache.clone(),
-                if api_key.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![("Authorization", format!("Bearer {}", api_key))]
-                },
-            ),
-            "ollama" => {
-                let host = std::env::var("OLLAMA_HOST")
-                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                (
-                    format!("{}/v1/chat/completions", host),
-                    default_model("llama3.2:3b"),
-                    vec![("Authorization", "Bearer ollama".to_string())],
-                )
-            }
-            "gemini" => (
-                // Route Gemini through OpenRouter-compatible format
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-                "google/gemini-2.5-flash-lite".to_string(),
-                vec![("Authorization", format!("Bearer {}", api_key))],
-            ),
-            other => {
-                return Err(crate::Error::FeatureNotAvailable(format!(
-                    "LLM provider '{}' is not supported. Use OPENROUTER_API_KEY for access to all models.",
-                    other
-                )));
-            }
-        };
 
         // All providers use OpenAI-compatible format except direct Anthropic API
         let body = if provider == "anthropic" {
@@ -1066,6 +1087,46 @@ mod tests {
             ..LlmConfig::default()
         };
         assert!(llm_provider(Some(&config)).is_none());
+    }
+
+    #[cfg(feature = "llm")]
+    #[test]
+    fn gemini_target_binds_the_key_and_native_model_to_google() {
+        use crate::backends::llm_client::LlmConfig;
+
+        let backend = UniversalNER::new().unwrap();
+        let route = backend.llm_target("gemini", "dummy").unwrap();
+        assert_eq!(
+            route.url,
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        );
+        assert_eq!(route.model, "gemini-2.5-flash-lite");
+        assert_eq!(
+            route.headers,
+            [("Authorization", "Bearer dummy".to_owned())]
+        );
+        for (configured, native) in [
+            ("google/gemini-2.5-flash", "gemini-2.5-flash"),
+            ("gemini-3.1-flash-lite", "gemini-3.1-flash-lite"),
+        ] {
+            let config = LlmConfig {
+                endpoint: Some(GEMINI_CHAT_URL.into()),
+                api_key: Some("explicit".into()),
+                ..LlmConfig::with_model(configured)
+            };
+            let (key, provider) = llm_provider(Some(&config)).unwrap();
+            assert_eq!(provider, "gemini");
+            let route = UniversalNER::with_config(config)
+                .unwrap()
+                .llm_target(provider, &key)
+                .unwrap();
+            assert_eq!(route.url, GEMINI_CHAT_URL);
+            assert_eq!(route.model, native);
+            assert_eq!(
+                route.headers,
+                [("Authorization", "Bearer explicit".to_owned())]
+            );
+        }
     }
 
     #[cfg(not(feature = "llm"))]
