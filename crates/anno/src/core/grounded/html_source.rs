@@ -70,7 +70,11 @@ pub struct HtmlSource {
 /// SHA-256 of the exact UTF-8 bytes of a source or rendered document.
 #[must_use]
 pub fn source_sha256(text: &str) -> String {
-    Sha256::digest(text.as_bytes())
+    bytes_sha256(text.as_bytes())
+}
+
+pub(super) fn bytes_sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

@@ -92,6 +92,12 @@ use html_source::HtmlSource;
 mod corpus_state;
 pub use corpus_state::Corpus;
 
+mod delivery;
+pub use delivery::{
+    DeliveryBindingConflict, DeliveryCatalogBinding, DeliveryError, DeliveryOutcome,
+    DeliveryOwnership, DeliveryReceipt, DeliveryReview, DeliveryReviewSummary, DocumentDelivery,
+};
+
 mod kb_assignment;
 pub use kb_assignment::{
     KbAssignment, KbAssignmentError, KbAssignmentPreview, KbAssignmentPrior, KbAssignmentReceipt,
@@ -2011,6 +2017,29 @@ impl GroundedDocument {
             self.next_identity_id = id + 1;
         }
         true
+    }
+
+    fn replacement_track_ids(
+        &self,
+        floor: TrackId,
+    ) -> Option<(HashMap<TrackId, TrackId>, TrackId)> {
+        let mut ids: Vec<_> = self
+            .tracks
+            .keys()
+            .copied()
+            .filter(|id| *id < floor)
+            .collect();
+        ids.sort_unstable();
+        let mut mapping = HashMap::with_capacity(ids.len());
+        let mut next = floor;
+        for old in ids {
+            while self.tracks.contains_key(&next) {
+                next = TrackId::new(next.get().checked_add(1)?);
+            }
+            mapping.insert(old, next);
+            next = TrackId::new(next.get().checked_add(1)?);
+        }
+        Some((mapping, next))
     }
 
     fn remap_identity_id(&mut self, from: IdentityId, to: IdentityId) -> bool {
@@ -4998,6 +5027,10 @@ impl Corpus {
     // A replacement or reclustering may retire a pure coreference identity.
     // KB identities survive loss of their final track.
     pub(crate) fn refresh_coref_membership(&mut self, affected: &[IdentityId]) {
+        self.refresh_coref_records(affected, None);
+    }
+
+    fn refresh_coref_records(&mut self, affected: &[IdentityId], delivered: Option<&str>) {
         if affected.is_empty() {
             return;
         }
@@ -5026,7 +5059,13 @@ impl Corpus {
                 self.update_shared_identity(identity);
                 continue;
             }
+            // A delivery can explicitly declare an unbound corpus record before
+            // its member documents arrive. Keep its source kind and clear stale evidence.
+            let explicitly_declared = delivered
+                .and_then(|doc| self.get_document(doc))
+                .is_some_and(|doc| previous.matches_copy(doc.get_identity(*id)));
             if members.is_empty()
+                && !explicitly_declared
                 && matches!(previous.source, Some(IdentitySource::CrossDocCoref { .. }))
             {
                 let state = self.state_mut();
@@ -5040,7 +5079,7 @@ impl Corpus {
                 continue;
             }
             *refs = members;
-            if refs.is_empty() {
+            if refs.is_empty() && !explicitly_declared {
                 if let Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) = identity.source.take()
                 {
                     identity.source = Some(IdentitySource::KnowledgeBase { kb_name, kb_id });
@@ -5262,7 +5301,11 @@ impl Corpus {
     /// Replacing a document invalidates its old track references. Incoming track IDs
     /// that could name a previous track receive fresh IDs; obtain new references
     /// from the stored document. Returns the document ID.
-    pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
+    pub fn add_document(&mut self, document: GroundedDocument) -> String {
+        self.insert_document(document, false)
+    }
+
+    fn insert_document(&mut self, mut document: GroundedDocument, delivered: bool) -> String {
         let mut affected = HashSet::new();
         document.corpus_managed = true;
         let previous = self.get_document(document.id());
@@ -5282,36 +5325,17 @@ impl Corpus {
                     })
                     .map(|identity| identity.id),
             );
-            let floor = previous.next_track_id;
-            let mut next = floor;
-            let mut reassign: Vec<_> = document
-                .tracks
-                .keys()
-                .copied()
-                .filter(|id| *id < floor)
-                .collect();
-            reassign.sort_unstable();
-            for old in reassign {
-                while document.tracks.contains_key(&next) {
-                    next = TrackId::new(
-                        next.get()
-                            .checked_add(1)
-                            .expect("track IDs exhausted during replacement"),
-                    );
-                }
-                let id = next;
-                next = TrackId::new(
-                    id.get()
-                        .checked_add(1)
-                        .expect("track IDs exhausted during replacement"),
-                );
+            let (mapping, next) = document
+                .replacement_track_ids(previous.next_track_id)
+                .expect("track IDs exhausted during replacement");
+            remapped = mapping;
+            for (&old, &id) in &remapped {
                 let mut track = document
                     .tracks
                     .remove(&old)
                     .expect("track came from this document");
                 track.id = id;
                 document.tracks.insert(id, track);
-                remapped.insert(old, id);
             }
             // Shared copies are reconciled against live assignments after insertion.
             for identity in document.identities.values_mut() {
@@ -5365,6 +5389,9 @@ impl Corpus {
                 .max(IdentityId::new(max_identity_id.get().saturating_add(1)));
         }
         let doc_id = document.id.clone();
+        // A direct replacement supersedes the delivery-managed head. Exact old
+        // retries can still retrieve their receipts without touching this document.
+        state.delivery.heads.remove(&doc_id);
         let replacement_ids: HashSet<_> = if replacing {
             document.tracks.keys().copied().collect()
         } else {
@@ -5382,7 +5409,10 @@ impl Corpus {
             );
         }
         state.documents.insert(doc_id.clone(), document);
-        self.refresh_coref_membership(&affected.into_iter().collect::<Vec<_>>());
+        self.refresh_coref_records(
+            &affected.into_iter().collect::<Vec<_>>(),
+            delivered.then_some(doc_id.as_str()),
+        );
         if replacing {
             self.prune_local_track_refs(&doc_id, |id| replacement_ids.contains(&id), None);
         }

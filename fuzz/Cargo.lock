@@ -32,6 +32,8 @@ version = "0.0.0"
 dependencies = [
  "anno",
  "libfuzzer-sys",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

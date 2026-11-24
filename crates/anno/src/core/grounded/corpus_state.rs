@@ -17,6 +17,7 @@ pub struct Corpus {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct CorpusData {
+    pub(super) delivery: super::delivery::DeliveryState,
     pub(super) documents: HashMap<String, GroundedDocument>,
     pub(super) identities: HashMap<IdentityId, Identity>,
     pub(super) next_identity_id: IdentityId,
