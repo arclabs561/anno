@@ -1056,14 +1056,78 @@ mod tests {
         assert_eq!(clusters[0].mentions, [("d".into(), 1), ("d".into(), 2)]);
     }
 
+    fn document_with_mention(id: &str, name: &str) -> (anno::GroundedDocument, anno::TrackRef) {
+        use anno::{GroundedDocument, Location, Signal};
+        let mut doc = GroundedDocument::new(id, name);
+        let span = Location::text(0, name.chars().count());
+        let mention = doc.add_signal(Signal::new(0, span, name, "PER", 1.0));
+        let track = doc.create_track_from_signals(name, &[mention]).unwrap();
+        let member = doc.track_ref(track).unwrap();
+        (doc, member)
+    }
+
     fn linked_document(id: &str, namespace: &str) -> anno::GroundedDocument {
-        use anno::{GroundedDocument, Identity, Location, Signal};
-        let mut doc = GroundedDocument::new(id, "Ada");
-        let mention = doc.add_signal(Signal::new(0, Location::text(0, 3), "Ada", "PER", 1.0));
-        let track = doc.create_track_from_signals("Ada", &[mention]).unwrap();
-        let identity = doc.add_identity(Identity::from_kb(0, "Ada", namespace, "42"));
-        doc.link_track_to_identity(track, identity);
+        let (mut doc, member) = document_with_mention(id, "Ada");
+        let identity = doc.add_identity(anno::Identity::from_kb(0, "Ada", namespace, "42"));
+        doc.link_track_to_identity(member.track_id, identity);
         doc
+    }
+
+    #[test]
+    fn reviewed_reassignment_splits_the_catalog_report_and_preserves_coreference() {
+        use super::{corpus_clusters, Corpus, Resolver};
+        let mut corpus = Corpus::new();
+        let (doc_a, a) = document_with_mention("a", "Orr");
+        let (doc_b, b) = document_with_mention("b", "Orr");
+        corpus.add_document(doc_a);
+        corpus.add_document(doc_b);
+        Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None);
+        let shared = corpus
+            .link_track_to_kb(&a, "fixture", "old", "Orr")
+            .unwrap();
+
+        let (doc_c, c) = document_with_mention("c", "Orr");
+        corpus.add_document(doc_c);
+        let independent = corpus
+            .link_track_to_kb(&c, "fixture", "old", "Orr")
+            .unwrap();
+        assert_ne!(shared, independent);
+        let members = [a.clone(), b];
+        let partition = corpus.current_coref_clusters();
+        assert_eq!(partition, [(shared, members.to_vec())]);
+
+        let before = corpus_clusters(&corpus);
+        assert_eq!(before.len(), 1);
+        assert_eq!(before[0].kb_name.as_deref(), Some("fixture"));
+        assert_eq!(before[0].kb_id.as_deref(), Some("old"));
+        assert_eq!(
+            before[0].mentions,
+            [("a".into(), 0), ("b".into(), 0), ("c".into(), 0)]
+        );
+        assert_eq!(before[0].minimum_pair_similarity, None);
+
+        let preview = corpus
+            .preview_kb_assignment(&a, "fixture", "new", "Orr")
+            .unwrap();
+        assert_eq!(preview.assignment().affected_tracks, members);
+        let receipt = corpus.apply_kb_assignment(preview).unwrap();
+        assert_eq!(receipt.identity_id, shared);
+        assert_eq!(receipt.assignment.affected_tracks, members);
+        assert_eq!(corpus.current_coref_clusters(), partition);
+
+        let after = corpus_clusters(&corpus);
+        assert_eq!(after.len(), 2);
+        let group = |key| {
+            after
+                .iter()
+                .find(|cluster| {
+                    cluster.kb_name.as_deref() == Some("fixture")
+                        && cluster.kb_id.as_deref() == Some(key)
+                })
+                .unwrap()
+        };
+        assert_eq!(group("new").mentions, [("a".into(), 0), ("b".into(), 0)]);
+        assert_eq!(group("old").mentions, [("c".into(), 0)]);
     }
 
     #[test]
