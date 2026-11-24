@@ -624,7 +624,7 @@ impl CDCRResolver {
                 let mut c = LocalCluster::new(0, 0);
                 c.add_mention(ClusterMention {
                     start: 0,
-                    end: a.text.len(),
+                    end: a.text.chars().count(),
                     text: a.text.clone(),
                     context_id: 0,
                 });
@@ -635,7 +635,7 @@ impl CDCRResolver {
                 let mut c = LocalCluster::new(1, 0);
                 c.add_mention(ClusterMention {
                     start: 0,
-                    end: b.text.len(),
+                    end: b.text.chars().count(),
                     text: b.text.clone(),
                     context_id: 0,
                 });
@@ -1270,6 +1270,61 @@ mod tests {
                 [("first".into(), 2), ("next".into(), 0)]
             );
         }
+    }
+
+    #[test]
+    #[cfg(feature = "eval")]
+    fn cluster_encoder_receives_character_offsets() {
+        use crate::eval::cluster_encoder::{ClusterEmbedding, ClusterEncoder, LocalCluster};
+        use std::sync::Arc;
+
+        struct SpanCheckingEncoder;
+        impl ClusterEncoder for SpanCheckingEncoder {
+            fn encode_cluster(
+                &self,
+                cluster: &LocalCluster,
+                _hidden_states: Option<&[Vec<f32>]>,
+            ) -> ClusterEmbedding {
+                let mention = &cluster.mentions[0];
+                assert_eq!(
+                    (mention.start, mention.end),
+                    (0, mention.text.chars().count())
+                );
+                ClusterEmbedding {
+                    embedding: vec![1.0],
+                    cluster_id: cluster.id,
+                    context_id: cluster.context_id,
+                    mention_count: cluster.mentions.len(),
+                }
+            }
+
+            fn embedding_dim(&self) -> usize {
+                1
+            }
+        }
+
+        let docs = [
+            Document::new("first", "É海").with_entities(vec![Entity::new(
+                "É海",
+                EntityType::Person,
+                0,
+                2,
+                1.0,
+            )]),
+            Document::new("next", "岚").with_entities(vec![Entity::new(
+                "岚",
+                EntityType::Person,
+                0,
+                1,
+                1.0,
+            )]),
+        ];
+        let resolver = CDCRResolver::with_config(CDCRConfig {
+            use_lsh: false,
+            ..Default::default()
+        })
+        .with_cluster_encoder(Arc::new(SpanCheckingEncoder));
+        assert_eq!(resolver.resolve(&docs).len(), 1);
     }
 
     #[test]
