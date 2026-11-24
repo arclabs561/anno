@@ -44,6 +44,36 @@ class TestSpanAssertions(unittest.TestCase):
             "scope": "supplied_assertions", "total": 5, "unassessed": 3})
         self.assertEqual(self.score([])["prediction_coverage"]["total"], 0)
 
+    def test_exact_count_counts_emissions_across_allowed_types_only(self):
+        self.positive.update(types=["PER", "ORG"], expected_count=1)
+        hits = [entity(1, 4, "Zoë", "PER"), entity(1, 4, "Zoë", "ORG")]
+        others = [entity(1, 4, "Zoë", "LOC"), entity(1, 3, "Zo", "PER")]
+        for expected, entities, observed, passed in [
+            (1, hits[:1] + others, 1, True),
+            (1, hits + others, 2, False),
+            (2, hits[:1] * 2, 2, True),
+            (0, others, 0, True),
+            (0, hits, 2, False),
+        ]:
+            with self.subTest(expected=expected, entities=entities):
+                self.positive["expected_count"] = expected
+                finding = self.score(entities)["findings"][0]
+                self.assertEqual((finding["observed_count"], finding["passed"]), (observed, passed))
+        self.positive.pop("expected_count")
+        legacy = self.score(hits)["findings"][0]
+        self.assertTrue(legacy["passed"])
+        self.assertNotIn("observed_count", legacy)
+
+    def test_invalid_exact_count_rejected(self):
+        for value in [-1, True, 1.0, "1", None]:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "expected_count"):
+                self.positive["expected_count"] = value
+                oracle.load_cases([self.row])
+        self.positive.pop("expected_count")
+        self.negative["expected_count"] = 0
+        with self.assertRaisesRegex(ValueError, "expected_count"):
+            oracle.load_cases([self.row])
+
     def test_swallowed_partial_and_exact_negative(self):
         for prediction in [entity(1, 9, "Zoë (CPA", "ORG"), entity(8, 10, "A)", "PER"),
                            entity(6, 9, "CPA", "ORG")]:

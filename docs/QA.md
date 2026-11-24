@@ -57,6 +57,8 @@ For an older local cache containing raw annotations in `LitBank.cache`, place th
 
 Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.
 
+For an occurrence that must appear exactly once, add `"expected_count": 1` to its `exact_span` rule. The judge counts individual predictions at that exact range across all allowed types and reports `observed_count`. This detects duplicate emissions even when both have a valid type. Zero forbids the listed types at that exact range and permits partial overlaps. Omitting the field keeps the original presence check.
+
 ```sh
 just qa-spans target/debug/anno stacked
 python3 scripts/qa/check_span_assertions.py --fixture cases.json --predictions batch.jsonl
