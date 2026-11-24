@@ -150,7 +150,7 @@ The Actions summary prints the evaluator checkout, features and a command for ea
 python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic --seed 42 --max-examples 1
 ```
 
-The helper stages checked-in controls in a fresh temporary cache. For an external cell, supply its authorized local dataset cache and any required model assets. The command fixes the measured task, backend, dataset, seed and example limit. A reported dataset digest checks the input version. Without a digest or pinned model weights, a rerun can establish the cell’s current score but cannot establish identity with the original inputs.
+The helper stages checked-in controls in a fresh temporary cache. For an external cell, supply its authorized local dataset cache and any required model assets. The command fixes the measured task, backend, dataset, seed and example limit. A reported dataset digest checks the input version. For a WikiGold cache without a manifest, the loader recognizes the pinned public release by hashing the bytes it parsed. When CI has prepared that release, each scored WikiGold outcome must carry its digest. Without a digest or pinned model weights, a rerun can establish the cell’s current score but cannot establish identity with the original inputs.
 
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the

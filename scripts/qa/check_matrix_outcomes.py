@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 
+from export_muxer_summary import WIKIGOLD
 from replay_matrix_cell import FIXTURES, replay_command
 
 
@@ -37,7 +38,7 @@ def outcomes(lines, decisions=None):
         yield task if strategy == "random" else strategy, row
 
 
-def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts=None):
+def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts=None, digest=None):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
@@ -49,6 +50,7 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts
             type(observed.get(key)) in (float, int) and observed[key] == value
             for key, value in counts.items()))
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
+                and (digest is None or row.get("dataset_sha256") == digest)
                 and not row["hard_junk"] and row["cost_units"] == examples
                 and type(score) in (float, int) and 0 <= score <= 1
                 and (not exact or score == 1.0)
@@ -66,7 +68,7 @@ def check_ner_smoke(lines):
 
 def check_wikigold_bootstrap(lines):
     return check_fixed_sample(lines, task="ner", dataset="WikiGold", backend="heuristic",
-                              examples=5, exact=False)
+                              examples=5, exact=False, digest=WIKIGOLD)
 
 
 def check_temporal_smoke(lines):
@@ -82,7 +84,8 @@ def check_temporal_contrast(lines):
                               backend="pattern", examples=34, exact=False)
 
 
-def check(lines, report=False):
+def check(lines, report=False, verify_wikigold=False):
+    unverified_wikigold = 0
     attempts = Counter()
     completions = Counter()
     failures = Counter()
@@ -111,6 +114,8 @@ def check(lines, report=False):
                 failed_cells[(task, row["dataset"], row["backend"], kind)] += 1
         elif row["cost_units"] > 0:
             completions[lane] += 1
+            if verify_wikigold and row.get("dataset") == "WikiGold" and row.get("dataset_sha256") != WIKIGOLD:
+                unverified_wikigold += 1
 
     print("| Sample lane | Completed | Hard failures | Empty evaluations |")
     print("|---|---:|---:|---:|")
@@ -170,12 +175,17 @@ def check(lines, report=False):
     # demonstrates an attempt, but a selection decision alone does not.
     if not attempts["worst-first"]:
         print("No worst-first evaluation outcomes", file=sys.stderr)
+    if unverified_wikigold:
+        print(f"{unverified_wikigold} scored WikiGold outcome(s) lack the prepared corpus digest.", file=sys.stderr)
+        return False
     return report or (not missing and bool(attempts["worst-first"]))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("log", type=Path)
+    parser.add_argument("--verify-wikigold", action="store_true",
+                        help="require the prepared release digest for scored WikiGold outcomes")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--bootstrap", action="store_true", help="require five real WikiGold examples")
     mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
@@ -199,7 +209,7 @@ if __name__ == "__main__":
             elif args.bootstrap:
                 passed = check_wikigold_bootstrap(stream)
             else:
-                passed = check(stream, args.report)
+                passed = check(stream, args.report, args.verify_wikigold)
             sys.exit(0 if passed else 1)
     except (OSError, ValueError) as error:
         sys.exit(str(error))

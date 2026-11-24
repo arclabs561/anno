@@ -4,7 +4,7 @@ import unittest
 
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
+from check_matrix_outcomes import RANDOM_TASKS, WIKIGOLD, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -99,10 +99,25 @@ class CoverageTest(unittest.TestCase):
                 self.assertFalse(check_ner_smoke([json.dumps(row | mutation)]))
 
     def test_wikigold_bootstrap_requires_real_dataset_identity(self):
-        row = dict(outcome("ner", examples=5), backend="heuristic", dataset="WikiGold")
+        row = dict(outcome("ner", examples=5), backend="heuristic", dataset="WikiGold", dataset_sha256=WIKIGOLD)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertTrue(check_wikigold_bootstrap([json.dumps(row)]))
             self.assertFalse(check_wikigold_bootstrap([json.dumps(row | {"dataset": "AnnoNerSmoke"})]))
+            for digest in (None, "0" * 64):
+                self.assertFalse(check_wikigold_bootstrap([json.dumps(row | {"dataset_sha256": digest})]))
+
+    def test_prepared_wikigold_digest_required_even_in_advisory_report(self):
+        row = dict(outcome("ner"), dataset="WikiGold")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            for digest in (None, "0" * 64, WIKIGOLD):
+                self.assertEqual(
+                    check([json.dumps(row | {"dataset_sha256": digest})], report=True, verify_wikigold=True),
+                    digest == WIKIGOLD,
+                )
+            self.assertTrue(check([json.dumps(row)], report=True))
+            self.assertTrue(check([], report=True, verify_wikigold=True))
+            self.assertTrue(check([json.dumps(row | {"hard_junk": True, "cost_units": 0})],
+                                  report=True, verify_wikigold=True))
 
     def test_public_timex_requires_a_valid_f1_over_the_whole_split(self):
         dataset = "TimexRecognitionSentenceOriginal"

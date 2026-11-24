@@ -641,6 +641,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: python3 scripts/qa/matrix_checkpoint.py restore
       - name: Prepare the pinned public WikiGold input
+        id: wikigold
         # External sampling is advisory on PRs if the source and cache are unavailable.
         continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: bash scripts/qa/prepare_matrix_wikigold.sh
@@ -723,7 +724,9 @@ jobs:
           set -o pipefail
           printf 'Matrix evaluator and scorer checkout: `%s` (features `onnx,eval,discourse`).\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           touch "$ANNO_MUXER_DECISIONS_FILE"
-          python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 scripts/qa/check_matrix_outcomes.py --report \
+            ${{ steps.wikigold.outcome == 'success' && '--verify-wikigold' || '' }} \
+            "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
         id: checkpoint
         env:

@@ -1709,6 +1709,15 @@ impl DatasetLoader {
             dataset.metadata.version =
                 Some(format!("sha256:{}", self.compute_sha256(&parse_content)));
         }
+        // The matrix stages the verified WikiGold release without a cache manifest.
+        // Only identify these public bytes; other bare WikiGold caches may be local fixtures.
+        if dataset_id == DatasetId::WikiGold && dataset.metadata.version.is_none() {
+            const RELEASE_SHA256: &str =
+                "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
+            if self.compute_sha256(&content) == RELEASE_SHA256 {
+                dataset.metadata.version = Some(format!("sha256:{RELEASE_SHA256}"));
+            }
+        }
         Ok(dataset)
     }
 
@@ -7532,7 +7541,12 @@ mod tests {
         let content = "Alice B-PER\nworks O\n\n";
         std::fs::write(loader.cache_path(id), content).unwrap();
         assert_eq!(DatasetId::WikiGold.splits(), &["all"]);
-        assert!(loader.load(id).unwrap().metadata.split.is_none());
+        let bare = loader.load(id).unwrap();
+        assert!(bare.metadata.split.is_none());
+        assert!(
+            bare.metadata.version.is_none(),
+            "an unrelated bare cache has no release identity"
+        );
         let entry = CacheManifestEntry {
             dataset_id: id.0.cache_filename().into(),
             source_url: id.0.download_url().into(),
