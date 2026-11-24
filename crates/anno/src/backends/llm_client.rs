@@ -46,10 +46,12 @@ pub struct LlmConfig {
     /// System prompt (optional)
     #[serde(default)]
     pub system_prompt: Option<String>,
-    /// API endpoint override (optional)
+    /// Full request URL for UniversalNER. Custom endpoints use the OpenAI chat
+    /// completions format. The canonical Anthropic messages URL uses its native format.
     #[serde(default)]
     pub endpoint: Option<String>,
-    /// API key (optional, can be set via env var)
+    /// Credential for an explicit endpoint. Custom URLs receive only this key,
+    /// when supplied. Canonical hosted endpoints can use their matching environment key.
     #[serde(default, skip_serializing)]
     pub api_key: Option<String>,
 }
