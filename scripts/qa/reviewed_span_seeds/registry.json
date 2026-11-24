@@ -1,0 +1,8 @@
+{
+  "71f32144235517dc33bd85ce681fe679019bace4726bce3f9793236283134482": {
+    "scope": "exposed-regression",
+    "origin": "project-authored-synthetic",
+    "trace_sha256": "8ca11220e33a8a0407c13804f2721ae056cd4a3dfd72d68d87b8b997e062619f",
+    "dispatch_sha256": "6919b9a16a0d8259470be0484663f280aec88749d90af37302803a49700d8d47"
+  }
+}

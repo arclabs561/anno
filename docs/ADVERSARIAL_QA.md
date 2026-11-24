@@ -131,3 +131,6 @@ The brief reads counts and registry identifiers. Earlier receipts that contain o
 Record the baseline and candidate separately even when their outputs match. A count such as “3 gained, 0 lost across 175 anchors in 92 contracts” lets the next reviewer audit a claim; whole-document precision requires labels for the other mentions too. [Fixtures and dataset commands](QA.md) · [Muxer modes](EVALUATION_SAMPLING.md)
 
 The weekly and manual live QA job also scores up to eight discovery anchors per group on pinned English, Dutch, Spanish and Chinese datasets. The `live-document-qa` artifact includes the source pins and split counts in `domain-manifest.json`, the revision, backend and aggregate scores in `domain-discovery.json`, and the reviewer prompt in `labeled-round.md`. Source text, individual predictions and reserved examples stay on the ephemeral runner. Use the same fixture digest for comparisons over time. A missed anchor counts toward the reported error rate. Failure to download, verify, run or score the fixture fails the job.
+
+For a completed synthetic organization-span round, the [reviewed seed replay](../scripts/qa/reviewed_span_seeds/README.md)
+binds the independent oracle to native results and emits digest-keyed regression evidence for scheduling.
