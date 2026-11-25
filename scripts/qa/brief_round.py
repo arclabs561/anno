@@ -184,8 +184,13 @@ def benchmark_evidence(receipt):
         if tier not in ("S3 cache", "local cache", "original URL", "embedded",
                         "skipped (unavailable)", "unavailable before dataset load"):
             tier = "unrecorded"
+        content_digest = observed.get("content_sha256")
         version = observed.get("version")
-        digest = version if isinstance(version, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", version) else "unrecorded"
+        digest = "unrecorded"
+        if isinstance(content_digest, str) and re.fullmatch(r"[0-9a-f]{64}", content_digest):
+            digest = "sha256:" + content_digest
+        elif isinstance(version, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", version):
+            digest = version
         lines.append(f"- {dataset} / {backend}: success={success}, source={tier}, digest={digest}")
     return "\n".join(lines)
 

@@ -19,6 +19,7 @@ class RoundEvidenceTest(unittest.TestCase):
             path.write_text(json.dumps({"summary": {}, "results": [
                 dict(row, provenance={"dataset": {"data_source": "S3 cache", "version": digest,
                                                    "source_url": "PRIVATE_SENTINEL"}}),
+                dict(row, provenance={"dataset": {"data_source": "local cache", "content_sha256": "b" * 64}}),
                 dict(row, success=False, error="PRIVATE_SENTINEL"),
             ]}))
             script = Path(__file__).with_name("brief_round.py")
@@ -26,6 +27,7 @@ class RoundEvidenceTest(unittest.TestCase):
             brief = subprocess.check_output([*command, "--compact"], text=True)
             full = subprocess.check_output(command, text=True)
             self.assertIn(f"success=True, source=S3 cache, digest={digest}", brief)
+            self.assertIn("source=local cache, digest=sha256:" + "b" * 64, brief)
             self.assertIn("success=False, source=unrecorded, digest=unrecorded", brief)
             self.assertNotIn("PRIVATE_SENTINEL", brief)
             self.assertLess(len(brief), len(full))
