@@ -10,12 +10,22 @@ rules:
     patterns:
       - pattern: |
           let $VAR = $MUTEX.lock();
-      - not:
-          - pattern-either:
-              - pattern: .unwrap_or_else(|e| e.into_inner())
-              - pattern: .map_err
-              - pattern: match $MUTEX.lock()
-              - pattern: if let Ok
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          $VAR.unwrap_or_else(...)
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          $VAR.map_err(...)
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          match $VAR { $P => $A, $Q => $B }
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          if let Ok($VALUE) = $VAR { ... }
     message: "Mutex lock without poison handling. Use unwrap_or_else(|e| e.into_inner()) to handle poisoning, or match/if-let for explicit handling. See BUGS_FIXED.md for deadlock bug example."
     languages: [rust]
     severity: WARNING
@@ -36,12 +46,8 @@ rules:
   # ============================================================================
   
   - id: error-conversion-without-context
-    patterns:
-      - pattern: |
-          .map_err(|e| Error::$TYPE(format!("{}", e)))
-      - not:
-          - pattern: |
-              .map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))
+    pattern: |
+      $RESULT.map_err(|$E| Error::$TYPE(format!("{}", $E)))
     message: "Error conversion without context. Add context about what operation failed (e.g., 'Failed to download model: {}')."
     languages: [rust]
     severity: INFO
@@ -53,12 +59,8 @@ rules:
         - "**/eval/**"
 
   - id: result-propagation-without-context
-    patterns:
-      - pattern: |
-          $FUNC()?;
-      - not:
-          - pattern: |
-              $FUNC().map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))?;
+    pattern: |
+      $FUNC()?;
     message: "Result propagation without context. Consider adding context with map_err for better error messages."
     languages: [rust]
     severity: INFO
@@ -75,19 +77,29 @@ rules:
   
   - id: backend-specific-error-types
     patterns:
-      - pattern: |
-          enum $ERROR {
-            // backend-specific errors
-          }
-      - not:
-          - pattern: |
-              impl From<$ERROR> for crate::Error
-    message: "Backend-specific error type without conversion to crate::Error. Consider implementing From trait for consistency."
-    languages: [rust]
+      # The Rust matcher cannot parse an ellipsis in an enum variant list.
+      # Restrict the text matcher to Rust declaration lines and error types.
+      - pattern: enum $ERROR { ... }
+      - pattern-regex: '(?m)^\h*(?:pub(?:\([^)]*\))?\h+)?enum\h+'
+      - metavariable-regex:
+          metavariable: $ERROR
+          regex: '.*Error$'
+      - pattern-not-inside: |
+          enum $ERROR { ... }
+          ...
+          impl From<$ERROR> for crate::Error { ... }
+      - pattern-not-inside: |
+          impl From<$ERROR> for crate::Error { ... }
+          ...
+          enum $ERROR { ... }
+    message: "Backend error enum has no nearby From conversion to crate::Error in this file. Check for an existing conversion before adding one."
+    languages: [generic]
+    options:
+      generic_ellipsis_max_span: 500
     severity: INFO
     metadata:
       category: maintainability
     paths:
       include:
-        - "**/backends/**"
+        - "**/backends/**/*.rs"
 

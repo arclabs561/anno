@@ -35,10 +35,13 @@ rules:
   - id: panic-in-library
     patterns:
       - pattern: panic!(...)
-      - not:
-          - pattern: |
-              #[cfg(test)]
-              ...
+      # Skip brace-balanced test items before looking for a panic macro.
+      - pattern-regex: |-
+          (?mx)
+          (?(DEFINE)(?<body> \{ (?: [^{}]++ | (?&body) )* \} ))
+          ^\h*\#\[(?:cfg\(test\)|test)\]\s*
+          (?:\#\[[^\]\n]+\]\s*)* [^;{}]++ (?&body) (*SKIP)(*F)
+          | \bpanic\h*!
     message: "Panic in library code. Libraries should return Result types instead of panicking."
     languages: [rust]
     severity: ERROR
@@ -47,6 +50,7 @@ rules:
     paths:
       exclude:
         - "**/tests/**"
+        - "**/tests.rs"
         - "**/examples/**"
 
   # ============================================================================
@@ -55,14 +59,13 @@ rules:
   
   - id: unsafe-block-without-comment
     patterns:
-      - pattern: |
-          unsafe {
-            $BODY
-          }
-      - not:
-          - pattern: |
-              // SAFETY:
-              ...
+      - pattern: unsafe { ... }
+      # Rust AST patterns discard comments. Skip a documented block's opening
+      # token, then intersect the remaining unsafe tokens with actual blocks.
+      - pattern-regex: |-
+          (?mx)
+          ^\h*//\h*SAFETY:[^\n]*\n (?:\h*//[^\n]*\n)* (?:[^\n{};]*=\h*\n)? [^\n{};]*\bunsafe\s*\{ (*SKIP)(*F)
+          | \bunsafe\s*\{
     message: "Unsafe block without safety comment. Document why this is safe."
     languages: [rust]
     severity: WARNING
@@ -71,14 +74,12 @@ rules:
 
   - id: unsafe-function-without-docs
     patterns:
-      - pattern: |
-          unsafe fn $F(...) {
-            $BODY
-          }
-      - not:
-          - pattern: |
-              /// ...
-              unsafe fn $F
+      - pattern: unsafe fn $F(...) { ... }
+      - pattern-regex: |-
+          (?mx)
+          ^\h*///[^\n]*\n (?:\h*\#\[[^\n]*\]\h*\n)* \h*
+          (?:pub(?:\([^)]*\))?\h+)?unsafe\h+fn\b (*SKIP)(*F)
+          | \bunsafe\h+fn\b
     message: "Unsafe function without documentation. Document safety requirements."
     languages: [rust]
     severity: WARNING
@@ -93,11 +94,22 @@ rules:
     patterns:
       - pattern: |
           let $VAR = $MUTEX.lock();
-      - not:
-          - pattern-either:
-              - pattern: .unwrap_or_else
-              - pattern: .map_err
-              - pattern: match $MUTEX.lock()
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          $VAR.unwrap_or_else(...)
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          $VAR.map_err(...)
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          match $VAR { $P => $A, $Q => $B }
+      - pattern-not-inside: |
+          let $VAR = $MUTEX.lock();
+          ...
+          if let Ok($VALUE) = $VAR { ... }
     message: "Mutex lock without poison handling. Consider unwrap_or_else or proper error handling."
     languages: [rust]
     severity: WARNING
@@ -116,13 +128,8 @@ rules:
   - id: unchecked-array-access
     patterns:
       - pattern: $ARR[$INDEX]
-      - not:
-          - pattern-either:
-              - pattern: $ARR.get($INDEX)
-              - pattern: |
-                  if $INDEX < $ARR.len() {
-                    $ARR[$INDEX]
-                  }
+      - pattern-not-inside: |
+          if $INDEX < $ARR.len() { ... }
     message: "Unchecked array access. Consider using get() or bounds checking."
     languages: [rust]
     severity: WARNING
@@ -138,10 +145,8 @@ rules:
   
   - id: public-unsafe-function
     patterns:
-      - pattern: |
-          pub unsafe fn $F(...) {
-            $BODY
-          }
+      - pattern: unsafe fn $F(...) { ... }
+      - pattern-regex: '\bpub\s+\Kunsafe\s+fn\b'
     message: "Public unsafe function. Ensure it's necessary and well-documented."
     languages: [rust]
     severity: INFO
@@ -155,17 +160,11 @@ rules:
   - id: division-without-zero-check
     patterns:
       - pattern: $NUM / $DENOM
-      - not:
-          - pattern-either:
-              - pattern: |
-                  if $DENOM != 0 {
-                    $NUM / $DENOM
-                  }
-              - pattern: |
-                  if $DENOM == 0 {
-                    return Err(...);
-                  }
-              - pattern: $DENOM.checked_div
+      - pattern-not-inside: |
+          if $DENOM != 0 { ... }
+      - pattern-not-inside: |
+          if $DENOM == 0 { return Err(...); }
+          ...
     message: "Division without zero check. Could panic on zero denominator."
     languages: [rust]
     severity: WARNING
