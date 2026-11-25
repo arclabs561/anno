@@ -1798,6 +1798,19 @@ impl DatasetLoader {
         self.load_with_policy(id, None, PublisherFallback::Allow)
     }
 
+    /// Stage a missing generic input from the configured shared cache. Keep an
+    /// existing local file and its manifest checks authoritative.
+    #[cfg(feature = "eval")]
+    pub(crate) fn stage_from_shared_cache(
+        &self,
+        id: LoadableDatasetId,
+    ) -> Result<DatasetLoadReceipt> {
+        if self.cache_path(id).exists() {
+            return self.load_with_receipt(id);
+        }
+        self.load_with_policy(id, None, PublisherFallback::Forbid)
+    }
+
     /// Require a particular SHA-256 of the generic parser input. Local bytes have priority.
     /// On a cold cache, try the exact S3 snapshot and then the legacy object. Reject a
     /// digest mismatch before publishing newly fetched bytes. A different local version
@@ -7813,15 +7826,17 @@ mod tests {
             assert!(!loader.cache_path(id).exists());
             for reason in [S3FallbackReason::NotFound, S3FallbackReason::AccessDenied] {
                 let failure = |_: &str| Err((reason, Error::InvalidInput("read failed".into())));
-                let res = loader.load_with_fetchers(
-                    id,
-                    Some(&pin),
-                    PublisherFallback::Forbid,
-                    failure,
-                    || panic!("publisher fallback was forbidden"),
-                );
-                assert!(res.is_err());
-                assert!(!loader.cache_path(id).exists());
+                for wanted in [None, Some(pin.as_str())] {
+                    let res = loader.load_with_fetchers(
+                        id,
+                        wanted,
+                        PublisherFallback::Forbid,
+                        failure,
+                        || panic!("publisher fallback was forbidden"),
+                    );
+                    assert!(res.is_err());
+                    assert!(!loader.cache_path(id).exists());
+                }
                 let res = loader.load_with_fetchers(
                     id,
                     Some(&pin),

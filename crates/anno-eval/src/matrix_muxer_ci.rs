@@ -12,7 +12,8 @@
 //! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure` | `coverage`). Used only when
 //!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
-//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run in cache-only mode (no fetch); if selection yields
+//! - `ANNO_MATRIX_STAGE_FROM_S3`: allow cache-only selection to stage eligible inputs from the configured S3 cache
+//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run with local or explicitly staged cached inputs; if selection yields
 //!   nothing and `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1`, fall back to “try to fetch once”
 //! - `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE`: if `1`/`true`, include non-automatable datasets in candidates
 //! - `ANNO_MATRIX_INCLUDE_SLOW_DATASETS`: if `1`/`true`, allow known-slow datasets even under `ANNO_MUXER_PROFILE=fast*`
@@ -110,7 +111,7 @@ mod checkpoint;
 mod retry;
 
 use crate::eval::backend_factory::BackendFactory;
-use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
+use crate::eval::loader::{DataSource, DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::provenance::policy_cohort_key;
 use crate::eval::provenance::EvaluationScheduling;
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvalResult, TaskEvaluator};
@@ -706,6 +707,21 @@ fn matrix_uses_gold_mentions() -> bool {
     std::env::var("ANNO_COREF_GOLD")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+fn matrix_offline() -> bool {
+    ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"].iter().any(|key| {
+        std::env::var(key).is_ok_and(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "y" | "on"
+            )
+        })
+    })
+}
+
+fn stages_from_s3(loader: &DatasetLoader) -> bool {
+    loader.s3_enabled() && mh::env_bool("ANNO_MATRIX_STAGE_FROM_S3", false) && !matrix_offline()
 }
 
 fn matrix_require_cached() -> bool {
@@ -2522,9 +2538,10 @@ impl DatasetPolicy {
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             return Some(DatasetExclusion::NoLoader);
         };
-        if (ds.checkout_fixture().is_some() || (self.require_cached && !loader.s3_enabled()))
-            && !loader.is_cached(loadable)
-        {
+        let needs_local = ds.checkout_fixture().is_some()
+            || (self.require_cached
+                && (!stages_from_s3(loader) || ds.excluded_from_shared_cache()));
+        if needs_local && !loader.is_cached(loadable) {
             return Some(DatasetExclusion::CacheRequired);
         }
         None
@@ -2597,6 +2614,7 @@ pub fn dataset_eligibility_report(
     serde_json::json!({
         "schema_version": 1,
         "task": task.code(), "require_cached": require_cached, "s3_enabled": loader.s3_enabled(),
+        "stage_from_s3": require_cached && stages_from_s3(loader),
         "eligible_count": eligible_count, "datasets": rows
     })
 }
@@ -2798,7 +2816,7 @@ fn check_dataset_usable(
     tasks: &[Task],
     ds: DatasetId,
     require_cached: bool,
-) -> anno::Result<()> {
+) -> anno::Result<DataSource> {
     fn require_examples(count: usize) -> anno::Result<()> {
         if count == 0 {
             return Err(anno::Error::InvalidInput(
@@ -2809,7 +2827,9 @@ fn check_dataset_usable(
     }
 
     let loadable = LoadableDatasetId::try_from(ds)?;
-    let receipt = if require_cached {
+    let receipt = if require_cached && stages_from_s3(loader) && !ds.excluded_from_shared_cache() {
+        loader.stage_from_shared_cache(loadable)?
+    } else if require_cached {
         loader.load_with_receipt(loadable)?
     } else {
         loader.load_or_download_with_receipt(loadable)?
@@ -2825,6 +2845,7 @@ fn check_dataset_usable(
         })
     );
     require_examples(receipt.dataset.sentences.len())?;
+    let source = receipt.dataset.data_source;
     drop(receipt);
 
     if tasks.contains(&Task::RelationExtraction) {
@@ -2843,7 +2864,7 @@ fn check_dataset_usable(
         };
         require_examples(documents.len())?;
     }
-    Ok(())
+    Ok(source)
 }
 
 // Public CI logs may be visible to people who cannot read the original data or bucket.
@@ -3091,6 +3112,7 @@ struct DatasetSelection {
     backend_incompatible_count: usize,
     load_rejections: BTreeMap<String, usize>,
     selected: Vec<DatasetId>,
+    selected_sources: BTreeMap<String, DataSource>,
 }
 
 fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
@@ -3235,7 +3257,8 @@ fn choose_datasets_for_run(
             continue;
         }
         match check_dataset_usable(loader, tasks, ds, require_cached) {
-            Ok(()) => {
+            Ok(source) => {
+                selection.selected_sources.insert(format!("{ds:?}"), source);
                 if let Some(arms) = &mut common {
                     arms.retain(compatible);
                 }
@@ -3442,7 +3465,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     let loader = DatasetLoader::new().expect("DatasetLoader::new");
     let require_cached = matrix_require_cached();
 
-    let try_download_on_empty = mh::env_bool("ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY", false);
+    let try_download_on_empty =
+        mh::env_bool("ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY", false) && !matrix_offline();
 
     // Optional override: force evaluation of a specific backend (or comma-separated list).
     // When set, we also bias dataset sampling toward datasets compatible with that backend so
@@ -3675,6 +3699,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                         "pass": pass,
                         "require_cached": require_cached,
                         "s3_enabled": loader.s3_enabled(),
+                        "stage_from_s3": require_cached && stages_from_s3(&loader),
+                        "target_datasets": datasets_per_run,
                         "pool": pool,
                     }),
                 );
