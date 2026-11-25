@@ -278,7 +278,7 @@ impl Default for RelationEvalConfig {
     }
 }
 
-/// Evaluate relation extraction predictions against gold standard.
+/// Evaluate relation extraction predictions within one document.
 ///
 /// # Arguments
 /// * `gold` - Ground truth relations
@@ -320,49 +320,105 @@ pub fn evaluate_relations(
     pred: &[RelationPrediction],
     config: &RelationEvalConfig,
 ) -> RelationMetrics {
-    if gold.is_empty() && pred.is_empty() {
-        return RelationMetrics {
-            boundary_f1: 1.0,
-            boundary_precision: 1.0,
-            boundary_recall: 1.0,
-            strict_f1: 1.0,
-            strict_precision: 1.0,
-            strict_recall: 1.0,
-            num_predicted: 0,
-            num_gold: 0,
-            boundary_matches: 0,
-            strict_matches: 0,
-            per_relation: HashMap::new(),
-        };
+    evaluate_relation_documents([(gold, pred)], config)
+}
+
+/// Match gold and predicted relations within each document, then compute micro scores
+/// from corpus counts. Spans in different documents occupy separate coordinate spaces.
+pub fn evaluate_relation_documents<'a>(
+    documents: impl IntoIterator<Item = (&'a [RelationGold], &'a [RelationPrediction])>,
+    config: &RelationEvalConfig,
+) -> RelationMetrics {
+    let mut by_label = HashMap::new();
+    for (gold, pred) in documents {
+        count_document(gold, pred, config, &mut by_label);
     }
 
-    // Track matches
+    let mut num_gold = 0;
+    let mut num_predicted = 0;
+    let mut boundary_matches = 0;
+    let mut strict_matches = 0;
+    let mut per_relation = HashMap::with_capacity(by_label.len());
+    for (display, mut counts) in by_label.into_values() {
+        num_gold += counts.gold_count;
+        num_predicted += counts.pred_count;
+        boundary_matches += counts.boundary_matches;
+        strict_matches += counts.strict_matches;
+        counts.boundary_f1 = f1_score(
+            ratio(counts.boundary_matches, counts.pred_count),
+            ratio(counts.boundary_matches, counts.gold_count),
+        );
+        counts.strict_f1 = f1_score(
+            ratio(counts.strict_matches, counts.pred_count),
+            ratio(counts.strict_matches, counts.gold_count),
+        );
+        per_relation.insert(display, counts);
+    }
+
+    // A corpus with no relations on either side is a perfect empty prediction.
+    let (boundary_precision, boundary_recall, strict_precision, strict_recall) =
+        if num_gold == 0 && num_predicted == 0 {
+            (1.0, 1.0, 1.0, 1.0)
+        } else {
+            (
+                ratio(boundary_matches, num_predicted),
+                ratio(boundary_matches, num_gold),
+                ratio(strict_matches, num_predicted),
+                ratio(strict_matches, num_gold),
+            )
+        };
+    RelationMetrics {
+        boundary_f1: f1_score(boundary_precision, boundary_recall),
+        boundary_precision,
+        boundary_recall,
+        strict_f1: f1_score(strict_precision, strict_recall),
+        strict_precision,
+        strict_recall,
+        num_predicted,
+        num_gold,
+        boundary_matches,
+        strict_matches,
+        per_relation,
+    }
+}
+
+fn ratio(matches: usize, items: usize) -> f64 {
+    if items == 0 {
+        0.0
+    } else {
+        matches as f64 / items as f64
+    }
+}
+
+fn count_document(
+    gold: &[RelationGold],
+    pred: &[RelationPrediction],
+    config: &RelationEvalConfig,
+    by_label: &mut HashMap<String, (String, RelationTypeMetrics)>,
+) {
     let mut gold_matched_boundary = vec![false; gold.len()];
     let mut gold_matched_strict = vec![false; gold.len()];
-    let mut pred_matched_boundary = vec![false; pred.len()];
-    let mut pred_matched_strict = vec![false; pred.len()];
-
-    // Per-relation tracking: (gold_count, pred_count, boundary_matches, strict_matches)
-    let mut rel_stats: HashMap<String, (usize, usize, usize, usize)> = HashMap::new();
-
     // Count gold per relation type
     for g in gold {
-        let entry = rel_stats.entry(g.relation_type.clone()).or_default();
-        entry.0 += 1;
+        let (display, counts) = by_label.entry(g.relation_type.to_lowercase()).or_default();
+        // Prefer the gold spelling. Resolve case variants deterministically across documents.
+        if counts.gold_count == 0 || g.relation_type < *display {
+            display.clone_from(&g.relation_type);
+        }
+        counts.gold_count += 1;
     }
 
     // Count pred per relation type
     for p in pred {
-        let entry = rel_stats.entry(p.relation_type.clone()).or_default();
-        entry.1 += 1;
+        let (display, counts) = by_label.entry(p.relation_type.to_lowercase()).or_default();
+        if counts.gold_count == 0 && (counts.pred_count == 0 || p.relation_type < *display) {
+            display.clone_from(&p.relation_type);
+        }
+        counts.pred_count += 1;
     }
 
     // Strict matching: exact entity spans + relation type
-    for (pi, p) in pred.iter().enumerate() {
-        // Skip predictions that are already matched
-        if pred_matched_strict[pi] {
-            continue;
-        }
+    for p in pred {
         for (gi, g) in gold.iter().enumerate() {
             if gold_matched_strict[gi] {
                 continue;
@@ -388,21 +444,18 @@ pub fn evaluate_relations(
 
             if forward_match || reverse_match {
                 gold_matched_strict[gi] = true;
-                pred_matched_strict[pi] = true;
 
-                let entry = rel_stats.entry(g.relation_type.clone()).or_default();
-                entry.3 += 1;
+                let (_, counts) = by_label
+                    .get_mut(&g.relation_type.to_lowercase())
+                    .expect("counted gold label");
+                counts.strict_matches += 1;
                 break;
             }
         }
     }
 
     // Boundary matching: overlapping entity spans + relation type
-    for (pi, p) in pred.iter().enumerate() {
-        // Skip predictions that are already matched
-        if pred_matched_boundary[pi] {
-            continue;
-        }
+    for p in pred {
         for (gi, g) in gold.iter().enumerate() {
             if gold_matched_boundary[gi] {
                 continue;
@@ -437,94 +490,14 @@ pub fn evaluate_relations(
 
             if forward_match || reverse_match {
                 gold_matched_boundary[gi] = true;
-                pred_matched_boundary[pi] = true;
 
-                let entry = rel_stats.entry(g.relation_type.clone()).or_default();
-                entry.2 += 1;
+                let (_, counts) = by_label
+                    .get_mut(&g.relation_type.to_lowercase())
+                    .expect("counted gold label");
+                counts.boundary_matches += 1;
                 break;
             }
         }
-    }
-
-    // Calculate metrics
-    let boundary_matches = pred_matched_boundary.iter().filter(|&&m| m).count();
-    let strict_matches = pred_matched_strict.iter().filter(|&&m| m).count();
-
-    let boundary_precision = if !pred.is_empty() {
-        boundary_matches as f64 / pred.len() as f64
-    } else {
-        0.0
-    };
-    let boundary_recall = if !gold.is_empty() {
-        boundary_matches as f64 / gold.len() as f64
-    } else {
-        0.0
-    };
-    let boundary_f1 = f1_score(boundary_precision, boundary_recall);
-
-    let strict_precision = if !pred.is_empty() {
-        strict_matches as f64 / pred.len() as f64
-    } else {
-        0.0
-    };
-    let strict_recall = if !gold.is_empty() {
-        strict_matches as f64 / gold.len() as f64
-    } else {
-        0.0
-    };
-    let strict_f1 = f1_score(strict_precision, strict_recall);
-
-    // Build per-relation metrics
-    let per_relation: HashMap<String, RelationTypeMetrics> = rel_stats
-        .into_iter()
-        .map(|(rel, (gold_count, pred_count, boundary, strict))| {
-            let b_p = if pred_count > 0 {
-                boundary as f64 / pred_count as f64
-            } else {
-                0.0
-            };
-            let b_r = if gold_count > 0 {
-                boundary as f64 / gold_count as f64
-            } else {
-                0.0
-            };
-            let s_p = if pred_count > 0 {
-                strict as f64 / pred_count as f64
-            } else {
-                0.0
-            };
-            let s_r = if gold_count > 0 {
-                strict as f64 / gold_count as f64
-            } else {
-                0.0
-            };
-
-            (
-                rel,
-                RelationTypeMetrics {
-                    boundary_f1: f1_score(b_p, b_r),
-                    strict_f1: f1_score(s_p, s_r),
-                    gold_count,
-                    pred_count,
-                    boundary_matches: boundary,
-                    strict_matches: strict,
-                },
-            )
-        })
-        .collect();
-
-    RelationMetrics {
-        boundary_f1,
-        boundary_precision,
-        boundary_recall,
-        strict_f1,
-        strict_precision,
-        strict_recall,
-        num_predicted: pred.len(),
-        num_gold: gold.len(),
-        boundary_matches,
-        strict_matches,
-        per_relation,
     }
 }
 
@@ -692,6 +665,50 @@ fn f1_score(precision: f64, recall: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn corpus_scores_use_relation_counts_and_ignore_empty_documents() {
+        let matched = RelationGold::new((0, 4), "ORG", "Acme", (8, 12), "ORG", "Beta", "OWNS");
+        let missed = RelationGold::new((1, 2), "ORG", "X", (5, 6), "ORG", "Y", "OWNS");
+        let predicted = RelationPrediction {
+            head_span: (0, 4),
+            head_type: "ORG".into(),
+            tail_span: (8, 12),
+            tail_type: "ORG".into(),
+            relation_type: "owns".into(), // Matching and the breakdown both ignore case.
+            confidence: 1.0,
+        };
+        let gold = [matched.clone(), missed];
+        let predictions = [predicted];
+        // First document: one correct and one missed. Second: miss the same offsets.
+        let docs: [(&[RelationGold], &[RelationPrediction]); 3] = [
+            (&gold, &predictions),
+            (std::slice::from_ref(&matched), &[]),
+            (&[], &[]),
+        ];
+        let actual = evaluate_relation_documents(docs, &RelationEvalConfig::default());
+        assert_eq!(
+            (
+                actual.num_gold,
+                actual.num_predicted,
+                actual.strict_matches,
+                actual.boundary_matches
+            ),
+            (3, 1, 1, 1)
+        );
+        assert_eq!((actual.strict_f1, actual.boundary_f1), (0.5, 0.5));
+        assert_eq!(actual.per_relation.len(), 1);
+        let by_type = &actual.per_relation["OWNS"];
+        assert_eq!(
+            (
+                by_type.gold_count,
+                by_type.pred_count,
+                by_type.strict_f1,
+                by_type.boundary_f1
+            ),
+            (3, 1, 0.5, 0.5)
+        );
+    }
 
     #[test]
     fn test_exact_relation_match() {

@@ -3178,7 +3178,7 @@ impl TaskEvaluator {
         config: &TaskEvalConfig,
     ) -> Result<RelationEvaluationReceipt> {
         use crate::eval::relation::{
-            evaluate_relations, RelationEvalConfig, RelationGold, RelationPrediction,
+            evaluate_relation_documents, RelationEvalConfig, RelationPrediction,
         };
 
         // Load gold relations from cache, with an opt-in download fallback.
@@ -3215,14 +3215,7 @@ impl TaskEvaluator {
         };
         let relation_docs = Self::sample_documents(relation_docs, config);
 
-        // Collect all gold relations
-        let mut all_gold_relations: Vec<RelationGold> = Vec::new();
-        for doc in &relation_docs {
-            all_gold_relations.extend(doc.relations.iter().cloned());
-        }
-
-        // Extract predicted relations from backend
-        let mut all_predicted_relations: Vec<RelationPrediction> = Vec::new();
+        let mut predictions_by_doc = vec![Vec::new(); relation_docs.len()];
 
         // Extract relations using RelationExtractor if backend supports it
         // GLiNER multi-task backends implement RelationExtractor
@@ -3295,7 +3288,11 @@ impl TaskEvaluator {
         let mut oracle_docs_used: usize = 0;
         let mut oracle_tplinker_docs_used: usize = 0;
 
-        for (doc_index, doc) in relation_docs.iter().enumerate() {
+        for (doc_index, (doc, predicted)) in relation_docs
+            .iter()
+            .zip(&mut predictions_by_doc)
+            .enumerate()
+        {
             let text = &doc.text;
 
             if let Some(ref rel_extractor) = relation_extractor {
@@ -3387,7 +3384,7 @@ impl TaskEvaluator {
                                     oracle_entities.get(t.head_idx),
                                     oracle_entities.get(t.tail_idx),
                                 ) {
-                                    all_predicted_relations.push(RelationPrediction {
+                                    predicted.push(RelationPrediction {
                                         head_span: (head.start(), head.end()),
                                         head_type: head.entity_type.as_label().to_string(),
                                         tail_span: (tail.start(), tail.end()),
@@ -3475,7 +3472,7 @@ impl TaskEvaluator {
                                     oracle_entities.get(t.head_idx),
                                     oracle_entities.get(t.tail_idx),
                                 ) {
-                                    all_predicted_relations.push(RelationPrediction {
+                                    predicted.push(RelationPrediction {
                                         head_span: (head.start(), head.end()),
                                         head_type: head.entity_type.as_label().to_string(),
                                         tail_span: (tail.start(), tail.end()),
@@ -3495,7 +3492,7 @@ impl TaskEvaluator {
                                 extraction.entities.get(triple.head_idx),
                                 extraction.entities.get(triple.tail_idx),
                             ) {
-                                all_predicted_relations.push(RelationPrediction {
+                                predicted.push(RelationPrediction {
                                     head_span: (head.start(), head.end()),
                                     head_type: head.entity_type.as_label().to_string(),
                                     tail_span: (tail.start(), tail.end()),
@@ -3532,7 +3529,7 @@ impl TaskEvaluator {
                             let head = &entities[i];
                             let tail = &entities[j];
 
-                            all_predicted_relations.push(RelationPrediction {
+                            predicted.push(RelationPrediction {
                                 head_span: (head.start(), head.end()),
                                 head_type: head.entity_type.as_label().to_string(),
                                 tail_span: (tail.start(), tail.end()),
@@ -3554,8 +3551,13 @@ impl TaskEvaluator {
             require_entity_type_match: false,
             ..RelationEvalConfig::default()
         };
-        let metrics_result =
-            evaluate_relations(&all_gold_relations, &all_predicted_relations, &config);
+        let metrics_result = evaluate_relation_documents(
+            relation_docs
+                .iter()
+                .zip(&predictions_by_doc)
+                .map(|(doc, pred)| (doc.relations.as_slice(), pred.as_slice())),
+            &config,
+        );
 
         let mut metrics = HashMap::new();
         metrics.insert(
@@ -3575,11 +3577,19 @@ impl TaskEvaluator {
         metrics.insert("strict_f1".to_string(), metrics_result.strict_f1);
         metrics.insert(
             "num_gold_relations".to_string(),
-            all_gold_relations.len() as f64,
+            metrics_result.num_gold as f64,
         );
         metrics.insert(
             "num_predicted_relations".to_string(),
-            all_predicted_relations.len() as f64,
+            metrics_result.num_predicted as f64,
+        );
+        metrics.insert(
+            "strict_relation_matches".into(),
+            metrics_result.strict_matches as f64,
+        );
+        metrics.insert(
+            "boundary_relation_matches".into(),
+            metrics_result.boundary_matches as f64,
         );
         metrics.insert("oracle_docs_used".to_string(), oracle_docs_used as f64);
         metrics.insert(
@@ -3591,7 +3601,7 @@ impl TaskEvaluator {
         Ok(RelationEvaluationReceipt {
             metrics,
             document_count: relation_docs.len(),
-            gold_relation_count: all_gold_relations.len(),
+            gold_relation_count: metrics_result.num_gold,
         })
     }
 
@@ -5134,6 +5144,44 @@ mod tests {
         assert!(error
             .to_string()
             .contains("cached-only evaluation forbids downloading"));
+    }
+
+    #[test]
+    fn relation_predictions_must_match_in_their_own_document() {
+        let cache = tempfile::tempdir().unwrap();
+        let docs = serde_json::json!([
+            {"tokens":"AB","entities":[{"type":"PER","start":0,"end":1,"span":"A"},{"type":"PER","start":1,"end":2,"span":"B"}],"relations":[{"type":"RELATED","head":0,"tail":1}]},
+            {"tokens":"CD","entities":[],"relations":[]}
+        ]);
+        std::fs::write(
+            cache.path().join(DatasetId::CHisIEC.cache_filename()),
+            docs.to_string(),
+        )
+        .unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let cfg = TaskEvalConfig {
+            require_cached: true,
+            ..Default::default()
+        };
+        for (emit_on, expected_f1) in [("AB", 1.0), ("CD", 0.0)] {
+            let model = anno::AnyModel::new("probe", "probe", vec![], move |text, _| {
+                if text != emit_on {
+                    return Ok(vec![]);
+                }
+                Ok(vec![
+                    anno::Entity::new(&text[0..1], anno::EntityType::Person, 0, 1, 1.0),
+                    anno::Entity::new(&text[1..2], anno::EntityType::Person, 1, 2, 1.0),
+                ])
+            });
+            let r = evaluator
+                .evaluate_relation_task("probe", &model, &empty_dataset(DatasetId::CHisIEC), &cfg)
+                .unwrap();
+            assert_eq!(r.metrics["strict_f1"], expected_f1);
+            assert_eq!(r.metrics["boundary_f1"], expected_f1);
+            assert_eq!(r.document_count, 2);
+            assert_eq!(r.gold_relation_count, 1);
+            assert_eq!(r.metrics["num_predicted_relations"], 1.0);
+        }
     }
 
     #[test]
