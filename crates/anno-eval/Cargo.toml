@@ -12,8 +12,8 @@ description = "Evaluation harnesses, datasets, and muxer-backed sampling for ann
 keywords = ["ner", "evaluation", "nlp"]
 categories = ["text-processing"]
 
-# This repository QA example requires the version-matched native oracle and corpus.
-exclude = ["/examples/reviewed_seed_campaign.rs"]
+# Repository research and QA run from a source checkout.
+exclude = ["/examples/reviewed_seed_campaign.rs", "/research/"]
 
 [lib]
 doctest = false
