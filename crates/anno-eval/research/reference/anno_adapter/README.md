@@ -51,7 +51,7 @@ copied into the checked-in receipt.
 ## What the receipt measures
 
 Across 12 documents, Anno emitted 39 distinct contiguous spans. There were
-43 contiguous signal IDs, including four repeated coordinates. Three gold
+46 contiguous signal IDs, including seven repeated coordinates. Three gold
 mentions have unresolved identity, so pairs use only the resolved mentions.
 
 | Boundary | Covered gold mentions | Reachable gold positive pairs | Native joined positive | Native joined negative |
@@ -101,27 +101,27 @@ The adapter archives the raw wire value and performs no thresholding or
 calibration based on it. All nine native tracks in the checked-in receipt
 carry 1.0.
 
-- **Producers.** [`Track::new`](../../../../../anno/src/core/grounded/mod.rs)
-  writes `Confidence::ONE`. The [native mention-ranking producer](../../../../../anno/src/backends/coref/mention_ranking/types.rs)
+- **Producers.** [`Track::new`](../../../../anno/src/core/grounded/mod.rs)
+  writes `Confidence::ONE`. The [native mention-ranking producer](../../../../anno/src/backends/coref/mention_ranking/types.rs)
   constructs its tracks with that initializer and supplies no measured
   whole-track score. Coreference clusters entering through the
-  [CLI projection](../../../../../anno-cli/src/cli/utils.rs) call
+  [CLI projection](../../../../anno-cli/src/cli/utils.rs) call
   `create_track_from_signals`, which uses the same initializer. Fresh
   tracks created for a multi-track merge also start with the default.
   Tests use the public setter to place other values on the wire.
 - **Consumers.** A source search found the public getter, serializable
   field and range tests. The human-output code in
-  [`output.rs`](../../../../../anno-cli/src/cli/output.rs) computes a
+  [`output.rs`](../../../../anno-cli/src/cli/output.rs) computes a
   formatted string into `_cluster_conf` and never prints it. No decision
   consumer in the pinned Anno tree reads the field for association or
   catalog linking. External consumers are outside this inventory.
 - **Legacy records.** The field is a transparent numeric
-  [`Confidence`](../../../../../anno/src/core/confidence.rs) without a
+  [`Confidence`](../../../../anno/src/core/confidence.rs) without a
   field-level serde default on `Track`. A numeric 1.0 can be authored by a
   caller or emitted by the constructor. These values cannot be distinguished
   from the number alone. Removing the field from a real emitted track
   caused `anno enhance FILE --quiet --format grounded` to fail during
   deserialization with `missing field cluster_confidence`. A future reader
   that supports missing values would need explicit compatibility policy
-  and tests. The [track score decision record](../../../../../../docs/decisions/track-association.md)
+  and tests. The [track score decision record](../../../../../docs/decisions/track-association.md)
   covers the separate events and score populations.

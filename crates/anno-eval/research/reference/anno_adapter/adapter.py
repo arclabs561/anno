@@ -81,8 +81,7 @@ def read_grounded(doc, row, backend):
         locations[signal_id] = (start, end)
     assigned = set()
     tracks = {}
-    for key in sorted(row["tracks"], key=int):
-        track = row["tracks"][key]
+    for key, track in row["tracks"].items():
         track_id = track["id"]
         if type(track_id) is not int or str(track_id) != key or track_id < 0:
             raise ValueError(f"{doc['id']}: inconsistent track ID {key}")
@@ -96,7 +95,7 @@ def read_grounded(doc, row, backend):
             assigned.add(signal_id)
             members.append(signal_id)
         tracks[track_id] = members
-    return locations, tracks, sorted(unsupported)
+    return locations, dict(sorted(tracks.items())), sorted(unsupported)
 
 
 def partitions(groups, locations, mentions, lookup, negatives):
@@ -280,8 +279,8 @@ def audit(doc, prediction, args):
         "duplicate_contiguous_spans": len(locations) - len(emitted),
         "excluded_noncontiguous_signal_ids": unsupported,
         "native_wire_track_confidence": {
-            key: prediction["tracks"][key].get("cluster_confidence")
-            for key in sorted(prediction["tracks"], key=int)
+            str(track_id): prediction["tracks"][str(track_id)].get("cluster_confidence")
+            for track_id in tracks
         },
         "alignment": {
             contract: selection(emitted, lookup, negatives, len(mentions))
