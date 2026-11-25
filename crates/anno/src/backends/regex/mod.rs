@@ -36,7 +36,10 @@ use std::sync::LazyLock;
 /// | URL | `https://example.com` |
 /// | Phone | "(555) 123-4567", "+1-555-1234" |
 ///
-/// # Example
+/// Output spans are flat. A date in an HTTP(S) path stays inside the URL span.
+/// Dates in the surrounding text have their own spans.
+///
+////// # Example
 ///
 /// ```rust
 /// use anno::{RegexNER, Model};
@@ -320,13 +323,17 @@ fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     result
 }
 
+fn url_at<'a>(urls: &[regex::Match<'a>], byte: usize) -> Option<regex::Match<'a>> {
+    let next = urls.partition_point(|url| url.end() <= byte);
+    urls.get(next).copied().filter(|url| url.start() <= byte)
+}
+
 // A percent escape is exactly '%' followed by two ASCII hex digits in the URL.
 fn is_url_escape(m: regex::Match<'_>, urls: &[regex::Match<'_>]) -> bool {
     if !m.as_str().ends_with('%') {
         return false;
     }
-    let next = urls.partition_point(|url| url.end() <= m.start());
-    let Some(url) = urls.get(next).filter(|url| url.start() <= m.start()) else {
+    let Some(url) = url_at(urls, m.start()) else {
         return false;
     };
     let after_percent = m.end() - url.start();
@@ -372,6 +379,8 @@ impl Model for RegexNER {
         use crate::offset::SpanConverter;
         use crate::Provenance;
         let mut entities = Vec::new();
+        let url_input = url_text(text);
+        let urls: Vec<_> = URL.find_iter(&url_input).collect();
 
         // Performance optimization: Build SpanConverter once for all byte-to-char conversions
         // ROI: High - called once per extract_entities, saves O(n) per regex match
@@ -382,6 +391,10 @@ impl Model for RegexNER {
         // for consistency with evaluation (GoldEntity uses char offsets).
         let mut add_entity =
             |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
+                // Flat output preserves the full link when its path contains a date.
+                if entity_type == EntityType::Date && url_at(&urls, m.start()).is_some() {
+                    return;
+                }
                 // Convert byte offsets to character offsets for Unicode correctness
                 // Use optimized SpanConverter instead of bytes_to_chars
                 let char_start = converter.byte_to_char(m.start());
@@ -487,8 +500,6 @@ impl Model for RegexNER {
         }
 
         // Preserve numeric substrings before a percent-encoded octet in the address.
-        let url_input = url_text(text);
-        let urls: Vec<_> = URL.find_iter(&url_input).collect();
         for m in PERCENT.find_iter(text) {
             if is_url_escape(m, &urls) {
                 continue;
@@ -501,7 +512,7 @@ impl Model for RegexNER {
             add_entity(m, EntityType::Email, 0.98, "EMAIL");
         }
 
-        for m in urls {
+        for &m in &urls {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
