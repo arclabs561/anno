@@ -904,8 +904,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 .map_err(|e| format!("Failed to load relation dataset: {}", e))?;
 
                             println!("  Documents: {}", gold_docs.len());
-                            if dataset_id == DatasetId::FewRel {
-                                println!("  FewRel labels one designated entity pair per example. This command scores open extraction. The publisher evaluates few-shot relation classification on the designated pair.");
+                            match dataset_id {
+                                DatasetId::FewRel => println!("  FewRel labels one designated entity pair per example. This command scores open extraction. The publisher evaluates few-shot relation classification on the designated pair."),
+                                DatasetId::TACRED | DatasetId::ReTACRED => println!("  The source labels the designated subject and object in each example. This command scores open extraction. The published task classifies that pair, including no_relation."),
+                                _ => {}
                             }
                             println!();
 
