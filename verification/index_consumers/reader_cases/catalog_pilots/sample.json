@@ -1,0 +1,406 @@
+{
+  "musicbrainz": {
+    "recording/b040d89e-190f-47a0-af7f-20534101056c": {
+      "billing": [
+        {
+          "artist": "9e2990ab-4d3d-4fb5-bd9b-1252440f043a",
+          "catalog_name": "Tinchy Stryder",
+          "credited": "Tinchy Stryder",
+          "join": " featuring "
+        },
+        {
+          "artist": "bb7dd5d7-95e6-46a0-9692-cb99134995b6",
+          "catalog_name": "Giggs",
+          "credited": "Giggs",
+          "join": ", "
+        },
+        {
+          "artist": "7684f1ee-2154-475f-b05d-608c91a0e3e9",
+          "catalog_name": "Professor Green",
+          "credited": "Professor Green",
+          "join": ", "
+        },
+        {
+          "artist": "3cce3d37-d44f-46a2-b1e3-cd7247d5015c",
+          "catalog_name": "Tinie Tempah",
+          "credited": "Tinie Tempah",
+          "join": ", "
+        },
+        {
+          "artist": "a2006708-8bc2-41bc-a9e9-72d14d7ce850",
+          "catalog_name": "Devlin",
+          "credited": "Devlin",
+          "join": ", "
+        },
+        {
+          "artist": "ddeb3502-8693-4619-b41d-263105f84477",
+          "catalog_name": "Example",
+          "credited": "Example",
+          "join": ", "
+        },
+        {
+          "artist": "8ec6bf47-d22f-4a2f-b930-0f7feb10ea3f",
+          "catalog_name": "Chip",
+          "credited": "Chipmunk",
+          "join": ""
+        }
+      ],
+      "first-release-date": "2010-11-15",
+      "roles": [
+        {
+          "artist": "3cce3d37-d44f-46a2-b1e3-cd7247d5015c",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Tinie Tempah",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        },
+        {
+          "artist": "7684f1ee-2154-475f-b05d-608c91a0e3e9",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Professor Green",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        },
+        {
+          "artist": "8ec6bf47-d22f-4a2f-b930-0f7feb10ea3f",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Chip",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        },
+        {
+          "artist": "a2006708-8bc2-41bc-a9e9-72d14d7ce850",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Devlin",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        },
+        {
+          "artist": "bb7dd5d7-95e6-46a0-9692-cb99134995b6",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Giggs",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        },
+        {
+          "artist": "ddeb3502-8693-4619-b41d-263105f84477",
+          "attributes": [
+            "guest"
+          ],
+          "catalog_name": "Example",
+          "role": "vocal",
+          "role_id": "0fdbe3c6-7700-4a31-ae54-b53f06ae1cfa"
+        }
+      ],
+      "title": "Game Over",
+      "works": [
+        "dee610f0-e425-311f-be39-554747afbddf"
+      ]
+    },
+    "release/0e97456e-9471-4869-bf43-10ea495f666a": {
+      "billing": [
+        {
+          "artist": "ebfd949d-3ba7-45a8-bf8e-a82a40e7912c",
+          "catalog_name": "5Loops",
+          "credited": "5Loops",
+          "join": ""
+        }
+      ],
+      "date": "2010",
+      "roles": [
+        {
+          "artist": "db08dae0-013a-43a8-b735-cc8aa62a83c1",
+          "attributes": [],
+          "catalog_name": "s'Poom",
+          "role": "mix",
+          "role_id": "6cc958c0-533b-4540-a281-058fbb941890"
+        },
+        {
+          "artist": "0b558677-2e18-4546-a9d6-5c40825a4460",
+          "attributes": [],
+          "catalog_name": "Glen Pilvre",
+          "role": "mastering",
+          "role_id": "84453d28-c3e8-4864-9aae-25aa968bcf9e"
+        },
+        {
+          "artist": "db08dae0-013a-43a8-b735-cc8aa62a83c1",
+          "attributes": [],
+          "catalog_name": "s'Poom",
+          "role": "producer",
+          "role_id": "8bf377ba-8d71-4ecc-97f2-7bb2d8a2a75f"
+        }
+      ],
+      "title": "2010LP",
+      "works": []
+    },
+    "release/ad6c808f-2948-478a-aad5-3e02a9692e67": {
+      "billing": [
+        {
+          "artist": "a6f8d42d-d3ff-4268-8d39-ee01341733bb",
+          "catalog_name": "Fennesz",
+          "credited": "Fennesz",
+          "join": " + "
+        },
+        {
+          "artist": "a7f7df4a-77d8-4f12-8acd-5c60c93f4de8",
+          "catalog_name": "坂本龍一",
+          "credited": "Sakamoto",
+          "join": ""
+        }
+      ],
+      "date": "2007-03-28",
+      "roles": [],
+      "title": "Cendre",
+      "works": []
+    },
+    "work/dee610f0-e425-311f-be39-554747afbddf": {
+      "roles": [
+        {
+          "artist": "3cce3d37-d44f-46a2-b1e3-cd7247d5015c",
+          "attributes": [],
+          "catalog_name": "Tinie Tempah",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "7684f1ee-2154-475f-b05d-608c91a0e3e9",
+          "attributes": [],
+          "catalog_name": "Professor Green",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "7d02ae50-d541-49f1-9c44-b3f0f12b696a",
+          "attributes": [],
+          "catalog_name": "James Devlin",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "8ec6bf47-d22f-4a2f-b930-0f7feb10ea3f",
+          "attributes": [],
+          "catalog_name": "Chip",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "8f6381eb-dc62-4f92-be73-ab40905fba68",
+          "attributes": [],
+          "catalog_name": "Elliot Gleave",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "a94d7f4a-5fbe-4395-ad2b-444e56a94278",
+          "attributes": [],
+          "catalog_name": "Charlie Bernardo Kågell",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        },
+        {
+          "artist": "db8ebf34-1b58-4524-a1b5-e91f66e4fa5f",
+          "attributes": [],
+          "catalog_name": "Eshraque Mughal",
+          "role": "writer",
+          "role_id": "a255bca1-b157-4518-9108-7b147dc3fc68"
+        }
+      ],
+      "title": "Game Over",
+      "works": []
+    }
+  },
+  "ons": {
+    "2023-12": {
+      "areas": {
+        "E04006085": {
+          "class": "E04",
+          "name": "Attleborough",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E04013160": {
+          "class": "E04",
+          "name": "Attleborough",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E04013161": {
+          "class": "E04",
+          "name": "Great Ellingham",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E06000063": {
+          "class": "E06",
+          "name": "Cumberland",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E07000028": {
+          "class": "E07",
+          "name": "Carlisle",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E07000029": {
+          "class": "E07",
+          "name": "Copeland",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E10000006": {
+          "class": "E10",
+          "name": "Cumbria",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E10000020": {
+          "class": "E10",
+          "name": "Norfolk",
+          "operational": "2009-01-01",
+          "terminated": null
+        }
+      },
+      "changes": [
+        {
+          "effective": "2023-04-01",
+          "from": "E04006085",
+          "order": "5004/2022",
+          "to": "E04013160"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E04006085",
+          "order": "5004/2022",
+          "to": "E04013161"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E07000028",
+          "order": "331/2022",
+          "to": "E06000063"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E07000029",
+          "order": "331/2022",
+          "to": "E06000063"
+        },
+        {
+          "effective": null,
+          "from": "E10000006",
+          "order": "331/2022",
+          "to": null
+        }
+      ],
+      "origins": [
+        "E04006085",
+        "E07000028",
+        "E07000029",
+        "E10000006",
+        "E10000020"
+      ]
+    },
+    "2025-12": {
+      "areas": {
+        "E04006085": {
+          "class": "E04",
+          "name": "Attleborough",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E04013160": {
+          "class": "E04",
+          "name": "Attleborough",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E04013161": {
+          "class": "E04",
+          "name": "Great Ellingham",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E06000063": {
+          "class": "E06",
+          "name": "Cumberland",
+          "operational": "2023-04-01",
+          "terminated": null
+        },
+        "E07000028": {
+          "class": "E07",
+          "name": "Carlisle",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E07000029": {
+          "class": "E07",
+          "name": "Copeland",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E10000006": {
+          "class": "E10",
+          "name": "Cumbria",
+          "operational": "2009-01-01",
+          "terminated": "2023-03-31"
+        },
+        "E10000020": {
+          "class": "E10",
+          "name": "Norfolk",
+          "operational": "2009-01-01",
+          "terminated": null
+        }
+      },
+      "changes": [
+        {
+          "effective": "2023-04-01",
+          "from": "E04006085",
+          "order": "5004/2022",
+          "to": "E04013160"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E04006085",
+          "order": "5004/2022",
+          "to": "E04013161"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E07000028",
+          "order": "331/2022",
+          "to": "E06000063"
+        },
+        {
+          "effective": "2023-04-01",
+          "from": "E07000029",
+          "order": "331/2022",
+          "to": "E06000063"
+        },
+        {
+          "effective": null,
+          "from": "E10000006",
+          "order": "331/2022",
+          "to": null
+        }
+      ],
+      "origins": [
+        "E04006085",
+        "E07000028",
+        "E07000029",
+        "E10000006",
+        "E10000020"
+      ]
+    }
+  }
+}

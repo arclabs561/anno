@@ -16,6 +16,13 @@ python3 verification/index_consumers/check_projection.py
 python3 verification/index_consumers/reader_cases/lineage/check.py
 python3 verification/index_consumers/reader_cases/publisher/check.py
 python3 -m unittest verification.index_consumers.reader_cases.test_ajmc
+python3 -m unittest verification.index_consumers.reader_cases.candidates.test_policy \
+  verification.index_consumers.reader_cases.candidates.test_read \
+  verification.index_consumers.reader_cases.open_world.test_replay
+python3 verification/index_consumers/reader_cases/confirmation/check.py
+python3 verification/index_consumers/reader_cases/lineage/ngram_check.py
+python3 -m unittest discover -s verification/index_consumers/reader_cases/catalog_pilots -p 'test_*.py'
+python3 verification/index_consumers/reader_cases/catalog_pilots/native.py --verify
 python3 verification/index_consumers/congress/test_committee_pilot.py
 python3 verification/index_consumers/congress/test_cross_doc_partition.py
 python3 verification/index_consumers/congress/check_catalog_history.py

@@ -59,13 +59,22 @@ def load(directory):
             raise ValueError(f"{lang}: expected the pinned official test TSV")
         header, *lines = raw.decode().splitlines()
         rows = None
+        source_file = None
         tokens = []
         for line in lines:
-            if line.startswith("# hipe2022:document_id = "):
+            if line.startswith("# hipe2022:original_source = "):
+                source_file = Path(line.split(" = ", 1)[1])
+            elif line.startswith("# hipe2022:document_id = "):
                 if tokens:
                     rows.append(mention(tokens))
                     tokens = []
-                doc = lang + "/" + line.split(" = ", 1)[1]
+                page_id = line.split(" = ", 1)[1]
+                if source_file is None or source_file.stem != page_id:
+                    raise ValueError("page ID disagrees with the named source file")
+                if not re.fullmatch(r".+_[0-9]+", page_id):
+                    raise ValueError("expected source item and numeric page suffix")
+                source_file = None
+                doc = lang + "/" + page_id
                 if doc in docs:
                     raise ValueError("duplicate document ID")
                 rows = docs[doc] = []
@@ -86,13 +95,26 @@ def load(directory):
     return docs
 
 
+def language(doc):
+    return doc.split("/", 1)[0]
+
+
+def source_item(doc):
+    """Group pages of the same source item by the prefix of their original XMI filename."""
+    return re.sub(r"_[0-9]+$", "", doc)
+
+
 def score(docs, groups):
     rows = {
         (doc, i): row
         for doc, mentions in docs.items()
         for i, row in enumerate(mentions)
     }
-    pair_counts = {"cross_page": Counter(), "cross_volume": Counter()}
+    pair_counts = {
+        "cross_page": Counter(),
+        "cross_language": Counter(),
+        "cross_source_item": Counter(),
+    }
     answers = Counter()
     labels = Counter(row.label for row in rows.values())
     id_pages = defaultdict(set)
@@ -113,9 +135,12 @@ def score(docs, groups):
             (True, False): "fn",
             (False, False): "tn",
         }[same, predicted]
-        for scope in ["cross_page", "cross_volume"]:
-            if scope == "cross_volume" and a[0].split("/")[0] == b[0].split("/")[0]:
-                continue
+        scopes = ["cross_page"]
+        if language(a[0]) != language(b[0]):
+            scopes.append("cross_language")
+        if source_item(a[0]) != source_item(b[0]):
+            scopes.append("cross_source_item")
+        for scope in scopes:
             pair_counts[scope][outcome] += 1
             pair_counts[scope]["pairs"] += 1
             pair_counts[scope]["same_id_exact_spelling"] += (
@@ -143,16 +168,24 @@ def score(docs, groups):
             answers["retrieved_any_correct"] += bool(hits & expected)
             answers["retrieved_exact_supported_set"] += hits == expected
             answers["retrieved_all_gold_with_extra"] += expected < hits
+    # Preserve output keys for earlier callers. Both historical "volume" fields grouped by language.
+    pair_counts["cross_volume"] = pair_counts["cross_language"]
+    multilingual_qids = sum(
+        len({language(d) for d in pages}) > 1 for pages in id_pages.values()
+    )
     return {
         "pages": len(docs),
+        "source_items": len({source_item(doc) for doc in docs}),
         "pages_with_people": sum(bool(mentions) for mentions in docs.values()),
         "gold_spans": len(rows),
         "assigned": len(groups),
         "qid_spans": sum(n for key, n in labels.items() if key.startswith("Q")),
         "qids": sum(key.startswith("Q") for key in labels),
         "qids_on_multiple_pages": sum(len(pages) > 1 for pages in id_pages.values()),
-        "qids_in_multiple_volumes": sum(
-            len({doc.split("/")[0] for doc in pages}) > 1 for pages in id_pages.values()
+        "qids_in_multiple_languages": multilingual_qids,
+        "qids_in_multiple_volumes": multilingual_qids,
+        "qids_in_multiple_source_items": sum(
+            len({source_item(d) for d in pages}) > 1 for pages in id_pages.values()
         ),
         "explicit_nil": labels["NIL"],
         "unspecified": labels["_"],
