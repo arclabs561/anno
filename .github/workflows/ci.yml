@@ -407,6 +407,12 @@ jobs:
       - name: Test ONNX (unit)
         env: *unit-model-cache
         run: cargo test --workspace --lib --features onnx
+      - name: Run authored ONNX decoding fixtures
+        env:
+          ANNO_BH7_ORT_LIB: "linked"
+          ANNO_NO_DOWNLOADS: "1"
+        # The GLiNER fixtures select their model cache process-wide.
+        run: cargo test --locked -p anno --features onnx --test bughunt7 -- --test-threads=1 --nocapture
       # gliner2-fastino is not in any other job's feature set; its processor
       # tests read testdata/gliner2_fastino/ fixtures and silently rot without
       # a CI run that enables the feature.
