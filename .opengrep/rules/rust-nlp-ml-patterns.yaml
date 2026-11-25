@@ -7,16 +7,9 @@ rules:
   # ============================================================================
   
   - id: entity-creation-without-validation
-    patterns:
-      - pattern: |
-          Entity::new($TEXT, $TYPE, $START, $END, $CONF)
-      - not:
-          - pattern-either:
-              - pattern: |
-                  // Validated in Entity::new
-              - pattern: |
-                  Entity::new_validated
-    message: "Entity created via Entity::new. Consider using validation methods or ensure offsets are validated elsewhere."
+    pattern: |
+      Entity::new($TEXT, $TYPE, $OFFSET, $OFFSET, $CONF)
+    message: "Entity starts and ends at the same offset. Check the source span."
     languages: [rust]
     severity: INFO
     metadata:
@@ -29,18 +22,10 @@ rules:
         - "**/entity.rs"  # Entity::new may have validation
 
   - id: entity-created-without-validation
-    patterns:
-      - pattern: |
-          let $ENTITY = Entity::new(...);
-          // ... use $ENTITY without validation ...
-      - not:
-          - pattern: |
-              $ENTITY.validate(...)
-              // or
-              if !$ENTITY.is_valid(...) {
-                return Err(...);
-              }
-    message: "Entity created but not validated before use. Call entity.validate(text) or entity.is_valid(text) to check offset bounds and text matching."
+    pattern: |
+      let $ENTITY = Entity::new(...);
+      $OUT.push($ENTITY);
+    message: "A newly constructed entity is pushed directly into the output. Check where its source offsets are validated."
     languages: [rust]
     severity: INFO
     metadata:
@@ -55,16 +40,11 @@ rules:
   - id: span-overlap-calculation
     patterns:
       - pattern: |
-          fn $F(...) -> f64 {
-            // ... overlap calculation ...
-            $NUM / $DENOM
-          }
-      - not:
-          - pattern: |
-              if $DENOM == 0.0 {
-                return 0.0;
-              }
-    message: "Span overlap calculation without zero-check. Division by zero possible."
+          fn $F(...) -> f64 { $NUM / $DENOM }
+      - metavariable-regex:
+          metavariable: $F
+          regex: (?i).*overlap.*
+    message: "This overlap calculation directly divides by the denominator. Verify the zero-denominator case."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -79,14 +59,9 @@ rules:
   # ============================================================================
   
   - id: model-download-without-error-context
-    patterns:
-      - pattern: |
-          let $MODEL = $REPO.get($PATH)
-            .map_err(|e| Error::Retrieval(format!("Failed: {}", e)))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to download $MODEL_NAME: {}. Hint: {}", e, $HINT)))
-    message: "Model download error without helpful context. Add hints about authentication, model ID, or alternatives."
+    pattern: |
+      let $MODEL = $REPO.get($PATH).map_err(|$E| Error::Retrieval(format!("Failed: {}", $E)))?;
+    message: "Model retrieval reports only the error. Include the requested model or asset in the diagnostic."
     languages: [rust]
     severity: INFO
     metadata:
@@ -96,17 +71,10 @@ rules:
         - "**/backends/**"
 
   - id: hf-authentication-check
-    patterns:
-      - pattern: |
-          let $REPO = $API.model($MODEL_ID);
-          let $FILE = $REPO.get($PATH)
-            .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              if $ERROR.contains("401") || $ERROR.contains("Unauthorized") {
-                // authentication hint
-              }
-    message: "HuggingFace download without authentication error handling. Check for 401 errors and provide helpful hints."
+    pattern: |
+      let $REPO = $API.model($MODEL_ID);
+      let $FILE = $REPO.get($PATH).map_err(|$E| Error::Retrieval($E.to_string()))?;
+    message: "Hub retrieval forwards only the error text. Consider whether authentication failures need context."
     languages: [rust]
     severity: INFO
     metadata:
@@ -118,15 +86,12 @@ rules:
         - "**/backends/gliner*.rs"
 
   - id: onnx-session-without-error-context
-    patterns:
+    pattern-either:
       - pattern: |
-          Session::builder()
-            .commit_from_file($PATH)
-            .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to load ONNX model from {}: {}. Check model format and ONNX Runtime installation.", $PATH, e)))
-    message: "ONNX session creation without detailed error context. Add model path and troubleshooting hints."
+          Session::builder().commit_from_file($PATH).map_err(|$E| Error::Retrieval($E.to_string()))?
+      - pattern: |
+          Session::builder().commit_from_file($PATH).map_err(|$E| Error::Retrieval(format!("{}", $E)))?
+    message: "ONNX session loading forwards only the error text. Include the model path."
     languages: [rust]
     severity: INFO
     metadata:
@@ -141,13 +106,9 @@ rules:
   # ============================================================================
   
   - id: confidence-interval-variance-calculation
-    patterns:
-      - pattern: |
-          let variance = $SCORES.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / $N;
-      - not:
-          - pattern: |
-              / ($N - 1.0)
-    message: "Variance calculation using population variance (n) instead of sample variance (n-1). Use Bessel's correction for unbiased estimates."
+    pattern: |
+      let variance = $SCORES.iter().map(|&$X| ($X - $MEAN).powi(2)).sum::<f64>() / $SCORES.len() as f64;
+    message: "This confidence-interval calculation uses population variance. Verify that the sample variance is intended."
     languages: [rust]
     severity: ERROR
     metadata:
@@ -159,12 +120,12 @@ rules:
         - "**/eval/metrics.rs"
 
   - id: per-example-cache-clone-in-loop
-    patterns:
-      - pattern: |
-          for $ITEM in $ITER {
-            let $CACHE = $CACHE_MUTEX.lock().unwrap().clone();
-            // ... use cache ...
-          }
+    pattern: |
+      for $ITEM in $ITER {
+          ...
+          let $CACHE = $CACHE_MUTEX.lock().unwrap().clone();
+          ...
+      }
     message: "Cloning cache in loop. Consider cloning once before loop or using Arc for shared access."
     languages: [rust]
     severity: WARNING
@@ -175,16 +136,11 @@ rules:
         - "**/eval/task_evaluator.rs"
 
   - id: backend-factory-mismatch
-    patterns:
-      - pattern: |
-          let $BACKEND = BackendFactory::create($NAME)?;
-          // ... use as Model ...
-      - pattern: |
-          $BACKEND.extract_entities(...)
-      - not:
-          - pattern: |
-              // Backend is a Model trait
-    message: "BackendFactory::create() returns Model, but some backends (e.g., coref_resolver) use different traits. Check backend type compatibility."
+    pattern: |
+      let $BACKEND = BackendFactory::create("coref_resolver")?;
+      ...
+      $BACKEND.extract_entities(...);
+    message: "The coreference backend is asked for entity extraction. Verify its task capability."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -194,22 +150,8 @@ rules:
         - "**/eval/task_evaluator.rs"
         - "**/eval/backend_factory.rs"
 
-  - id: parallel-evaluation-thread-safety
-    patterns:
-      - pattern: |
-          #[cfg(feature = "eval-parallel")]
-          $BACKEND.extract_entities(...)
-      - not:
-          - pattern: |
-              // Thread-local backend or thread-safe
-    message: "Parallel evaluation using backend. Ensure backend is thread-safe or use thread-local storage."
-    languages: [rust]
-    severity: WARNING
-    metadata:
-      category: correctness
-    paths:
-      include:
-        - "**/eval/task_evaluator.rs"
+  # Backend Send/Sync bounds are checked by Rust. The feature attribute alone
+  # says nothing about how an instance is shared between threads.
 
   # ============================================================================
   # Confidence Score Validation
@@ -219,12 +161,11 @@ rules:
     patterns:
       - pattern: |
           let $METRIC = $TP / ($TP + $FP);
-      - not:
-          - pattern: |
-              if $TP + $FP == 0 {
-                return 0.0; // or handle division by zero
-              }
-    message: "Precision/recall/F1 calculation without zero-check. Handle division by zero for edge cases."
+      - pattern-not-inside: |
+          if $TP + $FP == 0 { return ...; }
+          ...
+          let $METRIC = $TP / ($TP + $FP);
+    message: "Check the zero denominator in this precision or recall calculation."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -239,12 +180,11 @@ rules:
   # ============================================================================
   
   - id: session-pool-acquire-without-release
-    patterns:
-      - pattern: |
-          let $SESSION = $POOL.acquire()?;
-          // ... use session ...
-          // No explicit release
-    message: "Session acquired from pool but not explicitly released. Ensure proper cleanup or use RAII pattern."
+    pattern: |
+      let $SESSION = $POOL.acquire()?;
+      ...
+      std::mem::forget($SESSION);
+    message: "Forgetting an acquired session prevents its guard from releasing the resource."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -255,12 +195,13 @@ rules:
         - "**/backends/**"
 
   - id: onnx-session-reuse-check
-    patterns:
-      - pattern: |
-          let $SESSION = Session::builder()
-            .commit_from_file($PATH)?;
-          // ... use in loop or multiple times ...
-    message: "ONNX session created but may be recreated unnecessarily. Consider session pooling for performance."
+    pattern: |
+      for $ITEM in $ITER {
+          ...
+          let $SESSION = Session::builder().commit_from_file($PATH)?;
+          ...
+      }
+    message: "An ONNX session is constructed inside the loop. Check whether the model can be loaded once."
     languages: [rust]
     severity: INFO
     metadata:
@@ -274,14 +215,12 @@ rules:
   # ============================================================================
   
   - id: tokenizer-load-without-error-context
-    patterns:
+    pattern-either:
       - pattern: |
-          Tokenizer::from_file($PATH)
-            .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to load tokenizer from {}: {}. Ensure tokenizer.json exists.", $PATH, e)))
-    message: "Tokenizer loading without detailed error context. Add file path and format hints."
+          Tokenizer::from_file($PATH).map_err(|$E| Error::Retrieval($E.to_string()))?
+      - pattern: |
+          Tokenizer::from_file($PATH).map_err(|$E| Error::Retrieval(format!("{}", $E)))?
+    message: "Tokenizer loading forwards only the error text. Include the tokenizer path."
     languages: [rust]
     severity: INFO
     metadata:
@@ -291,17 +230,11 @@ rules:
         - "**/backends/**"
 
   - id: encoding-overflow-check
-    patterns:
-      - pattern: |
-          let $ENCODED = $TOKENIZER.encode($TEXT, ...)?;
-          let $IDS = $ENCODED.get_ids();
-          // ... use $IDS without length check ...
-      - not:
-          - pattern: |
-              if $IDS.len() > $MAX_LEN {
-                return Err(...);
-              }
-    message: "Token encoding without max length check. Long texts may exceed model max sequence length."
+    pattern: |
+      let $ENCODED = $TOKENIZER.encode($TEXT, ...)?;
+      let $IDS = $ENCODED.get_ids();
+      $MODEL.run($IDS)?;
+    message: "Encoded token IDs are passed directly to the model. Verify the maximum sequence length."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -315,16 +248,10 @@ rules:
   # ============================================================================
   
   - id: dataset-load-without-empty-check
-    patterns:
-      - pattern: |
-          let $DATASET = load_dataset($ID)?;
-          // ... use dataset ...
-      - not:
-          - pattern: |
-              if $DATASET.is_empty() {
-                return Err(...);
-              }
-    message: "Dataset loaded without empty check. Empty datasets may cause evaluation errors."
+    pattern: |
+      let $DATASET = load_dataset($ID)?;
+      $DATASET[0]
+    message: "A just-loaded dataset is indexed at zero. Handle an empty dataset."
     languages: [rust]
     severity: WARNING
     metadata:
@@ -335,14 +262,12 @@ rules:
         - "**/eval/datasets.rs"
 
   - id: json-parsing-without-error-context
-    patterns:
+    pattern-either:
       - pattern: |
-          serde_json::from_str($JSON)
-            .map_err(|e| Error::Parse(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Parse(format!("Failed to parse JSON: {}. Input: {}...", e, &$JSON[..100.min($JSON.len())])))
-    message: "JSON parsing without input context in error. Add truncated input to error message for debugging."
+          serde_json::from_str($JSON).map_err(|$E| Error::Parse($E.to_string()))?
+      - pattern: |
+          serde_json::from_str($JSON).map_err(|$E| Error::Parse(format!("{}", $E)))?
+    message: "JSON parsing forwards only the error text. Add the source identifier or record number."
     languages: [rust]
     severity: INFO
     metadata:
