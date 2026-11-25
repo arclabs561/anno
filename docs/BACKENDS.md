@@ -245,9 +245,19 @@ using Cargo’s previous build directory layout. See [upstream issue #619](https
 The `onnx-rocm` feature is a legacy binding, not a supported AMD runtime path
 with the current dependency: `ort` targets ONNX Runtime 1.24, while the
 [ROCm provider was removed in 1.23](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html).
-AMD distributes a separate MIGraphX plugin for ORT 1.29.0. That runtime
-exports API 24, but the plugin needs the matching ROCm libraries, explicit
-plugin registration and supported AMD hardware. [AMD installation instructions](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html) · [Compatibility evidence and outstanding device checks](https://github.com/arclabs561/anno/issues/19).
+The selected Linux x86-64 stack for AMD hardware testing is ONNX Runtime
+1.29.0, AMD's `onnxruntime-ep-migraphx==1.0.0+rocm10.2.0` plugin and
+`migraphx-libs==2.19.0+rocm10.2.0` with ROCm 10.2. Anno's pinned Rust
+binding, `ort` 2.0.0-rc.12, loaded that runtime, discovered the CPU device,
+selected it with `SessionBuilder::with_devices` and returned all 81 expected
+fixture logits. AMD requires separate EP registration. Its plugin exports
+`CreateEpFactories` and depends on `libmigraphx_c.so.3` and `libamdhip64.so.7`.
+On a supported host, register `libmigraphx-ep.so` with
+`Environment::register_ep_library("MIGraphXExecutionProvider", path)`, then
+select a discovered GPU with that EP in `SessionBuilder::with_devices`.
+This is the candidate for device testing. Anno’s public provider enum still
+uses the legacy ROCm EP and GPU placement remains open.
+[AMD installation and supported devices](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html) · [Pinned Rust registration API](https://github.com/pykeio/ort/blob/v2.0.0-rc.12/src/environment.rs#L179) · [Package digests and hardware acceptance](https://github.com/arclabs561/anno/issues/19)
 
 For a cached BERT graph, `onnx_bert_cuda_provider_probe` retains CPU/CUDA
 profiles, artifact hashes, label agreement, and the strict logit comparison.
