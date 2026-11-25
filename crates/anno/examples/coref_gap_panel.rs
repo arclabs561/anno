@@ -1,4 +1,4 @@
-//! Stream GAP excerpts into a single explicitly selected resolver. Used by scripts/qa/coref_gap.py.
+//! Stream labeled-corpus excerpts into one resolver without exposing gold links.
 use anno::backends::coref::{fcoref::FCoref, mention_ranking::MentionRankingCoref, MaverickCoref};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType};
 use serde::Deserialize;
@@ -15,7 +15,11 @@ struct Input {
     mentions: Option<Vec<Span>>,
 }
 
-fn supplied_native(model: &MentionRankingCoref, doc: &Input, mentions: &[Span]) -> Vec<Vec<Span>> {
+fn supplied_native(
+    model: &MentionRankingCoref,
+    doc: &Input,
+    mentions: &[Span],
+) -> Result<Vec<Vec<Span>>, Box<dyn Error>> {
     let mut entities: Vec<_> = mentions
         .iter()
         .map(|&(start, end)| {
@@ -33,11 +37,14 @@ fn supplied_native(model: &MentionRankingCoref, doc: &Input, mentions: &[Span]) 
     let mut groups = BTreeMap::new();
     for e in CoreferenceResolver::resolve(model, &entities) {
         groups
-            .entry(e.canonical_id.expect("ranker assigns an ID"))
+            .entry(
+                e.canonical_id
+                    .ok_or("native ranker returned an unassigned mention")?,
+            )
             .or_insert_with(Vec::new)
             .push((e.start(), e.end()));
     }
-    groups.into_values().collect()
+    Ok(groups.into_values().collect())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -58,14 +65,40 @@ fn main() -> Result<(), Box<dyn Error>> {
     let model = neural.as_deref().unwrap_or(&native);
     for line in io::stdin().lock().lines() {
         let doc: Input = serde_json::from_str(&line?)?;
+        if let Some(mentions) = &doc.mentions {
+            let length = doc.text.chars().count();
+            if mentions
+                .iter()
+                .any(|&(start, end)| start >= end || end > length)
+            {
+                return Err(format!("{} has an invalid supplied character range", doc.id).into());
+            }
+        }
         let spans = match (doc.mentions.as_ref(), neural.is_none()) {
-            (Some(mentions), true) => supplied_native(&native, &doc, mentions),
+            (Some(mentions), true) => supplied_native(&native, &doc, mentions)?,
             (mentions, _) => {
-                let clusters = match mentions {
+                let outcome = match mentions {
                     Some(mentions) => model.resolve_mentions(&doc.text, mentions),
                     None => model.resolve(&doc.text),
-                }
-                .map_err(|e| format!("{} on {}: {e}", model.name(), doc.id))?;
+                };
+                let clusters = match outcome {
+                    Ok(clusters) => clusters,
+                    Err(e)
+                        if mentions.is_some()
+                            && requested == "maverick"
+                            && e.to_string().contains("must cover complete tokens") =>
+                    {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "id": doc.id, "producer": model.name(),
+                                "unsupported": "supplied_span_splits_token"
+                            })
+                        );
+                        continue;
+                    }
+                    Err(e) => return Err(format!("{} on {}: {e}", model.name(), doc.id).into()),
+                };
                 clusters.into_iter().map(|c| c.spans).collect()
             }
         };

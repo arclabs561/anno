@@ -1,0 +1,254 @@
+{
+  "dataset": "CrossRE AI test",
+  "dataset_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+  "selection": "first N in source order",
+  "vocabulary_sha256": "f67a35c0f8551cce648fd979c14c54277573ae505c0c5a43a06e4a8cae50acc7",
+  "checkpoint": "fastino/gliner2.5-small-v1",
+  "checkpoint_revision": "b5d42bf7dc7d01c40304ae4ed43c2f13c325a75b",
+  "checkpoint_files": {
+    "config.json": "1b4e63ac964dc4204165bd1420735cd4c2e4bce97394d0b69fa3f7ea192a8e97",
+    "encoder_config/config.json": "db837d0dc587f5858687ef860c1f400de10f3c3e44f88daef8cbda80d74e4c9c",
+    "model.safetensors": "4ee982787ace270d4bf15dbcb28ced38e0aa201372347114ceedd6336055de2b",
+    "tokenizer.json": "cbc8ae6037812709c9c26f2a160f8dc48b0440bcb79c8141804259ae2d6adac3",
+    "tokenizer_config.json": "0bf3ea0873234bd9bfdd3853c440395009ac6365a925b91654daed5396d655e1"
+  },
+  "gliner2": "2.2.0",
+  "torch": "2.15.0+cpu",
+  "window_words": 384,
+  "overlap_words": 64,
+  "totals": {
+    "scored_windows": 8,
+    "gold_mentions": 24,
+    "scored_mentions": 20258,
+    "gold_mentions_scored": 24,
+    "decoded_mentions": 23,
+    "gold_mentions_decoded": 8,
+    "gold_directed_pairs": 12,
+    "gold_directed_pairs_co_window": 12,
+    "gold_edges": 12,
+    "gold_edges_co_window": 12,
+    "gold_edges_both_mentions_scored": 12,
+    "actual_scored_edges": 34104,
+    "gold_edges_scored": 3,
+    "decoded_edges": 0,
+    "gold_edges_decoded": 0
+  },
+  "documents": [
+    {
+      "document": "ai-test-1",
+      "source_sha256": "38c36182c979e9bc2f34fae5e67b0551abb5d90588c3ba0402cb07a1e1d4074a",
+      "windows": [
+        {
+          "start": 0,
+          "end": 135
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 3136,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-2",
+      "source_sha256": "14b0771427605d943a39f6a4b3d79d7d4769e386782ca8898c1558adc0159ab6",
+      "windows": [
+        {
+          "start": 0,
+          "end": 134
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 3136,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-3",
+      "source_sha256": "f2dd88d52dbd8d297f0cee24979b6491e15f4bc2caf914c7c45c512ba94919c5",
+      "windows": [
+        {
+          "start": 0,
+          "end": 122
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 1568,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-4",
+      "source_sha256": "774488f83b389ebc32dd2f795149b6fa1adc946f00634bfbcdc8e9e1eb2b8e2b",
+      "windows": [
+        {
+          "start": 0,
+          "end": 274
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 8820,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-5",
+      "source_sha256": "6d259fdc9233151acdcd490a81b779e11e9b1333e31d01583a716ce2e1e195b1",
+      "windows": [
+        {
+          "start": 0,
+          "end": 107
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2660,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 4508,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-6",
+      "source_sha256": "51c83e681a99a625805ac9ed8bf0ed9868c47331d322aaea9e97fca76cf78fd7",
+      "windows": [
+        {
+          "start": 0,
+          "end": 95
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 1470,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 2940,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-7",
+      "source_sha256": "96b8e5018f086013894514095a4483f7b2712f03201c130654b56f71c66f9a11",
+      "windows": [
+        {
+          "start": 0,
+          "end": 188
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 3724,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    },
+    {
+      "document": "ai-test-8",
+      "source_sha256": "d3e1a98472024dfe6ab2903cc95e398049e0b36fd97b569f3adbf1d35bfdf089",
+      "windows": [
+        {
+          "start": 0,
+          "end": 279
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 4,
+        "gold_directed_pairs_co_window": 4,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 6272,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0
+      }
+    }
+  ]
+}

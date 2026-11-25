@@ -218,7 +218,9 @@ impl GLiNEROnnx {
                 ));
             }
             for (pair, row) in pairs
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .zip(scores.chunks_exact(relation_types.len()))
             {
                 let endpoint = |slot: i64| {

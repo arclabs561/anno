@@ -7,6 +7,7 @@ Output uses its joint-mode predictions.json schema, accepted by score_jerex.py.
 """
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,7 +24,7 @@ class CheckpointMetadata:
     """Passive replacement for a Lightning callback type stored as a dict key."""
 
 
-def predict(model_dir, documents, output):
+def predict(model_dir, documents, output, include_mention_scores=False):
     metadata = (CheckpointMetadata, "pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint")
     with torch.serialization.safe_globals([metadata, EntityType, RelationType]):
         checkpoint = torch.load(model_dir / "model.ckpt", weights_only=True, map_location="cpu")
@@ -61,6 +62,7 @@ def predict(model_dir, documents, output):
     dataset.switch_mode(dataset.INFERENCE_MODE)
     dataset.switch_task(cls.TASK_TYPE)
     predictions = []
+    mention_scores = []
     with torch.inference_mode():
         for index in range(len(dataset)):
             batch = collate_fn_padding([dataset[index]])
@@ -70,12 +72,27 @@ def predict(model_dir, documents, output):
                                  f"checkpoint capacity {position_ids.shape[-1]}")
             result = model(**batch, inference=True, max_spans=32, max_coref_pairs=128, max_rel_pairs=64)
             predictions.extend(evaluator.convert_batch(**result, batch=batch))
+            if include_mention_scores:
+                # The joint model returns masked sigmoid probabilities at this stage.
+                scores = result["mention_clf"][0]
+                keep = scores > 0
+                spans = batch["mention_orig_spans"][0][keep].tolist()
+                mention_scores.append(dict(zip(map(tuple, spans), scores[keep].tolist(), strict=True)))
     with TemporaryDirectory(dir=output.parent) as temporary:
         staged = Path(temporary) / "predictions.json"
         evaluator.store_predictions(predictions, dataset.documents, str(staged))
         rows = json.loads(staged.read_text(encoding="utf-8"))
         for row, document in zip(rows, documents, strict=True):
             row["title"] = document["title"]
+        if include_mention_scores:
+            with (model_dir / "model.ckpt").open("rb") as stream:
+                checkpoint_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+            for row, scores in zip(rows, mention_scores, strict=True):
+                row["checkpoint_sha256"] = checkpoint_sha
+                for mention in row["mentions"]:
+                    mention["confidence"] = scores.pop((mention["start"], mention["end"]))
+                if scores:
+                    raise ValueError("Upstream writer omitted a retained mention")
         staged.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
         staged.replace(output)
 
@@ -85,8 +102,9 @@ def main():
     parser.add_argument("model_dir", type=Path)
     parser.add_argument("documents", type=Path)
     parser.add_argument("predictions", type=Path)
+    parser.add_argument("--mention-scores", action="store_true", help="Include the trained mention detector probabilities")
     args = parser.parse_args()
-    predict(args.model_dir, json.loads(args.documents.read_text(encoding="utf-8")), args.predictions)
+    predict(args.model_dir, json.loads(args.documents.read_text(encoding="utf-8")), args.predictions, args.mention_scores)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ the mention-cluster memberships and directed, labeled entity pairs.
 import argparse
 import json
 from collections import Counter
+from itertools import combinations
 from pathlib import Path
 
 from score import document_index, endpoint_inventory, integer, score
@@ -68,18 +69,69 @@ def convert(gold, predictions):
     return flat_gold, flat_predictions
 
 
+def stage_counts(gold, predicted, raw):
+    """Document-local exact span, partition, typing and directed relation diagnostics."""
+    counts = {}
+    has_types = all(cluster and isinstance(cluster[0].get("type"), str) and cluster[0]["type"]
+                    for doc in [*gold, *predicted] for cluster in doc["vertexSet"])
+
+    def compare(stage, expected, actual):
+        values = counts.setdefault(stage, Counter())
+        values.update(gold=len(expected), predicted=len(actual), matched=len(expected & actual))
+
+    for target, output, source in zip(gold, predicted, raw, strict=True):
+        expected = endpoint_inventory(target)
+        actual = endpoint_inventory(output)
+        proposed = {(0, m["start"], m["end"]) for m in source["mentions"]}
+        compare("mention_spans", set().union(*expected), proposed)
+        def links(vertices):
+            return {pair for vertex in vertices for pair in combinations(sorted(vertex), 2)}
+        compare("within_cluster_mention_pairs", links(expected), links(actual))
+        for stage, typed in [("exact_clusters", False), ("exact_typed_clusters", True)]:
+            if typed and not has_types:
+                counts[stage] = None
+                continue
+            # Multiplicities matter when two vertices share a mention set.
+            a = Counter(endpoint_inventory(target, typed))
+            b = Counter(endpoint_inventory(output, typed))
+            totals = counts.setdefault(stage, Counter())
+            totals.update(gold=a.total(), predicted=b.total(), matched=(a & b).total())
+
+    def collapsed(rows):
+        return [dict(row, labels=[dict(edge, r="any predicate") for edge in row["labels"]])
+                for row in rows]
+
+    for stage, targets, outputs, typed in [
+        ("directed_cluster_pairs", collapsed(gold), collapsed(predicted), False),
+        ("labeled_relations", gold, predicted, False),
+        ("labeled_relations_typed_endpoints", gold, predicted, True),
+    ]:
+        if typed and not has_types:
+            counts[stage] = None
+            continue
+        aligned = score(targets, outputs, "predicted", require_entity_type=typed)
+        counts[stage] = dict(gold=aligned["gold_relations"], predicted=aligned["predicted_relations"],
+                             matched=aligned["matched_relations"],
+                             matched_upper_bound=aligned["matched_relations_upper_bound"])
+    return counts
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("gold", type=Path)
     parser.add_argument("predictions", type=Path)
+    parser.add_argument("--stages", action="store_true", help="Report mention, coreference, entity and relation stage counts")
     parser.add_argument("--require-entity-type", action="store_true", help="Also require the endpoints’ entity types to agree")
     args = parser.parse_args()
     try:
+        raw = json.loads(args.predictions.read_text(encoding="utf-8"))
         expected, actual = convert(
             json.loads(args.gold.read_text(encoding="utf-8")),
-            json.loads(args.predictions.read_text(encoding="utf-8")),
+            raw,
         )
         report = score(expected, actual, "predicted", require_entity_type=args.require_entity_type)
+        if args.stages:
+            report["stages"] = stage_counts(expected, actual, raw)
     except (KeyError, TypeError, ValueError, OSError) as error:
         parser.exit(1, f"Cannot score JEREX: {error}\n")
     print(json.dumps(report, indent=2))
