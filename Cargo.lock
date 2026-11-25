@@ -112,6 +112,7 @@ dependencies = [
  "textprep",
  "thiserror 2.0.18",
  "tokenizers",
+ "unicode-normalization",
  "ureq",
 ]
 
