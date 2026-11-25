@@ -178,6 +178,19 @@ Unicode character ranges. `start` and `end` bound the whole mention, and
 repeated mentions have the same surface. Offsets count Unicode code points,
 so a decomposed accent and its base character occupy two positions.
 
+For one brat file, use an explicit original when checking an annotation before import.
+
+```sh
+anno dataset import --format brat --input reviewed.ann \
+  --source-text editions/original.txt --output checked.jsonl
+```
+
+The importer checks supplied reference text and Unicode character ranges against
+that document, including discontinuous annotations. An empty reference field
+takes its surface from the document. For review of an exact edition, retain the
+digests of both the document and the annotation file. A span can still match
+after the surrounding passage or the annotation label changes.
+
 ## Verify mention JSONL against a source document
 
 For one document and one entity per JSONL row, supply the exact UTF-8 text used

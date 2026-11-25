@@ -2063,13 +2063,15 @@ define_datasets! {
         entity_types: ["PER", "LOC", "ORG", "PROD"],
         language: "mul",
         domain: "historical",
-        license: "CC-BY-NC-4.0",
+        // License for the pinned hipe2020 release component:
+        // https://github.com/hipe-eval/HIPE-2022-data/blob/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-hipe2020.md
+        license: "CC-BY-NC-SA-4.0",
         citation: "Ehrmann et al. (2022)",
         paper_url: "https://ceur-ws.org/Vol-3180/paper-83.pdf",
         year: 2022,
         format: "TSV",
         annotation_scheme: "IOB2",
-        notes: "CLEF-HIPE shared task; includes Latin and Classical commentary; OCR noise",
+        notes: "The download is the hipe2020 German test split. License terms vary by component in the HIPE-2022 collection.",
         splits: ["test"],
         tasks: ["ner"],
         categories: [ner, historical, multilingual],
