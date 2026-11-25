@@ -69,6 +69,29 @@ impl Default for RegexNER {
 static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
+// A date-shaped part number can use the same nonbreaking hyphens as a printed
+// date. Require a date field or an explicit calendar phrase on the same line.
+static DATE_ISO_PRINTED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?ix)\b(?:",
+        r"(?:date|deadline|expiry|expiration)(?:[\t\p{Zs}]*[:=][\t\p{Zs}]*|\t+|[\t\p{Zs}]+\()",
+        r"|(?:as[\t\p{Zs}]+of|dated|due[\t\p{Zs}]+on|effective[\t\p{Zs}]+(?:on|from)|",
+        r"(?:premier(?:e|ed)|scheduled|held|issued|published|released|expires?)[\t\p{Zs}]+on)[\t\p{Zs}]+",
+        r")([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b",
+    ))
+    .expect("valid regex")
+});
+
+// Dotted filenames, hostnames and hyphenated inventory suffixes may begin with a date.
+fn printed_date_ends_here(suffix: &str) -> bool {
+    let mut chars = suffix.chars();
+    match chars.next() {
+        None => true,
+        Some('.' | ':' | ',') => chars.next().is_none_or(|c| !c.is_alphanumeric()),
+        Some(c) => c.is_whitespace() || "!?;)]}’”»\"'".contains(c),
+    }
+}
+
 /// Check Gregorian month lengths after DATE_ISO has matched the numeric shape.
 fn is_calendar_date(iso: &str) -> bool {
     // DATE_ISO also recognizes Unicode decimal digits. Keep those lexical matches.
@@ -510,6 +533,20 @@ impl Model for RegexNER {
             }
         }
 
+        // The new printed-date rule runs after URLs so a query such as
+        // ?date=2040‑02‑29 cannot displace the contact entity.
+        if date_text.contains('‑') {
+            for caps in DATE_ISO_PRINTED.captures_iter(&date_text) {
+                let m = caps.get(1).expect("date capture");
+                if m.as_str().contains('‑')
+                    && printed_date_ends_here(&date_text[m.end()..])
+                    && is_calendar_date(&m.as_str().replace('‑', "-"))
+                {
+                    add_entity(m, EntityType::Date, 0.95, "DATE_ISO");
+                }
+            }
+        }
+
         // Social Media (@mentions and #hashtags) - note: mapping to Other for now as specific types don't exist yet
         for m in MENTION.find_iter(text) {
             // Using a custom "Mention" type via Other
@@ -679,6 +716,41 @@ mod tests {
     fn date_iso_format() {
         let e = extract("Meeting on 2024-01-15.");
         assert!(find_text(&e, "2024-01-15").is_some());
+    }
+
+    #[test]
+    fn printed_dates_keep_unicode_offsets_and_respect_field_context() {
+        let text = concat!(
+            "Café 🗓 Premiere on 2040‑02‑29. Lot number: 2040‑02‑29. ",
+            "Expiry date: 2100‑02‑29. Invoice date: 2024-02‑29. ",
+            "Inspection date: 2034‑10‑07-A. Publication date: 2040‑01‑31.pdf. ",
+            "Hearing date: pending. Booking reference: 2028‑04‑21.",
+        );
+        let entities = extract(text);
+        let dates: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .collect();
+        let expected = ["2040‑02‑29", "2024-02‑29"];
+        assert_eq!(dates.len(), expected.len());
+        for (entity, value) in dates.into_iter().zip(expected) {
+            let start = text[..text.find(value).unwrap()].chars().count();
+            assert_eq!(entity.text, value);
+            assert_eq!(
+                (entity.start(), entity.end()),
+                (start, start + value.chars().count())
+            );
+        }
+    }
+
+    #[test]
+    fn printed_date_does_not_displace_a_url_with_a_date_parameter() {
+        let url = "https://example.org/reset?date=2052‑07‑03";
+        let entities = extract(url);
+        assert!(entities
+            .iter()
+            .any(|e| e.entity_type == EntityType::Url && e.text == url));
+        assert!(!has_type(&entities, &EntityType::Date));
     }
 
     #[test]
