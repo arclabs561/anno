@@ -2084,6 +2084,33 @@ impl DatasetLoader {
             .map_err(|e| Error::InvalidInput(format!("Failed to parse S3 manifest JSON: {}", e)))
     }
 
+    /// Attach the release notice only to the reviewed publisher files.
+    #[cfg(feature = "eval")]
+    fn encode_litbank_publisher_cache(&self, pair: &super::litbank::SourcePair) -> Result<String> {
+        let notice: serde_json::Value =
+            serde_json::from_str(include_str!("litbank_attribution.json"))
+                .map_err(|e| Error::InvalidInput(format!("Invalid LitBank attribution: {e}")))?;
+        for (field, content) in [("annotations", &pair.annotations), ("text", &pair.text)] {
+            let digest = self.compute_sha256(content);
+            if notice[field]["sha256"].as_str() != Some(digest.as_str()) {
+                return Err(Error::InvalidInput(format!(
+                    "LitBank {field} checksum differs from the attributed release"
+                )));
+            }
+        }
+        #[derive(Serialize)]
+        struct PublisherCache<'a> {
+            #[serde(flatten)]
+            pair: &'a super::litbank::SourcePair,
+            attribution: serde_json::Value,
+        }
+        serde_json::to_string(&PublisherCache {
+            pair,
+            attribution: notice,
+        })
+        .map_err(|e| Error::InvalidInput(e.to_string()))
+    }
+
     /// Download dataset from source with retry logic and pagination support.
     ///
     /// Implements exponential backoff retry strategy:
@@ -2114,7 +2141,10 @@ impl DatasetLoader {
                 + ".txt";
             let annotations = self.download_attempt(&url)?;
             let text = self.download_attempt(&source_url)?;
-            let content = super::litbank::SourcePair { text, annotations }.encode()?;
+            let content = self.encode_litbank_publisher_cache(&super::litbank::SourcePair {
+                text,
+                annotations,
+            })?;
             Self::enforce_max_download_bytes(content.len(), &url)?;
             return Ok((content, url));
         }
@@ -10816,6 +10846,67 @@ CEO,O
                 .unwrap_err()
                 .to_string()
                 .contains("no reviewed artifact"));
+        }
+
+        #[cfg(feature = "eval")]
+        #[test]
+        fn litbank_attribution_matches_registry_and_rejects_substitute_content() {
+            let notice: serde_json::Value =
+                serde_json::from_str(include_str!("litbank_attribution.json")).unwrap();
+            let url = DatasetId::LitBank.download_url();
+            assert_eq!(notice["annotations"]["source"], url);
+            assert_eq!(notice["text"]["source"], url.replace(".ann", ".txt"));
+            let dir = tempfile::tempdir().unwrap();
+            let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            let pair = crate::eval::litbank::SourcePair {
+                text: "Amy".into(),
+                annotations: "T1\tPROP_PER 0 3\tAmy".into(),
+            };
+            assert!(loader
+                .encode_litbank_publisher_cache(&pair)
+                .unwrap_err()
+                .to_string()
+                .contains("annotations checksum"));
+        }
+
+        #[cfg(feature = "eval")]
+        #[test]
+        #[ignore = "requires a publisher download or a pinned checkout in ANNO_TEST_LITBANK_BRAT_DIR"]
+        fn litbank_publisher_cache_carries_attribution() {
+            let dir = tempfile::tempdir().unwrap();
+            let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            let id = DatasetId::LitBank;
+            if let Some(brat_dir) = std::env::var_os("ANNO_TEST_LITBANK_BRAT_DIR") {
+                let path = std::path::PathBuf::from(brat_dir).join("1023_bleak_house_brat.ann");
+                let annotations = std::fs::read_to_string(&path).unwrap();
+                let pair =
+                    crate::eval::litbank::SourcePair::from_annotations(&path, annotations).unwrap();
+                let content = loader.encode_litbank_publisher_cache(&pair).unwrap();
+                loader
+                    .validate_and_cache_coref_content(id, &content)
+                    .unwrap();
+            }
+            let docs = loader.load_or_download_coref(id).unwrap();
+            let cached = std::fs::read_to_string(dir.path().join(id.cache_filename())).unwrap();
+            let content: serde_json::Value = serde_json::from_str(&cached).unwrap();
+            let notice = &content["attribution"];
+            assert_eq!(notice["annotations"]["license"], "CC-BY-4.0");
+            assert_eq!(notice["text"]["creator"], "Charles Dickens");
+            for field in ["annotations", "text"] {
+                assert_eq!(
+                    loader.compute_sha256(content[field].as_str().unwrap()),
+                    notice[field]["sha256"]
+                );
+            }
+            assert_eq!(docs.len(), 1);
+            assert_eq!(docs[0].text, content["text"]);
+            let mut pair = crate::eval::litbank::SourcePair::decode(&cached).unwrap();
+            pair.text.push(' ');
+            assert!(loader
+                .encode_litbank_publisher_cache(&pair)
+                .unwrap_err()
+                .to_string()
+                .contains("text checksum"));
         }
 
         #[test]
