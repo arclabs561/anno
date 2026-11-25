@@ -839,19 +839,16 @@ struct SourceWords<'a> {
 impl<'a> SourceWords<'a> {
     fn new(text: &'a str, source_only: bool) -> Self {
         use std::sync::LazyLock;
-        // GLiNER's WhitespaceTokenSplitter separates punctuation in the source-only layout.
-        static SOURCE_WORDS: LazyLock<regex::Regex> = LazyLock::new(|| {
-            regex::Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S")
-                .expect("constant word regex")
-        });
         static WHITESPACE_WORDS: LazyLock<regex::Regex> =
             LazyLock::new(|| regex::Regex::new(r"\S+").expect("constant word regex"));
-        let splitter = if source_only {
-            &*SOURCE_WORDS
+        let words = if source_only {
+            crate::backends::inference::span::gliner_word_ranges(text).collect()
         } else {
-            &*WHITESPACE_WORDS
+            WHITESPACE_WORDS
+                .find_iter(text)
+                .map(|word| word.range())
+                .collect()
         };
-        let words = splitter.find_iter(text).map(|word| word.range()).collect();
         Self {
             text,
             words,

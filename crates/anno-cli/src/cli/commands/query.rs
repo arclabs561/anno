@@ -4,6 +4,8 @@ mod edition;
 mod memberships;
 mod predecessors;
 mod publication;
+mod relations;
+mod source_span;
 
 use clap::{Parser, Subcommand};
 use publication::CatalogRecord;
@@ -25,6 +27,10 @@ pub enum QueryCommand {
     Memberships(memberships::MembershipArgs),
     /// Find possible predecessors for one track in an earlier corpus edition.
     Predecessors(predecessors::PredecessorArgs),
+    /// Read saved mention and concept relations with current track assignments.
+    Relations(relations::RelationsArgs),
+    /// Project analyzed character offsets to byte ranges in the original input.
+    SourceSpan(source_span::SourceSpanArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -136,6 +142,16 @@ fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
     Ok(filter)
 }
 
+fn read_grounded(path: &std::path::Path) -> Result<anno::GroundedDocument, String> {
+    if path == std::path::Path::new("-") {
+        serde_json::from_reader(io::stdin().lock())
+    } else {
+        let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        serde_json::from_reader(io::BufReader::new(file))
+    }
+    .map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Execute the query command.
 pub fn run(args: QueryArgs) -> Result<(), String> {
     if let Some(command) = args.command {
@@ -144,6 +160,8 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             QueryCommand::Edition(args) => edition::run(args),
             QueryCommand::Memberships(args) => memberships::run(args),
             QueryCommand::Predecessors(args) => predecessors::run(args),
+            QueryCommand::Relations(args) => relations::run(args),
+            QueryCommand::SourceSpan(args) => source_span::run(args),
         };
     }
     let catalog = CatalogRecord::from_args(&args.catalog_record)?;

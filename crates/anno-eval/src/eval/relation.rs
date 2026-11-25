@@ -27,6 +27,74 @@ use anno::RelationTriple;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Ordered label inventory supplied to every document in a relation evaluation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RelationSchema {
+    /// Entity labels in prompt order.
+    pub entity_types: Vec<String>,
+    /// Directed relation labels in prompt order.
+    pub relation_types: Vec<String>,
+}
+
+impl RelationSchema {
+    /// Reject unusable or duplicate labels before any inference.
+    pub fn validate(&self) -> crate::Result<()> {
+        for (name, labels) in [
+            ("entity_types", &self.entity_types),
+            ("relation_types", &self.relation_types),
+        ] {
+            let mut seen = std::collections::HashSet::new();
+            if labels.is_empty() {
+                return Err(crate::Error::InvalidInput(format!(
+                    "relation schema {name} must be nonempty"
+                )));
+            }
+            for label in labels {
+                if label.trim().is_empty() || label.trim() != label || !seen.insert(label) {
+                    return Err(crate::Error::InvalidInput(format!(
+                        "relation schema {name} has an empty, padded or duplicate label: {label:?}"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// How the relation evaluator selected its candidate label vocabulary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "source", rename_all = "snake_case")]
+pub enum RelationPromptPolicy {
+    /// Only labels present in this document's reference relations were offered.
+    DocumentGold,
+    /// Every document received this caller-supplied vocabulary in the recorded order.
+    Fixed(RelationSchema),
+}
+
+impl RelationPromptPolicy {
+    pub(crate) fn labels<'a>(&'a self, gold: &'a [RelationGold]) -> (Vec<&'a str>, Vec<&'a str>) {
+        match self {
+            Self::Fixed(schema) => (
+                schema.entity_types.iter().map(String::as_str).collect(),
+                schema.relation_types.iter().map(String::as_str).collect(),
+            ),
+            Self::DocumentGold => (
+                gold.iter()
+                    .flat_map(|r| [r.head_type.as_str(), r.tail_type.as_str()])
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+                gold.iter()
+                    .map(|r| r.relation_type.as_str())
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            ),
+        }
+    }
+}
+
 /// Create relation predictions from entity pairs using a conservative heuristic baseline.
 ///
 /// This is intended as an evaluation fallback when a backend does not implement

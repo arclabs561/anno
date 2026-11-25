@@ -3,7 +3,7 @@
 # requires-python = ">=3.10"
 # dependencies = [
 #     "gliner>=0.2.16",
-#     "torch>=2.0.0",
+#     "torch>=2.5",
 #     "onnx>=1.14.0",
 #     "onnxruntime>=1.16.0",
 #     "transformers>=4.30.0",
@@ -533,6 +533,7 @@ def export_main_model(gliner_model, output_dir: Path, dummy_inputs: dict, labels
             input_names=input_names,
             output_names=["logits"],
             dynamic_axes=dynamic_axes,
+            dynamo=False,
             opset_version=opset,
             do_constant_folding=True,
         )
@@ -607,6 +608,7 @@ def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Pat
             input_names=input_names,
             output_names=["labels_embeddings"],
             dynamic_axes=dynamic_axes,
+            dynamo=False,
             opset_version=opset,
             do_constant_folding=True,
         )

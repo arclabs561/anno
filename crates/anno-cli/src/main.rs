@@ -80,6 +80,7 @@ fn main() -> ExitCode {
             .map_err(CliError::from)
             .and_then(|args| debug::run(args).map_err(CliError::from)),
         Some(Commands::Eval(args)) => eval::run(args).map_err(CliError::from),
+        Some(Commands::Joint(args)) => joint::run(args),
         Some(Commands::Validate(args)) => validate::run(args).map_err(CliError::from),
         Some(Commands::Analyze(args)) => analyze::run(args).map_err(CliError::from),
         Some(Commands::Dataset(args)) => dataset::run(args).map_err(CliError::from),
@@ -120,6 +121,7 @@ fn main() -> ExitCode {
             }
             let text = cli.text.join(" ");
             extract::run(crate::cli::commands::ExtractArgs {
+                input_source_map: None,
                 url: None,
                 html_source_spans: false,
                 clean: false,

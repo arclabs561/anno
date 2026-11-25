@@ -137,3 +137,46 @@ fn url_language_provenance_distinguishes_declarations_from_text_estimates() {
         });
     }
 }
+
+#[cfg(feature = "eval")]
+#[test]
+fn debug_url_keeps_the_original_body_digest_after_charset_and_whitespace_changes() {
+    let original = b" \x93\xfa\x96\x7b   ada@example.com  ";
+    with_http_fixture(
+        original,
+        "text/plain; charset=Shift_JIS",
+        "message",
+        |url| {
+            let temp = tempfile::tempdir().unwrap();
+            let saved = temp.path().join("debug.json");
+            let output = Command::new(env!("CARGO_BIN_EXE_anno"))
+                .args([
+                    "debug",
+                    "--url",
+                    url,
+                    "--model",
+                    "pattern",
+                    "--clean",
+                    "--export-format",
+                    "minimal",
+                    "--export",
+                    saved.to_str().unwrap(),
+                    "--quiet",
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let doc: Value = serde_json::from_slice(&std::fs::read(saved).unwrap()).unwrap();
+            assert_eq!(doc["text"], "日本 ada@example.com");
+            let map: anno::SourceMap = serde_json::from_value(doc["source_map"].clone()).unwrap();
+            assert_eq!(
+                map,
+                anno::SourceMap::unmapped("日本 ada@example.com", Some(original))
+            );
+        },
+    );
+}

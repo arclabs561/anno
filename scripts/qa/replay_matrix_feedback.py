@@ -119,7 +119,7 @@ def main():
     args = parser.parse_args()
     command = ["cargo", "test", "--locked", "-p", "anno-eval", "--lib", "--features",
                args.features, TEST, "--", "--exact", "--ignored", "--nocapture"]
-    fixture = (ROOT / "scripts/qa/fixtures/matrix-smoke.conll").read_text()
+    fixture = (ROOT / "crates/anno-eval/fixtures/matrix-smoke.conll").read_text()
     with tempfile.TemporaryDirectory() as tmp:
         controls = [replay(command, Path(tmp) / low, low, fixture, args.features) for low in DATASETS]
         if controls[0] != controls[1]:

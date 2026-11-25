@@ -14,8 +14,8 @@ pub enum EntityProjectionError {
         /// Zero-based index in the input slice.
         index: usize,
     },
-    /// The grounded signal cannot represent this mention's linguistic type.
-    #[error("entity {index} has a mention type that cannot be stored on a grounded signal")]
+    /// Grounded text signals cannot represent an implicit mention at an insertion point.
+    #[error("entity {index} is a zero mention without a nonempty text location")]
     MentionType {
         /// Zero-based index in the input slice.
         index: usize,
@@ -59,8 +59,8 @@ impl GroundedDocument {
     ///
     /// # Errors
     ///
-    /// Returns the first entity with a mention type, visual span, incompatible segment
-    /// bounds, or conflicting KB link within its canonical group.
+    /// Returns the first entity with a spanless zero mention, visual span, incompatible
+    /// segment bounds, or conflicting KB link within its canonical group.
     pub fn try_from_entities(
         id: impl Into<String>,
         text: impl Into<String>,
@@ -68,7 +68,9 @@ impl GroundedDocument {
     ) -> Result<Self, EntityProjectionError> {
         let mut links = HashMap::new();
         for (index, entity) in entities.iter().enumerate() {
-            if entity.mention_type.is_some() {
+            if entity.mention_type == Some(super::super::types::MentionType::Zero)
+                && entity.start() >= entity.end()
+            {
                 return Err(EntityProjectionError::MentionType { index });
             }
             if entity.visual_span.is_some() {
@@ -182,11 +184,44 @@ mod tests {
             GroundedDocument::try_from_entities("d", "A", std::slice::from_ref(&e)).unwrap_err(),
             EntityProjectionError::VisualSpan { index: 0 }
         );
-        e.visual_span = None;
-        e.mention_type = Some(MentionType::Pronominal);
+        let mut implicit = Entity::new("", EntityType::Person, 1, 1, 0.9);
+        implicit.mention_type = Some(MentionType::Zero);
         assert_eq!(
-            GroundedDocument::try_from_entities("d", "A", &[e]).unwrap_err(),
+            GroundedDocument::try_from_entities("d", "A", &[implicit]).unwrap_err(),
             EntityProjectionError::MentionType { index: 0 }
+        );
+    }
+
+    #[test]
+    fn mention_forms_are_signal_scoped_and_round_trip_with_older_json() {
+        let group = Some(CanonicalId::new(42));
+        let mut mentions = [
+            entity(None, group),
+            Entity::new("she", EntityType::Person, 2, 5, 0.9),
+            Entity::new("B", EntityType::Person, 6, 7, 0.9),
+            Entity::new("C", EntityType::Person, 8, 9, 0.9),
+        ];
+        mentions[1].canonical_id = group;
+        let forms = [
+            Some(MentionType::Proper),
+            Some(MentionType::Pronominal),
+            Some(MentionType::Unknown),
+            None,
+        ];
+        for (entity, form) in mentions.iter_mut().zip(forms) {
+            entity.mention_type = form;
+        }
+        let doc = GroundedDocument::try_from_entities("d", "A she B C", &mentions).unwrap();
+        let wire = serde_json::to_value(&doc).unwrap();
+        assert_eq!(wire["signals"][1]["mention_type"], "pronominal");
+        assert_eq!(wire["signals"][2]["mention_type"], "unknown");
+        assert!(wire["signals"][3].get("mention_type").is_none());
+        let saved: GroundedDocument = serde_json::from_value(wire).unwrap();
+        let flat = saved.to_entities();
+        assert_eq!(flat[0].canonical_id, flat[1].canonical_id);
+        assert_eq!(
+            flat.iter().map(|e| e.mention_type).collect::<Vec<_>>(),
+            forms
         );
     }
 

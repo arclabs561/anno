@@ -10,6 +10,7 @@
 //! | Backend | Feature gate | Notes |
 //! |---------|-------------|-------|
 //! | `FCoref` | `onnx` | Neural, exact signature match |
+//! | `MaverickCoref` | - | Optional Python runtime, CPU inference |
 //! | `T5Coref` | `onnx` | Seq2seq, exact signature match |
 //! | `MentionRankingCoref` | - | Heuristic, adapter converts MentionCluster |
 //! | `SimpleCorefResolver` | `analysis` | Takes `&[Entity]` not `&str`; incompatible (no impl) |
@@ -64,6 +65,18 @@ pub trait CorefBackend: Send + Sync {
     /// Each [`CorefCluster`] contains the mention texts, their character-offset spans,
     /// and a canonical (most informative) mention string.
     fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>>;
+
+    /// Resolve only the supplied half-open character spans, for clustering-only evaluation.
+    fn resolve_mentions(
+        &self,
+        _text: &str,
+        _mentions: &[(usize, usize)],
+    ) -> Result<Vec<CorefCluster>> {
+        Err(crate::Error::feature_not_available(format!(
+            "{} cannot cluster supplied mentions",
+            self.name()
+        )))
+    }
 
     /// Human-readable backend name (e.g., `"fcoref"`, `"coref-t5"`).
     fn name(&self) -> &'static str;

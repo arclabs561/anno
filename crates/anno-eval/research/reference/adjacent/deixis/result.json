@@ -1,0 +1,152 @@
+{
+  "revision": "2f7b2506b87e2fd58da44b4f1d197483deba03ef",
+  "test": {
+    "AMI_test.2022.CONLLUA": {
+      "correct_route_and_antecedent": {
+        "group": 1,
+        "segment": 40
+      },
+      "documents": 3,
+      "position_decoders": {
+        "factorized": {
+          "group_correct": 1,
+          "group_offered": 107,
+          "segment_correct": 34,
+          "segment_offered": 494
+        },
+        "joint": {
+          "group_correct": 1,
+          "group_offered": 107,
+          "segment_correct": 34,
+          "segment_offered": 494
+        }
+      },
+      "retrieval": {
+        "deictics": 118,
+        "groups": 19,
+        "groups_all_members_in_top8": 8,
+        "groups_exact_two_nearest": 1,
+        "groups_with_all_members_observed": 19,
+        "last_three_sentences_any_exact": 86,
+        "previous_sentence_exact": 43,
+        "with_prior_same_chain_segment": 95
+      },
+      "route_gold_by_predicted": {
+        "group": {
+          "group": 11,
+          "ordinary": 7,
+          "segment": 1
+        },
+        "ordinary": {
+          "group": 702,
+          "ordinary": 2573,
+          "segment": 578
+        },
+        "segment": {
+          "group": 1,
+          "ordinary": 5,
+          "segment": 112
+        }
+      }
+    },
+    "Persuasion_test.2022.CONLLUA": {
+      "correct_route_and_antecedent": {
+        "group": 1,
+        "segment": 66
+      },
+      "documents": 33,
+      "position_decoders": {
+        "factorized": {
+          "group_correct": 0,
+          "group_offered": 234,
+          "segment_correct": 58,
+          "segment_offered": 320
+        },
+        "joint": {
+          "group_correct": 0,
+          "group_offered": 234,
+          "segment_correct": 58,
+          "segment_offered": 320
+        }
+      },
+      "retrieval": {
+        "deictics": 105,
+        "groups": 20,
+        "groups_all_members_in_top8": 10,
+        "groups_exact_two_nearest": 2,
+        "groups_with_all_members_observed": 19,
+        "last_three_sentences_any_exact": 79,
+        "previous_sentence_exact": 69,
+        "with_prior_same_chain_segment": 83
+      },
+      "route_gold_by_predicted": {
+        "group": {
+          "group": 14,
+          "ordinary": 5,
+          "segment": 1
+        },
+        "ordinary": {
+          "group": 743,
+          "ordinary": 3094,
+          "segment": 271
+        },
+        "segment": {
+          "group": 3,
+          "ordinary": 9,
+          "segment": 93
+        }
+      }
+    },
+    "light_test.2022.CONLLUA": {
+      "correct_route_and_antecedent": {
+        "group": 5,
+        "segment": 28
+      },
+      "documents": 38,
+      "position_decoders": {
+        "factorized": {
+          "group_correct": 1,
+          "group_offered": 220,
+          "segment_correct": 20,
+          "segment_offered": 306
+        },
+        "joint": {
+          "group_correct": 1,
+          "group_offered": 220,
+          "segment_correct": 20,
+          "segment_offered": 306
+        }
+      },
+      "retrieval": {
+        "deictics": 128,
+        "groups": 35,
+        "groups_all_members_in_top8": 32,
+        "groups_exact_two_nearest": 6,
+        "groups_with_all_members_observed": 35,
+        "last_three_sentences_any_exact": 60,
+        "previous_sentence_exact": 38,
+        "with_prior_same_chain_segment": 69
+      },
+      "route_gold_by_predicted": {
+        "group": {
+          "group": 33,
+          "ordinary": 2
+        },
+        "ordinary": {
+          "group": 1076,
+          "ordinary": 5792,
+          "segment": 299
+        },
+        "segment": {
+          "ordinary": 29,
+          "segment": 99
+        }
+      }
+    }
+  },
+  "train_mentions": {
+    "group": 88,
+    "ordinary": 15083,
+    "segment": 397
+  }
+}

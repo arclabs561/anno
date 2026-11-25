@@ -6,6 +6,7 @@ use std::fs;
 use super::super::output::{color, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::{link_tracks_to_kb, resolve_coreference};
+use anno::backends::coref::{CorefBackend, MaverickCoref};
 use anno::{GroundedDocument, SignalId};
 
 /// Unified pipeline command
@@ -30,11 +31,21 @@ pub struct PipelineArgs {
     #[arg(long)]
     pub coref: bool,
 
+    /// Resolve with Maverick using this model ID or local weights.ckpt (optional Python runtime).
+    /// Set MAVERICK_PYTHON to a Python executable with maverick-coref installed.
+    #[arg(long, requires = "coref", value_name = "CHECKPOINT")]
+    pub maverick_model: Option<String>,
+
     /// Select speaker-only coreference (English first-person singular) in place of general coreference.
     /// General name and third-person chains are omitted.
     /// Each turn has speaker, text, start and end (character offsets in one input document).
     #[cfg(feature = "discourse")]
-    #[arg(long, requires = "coref", value_name = "JSON")]
+    #[arg(
+        long,
+        requires = "coref",
+        conflicts_with = "maverick_model",
+        value_name = "JSON"
+    )]
     pub speaker_turns: Option<std::path::PathBuf>,
 
     /// Attach offline demo KB identifiers to tracks (including generated names).
@@ -152,6 +163,15 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         None
     };
 
+    let maverick = args
+        .maverick_model
+        .as_ref()
+        .map(|checkpoint| {
+            let python = std::env::var_os("MAVERICK_PYTHON").unwrap_or_else(|| "python3".into());
+            MaverickCoref::new(python, checkpoint, false).map_err(|e| e.to_string())
+        })
+        .transpose()?;
+
     // Process each document
     let model = args.model.create_model()?;
     let mut documents: Vec<GroundedDocument> = Vec::new();
@@ -183,22 +203,35 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
             GroundedDocument::from_entity_signals(doc_id, text, &entities)
         };
 
+        doc.record_source_map(anno::SourceMap::identity(text))?;
+
         // Apply enhancements
         if args.coref {
             let signal_ids: Vec<SignalId> = doc.signals().iter().map(|signal| signal.id).collect();
+            let selected = maverick
+                .as_ref()
+                .map(|coref| coref.resolve(text).map(|clusters| (coref.name(), clusters)))
+                .transpose()
+                .map_err(|e| format!("Maverick failed for {doc_id}: {e}"))?;
+            let selected = selected
+                .as_ref()
+                .map(|(backend, clusters)| (*backend, clusters));
             #[cfg(feature = "discourse")]
-            if let Some(clusters) = &speaker_clusters {
+            let selected = selected.or_else(|| {
+                speaker_clusters
+                    .as_ref()
+                    .map(|groups| ("speaker-turns", groups))
+            });
+            if let Some((backend, clusters)) = selected {
                 let tracks_added = super::super::utils::append_coref_clusters(&mut doc, clusters)?;
                 doc.record_coref_run(anno::CorefRunReport::Completed {
-                    backend: "speaker-turns".into(),
+                    backend: backend.into(),
                     tracks_added,
                     prior_failures: Vec::new(),
                 });
             } else {
                 resolve_coreference(&mut doc, text, &signal_ids);
             }
-            #[cfg(not(feature = "discourse"))]
-            resolve_coreference(&mut doc, text, &signal_ids);
 
             let include_detections = args.cross_doc;
             #[cfg(feature = "discourse")]

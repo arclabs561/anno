@@ -95,10 +95,12 @@ dependencies = [
  "lru",
  "ndarray",
  "ort",
+ "parking_lot",
  "percent-encoding",
  "proptest",
  "rayon",
  "regex",
+ "rustix",
  "safetensors",
  "schemars",
  "serde",
@@ -780,6 +782,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "core_detect"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
+
+[[package]]
 name = "core_maths"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,14 +1047,15 @@ checksum = "7eed2c4702fa172d1ce21078faa7c5203e69f5394d48cc436d25928394a867a2"
 
 [[package]]
 name = "deformat"
-version = "0.17.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44bc5802bd4000bc32d8dad484875e829c21c28991e3b2f504fc1c271fa700e9"
+checksum = "48d4672f0250c56a90a24be9f86fb3298e4ac5e7d1710bbc5523ec5fb449667d"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
  "memchr",
  "pdf_oxide",
+ "textprep",
 ]
 
 [[package]]
@@ -1306,11 +1315,16 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "encoding_rs"
-version = "0.8.35"
+version = "0.8.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
+checksum = "89253175e704ab869b04f9db224d38630e0211a53841a79181deae0889e169f5"
 dependencies = [
  "cfg-if",
+ "core_detect",
+ "multiversion_no_op",
+ "rustversion",
+ "scopeguard",
+ "simdutf8",
 ]
 
 [[package]]
@@ -2804,6 +2818,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiversion_no_op"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
+
+[[package]]
 name = "muxer"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4294,6 +4314,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
 name = "siphasher"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4383,6 +4409,15 @@ checksum = "40d4d0613371a7fe585cda11097f016e3ab8940613091f5d6749998900e64ff7"
 dependencies = [
  "rand",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "stop-words"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1ed527ae13a020ac2404e32746ecee62d632aafe64f8e0df2bb3545ae96f6d1"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -4623,11 +4658,14 @@ dependencies = [
 
 [[package]]
 name = "textprep"
-version = "0.1.6"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0211a3cc01ee0a85cd4537b6e16bbc6eb13778f8acd8e652b36c73ae6e1704d0"
+checksum = "4c89e63332c63688ee4bc4979fb43aef2b3eb5b2fdcb4ad165ac080f8059c8f7"
 dependencies = [
  "aho-corasick",
+ "hmac-sha256",
+ "serde",
+ "stop-words",
  "unicode-normalization",
  "unicode-segmentation",
 ]

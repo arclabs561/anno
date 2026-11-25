@@ -60,7 +60,7 @@ extern crate self as anno;
 
 // Compile and run the README's Rust examples as doctests.
 #[cfg(doctest)]
-#[doc = include_str!("../../../README.md")]
+#[doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", env!("CARGO_PKG_README")))]
 pub struct ReadmeDoctests;
 
 // Module declarations (standard Cargo layout under `src/`)
@@ -144,7 +144,9 @@ pub use crate::core::{
     ValidationIssue,
 };
 
-pub use crate::core::grounded::{CorefAttemptFailure, CorefRunReport, SignalValidationError};
+pub use crate::core::grounded::{
+    CorefAttemptFailure, CorefRunReport, SignalValidationError, SourceKind, SourceMap, SourceRun,
+};
 pub use crate::core::types::{ByteOffset, CanonicalId, CharOffset};
 
 // Re-export commonly used types
@@ -210,6 +212,9 @@ mod sealed {
 
     #[cfg(feature = "gliner2-fastino")]
     impl Sealed for super::backends::gliner2_fastino::GLiNER2Fastino {}
+
+    #[cfg(feature = "gliner2-fastino")]
+    impl Sealed for super::backends::gliner25::GLiNER25 {}
 
     #[cfg(feature = "gliner2-fastino-candle")]
     impl Sealed for super::backends::gliner2_fastino_candle::GLiNER2FastinoCandle {}
@@ -660,7 +665,7 @@ pub use backends::coref::mention_ranking::{
 };
 
 // Unified coref backend trait (open, not sealed)
-pub use backends::CorefBackend;
+pub use backends::{CorefBackend, MaverickCoref};
 
 // Re-export inference traits and types used at the crate root
 pub use backends::inference::{
@@ -1259,9 +1264,3 @@ mod batch_tests {
         }
     }
 }
-
-/// Compiles the README's Rust examples in doctest builds so the quick-start
-/// cannot drift from the API. Never part of the public docs.
-#[cfg(doctest)]
-#[doc = include_str!("../../../README.md")]
-pub struct ReadmeExamples;

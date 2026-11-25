@@ -1,0 +1,546 @@
+{
+  "binary_sha256_by_arm": {
+    "ai-gliner_relex-fixed": "2d1b1e627132e0a982e80727dfd79820070b9551a714d9564c4874ab6138e404",
+    "other": "5a6f00c589ae7a31458f6934f134aa687c5731cf6b01b382c3da9d98ec3ebdd3"
+  },
+  "cpus_by_arm": {
+    "literature-gliner_relex-oracle": [
+      2,
+      3
+    ],
+    "other": [
+      0,
+      1
+    ]
+  },
+  "crossre_revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+  "domains": {
+    "ai": {
+      "arms": [
+        {
+          "backend": "gliner_relex",
+          "cost": {
+            "max_rss_kib": 2931908,
+            "sys_cpu_s": 12.644704,
+            "user_cpu_s": 1311.066466,
+            "wall_s": 806.4683308559997
+          },
+          "metrics": {
+            "boundary_f1": 0.25952045133991536,
+            "boundary_precision": 0.2866043613707165,
+            "boundary_recall": 0.23711340206185566,
+            "boundary_relation_matches": 276.0,
+            "fixed_label_prompt_docs": 431.0,
+            "gold_empty_docs": 105.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 0.0,
+            "gold_relations_outside_fixed_schema": 18.0,
+            "num_docs": 431.0,
+            "num_gold_relations": 1164.0,
+            "num_predicted_relations": 963.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.25952045133991536,
+            "predicted_endpoint_boundary_matches": 276.0,
+            "predicted_endpoint_docs": 431.0,
+            "predicted_endpoint_gold_relations": 1164.0,
+            "predicted_endpoint_predicted_relations": 963.0,
+            "predicted_endpoint_strict_f1": 0.24071462153267512,
+            "predicted_endpoint_strict_matches": 256.0,
+            "predictions_on_gold_empty_docs": 160.0,
+            "strict_f1": 0.24071462153267512,
+            "strict_precision": 0.26583592938733125,
+            "strict_recall": 0.21993127147766323,
+            "strict_relation_matches": 256.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "fixed",
+          "sample": {
+            "gold_item_count": 1164,
+            "relation_producer_documents": {
+              "knowledgator/gliner-relex-large-v1.0": 431
+            },
+            "sample_sha256": "f863199f5735ca699a774f44ebb60a26b0e693e8fd61a32a97f0f393c4c3ca56",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 431
+          }
+        },
+        {
+          "backend": "gliner_relex",
+          "cost": {
+            "max_rss_kib": 3041092,
+            "sys_cpu_s": 12.966039,
+            "user_cpu_s": 917.798512,
+            "wall_s": 563.7271124139997
+          },
+          "metrics": {
+            "boundary_f1": 0.6020703933747412,
+            "boundary_precision": 0.5811350919264588,
+            "boundary_recall": 0.6245704467353952,
+            "boundary_relation_matches": 727.0,
+            "fixed_label_prompt_docs": 0.0,
+            "gold_empty_docs": 105.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 431.0,
+            "num_docs": 431.0,
+            "num_gold_relations": 1164.0,
+            "num_predicted_relations": 1251.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.6020703933747412,
+            "predicted_endpoint_boundary_matches": 727.0,
+            "predicted_endpoint_docs": 431.0,
+            "predicted_endpoint_gold_relations": 1164.0,
+            "predicted_endpoint_predicted_relations": 1251.0,
+            "predicted_endpoint_strict_f1": 0.5631469979296067,
+            "predicted_endpoint_strict_matches": 680.0,
+            "predictions_on_gold_empty_docs": 0.0,
+            "strict_f1": 0.5631469979296067,
+            "strict_precision": 0.5435651478816946,
+            "strict_recall": 0.584192439862543,
+            "strict_relation_matches": 680.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "oracle",
+          "sample": {
+            "gold_item_count": 1164,
+            "relation_producer_documents": {
+              "knowledgator/gliner-relex-large-v1.0": 431
+            },
+            "sample_sha256": "f863199f5735ca699a774f44ebb60a26b0e693e8fd61a32a97f0f393c4c3ca56",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 431
+          }
+        },
+        {
+          "backend": "tplinker",
+          "cost": {
+            "max_rss_kib": 53168,
+            "sys_cpu_s": 0.074007,
+            "user_cpu_s": 2.048686,
+            "wall_s": 8.381632474000071
+          },
+          "metrics": {
+            "boundary_f1": 0.0,
+            "boundary_precision": 0.0,
+            "boundary_recall": 0.0,
+            "boundary_relation_matches": 0.0,
+            "fixed_label_prompt_docs": 431.0,
+            "gold_empty_docs": 105.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 0.0,
+            "gold_relations_outside_fixed_schema": 18.0,
+            "num_docs": 431.0,
+            "num_gold_relations": 1164.0,
+            "num_predicted_relations": 0.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.0,
+            "predicted_endpoint_boundary_matches": 0.0,
+            "predicted_endpoint_docs": 431.0,
+            "predicted_endpoint_gold_relations": 1164.0,
+            "predicted_endpoint_predicted_relations": 0.0,
+            "predicted_endpoint_strict_f1": 0.0,
+            "predicted_endpoint_strict_matches": 0.0,
+            "predictions_on_gold_empty_docs": 0.0,
+            "strict_f1": 0.0,
+            "strict_precision": 0.0,
+            "strict_recall": 0.0,
+            "strict_relation_matches": 0.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "fixed",
+          "sample": {
+            "gold_item_count": 1164,
+            "relation_producer_documents": {
+              "tplinker-heuristic": 431
+            },
+            "sample_sha256": "f863199f5735ca699a774f44ebb60a26b0e693e8fd61a32a97f0f393c4c3ca56",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 431
+          }
+        },
+        {
+          "backend": "tplinker",
+          "cost": {
+            "max_rss_kib": 52948,
+            "sys_cpu_s": 0.007762,
+            "user_cpu_s": 0.814794,
+            "wall_s": 3.110154128999966
+          },
+          "metrics": {
+            "boundary_f1": 0.0,
+            "boundary_precision": 0.0,
+            "boundary_recall": 0.0,
+            "boundary_relation_matches": 0.0,
+            "fixed_label_prompt_docs": 0.0,
+            "gold_empty_docs": 105.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 431.0,
+            "num_docs": 431.0,
+            "num_gold_relations": 1164.0,
+            "num_predicted_relations": 0.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.0,
+            "predicted_endpoint_boundary_matches": 0.0,
+            "predicted_endpoint_docs": 431.0,
+            "predicted_endpoint_gold_relations": 1164.0,
+            "predicted_endpoint_predicted_relations": 0.0,
+            "predicted_endpoint_strict_f1": 0.0,
+            "predicted_endpoint_strict_matches": 0.0,
+            "predictions_on_gold_empty_docs": 0.0,
+            "strict_f1": 0.0,
+            "strict_precision": 0.0,
+            "strict_recall": 0.0,
+            "strict_relation_matches": 0.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "oracle",
+          "sample": {
+            "gold_item_count": 1164,
+            "relation_producer_documents": {
+              "tplinker-heuristic": 431
+            },
+            "sample_sha256": "f863199f5735ca699a774f44ebb60a26b0e693e8fd61a32a97f0f393c4c3ca56",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 431
+          }
+        }
+      ],
+      "corpus": {
+        "dataset": "CrossREAI",
+        "gold_empty_docs": 105,
+        "relations_by_unseen_endpoint_type": {
+          "academicjournal": 5,
+          "event": 1
+        },
+        "relations_outside_train_schema": 18,
+        "repeated_relations_in_sentence": 1,
+        "schema": {
+          "entity_types": [
+            "algorithm",
+            "conference",
+            "country",
+            "field",
+            "location",
+            "metrics",
+            "misc",
+            "organisation",
+            "person",
+            "product",
+            "programlang",
+            "researcher",
+            "task",
+            "university"
+          ],
+          "relation_types": [
+            "artifact",
+            "cause-effect",
+            "compare",
+            "general-affiliation",
+            "named",
+            "origin",
+            "part-of",
+            "physical",
+            "related-to",
+            "role",
+            "temporal",
+            "topic",
+            "type-of",
+            "usage",
+            "win-defeat"
+          ]
+        },
+        "schema_sha256": "f67a35c0f8551cce648fd979c14c54277573ae505c0c5a43a06e4a8cae50acc7",
+        "test_docs": 431,
+        "test_entities": 1811,
+        "test_relations": 1164,
+        "test_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+        "test_unique_token_sequences": 430,
+        "train_docs": 100,
+        "train_sha256": "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
+        "train_test_shared_token_sequences": 0,
+        "unseen_relation_label_counts": {
+          "opposite": 11,
+          "social": 1
+        }
+      }
+    },
+    "literature": {
+      "arms": [
+        {
+          "backend": "gliner_relex",
+          "cost": {
+            "max_rss_kib": 2725156,
+            "sys_cpu_s": 13.664635,
+            "user_cpu_s": 1201.98069,
+            "wall_s": 649.9439716400002
+          },
+          "metrics": {
+            "boundary_f1": 0.34290229128259153,
+            "boundary_precision": 0.29944802207911686,
+            "boundary_recall": 0.4011090573012939,
+            "boundary_relation_matches": 651.0,
+            "fixed_label_prompt_docs": 416.0,
+            "gold_empty_docs": 47.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 0.0,
+            "gold_relations_outside_fixed_schema": 17.0,
+            "num_docs": 416.0,
+            "num_gold_relations": 1623.0,
+            "num_predicted_relations": 2174.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.34290229128259153,
+            "predicted_endpoint_boundary_matches": 651.0,
+            "predicted_endpoint_docs": 416.0,
+            "predicted_endpoint_gold_relations": 1623.0,
+            "predicted_endpoint_predicted_relations": 2174.0,
+            "predicted_endpoint_strict_f1": 0.3234132209639189,
+            "predicted_endpoint_strict_matches": 614.0,
+            "predictions_on_gold_empty_docs": 181.0,
+            "strict_f1": 0.3234132209639189,
+            "strict_precision": 0.2824287028518859,
+            "strict_recall": 0.3783117683302526,
+            "strict_relation_matches": 614.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "fixed",
+          "sample": {
+            "gold_item_count": 1623,
+            "relation_producer_documents": {
+              "knowledgator/gliner-relex-large-v1.0": 416
+            },
+            "sample_sha256": "a0dcf3d3b2535f6443b697e2cfb24055074b70d8a3018209fb09864aabb610b1",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 416
+          }
+        },
+        {
+          "backend": "gliner_relex",
+          "cost": {
+            "max_rss_kib": 2865020,
+            "sys_cpu_s": 11.340705,
+            "user_cpu_s": 757.632691,
+            "wall_s": 410.106149534
+          },
+          "metrics": {
+            "boundary_f1": 0.6341760584830948,
+            "boundary_precision": 0.6271084337349397,
+            "boundary_recall": 0.6414048059149723,
+            "boundary_relation_matches": 1041.0,
+            "fixed_label_prompt_docs": 0.0,
+            "gold_empty_docs": 47.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 416.0,
+            "num_docs": 416.0,
+            "num_gold_relations": 1623.0,
+            "num_predicted_relations": 1660.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.6341760584830948,
+            "predicted_endpoint_boundary_matches": 1041.0,
+            "predicted_endpoint_docs": 416.0,
+            "predicted_endpoint_gold_relations": 1623.0,
+            "predicted_endpoint_predicted_relations": 1660.0,
+            "predicted_endpoint_strict_f1": 0.5872677429180628,
+            "predicted_endpoint_strict_matches": 964.0,
+            "predictions_on_gold_empty_docs": 0.0,
+            "strict_f1": 0.5872677429180628,
+            "strict_precision": 0.5807228915662651,
+            "strict_recall": 0.5939617991373999,
+            "strict_relation_matches": 964.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "oracle",
+          "sample": {
+            "gold_item_count": 1623,
+            "relation_producer_documents": {
+              "knowledgator/gliner-relex-large-v1.0": 416
+            },
+            "sample_sha256": "a0dcf3d3b2535f6443b697e2cfb24055074b70d8a3018209fb09864aabb610b1",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 416
+          }
+        },
+        {
+          "backend": "tplinker",
+          "cost": {
+            "max_rss_kib": 54564,
+            "sys_cpu_s": 0.06883,
+            "user_cpu_s": 4.403814,
+            "wall_s": 12.356573777000449
+          },
+          "metrics": {
+            "boundary_f1": 0.0,
+            "boundary_precision": 0.0,
+            "boundary_recall": 0.0,
+            "boundary_relation_matches": 0.0,
+            "fixed_label_prompt_docs": 416.0,
+            "gold_empty_docs": 47.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 0.0,
+            "gold_relations_outside_fixed_schema": 17.0,
+            "num_docs": 416.0,
+            "num_gold_relations": 1623.0,
+            "num_predicted_relations": 0.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.0,
+            "predicted_endpoint_boundary_matches": 0.0,
+            "predicted_endpoint_docs": 416.0,
+            "predicted_endpoint_gold_relations": 1623.0,
+            "predicted_endpoint_predicted_relations": 0.0,
+            "predicted_endpoint_strict_f1": 0.0,
+            "predicted_endpoint_strict_matches": 0.0,
+            "predictions_on_gold_empty_docs": 0.0,
+            "strict_f1": 0.0,
+            "strict_precision": 0.0,
+            "strict_recall": 0.0,
+            "strict_relation_matches": 0.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "fixed",
+          "sample": {
+            "gold_item_count": 1623,
+            "relation_producer_documents": {
+              "tplinker-heuristic": 416
+            },
+            "sample_sha256": "a0dcf3d3b2535f6443b697e2cfb24055074b70d8a3018209fb09864aabb610b1",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 416
+          }
+        },
+        {
+          "backend": "tplinker",
+          "cost": {
+            "max_rss_kib": 53944,
+            "sys_cpu_s": 0.059611,
+            "user_cpu_s": 1.5581,
+            "wall_s": 3.2609897199999978
+          },
+          "metrics": {
+            "boundary_f1": 0.0,
+            "boundary_precision": 0.0,
+            "boundary_recall": 0.0,
+            "boundary_relation_matches": 0.0,
+            "fixed_label_prompt_docs": 0.0,
+            "gold_empty_docs": 47.0,
+            "gold_endpoint_docs": 0.0,
+            "gold_label_prompt_docs": 416.0,
+            "num_docs": 416.0,
+            "num_gold_relations": 1623.0,
+            "num_predicted_relations": 1.0,
+            "oracle_docs_used": 0.0,
+            "oracle_tplinker_docs_used": 0.0,
+            "predicted_endpoint_boundary_f1": 0.0,
+            "predicted_endpoint_boundary_matches": 0.0,
+            "predicted_endpoint_docs": 416.0,
+            "predicted_endpoint_gold_relations": 1623.0,
+            "predicted_endpoint_predicted_relations": 1.0,
+            "predicted_endpoint_strict_f1": 0.0,
+            "predicted_endpoint_strict_matches": 0.0,
+            "predictions_on_gold_empty_docs": 1.0,
+            "strict_f1": 0.0,
+            "strict_precision": 0.0,
+            "strict_recall": 0.0,
+            "strict_relation_matches": 0.0,
+            "unprompted_docs": 0.0
+          },
+          "prompt": "oracle",
+          "sample": {
+            "gold_item_count": 1623,
+            "relation_producer_documents": {
+              "tplinker-heuristic": 416
+            },
+            "sample_sha256": "a0dcf3d3b2535f6443b697e2cfb24055074b70d8a3018209fb09864aabb610b1",
+            "schema_version": 1,
+            "unit": "document",
+            "unit_count": 416
+          }
+        }
+      ],
+      "corpus": {
+        "dataset": "CrossRELiterature",
+        "gold_empty_docs": 47,
+        "relations_by_unseen_endpoint_type": {
+          "album": 4,
+          "band": 1,
+          "university": 10
+        },
+        "relations_outside_train_schema": 17,
+        "repeated_relations_in_sentence": 0,
+        "schema": {
+          "entity_types": [
+            "award",
+            "book",
+            "country",
+            "event",
+            "literarygenre",
+            "location",
+            "magazine",
+            "misc",
+            "organisation",
+            "person",
+            "poem",
+            "song",
+            "writer"
+          ],
+          "relation_types": [
+            "artifact",
+            "cause-effect",
+            "compare",
+            "general-affiliation",
+            "named",
+            "opposite",
+            "origin",
+            "part-of",
+            "physical",
+            "related-to",
+            "role",
+            "social",
+            "temporal",
+            "topic",
+            "type-of",
+            "win-defeat"
+          ]
+        },
+        "schema_sha256": "0a879cc8b29b364ff97f7426ad3d1aec0b9d81497a18ae8178d4a72e4fd6d4aa",
+        "test_docs": 416,
+        "test_entities": 2278,
+        "test_relations": 1623,
+        "test_sha256": "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a",
+        "test_unique_token_sequences": 416,
+        "train_docs": 100,
+        "train_sha256": "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
+        "train_test_shared_token_sequences": 0,
+        "unseen_relation_label_counts": {
+          "usage": 2
+        }
+      }
+    }
+  },
+  "measurement": "Fresh native process. Wall clock includes startup, artifact hashing, model loading, inference and scoring. Linux wait4/getrusage peak RSS includes the whole process; CPU seconds include all threads.",
+  "onnxruntime": "1.24.2",
+  "relation_threshold": 0.5,
+  "relex_artifacts_sha256": {
+    "config": "9ff363d306ba1edcb830343b3b79299278deb5037081d8097d06fe08a63d0e3c",
+    "graph": "084b3873084a4173fc443c8bca691aabdf9f4357972fe032766bf6ec0c76a689",
+    "tokenizer": "9dd6016a277d88072abe003d66f29e01f0ae7ab6b5be519677559dc21a5f6803"
+  },
+  "sampling": "complete test split in release order",
+  "seed": 42,
+  "timeout_seconds_by_arm": {
+    "ai-gliner_relex-fixed": 3600,
+    "other_gliner_relex": 3900,
+    "tplinker": 240
+  }
+}

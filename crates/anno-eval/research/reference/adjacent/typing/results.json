@@ -1,0 +1,127 @@
+{
+  "split_counts": {
+    "train": 1897,
+    "dev": 1931,
+    "test": 1998
+  },
+  "training_types": 1608,
+  "test_gold_labels": 10733,
+  "test_seen_gold_labels": 9970,
+  "methods": {
+    "centroid": {
+      "prior_weight": 0.3,
+      "dev": {
+        "k": 5,
+        "correct": 2089,
+        "macro_f1": 0.2242466546942048,
+        "micro_f1": 0.2073346235918813
+      },
+      "test": {
+        "k": 5,
+        "correct": 2151,
+        "macro_f1": 0.2247804087667781,
+        "micro_f1": 0.2075954253727742
+      }
+    },
+    "midpoint": {
+      "prior_weight": 0.3,
+      "dev": {
+        "k": 5,
+        "correct": 2032,
+        "macro_f1": 0.21758304750822904,
+        "micro_f1": 0.20167733611235175
+      },
+      "test": {
+        "k": 5,
+        "correct": 2089,
+        "macro_f1": 0.21755662857517724,
+        "micro_f1": 0.20161173575254548
+      }
+    },
+    "box": {
+      "prior_weight": 0.3,
+      "dev": {
+        "k": 5,
+        "correct": 2050,
+        "macro_f1": 0.22127121168063174,
+        "micro_f1": 0.20346384794799266
+      },
+      "test": {
+        "k": 5,
+        "correct": 2126,
+        "macro_f1": 0.2227856713140771,
+        "micro_f1": 0.20518264730010133
+      }
+    },
+    "ridge": {
+      "prior_weight": 0,
+      "dev": {
+        "k": 5,
+        "correct": 2637,
+        "macro_f1": 0.2802300201259808,
+        "micro_f1": 0.26172398392139345
+      },
+      "test": {
+        "k": 5,
+        "correct": 2681,
+        "macro_f1": 0.2771667147235302,
+        "micro_f1": 0.25874632051343915
+      }
+    },
+    "prior": {
+      "prior_weight": 0,
+      "dev": {
+        "k": 2,
+        "correct": 968,
+        "macro_f1": 0.168242989255329,
+        "micro_f1": 0.13483772113107675
+      },
+      "test": {
+        "k": 2,
+        "correct": 1000,
+        "macro_f1": 0.16800325041686887,
+        "micro_f1": 0.13578654355353384
+      }
+    }
+  },
+  "wordnet": {
+    "direct_edges": 4522,
+    "coannotated": 1413,
+    "other_edges_without_positive_coannotation": 3109,
+    "strict_correct_conditional": 970,
+    "strict_correct_frequency": 970,
+    "ties": 123
+  },
+  "joint_typing_taxonomy": {
+    "child_to_parent": {
+      "weight": 0.1,
+      "dev": {
+        "k": 5,
+        "correct": 2641,
+        "macro_f1": 0.28055581052124234,
+        "micro_f1": 0.26212098655153593
+      },
+      "test": {
+        "k": 5,
+        "correct": 2678,
+        "macro_f1": 0.2764683972145243,
+        "micro_f1": 0.2584567871447184
+      }
+    },
+    "parent_to_child": {
+      "weight": 0.0,
+      "dev": {
+        "k": 5,
+        "correct": 2637,
+        "macro_f1": 0.2802300201259808,
+        "micro_f1": 0.26172398392139345
+      },
+      "test": {
+        "k": 5,
+        "correct": 2681,
+        "macro_f1": 0.2771667147235302,
+        "micro_f1": 0.25874632051343915
+      }
+    }
+  }
+}

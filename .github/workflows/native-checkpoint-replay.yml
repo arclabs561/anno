@@ -1,0 +1,66 @@
+name: Native extraction checkpoint replay
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/native-checkpoint-replay.yml'
+      - 'scripts/qa/checkpoint_replay/**'
+      - 'crates/anno/src/backends/hf_loader.rs'
+      - 'crates/anno/src/backends/onnx.rs'
+      - 'crates/anno/src/backends/nuner/**'
+      - 'crates/anno/src/backends/gliner25.rs'
+      - 'crates/anno/src/backends/gliner2_fastino/processor.rs'
+      - 'crates/anno-cli/src/cli/commands/extract.rs'
+      - 'crates/anno-cli/src/cli/parser.rs'
+      - 'Cargo.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-checkpoint-replay-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_INCREMENTAL: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Verify and unpack the ONNX Runtime CPU library
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ort"
+          python -m pip download --no-deps --only-binary=:all: -d "$RUNNER_TEMP/ort" onnxruntime==1.24.2
+          cd "$RUNNER_TEMP/ort"
+          wheel=onnxruntime-1.24.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+          echo "09aa6f8d766b4afc3cfba68dd10be39586b49f9462fbd1386c5d5644239461ca  $wheel" | sha256sum -c -
+          unzip -j "$wheel" 'onnxruntime/capi/libonnxruntime*.so*'
+          ln -s libonnxruntime.so.1.24.2 libonnxruntime.so
+          ln -s libonnxruntime.so.1.24.2 libonnxruntime.so.1
+          echo "ORT_LIB_LOCATION=$PWD" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PWD" >> "$GITHUB_ENV"
+          echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
+      - run: cargo build --locked -p anno-cli --no-default-features --features gliner2-fastino,extractor-html2text
+      - name: Replay pinned checkpoints sequentially with a 6 GiB memory limit
+        shell: bash
+        run: |
+          sudo systemd-run --pipe --wait --collect --uid="$(id -un)" --working-directory="$PWD" \
+            -p MemoryMax=6G -p MemorySwapMax=0 -p CPUQuota=200% \
+            --setenv="LD_LIBRARY_PATH=$LD_LIBRARY_PATH" \
+            "$(command -v python)" scripts/qa/checkpoint_replay/run.py --fetch \
+            --models "$RUNNER_TEMP/anno-models" --binary target/debug/anno --receipt checkpoint-receipt.json
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: native-checkpoint-receipt
+          path: checkpoint-receipt.json

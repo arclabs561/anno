@@ -3,7 +3,9 @@
 //! Provides text normalization, cleaning, and preparation for entity extraction.
 
 use crate::lang::detect_language;
+use crate::SourceMap;
 use std::collections::HashMap;
+use textprep::clean::CleanOptions;
 
 /// Prepared document with metadata.
 #[derive(Debug, Clone)]
@@ -58,47 +60,29 @@ impl DocumentPreprocessor {
 
     /// Prepare text for entity extraction.
     pub fn prepare(&self, text: &str) -> PreparedDocument {
-        let mut processed = text.to_string();
-        let mut metadata = HashMap::new();
+        self.prepared(text, self.clean_options().prepare(text))
+    }
 
-        // Unicode normalization (NFC) + zero-width removal. Done via textprep so
-        // all anno crates share one normalization path.
+    /// Prepare the same text and metadata as [`Self::prepare`], retaining a map
+    /// from analyzed UTF-8 byte ranges to the supplied input.
+    pub fn prepare_mapped(&self, text: &str) -> Result<(PreparedDocument, SourceMap), String> {
+        let (cleaned, map) = self.clean_options().prepare_mapped(text)?;
+        Ok((self.prepared(text, cleaned), map))
+    }
+
+    fn clean_options(&self) -> CleanOptions {
+        CleanOptions {
+            normalize_unicode: self.normalize_unicode,
+            clean_whitespace: self.clean_whitespace,
+        }
+    }
+
+    fn prepared(&self, text: &str, processed: String) -> PreparedDocument {
+        let mut metadata = HashMap::new();
         if self.normalize_unicode {
-            processed = textprep::unicode::remove_zero_width(&processed);
-            processed = textprep::unicode::nfc(&processed);
             metadata.insert("unicode_normalized".to_string(), "nfc".to_string());
         }
-
-        // Whitespace cleaning
         if self.clean_whitespace {
-            // Normalize line breaks to \n
-            processed = textprep::unicode::normalize_newlines(&processed);
-
-            // Collapse multiple spaces (but preserve single spaces)
-            let mut cleaned = String::with_capacity(processed.len());
-            let mut last_was_space = false;
-            for ch in processed.chars() {
-                if ch.is_whitespace() {
-                    if !last_was_space {
-                        // Preserve newlines but collapse other whitespace
-                        if ch == '\n' {
-                            cleaned.push('\n');
-                        } else {
-                            cleaned.push(' ');
-                        }
-                        last_was_space = true;
-                    } else if ch == '\n' && !cleaned.ends_with('\n') {
-                        // Preserve consecutive newlines (paragraph breaks)
-                        cleaned.push('\n');
-                    }
-                } else {
-                    cleaned.push(ch);
-                    last_was_space = false;
-                }
-            }
-
-            // Trim leading/trailing whitespace
-            processed = cleaned.trim().to_string();
             metadata.insert("whitespace_cleaned".to_string(), "true".to_string());
         }
 
@@ -128,6 +112,26 @@ impl DocumentPreprocessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mapped_preparation_matches_text_and_metadata_in_each_mode() {
+        for clean_whitespace in [false, true] {
+            for normalize_unicode in [false, true] {
+                let prep = DocumentPreprocessor {
+                    clean_whitespace,
+                    normalize_unicode,
+                    chunk_size: Some(20),
+                    detect_language: true,
+                };
+                for input in ["", "\u{200b} \r\n", "  東京\r\nB\u{301}\t e\u{301} "] {
+                    let plain = prep.prepare(input);
+                    let (mapped, _) = prep.prepare_mapped(input).unwrap();
+                    assert_eq!(mapped.text, plain.text);
+                    assert_eq!(mapped.metadata, plain.metadata);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_preprocessor_default() {

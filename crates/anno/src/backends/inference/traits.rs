@@ -280,6 +280,20 @@ pub trait RelationExtractor: Send + Sync {
         threshold: f32,
     ) -> crate::Result<ExtractionWithRelations>;
 
+    /// Run extraction once and report the producer of the relation decisions.
+    /// Backends with several execution paths can report which one completed.
+    /// The default preserves existing implementations with unknown provenance.
+    fn extract_with_relation_provenance(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> crate::Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        self.extract_with_relations(text, entity_types, relation_types, threshold)
+            .map(|output| (output, None))
+    }
+
     /// Convenience: extract with broad default entity/relation types and threshold 0.5.
     ///
     /// Returns `(entities, relations)` flattened from [`ExtractionWithRelations`].

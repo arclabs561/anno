@@ -74,6 +74,8 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         "gliner" | "gliner_onnx" => Some(ModelBackend::Gliner),
         #[cfg(feature = "onnx")]
         "gliner_multitask" => Some(ModelBackend::GlinerMultitask),
+        #[cfg(feature = "gliner2-fastino")]
+        "gliner25" => Some(ModelBackend::Gliner25),
         #[cfg(feature = "onnx")]
         "nuner" => Some(ModelBackend::Nuner),
         #[cfg(feature = "onnx")]

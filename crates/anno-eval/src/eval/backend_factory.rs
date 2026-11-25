@@ -121,6 +121,20 @@ pub fn artifact_receipt_from_paths(
 /// Factory for creating backend instances from names.
 pub struct BackendFactory;
 
+#[cfg(feature = "gliner2-fastino")]
+pub(crate) fn gliner25_receipt(
+    model: &anno::backends::gliner25::GLiNER25,
+) -> BackendConstructionReceipt {
+    BackendConstructionReceipt {
+        model_artifacts: Some(artifact_receipt_from_paths(
+            "gliner25",
+            "GLiNER2.5 local export",
+            None,
+            model.artifact_paths(),
+        )),
+    }
+}
+
 // Keep true capability skips while retaining context for broken or unreadable models.
 #[cfg(any(feature = "onnx", feature = "candle", test))]
 fn model_load_error(cause: &anno::Error, message: String) -> anno::Error {
@@ -198,6 +212,12 @@ impl BackendFactory {
                         model_artifacts: Some(receipt),
                     },
                 ))
+            }
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => {
+                let model = anno::backends::gliner25::GLiNER25::from_env()?;
+                let receipt = gliner25_receipt(&model);
+                Ok((Box::new(model), receipt))
             }
             #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
@@ -408,7 +428,9 @@ impl BackendFactory {
             "nuner" | "nunerzero" => {
                 use crate::backends::nuner::NuNER;
                 use crate::DEFAULT_NUNER_MODEL;
-                NuNER::from_pretrained(DEFAULT_NUNER_MODEL)
+                let checkpoint = std::env::var("NUNER_MODEL_PATH")
+                    .unwrap_or_else(|_| DEFAULT_NUNER_MODEL.to_owned());
+                NuNER::from_pretrained(&checkpoint)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
@@ -503,6 +525,15 @@ impl BackendFactory {
                     "GLiNER2 Fastino requires 'gliner2-fastino' feature".to_string(),
                 ),
             ),
+
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => anno::backends::gliner25::GLiNER25::from_env()
+                .map(|model| Box::new(model) as Box<dyn Model>)
+                .map_err(|e| model_load_error(&e, format!("Failed to load GLiNER2.5: {e}"))),
+            #[cfg(not(feature = "gliner2-fastino"))]
+            "gliner25" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER2.5 requires the gliner2-fastino feature".into(),
+            )),
 
             // Candle backends
             #[cfg(feature = "candle")]
@@ -716,6 +747,9 @@ impl BackendFactory {
         #[cfg(feature = "gliner2-fastino")]
         {
             backends.push("gliner2_fastino");
+            if std::env::var_os("GLINER25_MODEL_DIR").is_some() {
+                backends.push("gliner25");
+            }
         }
 
         #[cfg(feature = "candle")]
@@ -785,6 +819,17 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
             use anno::backends::coref::mention_ranking::MentionRankingCoref;
             Ok(Box::new(MentionRankingCoref::new()))
         }
+        "maverick" => {
+            let checkpoint = std::env::var_os("MAVERICK_MODEL_PATH").ok_or_else(|| {
+                anno::Error::feature_not_available(
+                    "set MAVERICK_MODEL_PATH to a model ID or local weights.ckpt",
+                )
+            })?;
+            let python = std::env::var_os("MAVERICK_PYTHON").unwrap_or_else(|| "python3".into());
+            Ok(Box::new(anno::backends::coref::MaverickCoref::new(
+                python, checkpoint, false,
+            )?))
+        }
         #[cfg(feature = "onnx")]
         "fcoref" | "f-coref" | "fastcoref" => {
             use anno::backends::coref::fcoref::FCoref;
@@ -801,7 +846,7 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
             "FCoref requires 'onnx' feature. Export: uv run scripts/export_fcoref.py".to_string(),
         )),
         _ => Err(crate::Error::InvalidInput(format!(
-            "Unknown coref backend: '{}'. Available: mention_ranking, fcoref",
+            "Unknown coref backend: '{}'. Available: mention_ranking, fcoref, maverick",
             name
         ))),
     }
@@ -811,6 +856,9 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
 pub fn available_coref_backends() -> Vec<&'static str> {
     #[allow(unused_mut)]
     let mut backends = vec!["mention_ranking"];
+    if std::env::var_os("MAVERICK_MODEL_PATH").is_some() {
+        backends.push("maverick");
+    }
     #[cfg(feature = "onnx")]
     {
         backends.push("fcoref");

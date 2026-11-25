@@ -590,6 +590,7 @@ impl EvalSystem {
             seed: self.seed,
             require_cached: false,
             relation_threshold: 0.5,
+            relation_schema: None,
             robustness: false,
             compute_familiarity: true,
             temporal_stratification: false,

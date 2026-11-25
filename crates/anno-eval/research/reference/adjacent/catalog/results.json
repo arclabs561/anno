@@ -1,0 +1,18 @@
+{
+  "ecb_test": {
+    "queries": 1780,
+    "reachable": 1127,
+    "lemma": 457,
+    "context": 819,
+    "entity_context": 814
+  },
+  "zelda_dev_prefix": {
+    "documents": 500,
+    "mentions": 12209,
+    "previous_target": 1958,
+    "exact_offered": 2012,
+    "exact_correct": 1732,
+    "token_overlap_offered": 5291,
+    "token_overlap_correct": 1790
+  }
+}

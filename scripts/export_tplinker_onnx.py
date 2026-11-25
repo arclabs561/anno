@@ -39,8 +39,8 @@ Usage:
     uv run scripts/export_tplinker_onnx.py --dataset nyt --quantize
 
 Checkpoints:
-    Download from https://github.com/131250208/TPLinker-joint-extraction
-    Supported datasets: NYT, WebNLG
+    Supply weights matching the three heads and relation order used below (NYT or WebNLG).
+    The authors' TPLinkerPlus checkpoints use a different tag inventory and output head.
 """
 
 from __future__ import annotations
@@ -241,6 +241,37 @@ DATASET_CONFIGS = {
 }
 
 
+def load_checkpoint(model: nn.Module, checkpoint_path: str) -> None:
+    """Allow an omitted pretrained encoder, but require every learned task parameter."""
+    state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if isinstance(state, dict):
+        for wrapper in ("model_state_dict", "state_dict"):
+            if wrapper in state:
+                state = state[wrapper]
+                break
+    if not isinstance(state, dict):
+        raise ValueError("TPLinker checkpoint must contain a tensor state dictionary")
+    if state and all(isinstance(key, str) and key.startswith("module.") for key in state):
+        state = {key.removeprefix("module."): value for key, value in state.items()}
+
+    expected = model.state_dict()
+    task_keys = [key for key in expected if not key.startswith("encoder.")]
+    missing = [key for key in task_keys if key not in state]
+    if missing:
+        raise ValueError(
+            "Incompatible TPLinker checkpoint: missing task tensors "
+            + ", ".join(missing)
+            + ". Anno requires its handshaking kernel and three trained heads. "
+            "TPLinkerPlus uses a single classifier with a different tag inventory."
+        )
+    for key, tensor in expected.items():
+        if key in state and (not isinstance(state[key], torch.Tensor)
+                             or state[key].shape != tensor.shape):
+            actual = getattr(state[key], "shape", type(state[key]).__name__)
+            raise ValueError(f"Incompatible TPLinker tensor {key}: expected {tensor.shape}, got {actual}")
+    model.load_state_dict(state, strict=False)
+
+
 def export_tplinker(
     checkpoint_path: str | None,
     output_dir: str,
@@ -249,6 +280,8 @@ def export_tplinker(
     opset: int = 14,
 ) -> None:
     """Export TPLinker model to ONNX."""
+    if checkpoint_path is not None and not Path(checkpoint_path).is_file():
+        raise FileNotFoundError(f"TPLinker checkpoint does not exist: {checkpoint_path}")
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -270,12 +303,9 @@ def export_tplinker(
     )
 
     # Load checkpoint if provided
-    if checkpoint_path and Path(checkpoint_path).exists():
+    if checkpoint_path is not None:
         print(f"[tplinker-export] Loading checkpoint: {checkpoint_path}")
-        state = torch.load(checkpoint_path, map_location="cpu")
-        if isinstance(state, dict) and "model_state_dict" in state:
-            state = state["model_state_dict"]
-        model.load_state_dict(state, strict=False)
+        load_checkpoint(model, checkpoint_path)
         print("[tplinker-export] Checkpoint loaded.")
     else:
         print(

@@ -922,6 +922,15 @@ pub struct Provenance {
 }
 
 impl Provenance {
+    /// Identify the producer of a decision without inventing a raw score.
+    pub fn from_producer(source: impl Into<Cow<'static, str>>, method: ExtractionMethod) -> Self {
+        Self {
+            source: source.into(),
+            method,
+            ..Self::default()
+        }
+    }
+
     /// Create provenance for regex-based extraction.
     #[must_use]
     pub fn pattern(pattern_name: &'static str) -> Self {

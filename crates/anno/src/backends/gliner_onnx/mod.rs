@@ -56,6 +56,7 @@ pub use config::*;
 
 pub struct GLiNEROnnx {
     session: Mutex<ort::session::Session>,
+    joint_relex: bool,
     /// Arc-wrapped tokenizer for cheap cloning across threads.
     tokenizer: std::sync::Arc<tokenizers::Tokenizer>,
     /// HuggingFace model identifier (e.g., "onnx-community/gliner_small-v2.1").
@@ -117,6 +118,8 @@ pub struct GLiNEROnnxArtifactPaths {
 
 #[cfg(feature = "onnx")]
 mod inference;
+#[cfg(feature = "onnx")]
+mod relex;
 pub(crate) use inference::expand_ner_label;
 #[cfg(feature = "onnx")]
 pub(crate) use inference::looks_like_company_name;
@@ -191,6 +194,10 @@ impl crate::Model for GLiNEROnnx {
             config::EncoderMode::Bi => "bi",
         };
         format!("gliner-onnx-{}-{}-{}", self.model_name, quant, enc)
+    }
+
+    fn as_relation_extractor(&self) -> Option<&dyn crate::backends::inference::RelationExtractor> {
+        self.joint_relex.then_some(self)
     }
 
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {

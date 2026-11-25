@@ -1,8 +1,9 @@
 """Check coverage from the current CI run's matrix decision/outcome JSONL."""
 
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -92,6 +93,13 @@ def report_dataset_pools(lines):
             pool = row["pool"]
             strategy, task, phase = row["strategy"], row["slice"], row["pass"]
             excluded, rejected = pool["excluded"], pool["load_rejections"]
+            examples = pool.get("rejection_examples", [])
+            if not isinstance(examples, list) or len(examples) > 3:
+                raise ValueError("invalid rejection examples")
+            for example in examples:
+                if (not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", example["dataset"])
+                        or example["reason"] not in rejected):
+                    raise ValueError("invalid rejection example")
             counts = (pool["catalog_count"], pool["eligible_count"], pool["backend_incompatible_count"],
                       *excluded.values(), *rejected.values())
             if (not isinstance(pool["selected"], list)
@@ -112,6 +120,8 @@ def report_dataset_pools(lines):
         for label, counts in (("Policy exclusions", excluded), ("Load rejections", rejected)):
             if counts:
                 print(f"  - {label}: " + ", ".join(f"{key} ({value})" for key, value in sorted(counts.items())))
+        for example in examples:
+            print(f"  - Rejected {example['dataset']} ({example['reason']}).")
 
 
 def check(lines, report=False, verify_wikigold=False):
@@ -121,12 +131,17 @@ def check(lines, report=False, verify_wikigold=False):
     failures = Counter()
     failure_kinds = Counter()
     failed_cells = Counter()
+    inputs_by_digest = defaultdict(set)
     decisions = []
     observed = {}
     replay_commands = set()
     unavailable_commands = 0
     for lane, row in outcomes(lines, decisions):
         if report:
+            digest, dataset = row.get("dataset_sha256"), row.get("dataset")
+            if (isinstance(digest, str) and re.fullmatch("[a-f0-9]{64}", digest)
+                    and isinstance(dataset, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", dataset)):
+                inputs_by_digest[digest].add(dataset)
             command = replay_command(row)
             if command is None:
                 unavailable_commands += 1
@@ -153,6 +168,10 @@ def check(lines, report=False, verify_wikigold=False):
         empty = attempts[lane] - completions[lane] - failures[lane]
         label = lane if attempts[lane] else f"{lane} (no outcome)"
         print(f"| {label} | {completions[lane]} | {failures[lane]} | {empty} |")
+
+    for digest, datasets in sorted(inputs_by_digest.items()):
+        if len(datasets) > 1:
+            print(f"Dataset IDs {', '.join(sorted(datasets))} share recorded input SHA-256 `{digest}`.")
 
     if failure_kinds:
         print("Hard failures by recorded kind: " + ", ".join(

@@ -542,6 +542,9 @@ impl Corpus {
             }
         }
         doc.id = key.clone();
+        if let Some(evidence) = &mut doc.relation_evidence {
+            evidence.document_id.clone_from(&key);
+        }
         doc.rebuild_indexes();
         let state = self.state_mut();
         state.next_identity_id = next;

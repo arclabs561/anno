@@ -5,6 +5,9 @@
 //! (Martinelli et al., 2025) and "How to Evaluate Coreference in Literary
 //! Texts?" (Duron-Tejedor et al., 2023; arXiv:2401.00238).
 //!
+//! The [BookCoref candidate retrieval replay](https://github.com/arclabs561/anno/tree/main/crates/anno-eval/research/reference/bookscale)
+//! measures whether returning characters survive eviction and reach the shortlist.
+//!
 //! # The Book-Scale Challenge
 //!
 //! Coreference systems optimized for short documents can show different behavior

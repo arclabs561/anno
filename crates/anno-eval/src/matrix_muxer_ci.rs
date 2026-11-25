@@ -1085,6 +1085,19 @@ fn structural_counts(row: &TaskEvalResult) -> BTreeMap<&'static str, f64> {
             "strict_relation_matches",
             "boundary_relation_matches",
             "oracle_docs_used",
+            "gold_label_prompt_docs",
+            "fixed_label_prompt_docs",
+            "unprompted_docs",
+            "gold_relations_outside_fixed_schema",
+            "gold_empty_docs",
+            "predictions_on_gold_empty_docs",
+            "predicted_endpoint_docs",
+            "predicted_endpoint_gold_relations",
+            "predicted_endpoint_predicted_relations",
+            "predicted_endpoint_strict_matches",
+            "gold_endpoint_gold_relations",
+            "gold_endpoint_predicted_relations",
+            "gold_endpoint_strict_matches",
         ],
         Task::Temporal => &[
             "gold_spans",
@@ -2388,11 +2401,11 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     // If the user explicitly forced a backend list, treat that as an explicit opt-in for whatever
     // feature-enabled backends they requested (including ML-ish ones). This prevents surprising
     // “fixed backend not found in candidates” behavior on local runs.
-    if std::env::var("ANNO_MUXER_FIXED_BACKEND")
+    let fixed = std::env::var("ANNO_MUXER_FIXED_BACKEND")
         .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
         .ok()
-        .is_some_and(|v| !v.trim().is_empty())
-    {
+        .is_some_and(|v| !v.trim().is_empty());
+    if fixed {
         allow_ml = true;
     }
 
@@ -2419,6 +2432,20 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     for b in allowed {
         if b == "w2ner" && !has_hf_token {
             continue;
+        }
+
+        // Fixed replays exercise construction even when prerequisites are missing.
+        // Automatic sampling spends its budget on models the current job can load.
+        #[cfg(feature = "onnx")]
+        if !fixed {
+            let hub_model = match b {
+                "gliner" | "gliner_onnx" => Some(anno::DEFAULT_GLINER_MODEL),
+                "gliner_pii" => Some(anno::models::GLINER_PII),
+                _ => None,
+            };
+            if hub_model.is_some_and(|id| !anno::GLiNEROnnx::hub_assets_available(id)) {
+                continue;
+            }
         }
 
         // Baselines: always include if present in this build.
@@ -2960,7 +2987,7 @@ fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
 fn ner_smoke_uses_its_checked_in_conll_source() {
     let id = DatasetId::AnnoNerSmoke;
     let wiki = DatasetId::WikiGold;
-    let rows = include_str!("../../../scripts/qa/fixtures/matrix-smoke.conll");
+    let rows = include_str!("../fixtures/matrix-smoke.conll");
     let dir = tempfile::tempdir().unwrap();
     let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
     let loadable = LoadableDatasetId::try_from(id).unwrap();
@@ -3105,6 +3132,12 @@ struct EstimateDatasetSelection<'a> {
     fixed: Option<&'a [String]>,
 }
 
+#[derive(serde::Serialize)]
+struct DatasetLoadRejection {
+    dataset: DatasetId,
+    reason: String,
+}
+
 #[derive(Default, serde::Serialize)]
 struct DatasetSelection {
     catalog_count: usize,
@@ -3112,6 +3145,7 @@ struct DatasetSelection {
     excluded: BTreeMap<DatasetExclusion, usize>,
     backend_incompatible_count: usize,
     load_rejections: BTreeMap<String, usize>,
+    rejection_examples: Vec<DatasetLoadRejection>,
     selected: Vec<DatasetId>,
     selected_sources: BTreeMap<String, DataSource>,
 }
@@ -3241,7 +3275,6 @@ fn choose_datasets_for_run(
         .collect();
     scored.sort_by_key(|row| (row.0, row.1));
     let mut common = estimate.map(|policy| policy.candidates.to_vec());
-    let mut rejected = Vec::new();
     for (_, _, ds) in scored {
         if selection.selected.len() == datasets_per_run {
             break;
@@ -3267,15 +3300,18 @@ fn choose_datasets_for_run(
             }
             Err(error) => {
                 let reason = dataset_rejection_message(error);
-                if rejected.len() < 3 {
-                    rejected.push((ds, reason.clone()));
+                if selection.rejection_examples.len() < 3 {
+                    selection.rejection_examples.push(DatasetLoadRejection {
+                        dataset: ds,
+                        reason: reason.clone(),
+                    });
                 }
                 *selection.load_rejections.entry(reason).or_default() += 1;
             }
         }
     }
     if selection.selected.is_empty() {
-        for (dataset, reason) in rejected {
+        for DatasetLoadRejection { dataset, reason } in &selection.rejection_examples {
             eprintln!("matrix-muxer: dataset {dataset:?} unavailable (require_cached={require_cached}): {reason:?}");
         }
     }
@@ -4550,6 +4586,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         seed: Some(seed),
         require_cached: require_cached_for_run,
         relation_threshold: 0.5,
+        relation_schema: None,
         robustness: false,
         compute_familiarity: false,
         temporal_stratification: false,
@@ -5078,6 +5115,7 @@ fn test_matrix_sweep_all_backends_once() {
         seed: Some(seed),
         require_cached,
         relation_threshold: 0.5,
+        relation_schema: None,
         robustness: false,
         compute_familiarity: false,
         temporal_stratification: false,

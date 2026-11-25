@@ -37,6 +37,9 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
         json["provenance"]["entity_sources"],
         serde_json::json!(["pattern"])
     );
+    assert!(json.get("text").is_none());
+    let map: anno::SourceMap = serde_json::from_value(json["source_map"].clone()).unwrap();
+    map.verify(text.as_bytes(), text).unwrap();
     let entities = json["entities"].as_array().unwrap();
     let entity = email_entity(entities);
     assert_eq!(entity["start"], expected_start);
@@ -47,6 +50,13 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
         .take(expected_end - expected_start)
         .collect();
     assert_eq!(entity["text"], extracted);
+    assert_eq!(
+        entity["analyzed_byte_ranges"],
+        serde_json::json!([{
+            "start": text.find("alice@example.com").unwrap(),
+            "end": text.len(),
+        }])
+    );
     assert_eq!(entity["provenance"]["source"], "pattern");
     assert_eq!(entity["provenance"]["method"], "Pattern");
     assert_eq!(entity["provenance"]["pattern"], "EMAIL");
@@ -70,6 +80,9 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
     assert_eq!(lines[0]["provenance"]["model"], "pattern");
+    assert!(lines[0].get("text").is_none());
+    assert_eq!(lines[0]["source_map"], json["source_map"]);
+    assert!(lines[1..].iter().all(|row| row.get("source_map").is_none()));
     assert_eq!(lines[0]["provenance"]["runtime_model"], "regex");
     let text_hash = format!("xxh3:{:016x}", xxhash_rust::xxh3::xxh3_64(text.as_bytes()));
     assert_eq!(json["provenance"]["text_hash"], text_hash);
@@ -150,6 +163,7 @@ fn full_page_extraction_keeps_a_table_contact_intact() {
         String::from_utf8_lossy(&output.stderr)
     );
     let doc: serde_json::Value = serde_json::from_slice(&std::fs::read(export).unwrap()).unwrap();
+    assert!(doc.get("source_map").is_some());
     let text = doc["text"].as_str().unwrap();
     let signal = doc["signals"]
         .as_array()
@@ -313,9 +327,7 @@ fn mapped_html_rejects_incompatible_inputs_and_output_formats() {
     let path = dir.path().join("test.html");
     std::fs::write(&path, "<p>test</p>").unwrap();
     for args in [
-        &["--clean"][..],
-        &["--normalize"],
-        &["--format", "json"],
+        &["--format", "tsv"][..],
         &["--url", "https://example.invalid"],
     ] {
         let output = anno()
