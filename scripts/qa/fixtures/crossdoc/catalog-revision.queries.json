@@ -1,0 +1,11 @@
+{
+  "kind": "anno.qa.query-postings.v1",
+  "source_sha256": "05642baa02b9ab71850c75edcfa3616322ddb14051c4682fa00b79295ede41b9",
+  "queries": [
+    {"after": 3, "catalog_record": ["stage", "17"], "postings": [["matinee", 0], ["tour", 0]]},
+    {"after": 3, "catalog_record": ["stage", "22"], "postings": []},
+    {"after": 4, "catalog_record": ["stage", "17"], "postings": [["tour", 0]]},
+    {"after": 4, "catalog_record": ["stage", "22"], "postings": [["matinee", 0]]},
+    {"after": 4, "catalog_record": ["pilots", "17"], "postings": [["harbor", 0]]}
+  ]
+}
