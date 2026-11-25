@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Replay the 45 manually located eLife opening-PDF bylines without printing names."""
 
 import argparse
@@ -82,6 +83,9 @@ def printed_fingerprint(path, source, work, version, stage):
 
 
 def verify(rows, directory, fetch):
+    directory = directory.resolve()
+    if directory.is_relative_to(Path(__file__).resolve().parents[5]):
+        raise ValueError("publisher PDFs belong in an external cache outside the repository")
     directory.mkdir(parents=True, exist_ok=True)
     observed = {}
     for row in rows:

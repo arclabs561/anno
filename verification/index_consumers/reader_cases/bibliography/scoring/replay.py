@@ -5,7 +5,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 
-from .common import ARMS, CUTS, DELIVERIES, ROOT, file_hash, file_map, packed, require
+from .common import ARMS, CUTS, DELIVERIES, ROOT, file_hash, packed, require
 from .score import score
 
 
@@ -70,7 +70,11 @@ def replay(original=None):
     lock_path = RECEIPTS / "lock.json"
     require(file_hash(lock_path) == ORIGINAL_LOCK, "wrong published prediction lock")
     lock = json.loads(lock_path.read_bytes())
-    require(file_map() == lock["code"], "protocol or prediction/scoring code changed since lock")
+    # The original study used the archived reader. New prediction runs hash the
+    # current reader, whose native projection now identifies the XML source.
+    for name, expected in lock["code"].items():
+        source = RECEIPTS / "reader.py.txt" if name == "../reader.py" else ROOT / name
+        require(file_hash(source) == expected, f"frozen study source changed: {name}")
     predictions = expand(json.loads((RECEIPTS / "predictions.json").read_bytes()))
     digest = sha256(packed(predictions) + b"\n").hexdigest()
     require(digest == lock["predictions_sha256"], "reconstructed predictions differ from original")

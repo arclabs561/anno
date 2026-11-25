@@ -16,7 +16,7 @@ JSON
 
 Use `{"doi":"10.7554/eLife.74094","cut":"first"}` for the first numbered journal edition, or `"cut":"as_of"` with a date to include releases on that day. For a bulk export, pass a JSON array of queries in place of `--ask`. The result preserves query order and repeated queries. A missing release that could change the selection, or an unavailable selected byline, yields an unavailable answer. Numbered releases establish ordering within the day. Publisher release chronology supplies no subscriber arrival timestamp.
 
-Add `--anno PATH_TO_ANNO` to submit each distinct available byline to `anno query publication`. The CLI checks the projected text digest, edition, author positions and Unicode ranges. This projection keeps each author's typed fields in occurrence order. Its text digest identifies different bytes from those referenced by the publisher XML receipt.
+Add `--anno PATH_TO_ANNO` to submit each distinct available byline to `anno query publication`. The CLI checks the projected text digest, edition, author positions and Unicode ranges. The native `bibliography.jats-byline.v1` stream labels these ordered XML occurrences `JATS_AUTHOR`. Use the reviewed PDF page to check the visible spelling. Its text digest identifies different bytes from those referenced by the publisher XML receipt.
 
 ## Reopen the printed page
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Replay original dated-bibliography examples through the shared bulk reader.
 
 Run `python3 challenge.py --seed 41 --rounds 32` for deterministic local exploration.

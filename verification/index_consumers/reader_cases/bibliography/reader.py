@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Read publisher-printed credits from a trusted, rights-reviewed bibliography manifest.
+"""Read publisher JATS credits from a trusted, rights-reviewed bibliography manifest.
 
 Supply the entire publisher release index through the certified UTC date `through`.
 Each edition records its publisher version, day and (when available) an ordered JATS
@@ -204,12 +204,12 @@ def publish_byline(row, anno):
     for position, author in enumerate(row["byline"]):
         surface = json_text(author)
         end = start + len(surface)
-        signals.append({"id": position, "label": "PRINTED_AUTHOR", "confidence": 1.0,
+        signals.append({"id": position, "label": "JATS_AUTHOR", "confidence": 1.0,
                         "modality": "Symbolic", "negated": False, "surface": surface,
                         "location": {"Text": {"start": start, "end": end}}})
         start = end + 1
     revision = f"v{row['edition']}"
-    payload = {"stream": "bibliography.ordered-byline.v1", "sequence": row["edition"],
+    payload = {"stream": "bibliography.jats-byline.v1", "sequence": row["edition"],
                "source_revision": revision, "document": {"id": row["doi"], "text": text,
                    "signals": signals, "tracks": {}, "identities": {}}}
     run = subprocess.run([anno, "query", "publication", "-"], input=json_text(payload),
@@ -224,11 +224,11 @@ def publish_byline(row, anno):
     if len(postings) != len(signals):
         raise ValueError("anno returned a different author count")
     for signal, posting in zip(signals, postings):
-        expected = (row["doi"], revision, digest, signal["id"], signal["location"], signal["surface"])
+        expected = (row["doi"], revision, digest, signal["id"], signal["label"], signal["location"], signal["surface"])
         actual = tuple(posting[key] for key in
-                       ("document", "source_revision", "source_sha256", "signal_id", "location", "surface"))
+                       ("document", "source_revision", "source_sha256", "signal_id", "label", "location", "surface"))
         if actual != expected:
-            raise ValueError("anno returned a different printed author occurrence")
+            raise ValueError("anno returned a different JATS author occurrence")
     return native
 
 

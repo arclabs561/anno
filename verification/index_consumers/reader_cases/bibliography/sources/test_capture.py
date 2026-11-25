@@ -2,6 +2,7 @@
 """Offline checks for missing editions, inconsistent chronology and source rights."""
 import json
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -9,6 +10,7 @@ import unittest
 from verification.index_consumers.reader_cases.bibliography.sources.capture import (
     HERE, boundary, source,
 )
+from verification.index_consumers.reader_cases.bibliography.sources.verify_print import verify
 
 STAMP = datetime(2024, 1, 4, tzinfo=timezone.utc)
 
@@ -58,10 +60,23 @@ class SourceChecks(unittest.TestCase):
             self.assertNotIn("byline", wire["editions"][0])
             self.assertEqual(rights, [])
 
+    def test_pdf_cache_stays_outside_the_worktree(self):
+        path = HERE / "publisher-inputs"
+        with self.assertRaisesRegex(ValueError, "external cache"):
+            verify([], path, True)
+        self.assertFalse(path.exists())
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            verify([], directory / "pdf-cache", False)
+            self.assertTrue((directory / "pdf-cache").is_dir())
+
     def test_pinned_selection_and_coverage(self):
         frame = json.loads((HERE / "frame.json").read_bytes())
         receipt = json.loads((HERE / "receipt.json").read_bytes())
-        manifest = json.loads((HERE / frame["frame_source"]).read_bytes())
+        original = (HERE / frame["frame_source"]).read_bytes()
+        self.assertEqual(sha256(original).hexdigest(), frame["frame_sha256"])
+        self.assertEqual(sha256((HERE / "frame.json").read_bytes()).hexdigest(), receipt["frame_sha256"])
+        manifest = json.loads(original)
         self.assertEqual(frame["rows"], manifest["eligible"][12:])
         self.assertEqual(len(frame["rows"]), 17)
         for row in frame["rows"]:

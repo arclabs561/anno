@@ -3,3 +3,15 @@ crates/anno-eval/fixtures/matrix-smoke.conll text eol=lf
 scripts/qa/fixtures/matrix-smoke-timex.jsonl text eol=lf
 scripts/qa/fixtures/timex-contrast/rows.jsonl text eol=lf
 crates/anno-py/examples/bulletins/bulletin-edition-*.txt text eol=lf
+
+# Raw SHA-256 identities for the bibliography frame and sealed study.
+verification/index_consumers/reader_cases/bibliography/reader.py text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/common.py text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/predict.py text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/score.py text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/protocol.txt text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/receipts/reader.py.txt text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/receipts/lock.json text eol=lf
+verification/index_consumers/reader_cases/bibliography/scoring/receipts/reference.json text eol=lf
+verification/index_consumers/reader_cases/bibliography/sources/frame.json text eol=lf
+verification/index_consumers/reader_cases/publisher/sample.json text eol=lf

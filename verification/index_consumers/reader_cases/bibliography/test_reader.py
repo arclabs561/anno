@@ -146,6 +146,7 @@ class BibliographyReaderTest(unittest.TestCase):
             ordered = sorted(publication["rows"], key=lambda r: r["signal_id"])
             self.assertEqual([json.loads(r["surface"]) for r in ordered], FIRST)
             for posting in ordered:
+                self.assertEqual(posting["label"], "JATS_AUTHOR")
                 span = posting["location"]["Text"]
                 self.assertEqual(json_text(FIRST)[span["start"]:span["end"]], posting["surface"])
         self.assertEqual(native[0]["source_sha256"], native[1]["source_sha256"])
