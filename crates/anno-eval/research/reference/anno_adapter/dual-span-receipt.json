@@ -1,0 +1,457 @@
+{
+  "schema_version": 1,
+  "offset_unit": "unicode_scalar",
+  "corpus_sha256": "742c58dca75b70c03d65f0144fa7047c590c3f191a7342b58ac2070aa101bd96",
+  "anno_binary_sha256": "09bc08bb1575256ceebd1eeb3417fb606c481bbf6e2fb6a1b1c51a984ece2812",
+  "anno_version": "anno 0.16.0",
+  "ner_backend": "heuristic",
+  "expected_coref_backend": "mention-ranking",
+  "replay_config": {
+    "encoder": "lexical_hash_visible_prefix",
+    "dimension": 32,
+    "budget": 2048,
+    "k": 2,
+    "threshold": -0.5,
+    "policies": [
+      "exemplars",
+      "midpoint",
+      "box"
+    ]
+  },
+  "totals": {
+    "highlight": {
+      "alignment": {
+        "emitted": 39,
+        "gold_mentions": 37,
+        "matched_spans": 12,
+        "covered_mentions": 12,
+        "explicit_negative_spans": 8,
+        "explicit_negative_matches": 5,
+        "other_unmatched": 22
+      },
+      "native_pairs": {
+        "positive_pairs": 26,
+        "negative_pairs": 22,
+        "joined_positive": 1,
+        "joined_negative": 1,
+        "covered_positive": 3,
+        "covered_negative": 5,
+        "unresolved_mentions": 3,
+        "unresolved_covered": 0,
+        "unresolved_clustered": 0,
+        "unresolved_joined_to_resolved": 0,
+        "false_split_pairs_covered": 2,
+        "false_merge_pairs": 1,
+        "missed_pairs_detection": 23
+      },
+      "native_clusters": {
+        "gold_entities": 15,
+        "predicted_clusters": 9,
+        "mixed_known_identity_clusters": 1,
+        "exact_gold_clusters": 0,
+        "clusters_with_excluded_signals": 0,
+        "gold_entities_split_across_clusters": 0,
+        "gold_mentions_in_multiple_predicted_clusters": 0
+      },
+      "replay": {
+        "exemplars": {
+          "counts": {
+            "unmatched_source_span": 31,
+            "accepted_links": 21,
+            "known_wrong_or_impure_accepted_targets": 2,
+            "no_observed_distinct_antecedent": 9,
+            "threshold_abstention": 1,
+            "ranking_miss": 3,
+            "accepted_gold_supported": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 1,
+            "joined_negative": 1,
+            "covered_positive": 3,
+            "covered_negative": 5,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 2,
+            "false_merge_pairs": 1,
+            "missed_pairs_detection": 23
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 25,
+            "mixed_known_identity_clusters": 1,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 2,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        },
+        "midpoint": {
+          "counts": {
+            "unmatched_source_span": 31,
+            "accepted_links": 22,
+            "known_wrong_or_impure_accepted_targets": 2,
+            "no_observed_distinct_antecedent": 9,
+            "threshold_abstention": 1,
+            "ranking_miss": 3,
+            "accepted_gold_supported": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 1,
+            "joined_negative": 1,
+            "covered_positive": 3,
+            "covered_negative": 5,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 2,
+            "false_merge_pairs": 1,
+            "missed_pairs_detection": 23
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 24,
+            "mixed_known_identity_clusters": 1,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 2,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        },
+        "box": {
+          "counts": {
+            "unmatched_source_span": 31,
+            "accepted_links": 20,
+            "known_wrong_or_impure_accepted_targets": 2,
+            "no_observed_distinct_antecedent": 9,
+            "threshold_abstention": 1,
+            "ranking_miss": 3,
+            "candidate_miss": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 0,
+            "joined_negative": 1,
+            "covered_positive": 3,
+            "covered_negative": 5,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 3,
+            "false_merge_pairs": 1,
+            "missed_pairs_detection": 23
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 26,
+            "mixed_known_identity_clusters": 1,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 3,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        }
+      }
+    },
+    "referential": {
+      "alignment": {
+        "emitted": 39,
+        "gold_mentions": 37,
+        "matched_spans": 18,
+        "covered_mentions": 18,
+        "explicit_negative_spans": 8,
+        "explicit_negative_matches": 5,
+        "other_unmatched": 16
+      },
+      "native_pairs": {
+        "positive_pairs": 26,
+        "negative_pairs": 22,
+        "joined_positive": 1,
+        "joined_negative": 1,
+        "covered_positive": 6,
+        "covered_negative": 9,
+        "unresolved_mentions": 3,
+        "unresolved_covered": 0,
+        "unresolved_clustered": 0,
+        "unresolved_joined_to_resolved": 0,
+        "false_split_pairs_covered": 5,
+        "false_merge_pairs": 1,
+        "missed_pairs_detection": 20
+      },
+      "native_clusters": {
+        "gold_entities": 15,
+        "predicted_clusters": 9,
+        "mixed_known_identity_clusters": 1,
+        "exact_gold_clusters": 0,
+        "clusters_with_excluded_signals": 0,
+        "gold_entities_split_across_clusters": 0,
+        "gold_mentions_in_multiple_predicted_clusters": 0
+      },
+      "replay": {
+        "exemplars": {
+          "counts": {
+            "no_observed_distinct_antecedent": 13,
+            "accepted_links": 21,
+            "known_wrong_or_impure_accepted_targets": 5,
+            "unmatched_source_span": 25,
+            "threshold_abstention": 2,
+            "ranking_miss": 4,
+            "accepted_gold_supported": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 1,
+            "joined_negative": 3,
+            "covered_positive": 6,
+            "covered_negative": 9,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 5,
+            "false_merge_pairs": 3,
+            "missed_pairs_detection": 20
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 25,
+            "mixed_known_identity_clusters": 2,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 4,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        },
+        "midpoint": {
+          "counts": {
+            "no_observed_distinct_antecedent": 13,
+            "accepted_links": 22,
+            "known_wrong_or_impure_accepted_targets": 6,
+            "unmatched_source_span": 25,
+            "threshold_abstention": 2,
+            "ranking_miss": 4,
+            "accepted_gold_supported": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 1,
+            "joined_negative": 4,
+            "covered_positive": 6,
+            "covered_negative": 9,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 5,
+            "false_merge_pairs": 4,
+            "missed_pairs_detection": 20
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 24,
+            "mixed_known_identity_clusters": 3,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 4,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        },
+        "box": {
+          "counts": {
+            "no_observed_distinct_antecedent": 13,
+            "accepted_links": 20,
+            "known_wrong_or_impure_accepted_targets": 5,
+            "unmatched_source_span": 25,
+            "threshold_abstention": 2,
+            "ranking_miss": 4,
+            "candidate_miss": 2
+          },
+          "pairs": {
+            "positive_pairs": 26,
+            "negative_pairs": 22,
+            "joined_positive": 0,
+            "joined_negative": 3,
+            "covered_positive": 6,
+            "covered_negative": 9,
+            "unresolved_mentions": 3,
+            "unresolved_covered": 0,
+            "unresolved_clustered": 0,
+            "unresolved_joined_to_resolved": 0,
+            "false_split_pairs_covered": 6,
+            "false_merge_pairs": 3,
+            "missed_pairs_detection": 20
+          },
+          "clusters": {
+            "gold_entities": 15,
+            "predicted_clusters": 26,
+            "mixed_known_identity_clusters": 3,
+            "exact_gold_clusters": 1,
+            "clusters_with_excluded_signals": 0,
+            "gold_entities_split_across_clusters": 4,
+            "gold_mentions_in_multiple_predicted_clusters": 0
+          }
+        }
+      }
+    }
+  },
+  "document_sources": [
+    {
+      "id": "titled_returns",
+      "anno_document_id": "doc-0000",
+      "source_sha256": "e45a983089fbcb214f1fe8b5ad24b373e109fba6b653f540575498e933047c0a",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 1
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0
+      }
+    },
+    {
+      "id": "stage_alias",
+      "anno_document_id": "doc-0001",
+      "source_sha256": "1c763b6314ff2bbaf9b076e4ee3c8280d18c9ac8ad133e3d8ce7bdfa5b8fbece",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 0
+      },
+      "native_wire_track_confidence": {}
+    },
+    {
+      "id": "same_name_roles",
+      "anno_document_id": "doc-0002",
+      "source_sha256": "6b4eacbcd2a12af54723b9431142d1062900f7724481a20e29d2c66af0631323",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 2
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0,
+        "1": 1.0
+      }
+    },
+    {
+      "id": "surname_collision",
+      "anno_document_id": "doc-0003",
+      "source_sha256": "cfdf066863b34a0ad39aa424469cf5b77e6be481d98b56f3a4ecd6fbe1b9b063",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 1
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0
+      }
+    },
+    {
+      "id": "compound_punctuation",
+      "anno_document_id": "doc-0004",
+      "source_sha256": "3de42cf40e753a8c53d7d67ad45a675417dfac575a7b47ac2374e8cab833f491",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 0
+      },
+      "native_wire_track_confidence": {}
+    },
+    {
+      "id": "alias_collision",
+      "anno_document_id": "doc-0005",
+      "source_sha256": "52f4a777487680d1d0a8de2b6403e7b8587972d6a3f6afb3dc32c5fa13faa95c",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 1
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0
+      }
+    },
+    {
+      "id": "quoted_nonperson",
+      "anno_document_id": "doc-0006",
+      "source_sha256": "0e2099595e254172956893260f9be440494f6117255f3a69435fb48f02c8bb2e",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 1
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0
+      }
+    },
+    {
+      "id": "roles_only",
+      "anno_document_id": "doc-0007",
+      "source_sha256": "948935d0e825ebbf79e8fb3480f2884f8aa38b97257a7e4f8a6e03cbea434a96",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 0
+      },
+      "native_wire_track_confidence": {}
+    },
+    {
+      "id": "name_or_vessel",
+      "anno_document_id": "doc-0008",
+      "source_sha256": "340e14798b8c0e8653b3061ab86bcea20c915565bd80d96ef0309d3d01cf7cf3",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 1
+      },
+      "native_wire_track_confidence": {
+        "0": 1.0
+      }
+    },
+    {
+      "id": "honorific_and_possessive",
+      "anno_document_id": "doc-0009",
+      "source_sha256": "7c4fa7bdc8f1ebc7f6c73ce16ac798586ab668331ee0d5a347c2f1f1fcf53e40",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 2
+      },
+      "native_wire_track_confidence": {
+        "1": 1.0,
+        "0": 1.0
+      }
+    },
+    {
+      "id": "single_named_person",
+      "anno_document_id": "doc-0010",
+      "source_sha256": "df0d75af5f6d40600c2f0325aa986e0f26dda034816762b45b6e246aa4ac6fca",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 0
+      },
+      "native_wire_track_confidence": {}
+    },
+    {
+      "id": "no_people",
+      "anno_document_id": "doc-0011",
+      "source_sha256": "7e00e9d5f8bb90c030782ac0cb210f5e078e247c78163402a31e9427975c565b",
+      "coref_run": {
+        "status": "completed",
+        "backend": "mention-ranking",
+        "tracks_added": 0
+      },
+      "native_wire_track_confidence": {}
+    }
+  ]
+}
