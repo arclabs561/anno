@@ -284,6 +284,18 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)\bhttps?://[^\s<>"\[\]{}|\\^`\x00-\x1f]+"#).expect("valid regex")
 });
 
+// An apostrophe within a word is part of the path, even in quoted prose.
+fn word_apostrophe(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .is_some_and(char::is_alphabetic)
+        && text[byte + 1..]
+            .chars()
+            .next()
+            .is_some_and(char::is_alphabetic)
+}
+
 // Mask matching outer parentheses or a closing single quote before scanning.
 // A bare URL can contain any of these characters. Equal-width spaces keep offsets.
 fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
@@ -296,6 +308,9 @@ fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     for (byte, ch) in text.char_indices() {
         if let Some((open, close)) = wrapper {
             if ch == close {
+                if ch == '\'' && word_apostrophe(text, byte) {
+                    continue;
+                }
                 depth -= 1;
                 if depth == 0 {
                     let space = if close == '）' { "　" } else { " " };
@@ -330,23 +345,8 @@ fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     result
 }
 
-fn url_at<'a>(urls: &[regex::Match<'a>], byte: usize) -> Option<regex::Match<'a>> {
-    let next = urls.partition_point(|url| url.end() <= byte);
-    urls.get(next).copied().filter(|url| url.start() <= byte)
-}
-
-// A numeric date can cross a path separator into a document number. Prefer
-// the containing link only for a complete, clearly delimited date component.
-fn dated_url_range(
-    text: &str,
-    date: regex::Match<'_>,
-    urls: &[regex::Match<'_>],
-) -> Option<std::ops::Range<usize>> {
-    let url = url_at(urls, date.start())?;
-    let prefix = &text[url.start()..date.start()];
-    if date.end() > url.end() || !prefix.ends_with(['/', '-', '=', '#']) {
-        return None;
-    }
+// Determine each URL boundary once, including for links with many date components.
+fn date_link_range(text: &str, url: regex::Match<'_>) -> Option<std::ops::Range<usize>> {
     let wrapped = matches!(
         (
             text[..url.start()].chars().next_back(),
@@ -364,10 +364,11 @@ fn dated_url_range(
         let value = url.as_str().trim_end_matches(['.', ',']);
         // Unwrapped commas, quotes and other punctuation may introduce another
         // field or sentence. Keep the original predictions in ambiguous text.
-        if !value
-            .chars()
-            .all(|ch| ch.is_alphanumeric() || "-._~:/?#@%&=+".contains(ch))
-        {
+        if !value.char_indices().all(|(byte, ch)| {
+            ch.is_alphanumeric()
+                || "-._~:/?#@%&=+".contains(ch)
+                || (ch == '\'' && word_apostrophe(value, byte))
+        }) {
             return None;
         }
         value
@@ -376,12 +377,27 @@ fn dated_url_range(
     Some(url.start()..end)
 }
 
+fn link_containing_date(
+    text: &str,
+    date: regex::Match<'_>,
+    links: &[std::ops::Range<usize>],
+) -> Option<std::ops::Range<usize>> {
+    let next = links.partition_point(|link| link.end <= date.start());
+    let link = links.get(next)?;
+    let start = date.start();
+    (link.start < start
+        && date.end() <= link.end
+        && text[link.start..start].ends_with(['/', '-', '=', '#']))
+    .then(|| link.clone())
+}
+
 // A percent escape is exactly '%' followed by two ASCII hex digits in the URL.
 fn is_url_escape(m: regex::Match<'_>, urls: &[regex::Match<'_>]) -> bool {
     if !m.as_str().ends_with('%') {
         return false;
     }
-    let Some(url) = url_at(urls, m.start()) else {
+    let next = urls.partition_point(|url| url.end() <= m.start());
+    let Some(url) = urls.get(next).filter(|url| url.start() <= m.start()) else {
         return false;
     };
     let after_percent = m.end() - url.start();
@@ -429,6 +445,10 @@ impl Model for RegexNER {
         let mut entities = Vec::new();
         let url_input = url_text(text);
         let urls: Vec<_> = URL.find_iter(&url_input).collect();
+        let date_links: Vec<_> = urls
+            .iter()
+            .filter_map(|&url| date_link_range(text, url))
+            .collect();
 
         // Performance optimization: Build SpanConverter once for all byte-to-char conversions
         // ROI: High - called once per extract_entities, saves O(n) per regex match
@@ -440,7 +460,7 @@ impl Model for RegexNER {
         let mut add_entity =
             |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
                 let link = match pattern {
-                    "DATE_ISO" | "DATE_US" => dated_url_range(text, m, &urls),
+                    "DATE_ISO" | "DATE_US" => link_containing_date(text, m, &date_links),
                     _ => None,
                 };
                 let (range, entity_type, confidence, pattern) = match link {
@@ -562,7 +582,7 @@ impl Model for RegexNER {
             add_entity(m, EntityType::Email, 0.98, "EMAIL");
         }
 
-        for &m in &urls {
+        for m in urls {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
@@ -1198,7 +1218,7 @@ mod tests {
     #[test]
     fn dated_links_respect_field_delimiters_and_neighboring_dates() {
         for quote in ['"', '\''] {
-            let url = "https://example.org/2024-06-15/at/12:30";
+            let url = "https://example.org/2024-06-15/O'Brien/at/12:30";
             let text = format!("📚 {quote}{url}{quote},{quote}2027-04-21{quote}");
             let entities = extract(&text);
             assert!(entities
