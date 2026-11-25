@@ -1,6 +1,7 @@
 //! Extract command - Level 1 (Signal): Raw entity extraction
 
 mod html_source;
+mod input_map;
 use html_source::MappedHtml;
 
 use clap::Parser;
@@ -35,6 +36,10 @@ pub struct ExtractArgs {
     /// Read input from file
     #[arg(short, long, value_name = "PATH")]
     pub file: Option<String>,
+
+    /// Earlier source map for externally prepared input (bare map or mapped document JSON).
+    #[arg(long, value_name = "PATH")]
+    pub input_source_map: Option<std::path::PathBuf>,
 
     /// Model backend to use
     #[arg(short, long, value_name = "MODEL")]
@@ -184,7 +189,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     let needs_source_map = matches!(
         format,
         OutputFormat::Grounded | OutputFormat::Json | OutputFormat::Jsonl
-    ) || args.export.is_some();
+    ) || args.export.is_some()
+        || args.input_source_map.is_some();
     let mapped_html = if args.html_source_spans {
         let path = args
             .file
@@ -244,6 +250,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         (text, None, None, None)
     };
 
+    if let (Some(path), Some(ingest)) = (&args.input_source_map, &mut source_map) {
+        *ingest = input_map::compose(path, ingest, &raw_text, args.file.as_deref())
+            .map_err(CliError::from)?;
+    }
     // Preprocess text if requested
     let mut language = declared_language
         .filter(|_| args.detect_lang)
@@ -556,7 +566,9 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         doc.record_source_map(map).map_err(CliError::from)?;
     }
     // The legacy HTML record describes the deformat renderer's own coordinate system.
-    if let Some(html) = mapped_html.filter(|html| html.text == doc.text()) {
+    if let Some(html) =
+        mapped_html.filter(|html| args.input_source_map.is_none() && html.text == doc.text())
+    {
         html.record(&mut doc)?;
     }
 

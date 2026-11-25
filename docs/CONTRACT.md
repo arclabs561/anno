@@ -12,11 +12,54 @@ the email spans characters `8..23` and UTF-8 bytes `11..26`. Rust string slicing
 uses byte indices. Convert at that boundary using `anno::offset::SpanConverter`.
 Use `CharOffset` and `ByteOffset` when passing positions between Rust components.
 
-Keep the document ID, exact text revision and coordinate convention with saved
-annotations. When OCR cleanup, newline normalization, `--clean` or `--normalize`
-changes the input, the positions refer to the processed text. To highlight the
-original, keep the mapping back to that revision. Grounded JSON stores the text
-with its signals and tracks. [Runnable example](QUICKSTART.md#save-annotations-with-the-source-text)
+An occurrence belongs to the exact revision passed to the model. A grounded
+document can store its `source_map` from that analyzed text back to the
+original bytes. For example, whitespace cleanup turns `Maya   founded Acme`
+into `Maya founded Acme`. The analyzed character span `[13, 17)` for `Acme`
+projects to original bytes `[15, 19)`. Converting character indices to UTF-8
+indices alone would give the wrong result.
+
+Use `GroundedDocument::project_source_span` for a half-open analyzed character
+range, or run the same query on a saved document:
+
+```sh
+printf 'Maya   founded Acme' > original.txt
+anno extract --file original.txt --model pattern --clean --format grounded > doc.json
+anno query source-span doc.json 13 17 --original original.txt
+```
+
+The result gives ordered fragments. A direct fragment can be sliced precisely.
+A transformed fragment identifies its contributors. One normalized scalar
+can draw on disjoint original ranges, such as a letter and combining accent
+separated by HTML markup. Read `source_bytes` for a single origin and
+`source_ranges` for disjoint origins. Approximate and synthetic fragments can
+point to contributing text or markup. Unmapped fragments have no source byte range.
+For a discontinuous mention, project each component. Supply `--original` to
+verify the source digest before using the ranges. A missing map in an older
+document leaves the correspondence unknown. Older HTML-backed documents can
+still answer queries covered by their saved HTML projections.
+
+When text arrives already cleaned, use the earlier producer's map as input.
+Pass a bare `SourceMap` JSON file or a document containing `source_map`.
+Anno checks that the earlier analyzed edition matches the input and composes
+its own transformations onto that map:
+
+```sh
+anno extract --file prepared.txt --input-source-map previous.json --normalize \
+  --model pattern --format grounded > result.json
+```
+
+Without an earlier map, directly supplied plain text is the earliest edition
+Anno can identify. Normal extraction JSON and JSONL keep analyzed byte ranges
+on mentions and relation endpoints and store the map once per document.
+Grounded output also saves the analyzed text for arbitrary source-span queries.
+
+Each transformation owns the evidence for its step. Deformat supplies HTML
+renderer offsets. Anno's preprocessor supplies edit mappings for its whitespace
+and Unicode transformations. Anno composes them, stores the result with the
+grounded document, and projects the model's spans through it. An input renderer
+that supplies only text can leave the original offsets unknown even when the
+original digest is available. [Extraction workflow](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
 
 ## Library and CLI features
 
