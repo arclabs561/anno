@@ -1,0 +1,32 @@
+{
+  "masked_identical_to_physical_rebuild": [
+    {
+      "distinct_candidates": 109,
+      "removed": 1,
+      "source_row": 62,
+      "split": "val"
+    },
+    {
+      "distinct_candidates": 50,
+      "removed": 2,
+      "source_row": 63,
+      "split": "val"
+    },
+    {
+      "distinct_candidates": 4,
+      "removed": 1,
+      "source_row": 115,
+      "split": "test"
+    },
+    {
+      "distinct_candidates": 7,
+      "removed": 2,
+      "source_row": 162,
+      "split": "test"
+    }
+  ],
+  "natural_identical": {
+    "test": 644,
+    "val": 588
+  }
+}
