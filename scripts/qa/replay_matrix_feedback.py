@@ -18,6 +18,9 @@ TEST = "muxer_matrix::test_randomized_matrix_sample"
 def sampler_env(cache, strategy, output, fixed=None, seed=41):
     # A developer's defaults must not introduce another backend, seed, or history.
     env = {key: value for key, value in os.environ.items() if not key.startswith("ANNO_")}
+    # Carry the build identity into Cargo alongside the isolated sampler settings.
+    if "ANNO_GIT_COMMIT" in os.environ:
+        env["ANNO_GIT_COMMIT"] = os.environ["ANNO_GIT_COMMIT"]
     env.update(
         ANNO_CACHE_DIR=str(cache),
         ANNO_EVAL_HISTORY=str(cache / "eval-results.jsonl"),
