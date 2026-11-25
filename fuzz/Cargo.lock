@@ -481,7 +481,8 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.3.2"
-source = "git+https://github.com/arclabs561/textprep?rev=9318d6286cb035c7bb9deb73980e091f9779c5a8#9318d6286cb035c7bb9deb73980e091f9779c5a8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c89e63332c63688ee4bc4979fb43aef2b3eb5b2fdcb4ad165ac080f8059c8f7"
 dependencies = [
  "aho-corasick",
  "hmac-sha256",

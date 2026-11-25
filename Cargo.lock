@@ -1048,7 +1048,8 @@ checksum = "7eed2c4702fa172d1ce21078faa7c5203e69f5394d48cc436d25928394a867a2"
 [[package]]
 name = "deformat"
 version = "0.17.2"
-source = "git+https://github.com/arclabs561/deformat?rev=d1daa090d24b460289fb3aa5bb2ad2218b6684f8#d1daa090d24b460289fb3aa5bb2ad2218b6684f8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48d4672f0250c56a90a24be9f86fb3298e4ac5e7d1710bbc5523ec5fb449667d"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
@@ -4658,7 +4659,8 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.3.2"
-source = "git+https://github.com/arclabs561/textprep?rev=9318d6286cb035c7bb9deb73980e091f9779c5a8#9318d6286cb035c7bb9deb73980e091f9779c5a8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c89e63332c63688ee4bc4979fb43aef2b3eb5b2fdcb4ad165ac080f8059c8f7"
 dependencies = [
  "aho-corasick",
  "hmac-sha256",
