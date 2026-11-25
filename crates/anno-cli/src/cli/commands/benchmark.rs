@@ -32,7 +32,7 @@ pub struct BenchmarkArgs {
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub split_heavy_backends: bool,
 
-    /// Tasks to evaluate (comma-separated: ner,coref,relation). Default: all
+    /// Task codes to evaluate (for example ner,coref,relation). Defaults to all tasks.
     #[arg(short, long, value_delimiter = ',')]
     pub tasks: Option<Vec<String>>,
 
@@ -67,7 +67,8 @@ pub struct BenchmarkArgs {
     /// Optional JSON output path (machine-readable results).
     ///
     /// This writes the full `ComprehensiveEvalResults` structure so other tools can
-    /// aggregate/rank backends without parsing markdown.
+    /// aggregate/rank backends without parsing markdown. Split runs also retain each
+    /// isolated backend's JSON beside the combined file.
     #[arg(long, value_name = "PATH")]
     pub output_json: Option<String>,
 }
@@ -195,17 +196,12 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
             let mut parsed = Vec::new();
             for t in task_strs {
                 match t.to_lowercase().as_str() {
-                    "ner" | "ner_task" => parsed.push(Task::NER),
-                    "coref" | "coreference" | "intradoc_coref" => parsed.push(Task::IntraDocCoref),
-                    "re" | "relation" | "relation_extraction" => {
-                        parsed.push(Task::RelationExtraction)
-                    }
-                    other => {
-                        return Err(format!(
-                            "Unknown task: {}. Use: ner, coref, relation",
-                            other
-                        ));
-                    }
+                    // Preserve CLI spellings that predate the shared registry parser.
+                    "ner_task" => parsed.push(Task::NER),
+                    "coreference" | "intradoc_coref" => parsed.push(Task::IntraDocCoref),
+                    code => parsed.push(Task::from_code(code).ok_or_else(|| {
+                        format!("Unknown task: {t}. Use a task code such as ner, coref or relation")
+                    })?),
                 }
             }
             parsed
@@ -311,7 +307,8 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
             }
 
             // Continue with light backends in this process (if any).
-            if light.is_empty() {
+            let all_isolated = light.is_empty();
+            if all_isolated && args.output_json.is_none() {
                 return Ok(());
             }
 
@@ -426,9 +423,16 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
             }
             println!();
 
-            let mut combined = evaluator
-                .evaluate_all(config)
-                .map_err(|e| format!("Evaluation failed: {}", e))?;
+            // An empty backend list normally requests every compatible backend.
+            // In an all-isolated panel all rows already belong to child processes.
+            let mut results = if all_isolated {
+                Vec::new()
+            } else {
+                evaluator
+                    .evaluate_all(config)
+                    .map_err(|e| format!("Evaluation failed: {}", e))?
+                    .results
+            };
 
             let json_path = args
                 .output_json
@@ -437,8 +441,7 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
 
             // Merge heavy artifacts (JSON) into the combined result set.
             // Deduplicate exact (task,dataset,backend) triples in case of retries.
-            let mut seen: HashSet<(Task, DatasetId, String)> = combined
-                .results
+            let mut seen: HashSet<(Task, DatasetId, String)> = results
                 .iter()
                 .map(|r| (r.task, r.dataset, r.backend.clone()))
                 .collect();
@@ -452,12 +455,15 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                 for r in parsed.results {
                     let key = (r.task, r.dataset, r.backend.clone());
                     if seen.insert(key) {
-                        combined.results.push(r);
+                        results.push(r);
                     }
                 }
             }
 
-            combined.summary = summarize(&combined.results);
+            let combined = ComprehensiveEvalResults {
+                summary: summarize(&results),
+                results,
+            };
 
             // Print summary for the combined run.
             println!("=== Evaluation Summary ===");
