@@ -1,9 +1,13 @@
 import io
 import json
+import os
+from pathlib import Path
+from unittest.mock import patch
 import unittest
 
 from contextlib import redirect_stderr, redirect_stdout
 
+from replay_matrix_feedback import sampler_env
 from check_matrix_outcomes import RANDOM_TASKS, WIKIGOLD, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap, report_dataset_pools
 
 
@@ -23,6 +27,15 @@ class CoverageTest(unittest.TestCase):
     def accepted(self, rows):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             return check(map(json.dumps, rows))
+
+    def test_replay_preserves_build_revision_while_isolating_sampler_settings(self):
+        root = Path("/example")
+        with patch.dict(os.environ, {"ANNO_GIT_COMMIT": "a" * 40, "ANNO_WORST_SOFT_WEIGHT": "99"}, clear=True):
+            env = sampler_env(root, "random", root / "rows.jsonl")
+            self.assertEqual(env["ANNO_GIT_COMMIT"], "a" * 40)
+            self.assertEqual(env["ANNO_WORST_SOFT_WEIGHT"], "1")
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertNotIn("ANNO_GIT_COMMIT", sampler_env(root, "random", root / "rows.jsonl"))
 
     def test_zero_scores_and_a_failed_worst_first_attempt(self):
         rows = [outcome(task) for task in RANDOM_TASKS]
