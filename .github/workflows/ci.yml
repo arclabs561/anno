@@ -319,6 +319,7 @@ jobs:
           python3 scripts/qa/replay_feedback.py replay crossdoc_cases topic-scoped-homonyms
           python3 -m unittest discover -s scripts/qa -p 'test_crossdoc*.py'
       - name: Run integration tests
+        env: *unit-model-cache
         run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
         run: cargo test -p anno --doc --features discourse
