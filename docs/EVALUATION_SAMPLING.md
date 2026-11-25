@@ -173,9 +173,14 @@ worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
 policy still runs. With `ANNO_NO_DOWNLOADS=1`, the automatic sampler includes
-the Hub-backed GLiNER ONNX and GLiNER PII models when their active local Hub
-revision contains a supported graph and tokenizer. An explicit fixed GLiNER
-replay still attempts construction and records missing or invalid model assets.
+Hub-backed models whose required files are present in the selected local
+revision. BERT requires a graph, tokenizer and label configuration on the Hub.
+Base NuNER accepts FP32 graph names, while GLiNER multi-task also requires
+its configuration. Candle backends accept their supported tokenizer and weight
+variants. Fastino requires its pinned multi-graph export. A prepared W2NER
+export runs without a Hub token. Stacked, ensemble and TPLinker can execute their local
+fallbacks. An explicit fixed replay can exercise construction and record
+missing or invalid model files.
 `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
 test: it bypasses the policy and must not be used to evaluate it. Similarly,
 `ANNO_MUXER_FIXED_DATASETS` fixes the dataset panel when comparing policies.

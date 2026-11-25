@@ -79,6 +79,20 @@ pub struct CandleNER {
 
 #[cfg(feature = "candle")]
 impl CandleNER {
+    const CONFIG_FILES: &[&str] = &["config.json"];
+    const TOKENIZER_FILES: &[&str] = &["tokenizer.json", "vocab.txt"];
+    const NATIVE_WEIGHTS: &[&str] = &["model.safetensors"];
+
+    /// Check prerequisites for this Hub constructor without reading weights.
+    pub fn hub_assets_available(model: &str) -> bool {
+        crate::backends::hf_loader::candle_files_available(
+            model,
+            Self::CONFIG_FILES,
+            Self::TOKENIZER_FILES,
+            Self::NATIVE_WEIGHTS,
+        )
+    }
+
     /// Create a new CandleNER from a HuggingFace model.
     ///
     /// Reads `HF_TOKEN` from the process environment if set.
@@ -101,11 +115,11 @@ impl CandleNER {
         // Route every repo fetch through `download_model_file` so the
         // `ANNO_NO_DOWNLOADS` offline-mode contract is honored. Calling
         // `repo.get(...)` directly bypasses that guard.
-        let config_path = hf_loader::download_model_file(&repo, &["config.json"])?;
+        let config_path = hf_loader::download_model_file(&repo, Self::CONFIG_FILES)?;
         // Candle requires safetensors format - try to convert pytorch_model.bin if needed.
-        let weights_path = hf_loader::download_model_file(&repo, &["model.safetensors"])
+        let weights_path = hf_loader::download_model_file(&repo, Self::NATIVE_WEIGHTS)
             .or_else(|_| {
-                let pytorch_path = hf_loader::download_model_file(&repo, &["pytorch_model.bin"])?;
+                let pytorch_path = hf_loader::download_model_file(&repo, crate::backends::hf_loader::PYTORCH_WEIGHTS)?;
                 crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
             })
             .map_err(|e| Error::Retrieval(format!(
@@ -116,8 +130,7 @@ impl CandleNER {
                 e
             )))?;
         // Try tokenizer.json first, fall back to vocab.txt for older models.
-        let tokenizer_path =
-            hf_loader::download_model_file(&repo, &["tokenizer.json", "vocab.txt"])?;
+        let tokenizer_path = hf_loader::download_model_file(&repo, Self::TOKENIZER_FILES)?;
 
         // Parse config
         let config_str = std::fs::read_to_string(&config_path)

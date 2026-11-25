@@ -118,6 +118,44 @@ pub const SUPPORTED_GLINER2_FASTINO_MODEL: &str = "jugaadsrl/gliner2-multi-v1-on
 /// Immutable Hugging Face revision for [`SUPPORTED_GLINER2_FASTINO_MODEL`].
 pub const SUPPORTED_GLINER2_FASTINO_REVISION: &str = "4241d7c66b648e618c89c150bf4cf418d2f83159";
 
+const HUB_TOKENIZERS: [&str; 3] = [
+    "fp32_v2/tokenizer.json",
+    "fp16_v2/tokenizer.json",
+    "tokenizer.json",
+];
+
+fn hub_graph_candidates(role: &str) -> [String; 2] {
+    [
+        format!("fp32_v2/{role}_fp32.onnx"),
+        format!("fp16_v2/{role}_fp16.onnx"),
+    ]
+}
+
+fn snapshot_assets_available(snapshot: &Path) -> bool {
+    if !HUB_TOKENIZERS
+        .iter()
+        .any(|file| snapshot.join(file).is_file())
+        || !sessions::GRAPH_ROLES.iter().all(|role| {
+            hub_graph_candidates(role)
+                .iter()
+                .any(|file| snapshot.join(file).is_file())
+        })
+    {
+        return false;
+    }
+    // The local loader opens all sessions from the first complete layout.
+    // A tokenizer in another dtype subdirectory cannot serve this layout.
+    sessions::LAYOUTS
+        .iter()
+        .find_map(|&(dir, suffix)| {
+            let dir = snapshot.join(dir);
+            sessions::graph_paths(&dir, suffix, ExecutionMode::Standard).map(|_| {
+                dir.join("tokenizer.json").is_file() || snapshot.join("tokenizer.json").is_file()
+            })
+        })
+        .unwrap_or(false)
+}
+
 /// Inference execution mode.
 ///
 /// Phase 3 standard mode (`Standard`) round-trips tensors through Rust
@@ -253,6 +291,22 @@ impl std::fmt::Debug for GLiNER2Fastino {
 use std::path::Path;
 
 impl GLiNER2Fastino {
+    /// Whether automatic evaluation can resolve the pinned default model's
+    /// files. Cached graphs and tokenizer are validated by the constructor.
+    #[must_use]
+    pub fn default_assets_available() -> bool {
+        if !crate::backends::hf_loader::no_downloads() {
+            return true;
+        }
+        let repo = hf_hub::Repo::with_revision(
+            SUPPORTED_GLINER2_FASTINO_MODEL.to_owned(),
+            hf_hub::RepoType::Model,
+            SUPPORTED_GLINER2_FASTINO_REVISION.to_owned(),
+        );
+        let cache = hf_hub::Cache::from_env().repo(repo);
+        snapshot_assets_available(&cache.pointer_path(SUPPORTED_GLINER2_FASTINO_REVISION))
+    }
+
     /// Load with full configuration including execution mode.
     ///
     /// Use this when you need to opt into [`ExecutionMode::IoBinding`] or
@@ -436,15 +490,10 @@ impl GLiNER2Fastino {
 
         // Tokenizer + config are co-located with the ONNX files in dtype subdirs.
         // Try fp32_v2/ first, fall back to fp16_v2/, then root for backward compat.
-        let tokenizer_path = crate::backends::hf_loader::download_model_file(
-            &repo,
-            &[
-                "fp32_v2/tokenizer.json",
-                "fp16_v2/tokenizer.json",
-                "tokenizer.json",
-            ],
-        )
-        .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: download tokenizer: {e}")))?;
+        let tokenizer_path =
+            crate::backends::hf_loader::download_model_file(&repo, &HUB_TOKENIZERS).map_err(
+                |e| crate::Error::Backend(format!("gliner2_fastino: download tokenizer: {e}")),
+            )?;
         // config.json is optional — the supported export doesn't include it.
         // Try to download if present, but ignore 404s and fall back to defaults
         // in from_local.
@@ -455,21 +504,8 @@ impl GLiNER2Fastino {
 
         // Download the 8 v2 ONNX files. Try fp32_v2 first (clearer dtype
         // semantics for debugging), then fp16_v2 as fallback.
-        let bases = [
-            "encoder",
-            "token_gather",
-            "span_rep",
-            "schema_gather",
-            "count_pred_argmax",
-            "count_lstm_fixed",
-            "scorer",
-            "classifier",
-        ];
-        for base in &bases {
-            let candidates = [
-                format!("fp32_v2/{base}_fp32.onnx"),
-                format!("fp16_v2/{base}_fp16.onnx"),
-            ];
+        for base in sessions::GRAPH_ROLES {
+            let candidates = hub_graph_candidates(base);
             let candidate_refs: Vec<&str> = candidates.iter().map(String::as_str).collect();
             crate::backends::hf_loader::download_model_file(&repo, &candidate_refs).map_err(
                 |e| crate::Error::Backend(format!("gliner2_fastino: download {base}: {e}")),
@@ -526,6 +562,37 @@ impl GLiNER2Fastino {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offline_assets_require_one_complete_layout_and_its_tokenizer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let snapshot = tmp.path();
+        let fp32 = snapshot.join("fp32_v2");
+        let fp16 = snapshot.join("fp16_v2");
+        std::fs::create_dir(&fp32).unwrap();
+        std::fs::create_dir(&fp16).unwrap();
+        std::fs::write(fp16.join("tokenizer.json"), b"authored").unwrap();
+        for (idx, role) in sessions::GRAPH_ROLES.iter().enumerate() {
+            let candidate = &hub_graph_candidates(role)[idx % 2];
+            std::fs::write(snapshot.join(candidate), b"authored").unwrap();
+        }
+        assert!(
+            !snapshot_assets_available(snapshot),
+            "graphs split across dtypes"
+        );
+        for role in sessions::GRAPH_ROLES {
+            std::fs::write(snapshot.join(&hub_graph_candidates(role)[0]), b"authored").unwrap();
+        }
+        assert!(
+            !snapshot_assets_available(snapshot),
+            "other dtype's tokenizer"
+        );
+        std::fs::write(snapshot.join("tokenizer.json"), b"authored").unwrap();
+        assert!(
+            snapshot_assets_available(snapshot),
+            "root tokenizer and complete fp32 set"
+        );
+    }
 
     #[test]
     fn supported_snapshot_is_explicit_and_opt_in() {

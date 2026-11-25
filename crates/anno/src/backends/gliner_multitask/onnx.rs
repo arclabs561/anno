@@ -36,6 +36,11 @@ pub struct GLiNERMultitaskOnnx {
 
 #[cfg(feature = "onnx")]
 impl GLiNERMultitaskOnnx {
+    /// Check the default constructor's graph, tokenizer and configuration.
+    pub fn hub_assets_available(model: &str) -> bool {
+        crate::backends::hf_loader::hub_onnx_files_available(model, false, true)
+    }
+
     /// Load model from HuggingFace Hub.
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;

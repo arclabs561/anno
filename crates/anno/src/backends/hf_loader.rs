@@ -166,6 +166,47 @@ pub(crate) const QUANTIZED_ONNX_PATHS: &[&str] = &[
 #[cfg(any(feature = "onnx", test))]
 pub(crate) const FP32_ONNX_PATHS: &[&str] = &["onnx/model.onnx", "model.onnx"];
 
+#[cfg(feature = "candle")]
+pub(crate) const PYTORCH_WEIGHTS: &[&str] = &["pytorch_model.bin"];
+
+/// A native Candle model can also load a legacy checkpoint through conversion.
+#[cfg(feature = "candle")]
+pub(crate) fn candle_files_available(
+    model: &str,
+    config: &[&str],
+    tokenizer: &[&str],
+    weights: &[&str],
+) -> bool {
+    if !no_downloads() {
+        return true;
+    }
+    let repo = hf_hub::Cache::from_env().model(model.to_owned());
+    let any_present = |names: &[&str]| {
+        names
+            .iter()
+            .any(|name| repo.get(name).is_some_and(|path| path.is_file()))
+    };
+    any_present(config)
+        && any_present(tokenizer)
+        && (any_present(weights) || any_present(PYTORCH_WEIGHTS))
+}
+
+/// Check exactly the graph variants the loader can use, without opening weights.
+#[cfg(feature = "onnx")]
+pub(crate) fn cached_hub_onnx_files(model: &str, quantized: bool, require_config: bool) -> bool {
+    let repo = hf_hub::Cache::from_env().model(model.to_owned());
+    let present = |name: &str| repo.get(name).is_some_and(|path| path.is_file());
+    present("tokenizer.json")
+        && (!require_config || present("config.json"))
+        && (FP32_ONNX_PATHS.iter().any(|name| present(name))
+            || quantized && QUANTIZED_ONNX_PATHS.iter().any(|name| present(name)))
+}
+
+#[cfg(feature = "onnx")]
+pub(crate) fn hub_onnx_files_available(model: &str, quantized: bool, require_config: bool) -> bool {
+    !no_downloads() || cached_hub_onnx_files(model, quantized, require_config)
+}
+
 /// Try to download a quantized ONNX model, falling back to FP32.
 ///
 /// Tries quantized variants first (if `prefer_quantized` is true), then falls back

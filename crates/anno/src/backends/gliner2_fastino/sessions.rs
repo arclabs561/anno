@@ -68,6 +68,43 @@ impl std::fmt::Debug for Sessions {
     }
 }
 
+pub(super) const GRAPH_ROLES: [&str; 8] = [
+    "encoder",
+    "token_gather",
+    "span_rep",
+    "schema_gather",
+    "count_pred_argmax",
+    "count_lstm_fixed",
+    "scorer",
+    "classifier",
+];
+pub(super) const LAYOUTS: [(&str, &str); 4] = [
+    ("fp32_v2", "_fp32.onnx"),
+    ("fp16_v2", "_fp16.onnx"),
+    ("fp32", "_fp32.onnx"),
+    ("fp16", "_fp16.onnx"),
+];
+
+/// Resolve one complete layout using the same graph names as the Hub download.
+pub(super) fn graph_paths(
+    dir: &Path,
+    suffix: &str,
+    mode: super::ExecutionMode,
+) -> Option<Vec<(String, std::path::PathBuf)>> {
+    GRAPH_ROLES
+        .iter()
+        .map(|&name| {
+            let io = dir.join(format!("{name}_iobinding{suffix}"));
+            let path = if matches!(mode, super::ExecutionMode::IoBinding) && io.is_file() {
+                io
+            } else {
+                dir.join(format!("{name}{suffix}"))
+            };
+            path.is_file().then(|| (name.to_owned(), path))
+        })
+        .collect()
+}
+
 impl Sessions {
     /// Files selected for the live ONNX sessions, named by pipeline role.
     pub fn artifact_paths(&self) -> &[(String, std::path::PathBuf)] {
@@ -103,57 +140,11 @@ impl Sessions {
         // and `fp16/` are the legacy v1 layout (5 graphs, missing
         // token_gather/schema_gather/count_pred_argmax/count_lstm_fixed).
         // The `all_present` guard below filters incompatible layouts.
-        for (subdir, suffix) in [
-            ("fp32_v2", "_fp32.onnx"),
-            ("fp16_v2", "_fp16.onnx"),
-            ("fp32", "_fp32.onnx"), // v1 fallback — likely won't match
-            ("fp16", "_fp16.onnx"), // v1 fallback
-        ] {
+        for (subdir, suffix) in LAYOUTS {
             let try_dir = model_dir.join(subdir);
-            if !try_dir.is_dir() {
+            let Some(paths) = graph_paths(&try_dir, suffix, mode) else {
                 continue;
-            }
-            // Resolve a session's filename. In IoBinding mode, prefer the
-            // `_iobinding`-suffixed variant if it exists; fall back to the
-            // standard filename otherwise. In Standard mode, always pick
-            // the standard filename.
-            let resolve = |name: &str| -> std::path::PathBuf {
-                if matches!(mode, super::ExecutionMode::IoBinding) {
-                    let io = try_dir.join(format!("{name}_iobinding{suffix}"));
-                    if io.exists() {
-                        return io;
-                    }
-                }
-                try_dir.join(format!("{name}{suffix}"))
             };
-            let all_present = [
-                "encoder",
-                "token_gather",
-                "span_rep",
-                "schema_gather",
-                "count_pred_argmax",
-                "count_lstm_fixed",
-                "scorer",
-                "classifier",
-            ]
-            .iter()
-            .all(|n| resolve(n).exists());
-            if !all_present {
-                continue;
-            }
-            let paths: Vec<(String, std::path::PathBuf)> = [
-                "encoder",
-                "token_gather",
-                "span_rep",
-                "schema_gather",
-                "count_pred_argmax",
-                "count_lstm_fixed",
-                "scorer",
-                "classifier",
-            ]
-            .iter()
-            .map(|name| ((*name).to_string(), resolve(name)))
-            .collect();
             let selected = |name: &str| {
                 paths
                     .iter()

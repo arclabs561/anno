@@ -2412,27 +2412,12 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     });
 
     let mut out: Vec<String> = Vec::new();
-    // Some ML backends require gated HuggingFace models. If no token is present, they will always
-    // be “skipped” and waste matrix budget.
+    // A cold gated Hub request may need a token. Prepared local exports can run without one.
     anno::env::load_dotenv();
     let has_hf_token = anno::env::has_hf_token();
     for b in allowed {
-        if b == "w2ner" && !has_hf_token {
+        if !fixed && !BackendFactory::automatic_files_available(b, has_hf_token) {
             continue;
-        }
-
-        // Fixed replays exercise construction even when prerequisites are missing.
-        // Automatic sampling spends its budget on models the current job can load.
-        #[cfg(feature = "onnx")]
-        if !fixed {
-            let hub_model = match b {
-                "gliner" | "gliner_onnx" => Some(anno::DEFAULT_GLINER_MODEL),
-                "gliner_pii" => Some(anno::models::GLINER_PII),
-                _ => None,
-            };
-            if hub_model.is_some_and(|id| !anno::GLiNEROnnx::hub_assets_available(id)) {
-                continue;
-            }
         }
 
         // Baselines: always include if present in this build.
@@ -3407,12 +3392,17 @@ fn test_matrix_coverage_report() {
             if !feature_backends.is_empty() {
                 // Most common reasons:
                 // - ML gating (`ANNO_ML_IN_MATRIX`): feature-enabled, but excluded from matrix by default.
-                // - Missing HF token: some arms are gated because they'd always skip.
-                if feature_backends.iter().any(|b| b == "w2ner") && !anno::env::has_hf_token() {
-                    notes.push(
-                        "backends exist but are gated (set HF_API_TOKEN to enable w2ner)"
-                            .to_string(),
-                    );
+                let has_hf_token = anno::env::has_hf_token();
+                let missing_assets: Vec<_> = feature_backends
+                    .iter()
+                    .filter(|name| !BackendFactory::automatic_files_available(name, has_hf_token))
+                    .map(String::as_str)
+                    .collect();
+                if !missing_assets.is_empty() {
+                    notes.push(format!(
+                        "model files unavailable under current cache and download settings ({})",
+                        missing_assets.join(", ")
+                    ));
                 }
                 if feature_backends.iter().any(|b| {
                     matches!(

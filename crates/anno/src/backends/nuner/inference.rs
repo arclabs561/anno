@@ -85,6 +85,12 @@ impl NuNER {
         })
     }
 
+    /// Check the FP32 graph and tokenizer used by the standard Hub constructor.
+    #[cfg(feature = "onnx")]
+    pub fn hub_assets_available(model: &str) -> bool {
+        crate::backends::hf_loader::hub_onnx_files_available(model, false, false)
+    }
+
     /// Whether the graph and tokenizer for the local 4k export are installed.
     #[cfg(feature = "onnx")]
     #[must_use]
