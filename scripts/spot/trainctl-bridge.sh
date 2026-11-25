@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./trainctl-bridge.sh dashboard        # Launch interactive dashboard
-#   ./trainctl-bridge.sh sync-datasets    # Sync datasets using trainctl s3
+#   ./trainctl-bridge.sh sync-datasets    # Download datasets using the shared filters
 #   ./trainctl-bridge.sh sync-results     # Download results using trainctl s3
 #   ./trainctl-bridge.sh processes <id>   # Show processes on instance
 #   ./trainctl-bridge.sh top <id>         # Interactive top for instance
@@ -18,6 +18,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/config.env" 2>/dev/null || true
+
+# trainctl's recursive sync cannot apply the shared dataset exclusions.
+case "${1:-}" in
+    sync-datasets|sync-ds)
+        ANNO_S3_BUCKET="s3://${ANNO_SPOT_BUCKET:-arc-anno-data}" \
+        ANNO_CACHE_DIR="${ANNO_CACHE_DIR:-$HOME/.cache/anno}" \
+            exec "$SCRIPT_DIR/../sync_datasets_s3.sh" download-datasets
+        ;;
+esac
 
 # Find trainctl binary
 find_trainctl() {
@@ -48,15 +57,6 @@ case "${1:-help}" in
         # Launch trainctl interactive dashboard
         echo "Launching trainctl dashboard..."
         $TRAINCTL monitor --dashboard --update-interval 5
-        ;;
-        
-    sync-datasets|sync-ds)
-        # Sync datasets to local cache using trainctl's fast S3
-        LOCAL_CACHE="${ANNO_CACHE_DIR:-$HOME/.cache/anno}"
-        echo "Syncing datasets from s3://$BUCKET/datasets/ to $LOCAL_CACHE/datasets/"
-        mkdir -p "$LOCAL_CACHE/datasets"
-        $TRAINCTL s3 sync "$LOCAL_CACHE/datasets" "s3://$BUCKET/datasets" --direction down
-        echo "Datasets synced to $LOCAL_CACHE/datasets/"
         ;;
         
     sync-results|sync-res)
@@ -151,7 +151,7 @@ trainctl-bridge: Use trainctl for enhanced spot evaluation
 
 Commands:
   dashboard         Launch interactive ratatui dashboard
-  sync-datasets     Sync datasets from S3 (fast parallel download)
+  sync-datasets     Download permitted datasets from S3 (s5cmd or aws)
   sync-results      Download evaluation results from S3
   upload-src        Upload source code to S3
   processes <id>    Show processes on instance (default: first worker)
