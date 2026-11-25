@@ -129,6 +129,7 @@ def model_identity(backend, mode):
         pins = json.loads(
             (Path(__file__).resolve().parents[2] / "crates/anno/src/backends/coref/maverick_models.json").read_text()
         )
+        checkpoint = pins["MODELS"]["ontonotes"]
         reqs = Path(__file__).with_name("maverick") / "requirements-cpu-py312.txt"
         names = {"maverick-coref", "pytorch-lightning", "safetensors", "spacy", "tokenizers", "torch", "transformers"}
         required = dict(
@@ -154,17 +155,17 @@ def model_identity(backend, mode):
             != os.environ["HF_HUB_CACHE"]
         ):
             raise ValueError("Maverick must use the verified HF_HUB_CACHE")
-        check_file(os.environ["MAVERICK_MODEL_PATH"], pins["SAFETENSORS_SHA256"])
+        check_file(os.environ["MAVERICK_MODEL_PATH"], checkpoint["prepared_sha256"])
         cached = Path(os.environ["HF_HUB_CACHE"]) / (
             "models--" + pins["ENCODER"].replace("/", "--")
         )
         for name, digest in pins["ENCODER_FILES"].items():
             check_file(cached / "snapshots" / pins["ENCODER_REVISION"] / name, digest)
         model.update(
-            repo="sapienzanlp/maverick-mes-ontonotes",
-            revision=pins["MODEL_REVISION"],
-            sha256=pins["SAFETENSORS_SHA256"],
-            source_sha256=pins["MODEL_SHA256"],
+            repo=checkpoint["repo"],
+            revision=checkpoint["revision"],
+            sha256=checkpoint["prepared_sha256"],
+            source_sha256=checkpoint["source_sha256"],
             encoder=pins["ENCODER"],
             encoder_revision=pins["ENCODER_REVISION"],
             singletons=False,

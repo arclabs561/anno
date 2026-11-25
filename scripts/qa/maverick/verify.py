@@ -17,7 +17,7 @@ def main():
     hub = root / "hub"
     checkpoint = download_model("ontonotes", root, cache_dir=hub)
     with checkpoint.open("rb") as stream:
-        if hashlib.file_digest(stream, "sha256").hexdigest() != PINS["SAFETENSORS_SHA256"]:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != PINS["MODELS"]["ontonotes"]["prepared_sha256"]:
             raise ValueError("prepared tensor digest mismatch")
     env = {
         **os.environ,

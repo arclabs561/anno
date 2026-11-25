@@ -42,8 +42,16 @@ def resolve(model, tokenizer, text, mentions, singletons):
     return clusters
 
 
-def prepared_checkpoint(checkpoint):
-    model_ids = {f"sapienzanlp/maverick-mes-{name}": name for name in ("ontonotes", "litbank", "preco")}
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def prepared_checkpoint(checkpoint, models):
+    model_ids = {info["repo"]: name for name, info in models.items()}
     if checkpoint in model_ids:
         cache = os.environ.get("ANNO_CACHE_DIR")
         if not cache:
@@ -54,6 +62,8 @@ def prepared_checkpoint(checkpoint):
         path = Path(cache) / "models" / "maverick" / f"maverick-{name}.safetensors"
         if not path.is_file():
             raise ValueError(f"prepare {checkpoint} with scripts/download_maverick_weights.py --model {name}")
+        if sha256_file(path) != models[name]["prepared_sha256"]:
+            raise ValueError(f"prepared checkpoint digest mismatch for {checkpoint}")
     else:
         path = Path(checkpoint)
         if path.suffix != ".safetensors" or not path.is_file():
@@ -80,16 +90,12 @@ def verify_encoder(pins, *, cache_dir=None, directory=None):
             except OSError:
                 shutil.copyfile(source, destination)
             source = destination
-        digest = hashlib.sha256()
-        with source.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(block)
-        if digest.hexdigest() != expected:
+        if sha256_file(source) != expected:
             raise ValueError(f"encoder digest mismatch for {name}")
 
 
 def load_model(checkpoint, pins):
-    checkpoint = prepared_checkpoint(checkpoint)
+    checkpoint = prepared_checkpoint(checkpoint, pins["MODELS"])
     from maverick import Maverick
     from maverick.models.model_mes import Maverick_mes
     from safetensors.torch import load_file
