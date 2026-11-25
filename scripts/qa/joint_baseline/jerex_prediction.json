@@ -1,0 +1,87 @@
+[
+  {
+    "tokens": [
+      "Marie",
+      "Curie",
+      "was",
+      "born",
+      "in",
+      "Warsaw",
+      ".",
+      "Curie",
+      "later",
+      "moved",
+      "to",
+      "Paris",
+      ".",
+      "She",
+      "lived",
+      "in",
+      "France",
+      "."
+    ],
+    "mentions": [
+      {
+        "start": 5,
+        "end": 6,
+        "confidence": 0.999992847442627
+      },
+      {
+        "start": 0,
+        "end": 2,
+        "confidence": 0.998479425907135
+      },
+      {
+        "start": 7,
+        "end": 8,
+        "confidence": 0.9999886751174927
+      },
+      {
+        "start": 11,
+        "end": 12,
+        "confidence": 0.9999315738677979
+      },
+      {
+        "start": 16,
+        "end": 17,
+        "confidence": 0.9999879598617554
+      }
+    ],
+    "entities": [
+      {
+        "mentions": [
+          1,
+          2
+        ],
+        "type": "PER"
+      },
+      {
+        "mentions": [
+          4
+        ],
+        "type": "LOC"
+      },
+      {
+        "mentions": [
+          0
+        ],
+        "type": "LOC"
+      },
+      {
+        "mentions": [
+          3
+        ],
+        "type": "LOC"
+      }
+    ],
+    "relations": [
+      {
+        "head": 0,
+        "tail": 2,
+        "type": "P19"
+      }
+    ],
+    "title": "joint-baseline-curie",
+    "checkpoint_sha256": "55bf677bcdfa66973a4e22859051327dd63bfd7a249e5b3e34cd08b95681d4c2"
+  }
+]
