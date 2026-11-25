@@ -73,16 +73,17 @@ impl Default for RegexNER {
 static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
-// A serial field can contain a perfectly valid ISO substring. Limit its scope to
-// the field's value token, so a sibling date field or a date-bearing filename
-// elsewhere still reaches the ISO matcher.
+// An ID field owns its complete value. In compound IDs, an embedded ISO date
+// may actually encode the production or inspection date; suppress that component
+// only if the field itself identifies the code as opaque or random.
 static IDENTIFIER_VALUES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"(?ix)\b(?:ids?|identifiers?|numbers?|skus?|serials?|",
+        r"(?ix)\b(?:(?P<opaque>opaque|random)[\t\p{Zs}]+(?:\p{L}+[\t\p{Zs}]+){0,2})?",
+        r"(?:ids?|identifiers?|numbers?|skus?|serials?|",
         r"(?:serial|lot|batch|accession|catalog(?:ue)?|inventory|part|booking|badge)",
         r"[\t\p{Zs}]+(?:no\.?|codes?|keys?))",
         r#"(?:["'”’]?[\t\p{Zs}]*[:=][\t\p{Zs}]*|[\t\p{Zs}]+(?:is|was)[\t\p{Zs}]+)"#,
-        r#"["'“‘«]?[\p{L}\p{N}_.‑-]+"#,
+        r#"["'“‘«]?(?P<value>[\p{L}\p{N}_.‑-]+)"#,
     ))
     .expect("valid regex")
 });
@@ -520,7 +521,15 @@ impl Model for RegexNER {
 
         // Dates (high confidence - very specific patterns)
         let date_text = table::with_cell_boundaries(text);
-        let mut identifiers = IDENTIFIER_VALUES.find_iter(&date_text).peekable();
+        let mut identifiers = IDENTIFIER_VALUES
+            .captures_iter(&date_text)
+            .filter_map(|caps| {
+                let value = caps.name("value").expect("identifier value capture");
+                let token = value.as_str().trim_end_matches('.');
+                let bare_date = DATE_ISO.find(token).is_some_and(|m| m.as_str() == token);
+                (bare_date || caps.name("opaque").is_some()).then_some(value)
+            })
+            .peekable();
         for m in DATE_ISO.find_iter(&date_text) {
             while identifiers.next_if(|id| id.end() <= m.start()).is_some() {}
             if !identifiers.peek().is_some_and(|id| id.start() <= m.start())
@@ -860,9 +869,10 @@ mod tests {
     #[test]
     fn iso_identifier_fields_end_before_neighboring_dates() {
         let source = concat!(
-            "📦 Serial: KT-2028-01-19-Q; inspection date: 2028-01-21. ",
+            "📦 Opaque serial: KT-2028-01-19-Q; inspection date: 2028-01-21. ",
             "The lot number is 2068-03-15. Booking: 2026-12-11. ",
             "The meeting date is embedded in ref MTG-2025-04-08-A. ",
+            "The batch ID contains its production date. Batch ID: MFG-2024-02-29-Q. ",
             "The manifest reads {\"id\":\"2023-07-06\"}.",
         );
         let dates: Vec<_> = extract(source)
@@ -870,7 +880,10 @@ mod tests {
             .filter(|e| e.entity_type == EntityType::Date)
             .map(|e| e.text)
             .collect();
-        assert_eq!(dates, ["2028-01-21", "2026-12-11", "2025-04-08"]);
+        assert_eq!(
+            dates,
+            ["2028-01-21", "2026-12-11", "2025-04-08", "2024-02-29"]
+        );
     }
 
     #[test]
