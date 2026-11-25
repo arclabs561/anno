@@ -2,15 +2,21 @@
 //! A durable local corpus. The ordered SQLite journal is the authoritative state.
 //! Recording an accepted operation commits its effects and its receipt together.
 use anno::core::grounded::{
-    Corpus, DeliveryError, DeliveryOutcome, DeliveryReview, DocumentDelivery, KbAssignmentPreview,
-    TrackRef,
+    Corpus, DeliveryError, DeliveryOutcome, DeliveryReview, DocumentDelivery, GroundedDocument,
+    KbAssignmentPreview, TrackRef,
 };
 use clap::{Args, Subcommand};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{error::Error, fs, io, path::PathBuf, time::Duration};
+use std::{
+    error::Error,
+    fs,
+    io::{self, Write},
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -37,6 +43,15 @@ enum Action {
     },
     /// Print a current grounded document using the document_id in a delivery receipt.
     Read { document_id: String },
+    /// Print the requested documents in argument order from one verified journal head.
+    ReadMany {
+        /// Require the current verified head to match this preview head.
+        #[arg(long, value_name = "HEAD")]
+        at_head: Option<String>,
+        /// One to 128 document IDs from delivery receipts or a review scope.
+        #[arg(required = true, num_args = 1..=128, value_name = "DOCUMENT_ID")]
+        document_ids: Vec<String>,
+    },
 }
 
 #[derive(Args)]
@@ -189,20 +204,24 @@ fn replay(tx: &rusqlite::Transaction<'_>) -> Result<(Corpus, String)> {
     Ok((corpus, head))
 }
 
-fn execute(args: CorpusArgs) -> Result<Value> {
-    // Read the request before taking the database lock.
-    let request = match &args.action {
-        Action::Preview(files) | Action::Apply { files, .. } => Some(files.read()?),
-        Action::Read { .. } => None,
-    };
-    let reading = matches!(args.action, Action::Read { .. });
-    let mut db = if reading {
-        Connection::open_with_flags(args.store, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?
-    } else {
-        Connection::open(args.store)?
-    };
+fn read_snapshot(store: &Path) -> Result<(Corpus, String)> {
+    let mut db = Connection::open_with_flags(store, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     db.busy_timeout(Duration::from_secs(15))?;
-    if !reading && !db.table_exists(None, "corpus_origin")? {
+    let tx = db.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    replay(&tx)
+}
+
+fn operate(
+    store: &Path,
+    files: &OperationFiles,
+    apply: bool,
+    approval: Option<&str>,
+) -> Result<Value> {
+    // Read the request before taking the database lock.
+    let (operation, payload) = files.read()?;
+    let mut db = Connection::open(store)?;
+    db.busy_timeout(Duration::from_secs(15))?;
+    if !db.table_exists(None, "corpus_origin")? {
         db.execute_batch("BEGIN IMMEDIATE;
         CREATE TABLE IF NOT EXISTS corpus_origin(id INTEGER PRIMARY KEY CHECK(id=1), origin TEXT NOT NULL, head TEXT);
         INSERT OR IGNORE INTO corpus_origin(id,origin) VALUES (1,lower(hex(randomblob(32))));
@@ -210,7 +229,6 @@ fn execute(args: CorpusArgs) -> Result<Value> {
             operation TEXT NOT NULL, payload BLOB NOT NULL, receipt TEXT NOT NULL, proposal TEXT NOT NULL);
         COMMIT;")?;
     }
-    let apply = matches!(args.action, Action::Apply { .. });
     let behavior = if apply {
         TransactionBehavior::Immediate
     } else {
@@ -218,18 +236,7 @@ fn execute(args: CorpusArgs) -> Result<Value> {
     };
     let tx = db.transaction_with_behavior(behavior)?;
     let (mut corpus, head) = replay(&tx)?;
-    if let Action::Read { document_id } = &args.action {
-        let document = corpus
-            .get_document(document_id)
-            .ok_or("unknown corpus document")?;
-        return Ok(serde_json::to_value(document)?);
-    }
-    let (operation, payload) = request.ok_or("missing corpus operation")?;
     let index = serde_json::to_string(&operation)?;
-    let approval = match &args.action {
-        Action::Apply { approval, .. } => approval.as_ref(),
-        _ => None,
-    };
     if let Some(approval) = approval {
         // An acknowledged review may itself be retried after its target was replaced.
         let previous: Option<String> = tx
@@ -265,7 +272,7 @@ fn execute(args: CorpusArgs) -> Result<Value> {
     if !apply {
         return Ok(json!({"head":head, "approval":token, "proposal":proposal}));
     }
-    if approval.is_some_and(|a| a != &token) {
+    if approval.is_some_and(|a| a != token) {
         return Err("stale, foreign or mismatched corpus approval; preview again".into());
     }
     let result = prepared.commit(&mut corpus, approval.is_some())?;
@@ -288,11 +295,74 @@ fn execute(args: CorpusArgs) -> Result<Value> {
     Ok(result)
 }
 
-pub fn run(args: CorpusArgs) -> std::result::Result<(), String> {
-    let value = execute(args).map_err(|e| e.to_string())?;
-    serde_json::to_writer(io::stdout().lock(), &value).map_err(|e| e.to_string())?;
-    println!();
+// The existing read contract passes through Value. In particular this widens
+// binary32 embedding coordinates before choosing their JSON representation.
+struct ReadDocument<'a>(&'a GroundedDocument);
+
+impl Serialize for ReadDocument<'_> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serde_json::to_value(self.0)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+}
+
+#[derive(Serialize)]
+struct DocumentsAtHead<'a> {
+    head: String,
+    documents: Vec<ReadDocument<'a>>,
+}
+
+fn print_json(value: &impl Serialize) -> Result<()> {
+    let mut out = io::stdout().lock();
+    serde_json::to_writer(&mut out, value)?;
+    writeln!(out)?;
     Ok(())
+}
+
+fn execute(args: CorpusArgs) -> Result<()> {
+    match args.action {
+        Action::Read { document_id } => {
+            let (corpus, _) = read_snapshot(&args.store)?;
+            let document = corpus
+                .get_document(&document_id)
+                .ok_or("unknown corpus document")?;
+            print_json(&ReadDocument(document))
+        }
+        Action::ReadMany {
+            at_head,
+            document_ids,
+        } => {
+            let (corpus, head) = read_snapshot(&args.store)?;
+            if at_head.as_ref().is_some_and(|expected| expected != &head) {
+                return Err(
+                    "corpus head changed or belongs to a different journal; preview again".into(),
+                );
+            }
+            // Resolve the entire selection before publishing any bytes.
+            let documents = document_ids
+                .iter()
+                .map(|id| {
+                    corpus
+                        .get_document(id)
+                        .map(ReadDocument)
+                        .ok_or_else(|| format!("unknown corpus document {id:?}"))
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            print_json(&DocumentsAtHead { head, documents })
+        }
+        Action::Preview(files) => print_json(&operate(&args.store, &files, false, None)?),
+        Action::Apply { files, approval } => {
+            print_json(&operate(&args.store, &files, true, approval.as_deref())?)
+        }
+    }
+}
+
+pub fn run(args: CorpusArgs) -> std::result::Result<(), String> {
+    execute(args).map_err(|err| err.to_string())
 }
 
 #[cfg(test)]
@@ -302,16 +372,15 @@ mod tests {
     use tempfile::tempdir;
 
     fn deliver_in(path: &std::path::Path) -> Result<Value> {
-        execute(CorpusArgs {
-            store: path.join("corpus.sqlite"),
-            action: Action::Apply {
-                files: OperationFiles {
-                    operation: path.join("request.json"),
-                    document: Some(path.join("doc.json")),
-                },
-                approval: None,
+        operate(
+            &path.join("corpus.sqlite"),
+            &OperationFiles {
+                operation: path.join("request.json"),
+                document: Some(path.join("doc.json")),
             },
-        })
+            true,
+            None,
+        )
     }
 
     // Invoked in a new test process so abrupt death discards the real writer connection.
