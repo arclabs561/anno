@@ -5,8 +5,8 @@ import os
 import random
 import runpy
 import unittest
-from coref_gap import check_file, measure
-from coref_litbank import index_partition, score_doc, summarize
+from coref_gap import check_file, index_partition, measure
+from coref_litbank import score_doc, summarize
 
 
 class PanelScores(unittest.TestCase):
@@ -53,6 +53,21 @@ class PanelScores(unittest.TestCase):
         result = measure([doc], [out], "fixture")
         self.assertEqual(result["per_id"], ["11010"])
         self.assertEqual(result["counts"]["f1"], 1)
+
+    def test_gap_rejects_a_mention_assigned_to_two_clusters(self):
+        p, a, b = (0, 1), (2, 3), (4, 5)
+        doc = ("t", "P A B", [p, a, b], [True, False])
+        out = {"id": "t", "producer": "fixture", "clusters": [[p, a], [p, b]]}
+        with self.assertRaisesRegex(ValueError, "overlapping cluster assignment"):
+            measure([doc], [out], "fixture")
+
+    def test_gap_with_no_gold_or_predicted_links(self):
+        doc = ("t", "P A B", [(0, 1), (2, 3), (4, 5)], [False, False])
+        out = {"id": "t", "producer": "fixture", "clusters": []}
+        counts = measure([doc], [out], "fixture")["counts"]
+        self.assertEqual((counts["tn"], counts["exact_decisions"]), (2, 1))
+        for metric in ("precision", "recall", "f1"):
+            self.assertIsNone(counts[metric])
 
     def test_missing_mention_and_singleton_have_distinct_denominators(self):
         a, b, c, d = ((i, i + 1) for i in range(4))
