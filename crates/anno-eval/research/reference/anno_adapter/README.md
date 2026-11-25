@@ -86,7 +86,7 @@ same gold occurrence cannot create an antecedent opportunity.
   tallies wrong or impure accepted targets separately.
 - **Exact gold cluster** requires every raw member to align to a distinct
   resolved occurrence for one gold identity and all its gold members to
-  be present. Explicit negatives, unknown spans, unresolved mentions and
+  be present in that cluster alone. Explicit negatives, unknown spans, unresolved mentions and
   excluded noncontiguous members disqualify exactness.
 - Native counts summarize published tracks. Replay counts include a
   singleton for an unattached signal. The array capacity counts only the

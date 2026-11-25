@@ -115,6 +115,10 @@ def partitions(groups, locations, mentions, lookup, negatives):
         if (person := mention["person_id"]) is not None:
             gold_groups[person].add(mention_id)
     owners = defaultdict(set)
+    for key, group in groups.items():
+        for signal in group:
+            if signal in locations and locations[signal] in lookup:
+                owners[lookup[locations[signal]]].add(key)
     track_rows = []
     for key, group in groups.items():
         excluded = [q for q in group if q not in locations]
@@ -126,8 +130,6 @@ def partitions(groups, locations, mentions, lookup, negatives):
         unjudged = sum(p not in lookup and p not in negatives for p in spans_in_group)
         distractors = sum(p in negatives for p in spans_in_group)
         unresolved = sum(mentions[q]["person_id"] is None for q in mapped)
-        for q in mapped:
-            owners[q].add(key)
         track_rows.append({
             "cluster_id": key,
             "signal_ids": group,
@@ -138,6 +140,7 @@ def partitions(groups, locations, mentions, lookup, negatives):
                 len(people) == 1
                 and not (excluded or unjudged or distractors or unresolved or duplicate_occurrences)
                 and mapped == gold_groups[next(iter(people))]
+                and all(len(owners[q]) == 1 for q in mapped)
             ),
             "excluded_signal_ids": excluded,
             "duplicate_gold_occurrences": duplicate_occurrences,

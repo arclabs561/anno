@@ -58,6 +58,16 @@ class PredictedMentionAdapterTests(unittest.TestCase):
         self.assertEqual(partitions({3: [7]}, locations, mention, lookup, set())
                          ["clusters"]["exact_gold_clusters"], 1)
 
+    def test_one_gold_occurrence_in_multiple_tracks_disqualifies_both(self):
+        locations = {7: (0, 2), 8: (0, 3), 9: (5, 6)}
+        mentions = {"a": {"person_id": "x"}, "b": {"person_id": "y"}}
+        lookup = {(0, 2): "a", (0, 3): "a", (5, 6): "b"}
+        report = partitions({1: [7], 2: [8], 3: [9]}, locations, mentions, lookup, set())
+        self.assertEqual(report["clusters"]["gold_mentions_in_multiple_predicted_clusters"], 1)
+        self.assertEqual(report["clusters"]["exact_gold_clusters"], 1)
+        self.assertEqual([r["exact_gold_cluster"] for r in report["cluster_details"]],
+                         [False, False, True])
+
     def test_missed_and_wrong_pairs_have_separate_denominators(self):
         locations = {7: (0, 1), 11: (2, 3), 19: (4, 5)}
         mentions = {key: {"person_id": person} for key, person in zip("abcd", "xxxy")}
