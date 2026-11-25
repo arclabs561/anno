@@ -101,6 +101,9 @@ def load_model(checkpoint, pins):
             self.device = "cpu"
             self.model = Maverick_mes(huggingface_model_name=str(encoder_directory),
                                       freeze_encoder=False, span_representation="concat_start_end")
+            # Transformers may initialize the encoder in its stored half precision.
+            # The original CPU model runs the encoder and coreference heads in float32.
+            self.model.float()
             self.model.load_state_dict(load_file(checkpoint), strict=True)
             self.model.eval()
             self.tokenizer = self.__get_model_tokenizer__()
