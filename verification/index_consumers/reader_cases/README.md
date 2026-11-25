@@ -22,6 +22,10 @@ Source and issuer are separate selectors. One set of published minutes can repor
 
 The [snippet reader](snippets.py) returns just the assertion ID, issuer and approved excerpt to a public viewer. Staff can inspect its full source locator. Changing a neighboring withheld sentence changes the source digest, so even that digest stays in the privileged view. Replacing a credit under the same assertion ID requires a new excerpt approval for the new revision.
 
+## Export a dated bibliography
+
+The [bibliography reader](bibliography/README.md) selects publisher editions for first-publication, strictly-before and inclusive date queries. Its eLife evaluation compares structured XML credits with the ordered names visible on publisher PDFs. The authorized export exercises delayed deliveries and permission changes before a cached file is released.
+
 ## Propose and judge another history
 
 The bounded runner checks every three-event sequence of grants, withdrawals, hides and reinstatements in its two-publisher model. At each prefix, it asks both readers about every available content edition for public and staff viewers. The independent answer key keeps two facts about support and one visibility switch. The fixed corpus also covers shared bylines, literal Unicode ranges, independent references after a redirect is removed, and input already conflated when it arrived. These checks assume one work per case and at most one applicable redirect hop.

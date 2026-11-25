@@ -2,6 +2,8 @@
 
 Use a round when a result could change what a maintainer ships, reverts, or measures next. Start in the developer’s session with the [named replay or local fixture](QA.md#run-a-check). Run the cheapest check that distinguishes the competing explanations. Ask an agent for a counterexample or an independent label when that step needs judgment. CI runs the executable checks and Muxer sampler. A brief is optional when work crosses sessions.
 
+For a dated bibliography export, generate an original edition history, replay its frozen answers, or shrink a failing cut with the [bibliography challenge](../verification/index_consumers/reader_cases/bibliography/README.md#challenge-a-date-cut). Local histories can be passed to the same command by a developer, a headless harness or an agent.
+
 ## Coordinator prompt
 
 To challenge a corrected byline, attribution, catalog redirect, or visibility decision, propose a short event history and run the [credit reader replay](../verification/index_consumers/reader_cases/README.md#propose-and-judge-another-history). It checks the Rust and SQLite readers against a separate answer key and accepts local proposals without contacting a model provider.

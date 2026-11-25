@@ -1,0 +1,340 @@
+{
+  "pages": [
+    {
+      "doi": "10.7554/eLife.21221",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/21221/elife-21221-v1.pdf",
+      "page": 1,
+      "sha256": "10796709e8c5b7cd5325d73753d3bdcaa241ed3407547c9f15cf38635bf45d17"
+    },
+    {
+      "doi": "10.7554/eLife.21221",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/21221/elife-21221-v2.pdf",
+      "page": 1,
+      "sha256": "36f4e508f1a5376b9e9ea8db8512b4d4f016a3b31b8369d07224fb824a9ad5d0"
+    },
+    {
+      "doi": "10.7554/eLife.21221",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/21221/elife-21221-v3.pdf",
+      "page": 1,
+      "sha256": "6b7c67f57e2c2a56a31cd2e939394893c34ceb79627e4fb00e4dad296975a6d6"
+    },
+    {
+      "doi": "10.7554/eLife.49503",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/49503/elife-49503-v1.pdf",
+      "page": 1,
+      "sha256": "86ba1e6d74d9124b4b9aa4e4c5c1b12d572923c36b08e841bf9c1b33c21abb64"
+    },
+    {
+      "doi": "10.7554/eLife.49503",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/49503/elife-49503-v2.pdf",
+      "page": 1,
+      "sha256": "e192bec7358421af08c87e5fedb8a34ad93091ec23a8600b11d750ee9723201c"
+    },
+    {
+      "doi": "10.7554/eLife.60563",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/60563/elife-60563-v1.pdf",
+      "page": 1,
+      "sha256": "919ad80f711fc7a06b82b4e75bdfd4c908340986e7f161641dc937967c773b63"
+    },
+    {
+      "doi": "10.7554/eLife.60563",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/60563/elife-60563-v2.pdf",
+      "page": 1,
+      "sha256": "af6feeb83c5140320db6cf677357050daf8b524c406a5f5a7e0e1333df6d08d2"
+    },
+    {
+      "doi": "10.7554/eLife.60563",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/60563/elife-60563-v3.pdf",
+      "page": 1,
+      "sha256": "442a502f7ce00ce308e3941678c003275782ce48beb305cffea3689213ac461d"
+    },
+    {
+      "doi": "10.7554/eLife.64932",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/64932/elife-64932-v1.pdf",
+      "page": 1,
+      "sha256": "cb76bb499e91a132bb2d0879ecc7c9719e821b5250a54f2094f1cf0b759fe3c6"
+    },
+    {
+      "doi": "10.7554/eLife.64932",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/64932/elife-64932-v2.pdf",
+      "page": 1,
+      "sha256": "e6672b261569eca38885b7455b634cc9c36bd8a87f17964ae6118612c765e87d"
+    },
+    {
+      "doi": "10.7554/eLife.65092",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/65092/elife-65092-v1.pdf",
+      "page": 1,
+      "sha256": "87d491290b406197186c2f8aa9f1442a7db9db7cebef18d38af86c219f572d97"
+    },
+    {
+      "doi": "10.7554/eLife.65092",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/65092/elife-65092-v2.pdf",
+      "page": 1,
+      "sha256": "4d261ddf7fdc1b2e3b7454b01d84743a93cf61a977b7d25fc7719e7cde570d2a"
+    },
+    {
+      "doi": "10.7554/eLife.65092",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/65092/elife-65092-v3.pdf",
+      "page": 1,
+      "sha256": "5dab1780fbcbd9621156e26c998ade128923856871aa7c456102c6f1bf2cfaa2"
+    },
+    {
+      "doi": "10.7554/eLife.65092",
+      "edition": 4,
+      "url": "https://cdn.elifesciences.org/articles/65092/elife-65092-v4.pdf",
+      "page": 1,
+      "sha256": "847c337898c45c7d40cfa78cf660153763922949df6fe12239dcaa4dfbabf4df"
+    },
+    {
+      "doi": "10.7554/eLife.66393",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/66393/elife-66393-v1.pdf",
+      "page": 1,
+      "sha256": "db4c5a4b17ada66d698d5d90cccef2ba301761afca0dfdd6e9bc7a2dd15f1e8c"
+    },
+    {
+      "doi": "10.7554/eLife.66393",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/66393/elife-66393-v2.pdf",
+      "page": 1,
+      "sha256": "9f51243c7ff87468ae9a05ce2b6ed422fff81b26e7d38c9508a5e49331768da7"
+    },
+    {
+      "doi": "10.7554/eLife.66393",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/66393/elife-66393-v3.pdf",
+      "page": 1,
+      "sha256": "bff73a90ee3302c3bc514e76aa47c66fceef4d19a0773cbe7cda7bd483e0ad99"
+    },
+    {
+      "doi": "10.7554/eLife.71802",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/71802/elife-71802-v1.pdf",
+      "page": 1,
+      "sha256": "8cad59fd4322332d373c0a6fec91c292d47ecd5727376fe262bbb97ea504d630"
+    },
+    {
+      "doi": "10.7554/eLife.71802",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/71802/elife-71802-v2.pdf",
+      "page": 1,
+      "sha256": "81f9ec83d0542ffaa810a1752f97c11dc16a0b224dcba91e51c7ebfdbd203ee7"
+    },
+    {
+      "doi": "10.7554/eLife.71802",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/71802/elife-71802-v3.pdf",
+      "page": 1,
+      "sha256": "9d8b0be78b2cb695c33d4e3691faa1288dde40b54cf86a653ce6ab6cc08e7048"
+    },
+    {
+      "doi": "10.7554/eLife.74094",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/74094/elife-74094-v1.pdf",
+      "page": 1,
+      "sha256": "796d7ab3873db3cf682ac7fad2a49c7d791786de50d1a32de2258b01b7cb038d"
+    },
+    {
+      "doi": "10.7554/eLife.74094",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/74094/elife-74094-v2.pdf",
+      "page": 1,
+      "sha256": "7f16f88e1a187a9e42012169b7892bf4d39c479ac1be148030e7d4b8f703e067"
+    },
+    {
+      "doi": "10.7554/eLife.74094",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/74094/elife-74094-v3.pdf",
+      "page": 1,
+      "sha256": "f09c6a31378600352c7c76f37b2cc54a058b07e59722c59e03555e160cf5b110"
+    },
+    {
+      "doi": "10.7554/eLife.78649",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/78649/elife-78649-v1.pdf",
+      "page": 1,
+      "sha256": "7efef6ea59c3b4d08005e5ac6b3e6308c611132f6f7f79e446e0f729a60119b8"
+    },
+    {
+      "doi": "10.7554/eLife.78649",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/78649/elife-78649-v2.pdf",
+      "page": 1,
+      "sha256": "b0741db17fe9650585be738facfec0683d8e49497befdf090cbf44af371be8c4"
+    },
+    {
+      "doi": "10.7554/eLife.78649",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/78649/elife-78649-v3.pdf",
+      "page": 1,
+      "sha256": "254f9c17790865befa308944f8e0c74c1e32b459a5fe214710562fecd88201d8"
+    },
+    {
+      "doi": "10.7554/eLife.78649",
+      "edition": 4,
+      "url": "https://cdn.elifesciences.org/articles/78649/elife-78649-v4.pdf",
+      "page": 1,
+      "sha256": "fe7bcbe73f7aff5a883d11c9168bd44e2935dc1e17ca8768108192907b6e968a"
+    },
+    {
+      "doi": "10.7554/eLife.79863",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/79863/elife-79863-v1.pdf",
+      "page": 1,
+      "sha256": "5c1429391e997abe9e302e1f363f7ad48a171cc0899d6bdb31f2110ff37696ff"
+    },
+    {
+      "doi": "10.7554/eLife.79863",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/79863/elife-79863-v2.pdf",
+      "page": 1,
+      "sha256": "43d6613c99a867a1c7643c7ccb74898f5f0610d52a991e3ed714bcd01cd6ab19"
+    },
+    {
+      "doi": "10.7554/eLife.79863",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/79863/elife-79863-v3.pdf",
+      "page": 1,
+      "sha256": "46955a27900b9987ad57469be3d4b2e447ccc68c1bc9256ca86f10274fd5b3d9"
+    },
+    {
+      "doi": "10.7554/eLife.80254",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/80254/elife-80254-v1.pdf",
+      "page": 1,
+      "sha256": "3e060db7753c1398dcb632fd43fe6346175939c17ff123237b8ef73dedf24f2a"
+    },
+    {
+      "doi": "10.7554/eLife.80254",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/80254/elife-80254-v2.pdf",
+      "page": 1,
+      "sha256": "a39e9b6779a3c9eddc150ee4d91e8a599e9c8b96424214d756bd2434b88bd698"
+    },
+    {
+      "doi": "10.7554/eLife.80254",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/80254/elife-80254-v3.pdf",
+      "page": 1,
+      "sha256": "579d83b4294205919b9757e7c3d9a04f74d6f78ff8aa40c03022ae2cd12492d3"
+    },
+    {
+      "doi": "10.7554/eLife.80396",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/80396/elife-80396-v1.pdf",
+      "page": 1,
+      "sha256": "da85615fba83e553aa9362c2d2d37170a7fba1e3eb06b6e11e86983c1232cc2f"
+    },
+    {
+      "doi": "10.7554/eLife.80396",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/80396/elife-80396-v2.pdf",
+      "page": 1,
+      "sha256": "e89f16089fcd82f85ae1d57ba37839d447c9fc1f8f41470e1dba0518f27af1e4"
+    },
+    {
+      "doi": "10.7554/eLife.81453",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/81453/elife-81453-v1.pdf",
+      "page": 1,
+      "sha256": "56441d08b7678bce56dbd73e750a6a4aa142a09a8ecb74e189b098cb379bbc8d"
+    },
+    {
+      "doi": "10.7554/eLife.81453",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/81453/elife-81453-v2.pdf",
+      "page": 1,
+      "sha256": "4fa30d8fdee60f2cab840a669d405a678e8e372fdd47db203a386eeca5dfd9a7"
+    },
+    {
+      "doi": "10.7554/eLife.81453",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/81453/elife-81453-v3.pdf",
+      "page": 1,
+      "sha256": "d832d1389456385b68b985fe0d8785c1193dc7b3d67893db7cab44df2359a1db"
+    },
+    {
+      "doi": "10.7554/eLife.81453",
+      "edition": 4,
+      "url": "https://cdn.elifesciences.org/articles/81453/elife-81453-v4.pdf",
+      "page": 1,
+      "sha256": "d832d1389456385b68b985fe0d8785c1193dc7b3d67893db7cab44df2359a1db"
+    },
+    {
+      "doi": "10.7554/eLife.82410",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/82410/elife-82410-v1.pdf",
+      "page": 1,
+      "sha256": "88c7228e0142d9d7cecb26ffe32afefe506361d8731c7f5cf1eda8db29cac343"
+    },
+    {
+      "doi": "10.7554/eLife.82410",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/82410/elife-82410-v2.pdf",
+      "page": 1,
+      "sha256": "32910efe120503275c37fe8c2cacfc4b329832a0f46195b349281af406b4a96b"
+    },
+    {
+      "doi": "10.7554/eLife.83149",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/83149/elife-83149-v1.pdf",
+      "page": 1,
+      "sha256": "743dc62a7b5d78ff5e9ec36f6180ff7442dee57d07760c92fc96b62a889b65b1"
+    },
+    {
+      "doi": "10.7554/eLife.83149",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/83149/elife-83149-v2.pdf",
+      "page": 1,
+      "sha256": "fc33782f8b07cb7e110f2853d4be33712c25a8aadce20d25a6adbf1ab7cc4f91"
+    },
+    {
+      "doi": "10.7554/eLife.83149",
+      "edition": 3,
+      "url": "https://cdn.elifesciences.org/articles/83149/elife-83149-v3.pdf",
+      "page": 1,
+      "sha256": "85918094900b59d11d0c16ed12f18f5455f10197214e04cabc248cc3533b4910"
+    },
+    {
+      "doi": "10.7554/eLife.85324",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/85324/elife-85324-v1.pdf",
+      "page": 1,
+      "sha256": "75af0e240851e6ef8835de2188889b05ffc636a42e643ebc90802f219a6ca6f8"
+    },
+    {
+      "doi": "10.7554/eLife.85324",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/85324/elife-85324-v2.pdf",
+      "page": 1,
+      "sha256": "f15dd9c2874d43e37855706e803c7dd71064fe9374f547f8f4a1f8bd6a65fe50"
+    },
+    {
+      "doi": "10.7554/eLife.86209",
+      "edition": 1,
+      "url": "https://cdn.elifesciences.org/articles/86209/elife-86209-v1.pdf",
+      "page": 1,
+      "sha256": "7af9f1ef390fb508d4198c212f4cdee457fb26a7999dc508103c65f3d85eaf1a"
+    },
+    {
+      "doi": "10.7554/eLife.86209",
+      "edition": 2,
+      "url": "https://cdn.elifesciences.org/articles/86209/elife-86209-v2.pdf",
+      "page": 1,
+      "sha256": "ecb58206eaaf57bc9237325c3f89ec2a5ba60e076ddac9bd560ebbee35eaaffb"
+    }
+  ]
+}
