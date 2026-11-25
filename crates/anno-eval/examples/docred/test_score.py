@@ -4,7 +4,7 @@ import unittest
 from copy import deepcopy
 
 from score import score
-from score_jerex import convert
+from score_jerex import convert, stage_counts
 
 
 class DocumentRelationTest(unittest.TestCase):
@@ -62,6 +62,22 @@ class DocumentRelationTest(unittest.TestCase):
         joint[0]["tokens"].reverse()
         with self.assertRaisesRegex(ValueError, "tokens differ"):
             convert(self.gold, joint)
+
+    def test_jerex_stage_counts_keep_proposals_partition_and_relation_labels_distinct(self):
+        prediction = [{
+            "tokens": ["Maya", "founded", "Acme", "She", "sold", "it"],
+            "mentions": [{"start": i, "end": i+1} for i in (0, 1, 2, 3, 5)],
+            "entities": [{"mentions": [0, 3]}, {"mentions": [2, 4]}],
+            "relations": [{"head": 0, "tail": 1, "type": label} for label in ["owns", "founded"]],
+        }]
+        gold, actual = convert(self.gold, prediction)
+        stages = stage_counts(gold, actual, prediction)
+        self.assertEqual(stages["mention_spans"], {"gold": 4, "predicted": 5, "matched": 4})
+        self.assertEqual(stages["within_cluster_mention_pairs"]["matched"], 2)
+        self.assertEqual(stages["directed_cluster_pairs"]["predicted"], 1)
+        self.assertEqual(stages["labeled_relations"]["predicted"], 2)
+        self.assertIsNone(stages["exact_typed_clusters"])
+        self.assertIsNone(stages["labeled_relations_typed_endpoints"])
 
     def test_jerex_repeated_tokens_need_document_ids(self):
         duplicate = deepcopy(self.gold[0])
