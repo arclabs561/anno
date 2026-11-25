@@ -1,0 +1,13 @@
+{
+  "MODEL": "sapienzanlp/maverick-mes-ontonotes",
+  "MODEL_REVISION": "087a90f0380ec1f20ed19732b657f53fd3542c81",
+  "ENCODER": "microsoft/deberta-v3-large",
+  "ENCODER_REVISION": "64a8c8eab3e352a784c658aef62be1662607476f",
+  "ENCODER_FILES": {
+    "config.json": "ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d",
+    "pytorch_model.bin": "dd5b5d93e2db101aaf281df0ea1216c07ad73620ff59c5b42dccac4bf2eef5b5",
+    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+    "tokenizer_config.json": "3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d"
+  },
+  "MODEL_SHA256": "b42053ce171ea904d10d92de5458dce2e8189ef1050e1705e7fced50d2479c1f"
+}

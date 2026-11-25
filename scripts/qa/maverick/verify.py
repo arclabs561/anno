@@ -1,6 +1,7 @@
 """Replay the pinned Maverick CPU model and worker lifecycle tests (Python 3.12)."""
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -9,16 +10,7 @@ import sys
 from huggingface_hub import hf_hub_download
 
 
-MODEL = "sapienzanlp/maverick-mes-ontonotes"
-MODEL_REVISION = "087a90f0380ec1f20ed19732b657f53fd3542c81"
-ENCODER = "microsoft/deberta-v3-large"
-ENCODER_REVISION = "64a8c8eab3e352a784c658aef62be1662607476f"
-ENCODER_FILES = {
-    "config.json": "ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d",
-    "pytorch_model.bin": "dd5b5d93e2db101aaf281df0ea1216c07ad73620ff59c5b42dccac4bf2eef5b5",
-    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
-    "tokenizer_config.json": "3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d",
-}
+PINS = json.loads(Path(__file__).with_name("models.json").read_text())
 
 
 def fetch_verified(cache, repo, revision, name, expected):
@@ -35,15 +27,15 @@ def main():
     parser.add_argument("directory", type=Path, help="working directory for the dedicated QA cache")
     root = parser.parse_args().directory.resolve() / "maverick-qa"
     hub = root / "hub"
-    checkpoint = fetch_verified(hub, MODEL, MODEL_REVISION, "weights.ckpt",
-                                "b42053ce171ea904d10d92de5458dce2e8189ef1050e1705e7fced50d2479c1f")
-    for name, digest in ENCODER_FILES.items():
-        fetch_verified(hub, ENCODER, ENCODER_REVISION, name, digest)
+    checkpoint = fetch_verified(hub, PINS["MODEL"], PINS["MODEL_REVISION"], "weights.ckpt",
+                                PINS["MODEL_SHA256"])
+    for name, digest in PINS["ENCODER_FILES"].items():
+        fetch_verified(hub, PINS["ENCODER"], PINS["ENCODER_REVISION"], name, digest)
     # The upstream checkpoint initializes its encoder/tokenizer by model ID at
     # main. Resolve that ID to exactly the verified snapshot in our private cache.
     ref = hub / "models--microsoft--deberta-v3-large" / "refs" / "main"
     ref.parent.mkdir(exist_ok=True, parents=True)
-    ref.write_text(ENCODER_REVISION, encoding="ascii")
+    ref.write_text(PINS["ENCODER_REVISION"], encoding="ascii")
     env = {
         **os.environ,
         "MAVERICK_PYTHON": sys.executable,
