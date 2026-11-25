@@ -235,6 +235,11 @@ jobs:
       - name: Replay index revisions and downstream queries
         run: bash scripts/verification/check_index_replay.sh
       - run: cargo test --package anno --lib
+        # Unit tests exercise the public default stack with a cold local model cache.
+        # Checkpoint verification has separate jobs with explicit, pinned assets.
+        env: &unit-model-cache
+          ANNO_NO_DOWNLOADS: "1"
+          HF_HOME: ${{ runner.temp }}/anno-unit-hf
       # `anno::metrics`/coref helpers and the JSON-schema unit tests exist only
       # under the `analysis` and `schema` features. `clippy-extra` type-checks
       # those modules but never builds their unit tests, and `coverage` does not
@@ -242,6 +247,7 @@ jobs:
       # Cost: one recompile of the `anno` crate; `analysis` is a zero-dependency
       # flag and `schema` adds only the small optional `schemars` dependency.
       - run: cargo test --package anno --lib --features "analysis schema"
+        env: *unit-model-cache
   # ==========================================================================
   # Evaluation framework tests
   # ==========================================================================
@@ -287,6 +293,7 @@ jobs:
         run: cargo build --workspace --features eval
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
       - name: Run library tests
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Test optional bias analysis
         run: cargo test -p anno-eval --lib --features "eval eval-bias" bias
@@ -397,11 +404,13 @@ jobs:
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features onnx
       # gliner2-fastino is not in any other job's feature set; its processor
       # tests read testdata/gliner2_fastino/ fixtures and silently rot without
       # a CI run that enables the feature.
       - name: Test gliner2-fastino (unit)
+        env: *unit-model-cache
         run: cargo test -p anno --lib --features gliner2-fastino
       - name: Test Python Fastino conversion
         run: cargo test -p anno-py --lib --features fastino
@@ -435,6 +444,7 @@ jobs:
       - name: Build Candle backend
         run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features "candle gliner2-fastino-candle"
   # ==========================================================================
   # Feature Combination Tests (important combos not covered above)
@@ -456,6 +466,7 @@ jobs:
       - name: Build
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
       - name: Check prepared model loading and shared dataset staging offline
         run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache
@@ -481,6 +492,7 @@ jobs:
       - name: Build
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features "candle,eval,discourse"
 
   test-metal:
@@ -500,9 +512,7 @@ jobs:
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
-        env:
-          # Default-stack tests can use cached weights; a cold runner uses the bundled layers.
-          ANNO_NO_DOWNLOADS: "1"
+        env: *unit-model-cache
         run: cargo test --workspace --lib --features "metal"
       # Compile-only coverage for hardware-gated features no other job enables.
       # These paths (`#[cfg(feature = "onnx-cuda")]` provider registration in
