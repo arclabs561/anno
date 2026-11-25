@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
 """Replay the README with the distribution installed in the active interpreter."""
 
 import hashlib
@@ -20,6 +21,7 @@ class BulletinTest(unittest.TestCase):
             output = subprocess.check_output(
                 [sys.executable, "-I", EXAMPLES / "bulletin_diff.py", before, after],
                 cwd=workdir,
+                timeout=30,
                 env={**os.environ, "ANNO_NO_DOWNLOADS": "1"},
             )
         report = json.loads(output)
@@ -29,23 +31,37 @@ class BulletinTest(unittest.TestCase):
         ])
         return report["date_count_changes"]
 
-    def test_changed_deadline(self):
-        changes = self.run_example(*NOTICES)
-        self.assertEqual([c["date_pieces"] for c in changes], [["2026-12-04"], ["2026-12-07"]])
+    def check_deadline(self, paths, dates, spans):
+        changes = self.run_example(*paths)
+        self.assertEqual([c["date_pieces"] for c in changes], [[date] for date in dates])
         self.assertEqual(changes[0]["after"], [])
         self.assertEqual(changes[1]["before"], [])
         surface = os.environ.get("ANNO_BULLETIN_SURFACE", "checkout")
         detector = {"checkout": "pattern", "pypi-0.1.0": None}[surface]
-        locations = zip(NOTICES, changes, ("before", "after"), ([98, 108], [110, 120]))
-        for path, change, side, span in locations:
+        for path, change, side, span in zip(paths, changes, ("before", "after"), spans):
             source = path.read_bytes().decode("utf-8")
             self.assertEqual(source[slice(*span)], change["date_pieces"][0])
+            line = source.count("\n", 0, span[0]) + 1
             self.assertEqual(change[side], [{
-                "line": 2, "source_line": source.splitlines()[1],
+                "line": line, "source_line": source.splitlines()[line - 1],
                 "segments": [span], "detector": detector,
             }])
+
+    def test_changed_deadline(self):
+        self.check_deadline(NOTICES, ["2026-12-04", "2026-12-07"], [[98, 108], [110, 120]])
+        for path in NOTICES:
             self.assertEqual(
-                source.splitlines()[2], "The public drawing is scheduled for 2026-12-09."
+                path.read_text(encoding="utf-8").splitlines()[2],
+                "The public drawing is scheduled for 2026-12-09.",
+            )
+
+    def test_caller_replaces_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, amended = [Path(temporary) / name for name in ("first.txt", "amended.txt")]
+            first.write_bytes("🛶 Édition\nDock closes 2027-02-08.\n".encode("utf-8"))
+            amended.write_bytes("🛶 Édition\nRévision\nPier closes 2027-02-11.\n".encode("utf-8"))
+            self.check_deadline(
+                [first, amended], ["2027-02-08", "2027-02-11"], [[22, 32], [31, 41]]
             )
 
     def test_identical_editions(self):
