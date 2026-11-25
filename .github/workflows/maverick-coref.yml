@@ -48,3 +48,33 @@ jobs:
         run: python -m unittest discover -s scripts/qa/maverick -p test_weights.py
       - name: Verify checkpoint and encoder digests and run offline inference
         run: python scripts/qa/maverick/verify.py "$RUNNER_TEMP"
+      - name: Replay matched historical decisions and independent GAP controls
+        run: |
+          set -euo pipefail
+          export MAVERICK_PYTHON="$(command -v python)"
+          export HF_HOME="$RUNNER_TEMP/maverick-qa"
+          export HF_HUB_CACHE="$HF_HOME/hub"
+          export TRANSFORMERS_CACHE="$HF_HUB_CACHE"
+          export MAVERICK_MODEL_PATH="$HF_HOME/maverick/maverick-ontonotes.safetensors"
+          export ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+          export OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+          cargo build --locked -p anno --no-default-features --features onnx --example coref_gap_panel
+          base=https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80
+          for split in test validation; do
+            curl --fail --silent --show-error --location "$base/gap-$split.tsv" -o "$RUNNER_TEMP/gap-$split.tsv"
+          done
+          python scripts/qa/maverick_gap_288.py --test "$RUNNER_TEMP/gap-test.tsv" --validation "$RUNNER_TEMP/gap-validation.tsv" --binary target/debug/examples/coref_gap_panel
+          for mode in predicted supplied; do
+            python scripts/qa/coref_gap.py "$RUNNER_TEMP/gap-test.tsv" target/debug/examples/coref_gap_panel maverick "$mode" "$RUNNER_TEMP/gap-$mode.json"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          import json, os
+          baseline = json.loads(Path("docs/eval/coref-panels.json").read_text())["gap"]
+          for mode in ("predicted", "supplied"):
+              actual = json.loads((Path(os.environ["RUNNER_TEMP"]) / f"gap-{mode}.json").read_text())
+              expected = baseline["arms"]["maverick/" + mode]
+              assert actual["ids"] == baseline["ids"] and actual["gold_pairs"] == baseline["gold_pairs"]
+              assert actual["per_id"] == expected["per_id"] and actual["counts"] == expected["counts"]
+              print(f"Frozen GAP {mode}: all {len(actual['ids'])} decisions and aggregate counts match.")
+          PY
