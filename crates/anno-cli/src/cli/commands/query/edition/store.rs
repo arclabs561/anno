@@ -99,11 +99,18 @@ impl EditionStore {
         Ok(result)
     }
 
-    pub fn read(&mut self, edition: Option<u64>) -> Result<Value> {
+    pub fn read(&mut self, edition: Option<u64>, min_edition: Option<u64>) -> Result<Value> {
         // Bind both the manifest and the member bodies to one SQLite read transaction.
         let tx = self.db.transaction()?;
         let release =
             published(&tx, &self.scope, edition)?.ok_or("requested edition unavailable")?;
+        if let Some(minimum) = min_edition.filter(|&minimum| release.edition() < minimum) {
+            return Err(format!(
+                "current edition {} is below requested minimum {minimum}",
+                release.edition()
+            )
+            .into());
+        }
         let mut members = Vec::with_capacity(release.members().len());
         for cp in release.members() {
             members.push(member(&tx, &self.scope, cp)?.ok_or_else(|| {
