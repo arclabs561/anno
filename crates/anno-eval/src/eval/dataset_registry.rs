@@ -7182,18 +7182,19 @@ define_datasets! {
 
     SciERCNER {
         name: "SciERC NER",
-        description: "Scientific Information Extraction NER. AI paper abstracts.",
-        url: "https://github.com/allenai/sciie/tree/main/data",
+        description: "Local sentence-level NER projection of scientific abstracts.",
+        url: "",
         entity_types: ["Task", "Method", "Metric", "Material", "OtherScientificTerm", "Generic"],
         language: "en",
         domain: "scientific",
-        license: "Apache-2.0",
         citation: "Luan et al. (2018)",
         paper_url: "https://aclanthology.org/D18-1360/",
         year: 2018,
         format: "JSONL",
-        notes: "6 entity types; includes nested entities and coreference",
-        categories: [ner, nested_ner, relation_extraction],
+        notes: "Supply an authorized sentence-level JSONL projection with sentence tokens and NER token spans. The separate SciERC entry describes the authors’ multitask corpus.",
+        tasks: ["ner"],
+        access_status: Local,
+        categories: [ner],
     },
 
     ULNER {

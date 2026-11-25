@@ -414,7 +414,6 @@ impl LoadableDatasetId {
             | DatasetId::CovEReD
             | DatasetId::ACE2005
             | DatasetId::MuDoCo
-            | DatasetId::SciERCNER
             // Added 2025-01-27: RE datasets with public URLs but missing hints
             // Note: SciERC, PolyIE, EnzChemRED are now handled by registry_hint_plan() auto-detection
             => DatasetParsePlan::DocredJson,
@@ -505,6 +504,10 @@ impl LoadableDatasetId {
         // Hybrids / special cases first.
         if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
             return Some(DatasetParsePlan::Tacred);
+        }
+        if id == DatasetId::SciERCNER {
+            // The local NER projection uses sentence/ner arrays in CrossRE-style JSONL.
+            return Some(DatasetParsePlan::DocredJson);
         }
         if id == DatasetId::CHisIEC {
             // CHisIEC is multi-task and uses a custom JSON array format (not DocRED/CrossRE).
@@ -765,7 +768,7 @@ impl LoadableDatasetId {
                 }
 
                 // Relation extraction: unambiguous only when the dataset is *only* RE.
-                // Also handle RE datasets that might have NER as secondary task (e.g., SciERCNER).
+                // Also handle RE datasets with NER as a secondary task.
                 "JSON" | "JSONL" if is_re && !is_coref && !is_event => {
                     Some(DatasetParsePlan::DocredJson)
                 }
@@ -8024,6 +8027,27 @@ mod tests {
             loader.compute_sha256("abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn scierc_local_ner_projection_has_no_relation_task() {
+        let id = DatasetId::SciERCNER;
+        assert_eq!(id.tasks_or_inferred(), vec!["ner"]);
+        assert!(!id.is_relation_extraction());
+        assert!(id.requires_local_source());
+        assert!(!id.is_automatable_download());
+        assert!(DatasetId::SciERC.is_relation_extraction());
+
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let example = r#"{"sentence":["A","mosaic","lens"],"ner":[[1,2,"Method"]]}"#;
+        let data = loader.parse_content_str(example, id).unwrap();
+        assert_eq!(data.sentences[0].entities()[0].text, "mosaic lens");
+        assert!(loader
+            .load_relation(id)
+            .unwrap_err()
+            .to_string()
+            .contains("not a relation extraction dataset"));
     }
 
     #[test]
