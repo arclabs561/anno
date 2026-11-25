@@ -71,6 +71,7 @@
 //! - `ANNO_MUXER_NOVELTY`: if true (default), explore unseen arms within a slice before MAB/worst-first
 //! - `ANNO_MUXER_CONTROL_K`: reserve K deterministic-random “control” picks (default: 0/off)
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
+//! - `ANNO_MATRIX_DATASET_POOLS_FILE`: optional JSONL log of ordinary automatic dataset-selection passes
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_DEFAULT`: if true (default locally, false in CI), write decisions JSONL to a default cache file
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
@@ -2462,7 +2463,7 @@ fn task_dataset_catalog(tasks: &[Task]) -> Vec<DatasetId> {
     datasets
 }
 
-#[derive(Clone, Copy, serde::Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 enum DatasetExclusion {
     NonAutomatableSource,
@@ -2542,16 +2543,13 @@ fn candidate_datasets_for_tasks(
         .collect()
 }
 
-/// Explain the automatic dataset pool before sampling, loading data or reading history.
-/// Records the first applicable exclusion, including active language/domain pins.
-pub fn dataset_eligibility_report(
+fn dataset_eligibility(
     loader: &DatasetLoader,
-    task: Task,
-    cached_only: bool,
-) -> serde_json::Value {
-    let require_cached = cached_only || matrix_require_cached();
-    let policy = DatasetPolicy::current(&[task], require_cached);
-    let catalog: Vec<_> = task_dataset_catalog(&[task])
+    tasks: &[Task],
+    require_cached: bool,
+) -> Vec<(DatasetId, Option<DatasetExclusion>)> {
+    let policy = DatasetPolicy::current(tasks, require_cached);
+    let mut catalog: Vec<_> = task_dataset_catalog(tasks)
         .into_iter()
         .map(|ds| (ds, policy.exclusion(loader, ds)))
         .collect();
@@ -2560,11 +2558,31 @@ pub fn dataset_eligibility_report(
         .filter_map(|&(ds, reason)| reason.is_none().then_some(ds))
         .collect();
     apply_dataset_facet_pins(&mut eligible);
+    let eligible: std::collections::HashSet<_> = eligible.into_iter().collect();
+    for (ds, reason) in &mut catalog {
+        if reason.is_none() && !eligible.contains(ds) {
+            *reason = Some(DatasetExclusion::FacetPin);
+        }
+    }
+    catalog
+}
+
+/// Explain the automatic dataset pool before sampling, loading data or reading history.
+/// Records the first applicable exclusion, including active language/domain pins.
+pub fn dataset_eligibility_report(
+    loader: &DatasetLoader,
+    task: Task,
+    cached_only: bool,
+) -> serde_json::Value {
+    let require_cached = cached_only || matrix_require_cached();
+    let catalog = dataset_eligibility(loader, &[task], require_cached);
+    let eligible_count = catalog
+        .iter()
+        .filter(|(_, reason)| reason.is_none())
+        .count();
     let rows: Vec<_> = catalog
         .into_iter()
         .map(|(ds, reason)| {
-            let reason =
-                reason.or_else(|| (!eligible.contains(&ds)).then_some(DatasetExclusion::FacetPin));
             let cached = LoadableDatasetId::try_from(ds)
                 .ok()
                 .is_some_and(|id| loader.is_cached(id));
@@ -2579,7 +2597,7 @@ pub fn dataset_eligibility_report(
     serde_json::json!({
         "schema_version": 1,
         "task": task.code(), "require_cached": require_cached, "s3_enabled": loader.s3_enabled(),
-        "eligible_count": eligible.len(), "datasets": rows
+        "eligible_count": eligible_count, "datasets": rows
     })
 }
 
@@ -2995,14 +3013,14 @@ struct EstimateDatasetSelection<'a> {
     fixed: Option<&'a [String]>,
 }
 
-fn pinned_dataset_candidates(
-    loader: &DatasetLoader,
-    tasks: &[Task],
-    require_cached: bool,
-) -> Vec<DatasetId> {
-    let mut candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
-    apply_dataset_facet_pins(&mut candidates);
-    candidates
+#[derive(Default, serde::Serialize)]
+struct DatasetSelection {
+    catalog_count: usize,
+    eligible_count: usize,
+    excluded: BTreeMap<DatasetExclusion, usize>,
+    backend_incompatible_count: usize,
+    load_rejections: BTreeMap<String, usize>,
+    selected: Vec<DatasetId>,
 }
 
 fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
@@ -3069,10 +3087,23 @@ fn choose_datasets_for_run(
     require_cached: bool,
     datasets_per_run: usize,
     estimate: Option<EstimateDatasetSelection<'_>>,
-) -> Vec<DatasetId> {
-    let candidates = pinned_dataset_candidates(loader, tasks, require_cached);
+) -> DatasetSelection {
+    let catalog = dataset_eligibility(loader, tasks, require_cached);
+    let mut selection = DatasetSelection {
+        catalog_count: catalog.len(),
+        ..DatasetSelection::default()
+    };
+    let mut candidates = Vec::new();
+    for (dataset, exclusion) in catalog {
+        if let Some(reason) = exclusion {
+            *selection.excluded.entry(reason).or_default() += 1;
+        } else {
+            candidates.push(dataset);
+        }
+    }
+    selection.eligible_count = candidates.len();
     if candidates.is_empty() {
-        return Vec::new();
+        return selection;
     }
 
     // Estimate prioritizes the least-observed usable panel. Resolve it before deriving
@@ -3117,10 +3148,9 @@ fn choose_datasets_for_run(
         .collect();
     scored.sort_by_key(|row| (row.0, row.1));
     let mut common = estimate.map(|policy| policy.candidates.to_vec());
-    let mut chosen = Vec::new();
     let mut rejected = Vec::new();
     for (_, _, ds) in scored {
-        if chosen.len() == datasets_per_run {
+        if selection.selected.len() == datasets_per_run {
             break;
         }
         let compatible = |backend: &String| TaskEvaluator::is_backend_compatible(backend, ds);
@@ -3131,6 +3161,7 @@ fn choose_datasets_for_run(
                 .and_then(|policy| policy.fixed)
                 .is_some_and(|arms| !arms.iter().all(compatible))
         {
+            selection.backend_incompatible_count += 1;
             continue;
         }
         match check_dataset_usable(loader, ds, require_cached) {
@@ -3138,20 +3169,23 @@ fn choose_datasets_for_run(
                 if let Some(arms) = &mut common {
                     arms.retain(compatible);
                 }
-                chosen.push(ds);
+                selection.selected.push(ds);
             }
-            Err(error) if rejected.len() < 3 => {
-                rejected.push((ds, dataset_rejection_message(error)));
+            Err(error) => {
+                let reason = dataset_rejection_message(error);
+                if rejected.len() < 3 {
+                    rejected.push((ds, reason.clone()));
+                }
+                *selection.load_rejections.entry(reason).or_default() += 1;
             }
-            Err(_) => {}
         }
     }
-    if chosen.is_empty() {
+    if selection.selected.is_empty() {
         for (dataset, reason) in rejected {
             eprintln!("matrix-muxer: dataset {dataset:?} unavailable (require_cached={require_cached}): {reason:?}");
         }
     }
-    chosen
+    selection
 }
 
 #[cfg(test)]
@@ -3539,7 +3573,9 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 require_cached_for_run,
                 datasets_per_run,
                 None,
-            ) {
+            )
+            .selected
+            {
                 if chosen_datasets.len() == datasets_per_run {
                     break;
                 }
@@ -3549,25 +3585,36 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             }
         }
     } else {
-        // Default: choose a small number of compatible datasets.
-        chosen_datasets = choose_datasets_for_run(
-            seed,
-            &loader,
-            &tasks,
-            require_cached_for_run,
-            datasets_per_run,
-            estimate,
-        );
+        let choose = |require_cached: bool, pass: &str| {
+            let pool = choose_datasets_for_run(
+                seed,
+                &loader,
+                &tasks,
+                require_cached,
+                datasets_per_run,
+                estimate,
+            );
+            if let Ok(path) = std::env::var("ANNO_MATRIX_DATASET_POOLS_FILE") {
+                append_jsonl(
+                    &path,
+                    &serde_json::json!({
+                        "schema_version": 1,
+                        "seed": seed,
+                        "strategy": strategy.id_str(),
+                        "slice": slice_tag,
+                        "pass": pass,
+                        "require_cached": require_cached,
+                        "s3_enabled": loader.s3_enabled(),
+                        "pool": pool,
+                    }),
+                );
+            }
+            pool.selected
+        };
+        chosen_datasets = choose(require_cached_for_run, "initial");
         if chosen_datasets.is_empty() {
             if require_cached_for_run && try_download_on_empty {
-                chosen_datasets = choose_datasets_for_run(
-                    seed,
-                    &loader,
-                    &tasks,
-                    false,
-                    datasets_per_run,
-                    estimate,
-                );
+                chosen_datasets = choose(false, "download_fallback");
             }
             if chosen_datasets.is_empty() {
                 eprintln!(
@@ -3621,7 +3668,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 require_cached_for_run,
                 want.saturating_mul(10).max(want),
                 None,
-            );
+            )
+            .selected;
             pool.retain(|d| {
                 fixed
                     .iter()
@@ -4888,7 +4936,7 @@ fn test_matrix_sweep_all_backends_once() {
     let max_examples = mh::env_usize("ANNO_MATRIX_SWEEP_MAX_EXAMPLES", 5).max(1);
     let chosen =
         choose_datasets_for_run(seed ^ 0x51EE_AAAA, &loader, &tasks, require_cached, 1, None);
-    let Some(&dataset) = chosen.first() else {
+    let Some(&dataset) = chosen.selected.first() else {
         let msg = format!(
             "matrix-sweep: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
             tasks,

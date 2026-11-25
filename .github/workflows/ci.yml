@@ -620,6 +620,7 @@ jobs:
             # Keep current-run evidence outside restored cache state so the outcome gate cannot
             # pass on decision records from an earlier workflow run.
             echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
+            echo "ANNO_MATRIX_DATASET_POOLS_FILE=$RUNNER_TEMP/matrix-dataset-pools.jsonl"
           } >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
@@ -734,8 +735,8 @@ jobs:
         run: |
           set -o pipefail
           printf 'Matrix evaluator and scorer checkout: `%s` (features `onnx,eval,discourse`).\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-          touch "$ANNO_MUXER_DECISIONS_FILE"
-          python3 scripts/qa/check_matrix_outcomes.py --report \
+          touch "$ANNO_MUXER_DECISIONS_FILE" "$ANNO_MATRIX_DATASET_POOLS_FILE"
+          python3 scripts/qa/check_matrix_outcomes.py --report --dataset-pools "$ANNO_MATRIX_DATASET_POOLS_FILE" \
             ${{ steps.wikigold.outcome == 'success' && '--verify-wikigold' || '' }} \
             "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
@@ -761,6 +762,7 @@ jobs:
           name: matrix-muxer-decisions${{ github.run_attempt != '1' && format('-attempt-{0}', github.run_attempt) || '' }}
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
+            ${{ runner.temp }}/matrix-dataset-pools.jsonl
             ${{ runner.temp }}/matrix-bootstrap.jsonl
             ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             ${{ runner.temp }}/matrix-smoke/temporal-outcomes.jsonl
