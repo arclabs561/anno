@@ -6,7 +6,7 @@ Use this suite to trace a reference from its source span to a proposed anteceden
 |---|---|
 | Did Anno detect the mention and put the right antecedent in reach? | [Predicted mentions and tracks](anno_adapter/README.md) uses actual Anno output and checks the alignment to the source. |
 | Did bounded memory forget the entity, or did the ranker miss it? | [Book-scale retrieval](bookscale/README.md) supplies gold character history to isolate the two failures. [LitBank](entity_memory_protocol.md) compares summary policies under an equal byte budget. |
-| Is a suggestion useful as a displayed pair or as a whole-track attachment? | [LitBank and PreCo](region_reasoning_followup.md) compare a fixed review quota. [WikiCoref](adjacent/wikicoref/README.md) transfers the frozen scorer to 30 previously unused articles. |
+| Is a suggestion useful as a displayed pair or as a whole-track attachment? | [LitBank and PreCo](review-queue.md) compare a fixed review quota. [WikiCoref](adjacent/wikicoref/README.md) transfers the frozen scorer to 30 previously unused articles. |
 | What if the answer is a group, a discourse segment, a speaker, or a typed relation? | [Joint and adjacent tasks](adjacent/README.md) lists the prediction target, baseline, supplied annotations, and result for each corpus. |
 | Does a related entity satisfy a graph query? | [Heyting’s witnessed-query experiment](https://github.com/arclabs561/heyting/tree/main/docs/experiments/typed-film-query) checks the returned entity IDs against an independent set join. |
 
@@ -15,9 +15,7 @@ Use this suite to trace a reference from its source span to a proposed anteceden
 From the Anno checkout, run the command below for the offline regressions. The replay tests need NumPy and SciPy. The BookCoref test uses the Python standard library. Larger reproductions are opt-in. Each corpus page lists its inputs, versions, invocation and results. Use the reference directory for the LitBank, PreCo and WikiCoref commands. Other corpus scripts run from their own directories unless indicated.
 
 ```sh
-cd crates/anno-eval/research/reference
-python -m unittest discover -s bookscale -p test_replay.py
-python -m unittest test_entity_memory_replay
+crates/anno-eval/research/reference/check.sh
 ```
 
 ## Reading the evidence

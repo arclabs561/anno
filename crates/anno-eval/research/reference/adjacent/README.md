@@ -34,4 +34,4 @@ A useful joint decision has a visible outcome. For someone checking dialogue it 
 
 These experiments compare simple decoders and retrieval controls. The PDNC run supplied quote boundaries and a full roster. DWIE and SciERC supplied mention boundaries. The dialogue diagnostic supplied previous entity identities. The event, catalog and query audits test reachability under their documented inputs. None measures a person's time, and none establishes end-to-end Anno accuracy. Treat the exploratory comparisons as hypotheses for a held-out workload with predicted inputs. Corpus sources remain upstream. The subdirectories contain executable experiments and aggregate receipts.
 
-[Current systems and open problems](related_systems.md) · [Earlier identity-review experiment](../region_reasoning_followup.md#does-a-box-score-earn-a-place-in-the-review-queue)
+[Current systems and open problems](related_systems.md) · [Earlier identity-review experiment](../review-queue.md#does-a-box-score-earn-a-place-in-the-review-queue)

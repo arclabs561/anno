@@ -1,4 +1,4 @@
-# When region scores help document identity
+# Reviewing source pairs and track assignments
 
 ## Who would use this
 
@@ -19,7 +19,7 @@ inconsistent axiom. Query authors have another. A reasoning layer can explain
 which atomic edges supported a conjunction and which are missing. Neither use
 should inherit results from the mention clustering pilot.
 
-## What changed in the experiment
+## Fixed-budget evaluation
 
 The LitBank pilot found that boxes could recover additional candidates under
 gold history and then accumulate many wrong merges in closed loop. Its
