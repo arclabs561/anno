@@ -73,6 +73,20 @@ impl Default for RegexNER {
 static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
+// A serial field can contain a perfectly valid ISO substring. Limit its scope to
+// the field's value token, so a sibling
+// date field or a date-bearing filename elsewhere still reaches the ISO matcher.
+static IDENTIFIER_VALUES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?ix)\b(?:ids?|identifiers?|skus?|serials?|",
+        r"(?:serial|lot|batch|accession|catalog(?:ue)?|inventory|part|booking|badge)",
+        r"[\t\p{Zs}]+(?:numbers?|no\.?|codes?|ids?|identifiers?|keys?))",
+        r#"(?:["'”’]?[\t\p{Zs}]*[:=][\t\p{Zs}]*|[\t\p{Zs}]+(?:is|was)[\t\p{Zs}]+)"#,
+        r#"["'“‘«]?[\p{L}\p{N}_.‑-]+"#,
+    ))
+    .expect("valid regex")
+});
+
 // Date-shaped inventory numbers use the same typography. Require a field/value
 // boundary or a calendar phrase. Across a line break, require a standalone
 // heading so the last column label cannot bind to the first value of a TSV row.
@@ -87,6 +101,18 @@ static DATE_ISO_PRINTED: LazyLock<Regex> = LazyLock::new(|| {
         r"scheduled[\t\p{Zs}]+(?:on|for)|",
         r"(?:premier(?:e|ed)|held|issued|published|released|expires?)[\t\p{Zs}]+on)[\t\p{Zs}]+",
         r#")[“‘«"']?([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b"#,
+    ))
+    .expect("valid regex")
+});
+
+// These predicates identify the period during which something holds. A pair
+// of date-shaped endpoints joined by "from … to" alone can be a range of IDs.
+static PRINTED_VALIDITY_PERIOD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?ix)\b(?:valid|effective|open|closed|available|unavailable|",
+        r"(?:in|out[\t\p{Zs}]+of)[\t\p{Zs}]+service|in[\t\p{Zs}]+effect)",
+        r"[\t\p{Zs}]+from[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})",
+        r"[\t\p{Zs}]+(?:to|through|until)[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b",
     ))
     .expect("valid regex")
 });
@@ -488,8 +514,12 @@ impl Model for RegexNER {
 
         // Dates (high confidence - very specific patterns)
         let date_text = table::with_cell_boundaries(text);
+        let mut identifiers = IDENTIFIER_VALUES.find_iter(&date_text).peekable();
         for m in DATE_ISO.find_iter(&date_text) {
-            if is_calendar_date(m.as_str()) {
+            while identifiers.next_if(|id| id.end() <= m.start()).is_some() {}
+            if !identifiers.peek().is_some_and(|id| id.start() <= m.start())
+                && is_calendar_date(m.as_str())
+            {
                 add_entity(m, EntityType::Date, 0.95, "DATE_ISO");
             }
         }
@@ -622,6 +652,23 @@ impl Model for RegexNER {
         // The new printed-date rule runs after URLs so a query such as
         // ?date=2040‑02‑29 cannot displace the contact entity.
         if date_text.contains('‑') {
+            for caps in PRINTED_VALIDITY_PERIOD.captures_iter(&date_text) {
+                let start = caps.get(1).expect("start date capture");
+                let end = caps.get(2).expect("end date capture");
+                let first = start.as_str().replace('‑', "-");
+                let last = end.as_str().replace('‑', "-");
+                if printed_date_ends_here(&date_text[end.end()..])
+                    && is_calendar_date(&first)
+                    && is_calendar_date(&last)
+                    && first <= last
+                {
+                    for endpoint in [start, end] {
+                        if endpoint.as_str().contains('‑') {
+                            add_entity(endpoint, EntityType::Date, 0.95, "DATE_ISO");
+                        }
+                    }
+                }
+            }
             for caps in DATE_ISO_PRINTED.captures_iter(&date_text) {
                 let m = caps.get(1).expect("date capture");
                 if m.as_str().contains('‑')
@@ -802,6 +849,49 @@ mod tests {
     fn date_iso_format() {
         let e = extract("Meeting on 2024-01-15.");
         assert!(find_text(&e, "2024-01-15").is_some());
+    }
+
+    #[test]
+    fn iso_identifier_fields_end_before_neighboring_dates() {
+        let source = concat!(
+            "📦 Serial: KT-2028-01-19-Q; inspection date: 2028-01-21. ",
+            "The lot number is 2068-03-15. Booking: 2026-12-11. ",
+            "The meeting date is embedded in ref MTG-2025-04-08-A. ",
+            "The manifest reads {\"id\":\"2023-07-06\"}.",
+        );
+        let dates: Vec<_> = extract(source)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(dates, ["2028-01-21", "2026-12-11", "2025-04-08"]);
+    }
+
+    #[test]
+    fn printed_validity_periods_require_a_calendar_predicate_and_valid_endpoints() {
+        let source = concat!(
+            "Café 🚌 out of service from 2032‑02‑29 through 2032-03‑02. ",
+            "The serials run from 2033‑03‑01 to 2034‑04‑01. ",
+            "Valid from 2100‑02‑29 until 2100‑03‑01. ",
+            "Open from 2042‑03‑07 to 2041‑02‑06. ",
+            "Closed from 2042‑03‑07 to 2042‑03‑09.txt.",
+        );
+        let dates: Vec<_> = extract(source)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| {
+                assert_eq!(
+                    source
+                        .chars()
+                        .skip(e.start())
+                        .take(e.end() - e.start())
+                        .collect::<String>(),
+                    e.text
+                );
+                e.text
+            })
+            .collect();
+        assert_eq!(dates, ["2032‑02‑29", "2032-03‑02"]);
     }
 
     #[test]
