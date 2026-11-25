@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from coref_gap import check_file
+from coref_gap import check_file, index_partition
 
 REVISION = "58b5fdd88d139b17ffd75365a5e1ec5b53b8dd43"
 SHA256 = "eeda5569e3d86bb46e0bf867603b0ea0061c02792c07ca185f8dc3431b4bbb43"
@@ -55,16 +55,6 @@ def load(path):
     if len(docs) != 10 or len({d[0] for d in docs}) != 10:
         raise ValueError("expected all ten test documents")
     return docs
-
-
-def index_partition(clusters):
-    index = {}
-    for i, group in enumerate(clusters):
-        for span in group:
-            if span in index:
-                raise ValueError(f"overlapping cluster assignment for {span}")
-            index[span] = i
-    return index
 
 
 def directional(key, response):

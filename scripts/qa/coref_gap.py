@@ -54,6 +54,16 @@ def panel(path):
     return docs
 
 
+def index_partition(clusters):
+    index = {}
+    for i, group in enumerate(clusters):
+        for span in group:
+            if span in index:
+                raise ValueError(f"overlapping cluster assignment for {span}")
+            index[span] = i
+    return index
+
+
 def measure(docs, records, backend):
     counts = dict.fromkeys(
         [
@@ -77,12 +87,12 @@ def measure(docs, records, backend):
         if record["id"] != doc_id or record["producer"] != backend:
             raise ValueError("resolver or document mismatch")
         groups = [set(map(tuple, c)) for c in record["clusters"]]
-        seen = set().union(*groups)
+        seen = index_partition(groups)
         if any(not 0 <= start < end <= len(text) for start, end in seen):
             raise ValueError(f"invalid returned character offsets on {doc_id}")
         covered = [span in seen for span in targets]
         pred = [
-            any(targets[0] in c and target in c for c in groups)
+            targets[0] in seen and seen[targets[0]] == seen.get(target)
             for target in targets[1:]
         ]
         counts["documents"] += 1
@@ -102,7 +112,8 @@ def measure(docs, records, backend):
     tp, fp, fn = (counts[k] for k in ["tp", "fp", "fn"])
     counts["precision"] = round(tp / (tp + fp), 6) if tp + fp else None
     counts["recall"] = round(tp / (tp + fn), 6) if tp + fn else None
-    counts["f1"] = round(2 * tp / (2 * tp + fp + fn), 6)
+    denominator = 2 * tp + fp + fn
+    counts["f1"] = round(2 * tp / denominator, 6) if denominator else None
     return {"counts": counts, "per_id": observations}
 
 
