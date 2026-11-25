@@ -9,7 +9,8 @@
       "page-visualization": ["plos:holger-hoefling"],
       "notice-visualization": ["plos:arne-mueller", "plos:holger-hoefling"],
       "support-new-role": ["notice-data-am"],
-      "both-surfaces-support-role": ["notice-data-tn", "page-data-tn"]
+      "both-surfaces-support-role": ["notice-data-tn", "page-data-tn"],
+      "open-two-curation-sources": [{"work": "doi:10.1371/journal.pone.0221732", "issuer": "plos-one", "id": "notice-data-tn", "role": "Data curation", "target": "plos:timur-nuritidinow", "excerpt": {"quote": "Data curation: Timur Nuritidinow, Arne Mueller."}}, {"work": "doi:10.1371/journal.pone.0221732", "issuer": "plos-one", "id": "page-data-tn", "role": "Data curation", "target": "plos:timur-nuritidinow", "excerpt": {"quote": "Timur Nuritidinow — Data curation"}}]
     },
     "shared-byline": {
       "literal": ["Copper Atlas"],
@@ -57,6 +58,18 @@
       "supplied-record": ["import:room"],
       "no-documentary-credit": [],
       "no-evidence-for-candidate": []
+    },
+    "issuer-local-credit-citations": {
+      "both-citations": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "engraved the plate"}}, {"work": "plate-atlas-6", "issuer": "press", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "Éli engraved the plate."}}],
+      "press-local-evidence": ["7"],
+      "after-press-withdrawal": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "engraved the plate"}}],
+      "old-credits-under-quote-restriction": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:12", "excerpt": null}, {"work": "plate-atlas-6", "issuer": "press", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "Éli engraved the plate."}}],
+      "old-credits-under-claim-restriction": [{"work": "plate-atlas-6", "issuer": "press", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "Éli engraved the plate."}}],
+      "old-credits-staff-proofs": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "engraved the plate", "citation": {"edition": {"stream": "issuer-local-credit-citations", "document": "minutes", "source_revision": "folio-2", "source_sha256": "6ac2cae9c36d1e4fb403f9e7edc2df0a0b45cc05f6d98308064b5463c6442cc7"}, "range": {"start": 4, "end": 22}}}}, {"work": "plate-atlas-6", "issuer": "press", "id": "7", "role": "engraving", "target": "people:12", "excerpt": {"quote": "Éli engraved the plate.", "citation": {"edition": {"stream": "issuer-local-credit-citations", "document": "minutes", "source_revision": "folio-2", "source_sha256": "6ac2cae9c36d1e4fb403f9e7edc2df0a0b45cc05f6d98308064b5463c6442cc7"}, "range": {"start": 0, "end": 23}}}}],
+      "old-target-after-correction": [],
+      "replacement-without-approved-quote": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:91", "excerpt": null}],
+      "withheld-claim-after-withdrawal": [],
+      "guild-after-new-approval": [{"work": "plate-atlas-6", "issuer": "guild", "id": "7", "role": "engraving", "target": "people:91", "excerpt": {"quote": "Mara verified the proof."}}]
     }
   }
 }
