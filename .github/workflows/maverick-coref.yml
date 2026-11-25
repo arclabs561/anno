@@ -28,7 +28,7 @@ jobs:
   real-weights:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       CARGO_PROFILE_TEST_DEBUG: 0
       CARGO_PROFILE_DEV_DEBUG: 0
@@ -50,6 +50,7 @@ jobs:
       - name: Verify checkpoint and encoder digests and run offline inference
         run: python scripts/qa/maverick/verify.py "$RUNNER_TEMP"
       - name: Replay matched historical decisions and independent GAP controls
+        id: replay
         run: |
           set -euo pipefail
           export MAVERICK_PYTHON="$(command -v python)"
@@ -64,10 +65,40 @@ jobs:
           for split in test validation; do
             curl --fail --silent --show-error --location "$base/gap-$split.tsv" -o "$RUNNER_TEMP/gap-$split.tsv"
           done
-          python scripts/qa/maverick_gap_288.py --test "$RUNNER_TEMP/gap-test.tsv" --validation "$RUNNER_TEMP/gap-validation.tsv" --binary target/debug/examples/coref_gap_panel
+          python scripts/qa/maverick_gap_288.py --test "$RUNNER_TEMP/gap-test.tsv" --validation "$RUNNER_TEMP/gap-validation.tsv" --binary target/debug/examples/coref_gap_panel | tee "$RUNNER_TEMP/current.jsonl"
           for mode in predicted supplied; do
             python scripts/qa/coref_gap.py "$RUNNER_TEMP/gap-test.tsv" target/debug/examples/coref_gap_panel maverick "$mode" "$RUNNER_TEMP/gap-$mode.json"
           done
+      - name: Check out the exact previously verified runtime
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: e2910e585f1efdb55b22a87fe6a48d98754bc392
+          path: legacy-runtime
+          persist-credentials: false
+      - name: Compare upgraded and legacy output on the same 305 inputs
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/legacy-env"
+          export MAVERICK_PYTHON="$RUNNER_TEMP/legacy-env/bin/python"
+          requirements=legacy-runtime/scripts/qa/maverick/requirements-cpu-py312.txt
+          grep -Ex 'torch==[0-9.]+[+]cpu' "$requirements" > "$RUNNER_TEMP/legacy-torch.txt"
+          "$MAVERICK_PYTHON" -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu -r "$RUNNER_TEMP/legacy-torch.txt"
+          "$MAVERICK_PYTHON" -m pip install -r "$requirements"
+          "$MAVERICK_PYTHON" -m pip check
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo build --manifest-path legacy-runtime/Cargo.toml --locked -p anno --no-default-features --features onnx --example coref_gap_panel
+          export HF_HOME="$RUNNER_TEMP/maverick-qa"
+          export HF_HUB_CACHE="$HF_HOME/hub" TRANSFORMERS_CACHE="$HF_HOME/hub"
+          export MAVERICK_MODEL_PATH="$HF_HOME/maverick/maverick-ontonotes.safetensors"
+          export ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+          export OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+          PYTHONPATH=legacy-runtime/scripts/qa "$MAVERICK_PYTHON" -c "from coref_gap import model_identity; model_identity('maverick', 'predicted')"
+          python scripts/qa/maverick_gap_288.py --test "$RUNNER_TEMP/gap-test.tsv" --validation "$RUNNER_TEMP/gap-validation.tsv" --binary "$CARGO_TARGET_DIR/debug/examples/coref_gap_panel" | tee "$RUNNER_TEMP/legacy.jsonl"
+          cmp "$RUNNER_TEMP/legacy.jsonl" "$RUNNER_TEMP/current.jsonl"
+          echo "Current and legacy agree on all 305 GAP decisions and full predicted span partitions."
+      - name: Compare both frozen mention modes with their published decisions
+        if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
+        run: |
           python - <<'PY'
           from pathlib import Path
           import json, os

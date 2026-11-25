@@ -1,6 +1,6 @@
 """Run the fixed named row, 256 fresh GAP controls, and 48 historical controls against a verified, offline Maverick worker.
 
-Place beside scripts/qa/coref_gap.py. Only first-party summary counts are printed.
+Place beside scripts/qa/coref_gap.py. Only first-party aggregate counts and ordered output hashes are printed.
 Pass --test and --validation with GAP TSV files fetched from commit
 83135f26025cdd705c04f77e940d0c9201116b80; all file digests are verified.
 """
@@ -54,7 +54,13 @@ def main():
     results = [json.loads(line) for line in out.stdout.splitlines()]
     assert len(results) == len(docs)
     for label,s in (("named",slice(1)),("validation",slice(1,97)),("test",slice(97,257)),("historical_48",slice(257,None))):
-        print(json.dumps(dict(panel=label, counts=measure(docs[s],results[s],"maverick")["counts"])))
+        scored = measure(docs[s], results[s], "maverick")
+        decisions = [(record["id"], bits) for record, bits in zip(results[s], scored["per_id"], strict=True)]
+        partitions = [(record["id"], sorted(sorted(cluster) for cluster in record["clusters"])) for record in results[s]]
+        def digest(rows):
+            return hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode("ascii")).hexdigest()
+        print(json.dumps(dict(panel=label, counts=scored["counts"],
+                              decisions_sha256=digest(decisions), partitions_sha256=digest(partitions))))
 
 if __name__ == "__main__":
     main()
