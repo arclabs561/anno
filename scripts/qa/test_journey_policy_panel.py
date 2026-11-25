@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -60,6 +61,61 @@ class PanelTests(unittest.TestCase):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "arm"):
                 panel.sealed_schedule(path, digest)
+
+    @unittest.skipIf(sys.platform == "win32", "test executables use a shell shebang")
+    def test_panel_preserves_sibling_lookup_and_refuses_replaced_build_outputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+
+            def tool(name, output):
+                path = root / name
+                path.write_text('#!/bin/sh\ncat "$0.value"\n')
+                path.chmod(0o700)
+                (root / f"{name}.value").write_text(output)
+                return path
+
+            current = tool("current", "fixed")
+            historical = tool("historical", "old")
+            selector = tool("picker", "span-roundtrip")
+            schedule = root / "schedule.json"
+            schedule.write_text(json.dumps([[]] * 12))
+            dest = root / "report.json"
+            argv = ["panel", "--anno", str(current), "--historical", str(historical),
+                    "--schedule", str(schedule), panel.pilot.native.digest(schedule), "--out", str(dest)]
+            old_causes = {"span-roundtrip": "brat-incomplete-input-overwrites-review",
+                          "catalog-update": "catalog-incomplete-source-selection"}
+            replace_role = None
+
+            def observe(binary, name, mutate):
+                nonlocal replace_role
+                # Read a sibling through the supplied executable's original path.
+                producer = panel.cli(root, binary).stdout.decode().strip()
+                self.assertIn(producer, ("old", "fixed"))
+                if replace_role is not None:
+                    # Simulate an atomic Cargo replacement, with identical bytes.
+                    replacement = root / "replacement"
+                    replacement.write_bytes(replace_role.read_bytes())
+                    replacement.chmod(0o700)
+                    replacement.replace(replace_role)
+                    replace_role = None
+                failure = old_causes.get(name) if producer == "old" else None
+                if mutate:
+                    failure = panel.MUTATION_SIGNATURES[name]
+                return {"failure": failure, "elapsed_ms": 0}
+
+            with patch.object(sys, "argv", argv), patch.object(panel.pilot, "built_selector",
+                    return_value=(selector, panel.pilot.native.digest(selector))), patch.object(
+                    panel, "observe", observe):
+                panel.main()
+                self.assertIn("historical", json.loads(dest.read_bytes())["panels"])
+                expected = b"previously reviewed receipt\n"
+                dest.write_bytes(expected)
+                for role in (current, historical, selector):
+                    with self.subTest(role=role.name):
+                        replace_role = role
+                        with self.assertRaisesRegex(ValueError, "executable changed during panel"):
+                            panel.main()
+                        self.assertEqual(dest.read_bytes(), expected)
 
 
 if __name__ == "__main__":

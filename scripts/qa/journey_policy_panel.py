@@ -129,13 +129,15 @@ def mutation_census(binary, faults):
     return census
 
 
-def simulate(selector, rounds, seed):
+def simulate(selector, rounds, seed, *, check_tools=lambda: None):
     state = {"rounds": 0, "history": []}
     trace = []
     for index, reveal in enumerate(rounds):
+        check_tools()
         picks = pilot.picks(state, seed + index, selector)
         # Selection is complete before the experiment harness discloses this round.
         census = reveal()
+        check_tools()
         observations = {}
         for policy, name in picks.items():
             signature = census[name]["failure"]
@@ -180,6 +182,11 @@ def sealed_schedule(path, digest):
     return rounds
 
 
+def executable_identity(path):
+    info = path.stat()
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--anno", required=True, type=Path)
@@ -190,15 +197,30 @@ def main():
     args = parser.parse_args()
     current, historical = args.anno.resolve(strict=True), args.historical.resolve(strict=True)
     selector, selector_hash = pilot.built_selector(None)
+    # Cargo may replace a build output between probes. Keep each binary in its
+    # original installation so relative runtime dependencies continue to resolve.
+    paths = {"current": current, "historical": historical, "selector": selector}
+    initial = {role: executable_identity(path) for role, path in paths.items()}
+
+    def check_tools():
+        for role, path in paths.items():
+            if executable_identity(path) != initial[role]:
+                raise ValueError(f"{role} executable changed during panel")
+
+    digests = {role: pilot.native.digest(path) for role, path in paths.items()}
+    check_tools()
+    if digests["selector"] != selector_hash:
+        raise ValueError("selector changed after its locked build")
     report = {"schema": "anno.qa.journey-policy-panel.v1", "selector_sha256": selector_hash,
               "seed": args.seed, "panels": {},
-              "producers": {k: pilot.native.digest(v) for k, v in (("current", current), ("historical", historical))}}
+              "producers": {role: digests[role] for role in ("current", "historical")}}
 
     def baseline(binary):
         return {name: observe(binary, name, False) for name in PROBES}
 
     # Positive and mutation controls are measured on a fresh temporary corpus every time.
-    history = simulate(selector, [lambda: baseline(historical), lambda: baseline(current)], args.seed)
+    history = simulate(selector, [lambda: baseline(historical), lambda: baseline(current)],
+                       args.seed, check_tools=check_tools)
     historical_causes = {name: arm["failure"] for name, arm in history[0]["census"].items()}
     if historical_causes != {"span-roundtrip": "brat-incomplete-input-overwrites-review",
                              "catalog-update": "catalog-incomplete-source-selection",
@@ -215,8 +237,13 @@ def main():
         if digest in report["panels"]:
             raise ValueError("duplicate schedule")
         schedule = sealed_schedule(Path(path), digest)
-        trace = simulate(selector, (lambda faults=faults: mutation_census(current, faults) for faults in schedule), args.seed)
+        rounds = (lambda faults=faults: mutation_census(current, faults) for faults in schedule)
+        trace = simulate(selector, rounds, args.seed, check_tools=check_tools)
         record(digest, trace)
+    for role, path in paths.items():
+        if pilot.native.digest(path) != digests[role]:
+            raise ValueError(f"{role} executable changed during panel")
+    check_tools()
     pilot.write_json(args.out, report)
 
 
