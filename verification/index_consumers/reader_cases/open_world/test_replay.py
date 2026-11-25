@@ -1,10 +1,30 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 import unittest
 
+from .page_control import page_control, page_fold
 from .replay import evaluate, unique_rows
 
 
 class OpenWorldEvidence(unittest.TestCase):
+    def test_page_control_separates_same_page_and_distinguishes_window_pooling(self):
+        rows = [
+            (0, 1, ("blue", "Zal", "Q1", False)), (0, 2, ("red", "Zál", "Q1", False)),
+            (0, 3, ("blue", "Own", "Q2", False)), (0, 4, ("blue", "Own", "Q2", False)),
+            (20, 5, ("blue", "Solo", "Q8", False)), (20, 6, ("red", "Own", "Q2", False)),
+            (20, 7, ("red", "Solo", "Q9", True)),
+        ]
+        self.assertEqual((page_fold("blue"), page_fold("red")), (0, 1))
+        result = page_control(rows)
+        own = result["within_window"]["by_label"]
+        self.assertEqual(own["reachable"], {"exact": {"no_hit": 2}, "fold": {"correct": 2}})
+        self.assertEqual(own["sampled_out"]["exact"], {"no_hit": 4})
+        self.assertEqual(own["true_nil"]["fold"], {"wrong": 1})
+        pooled = result["pooled_windows"]["by_label"]
+        self.assertEqual(pooled["reachable"]["exact"], {"no_hit": 2, "correct": 3})
+        self.assertEqual(pooled["reachable"]["fold"], {"correct": 5})
+        with self.assertRaises(ValueError):
+            page_control([*rows, rows[0]])
+
     def test_known_unsampled_and_nil_are_different_decisions(self):
         train = [("a", "Selo", "Q1", False), ("b", "Sélo", "Q2", False),
                  ("a", "Ar", "Q3", False), ("a", "Private", "Q7", True)]

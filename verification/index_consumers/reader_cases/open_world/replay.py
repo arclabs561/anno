@@ -20,7 +20,7 @@ def fold(text):
     return "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
 
 
-def windows(cache, split, fetch, checksums):
+def window_records(cache, split, fetch, checksums):
     file_id, size = FILES[split]
     observed = {}
     for quarter in range(4):
@@ -55,9 +55,14 @@ def windows(cache, split, fetch, checksums):
             if not isinstance(r["nil"], bool) or not r["wikidata_id"].startswith("Q") or not isinstance(r["mention"], str):
                 raise ValueError("invalid NILK mention or label")
             # The scorer keeps only these four fields from each source record.
-            yield r["id"], (r["wikipedia_page_id"], r["mention"], r["wikidata_id"], r["nil"])
+            yield start, r["id"], (r["wikipedia_page_id"], r["mention"], r["wikidata_id"], r["nil"])
     if set(observed) != {k for k in checksums if k.startswith(split + "-")}:
         raise ValueError(f"{split}: unexpected source manifest")
+
+
+def windows(cache, split, fetch, checksums):
+    for _, key, row in window_records(cache, split, fetch, checksums):
+        yield key, row
 
 
 def unique_rows(rows):
