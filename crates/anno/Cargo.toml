@@ -182,6 +182,10 @@ required-features = ["onnx-directml"]
 name = "gliner2_candle_lora_demo"
 required-features = ["gliner2-fastino-candle"]
 
+[[example]]
+name = "maverick_export"
+required-features = ["candle"]
+
 [package.metadata.docs.rs]
 # Hardware-specific features are mutually platform-bound: in particular,
 # `metal` pulls in `objc2`, which intentionally does not compile on docs.rs's

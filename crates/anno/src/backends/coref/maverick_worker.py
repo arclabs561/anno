@@ -38,15 +38,38 @@ def resolve(model, tokenizer, text, mentions, singletons):
     return clusters
 
 
+def load_model(checkpoint):
+    from maverick import Maverick
+    if not checkpoint.endswith(".safetensors"):
+        return Maverick(hf_name_or_path=checkpoint, device="cpu")
+
+    from maverick.models.model_mes import Maverick_mes
+    from safetensors.torch import load_file
+
+    class PreparedMES(Maverick):
+        def __init__(self):
+            # Fixed upstream MES/DeBERTa-large inference architecture.
+            # Configuration and Python classes never come from the checkpoint.
+            self.device = "cpu"
+            self.model = Maverick_mes(huggingface_model_name="microsoft/deberta-v3-large",
+                                      freeze_encoder=False, span_representation="concat_start_end")
+            self.model.load_state_dict(load_file(checkpoint), strict=True)
+            self.model.eval()
+            self.tokenizer = self.__get_model_tokenizer__()
+
+    return PreparedMES()
+
+
 def main():
     protocol = sys.stdout
     with redirect_stdout(sys.stderr):
         if os.environ.get("ANNO_NO_DOWNLOADS", "").strip().lower() in {"1", "true", "yes", "y", "on"}:
             os.environ["HF_HUB_OFFLINE"] = "1"
             os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        # Applies to both the encoder and Lightning's legacy checkpoint loader.
+        os.environ["TORCH_FORCE_WEIGHTS_ONLY_LOAD"] = "1"
         import spacy
-        from maverick import Maverick
-        model = Maverick(hf_name_or_path=sys.argv[1], device="cpu")
+        model = load_model(sys.argv[1])
         tokenizer = spacy.blank("en")
         tokenizer.add_pipe("sentencizer")
         print('"ready"', file=protocol, flush=True)

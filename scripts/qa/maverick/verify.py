@@ -9,6 +9,9 @@ import sys
 
 from huggingface_hub import hf_hub_download
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from download_maverick_weights import download_model
+
 
 PINS = json.loads(Path(__file__).with_name("models.json").read_text())
 
@@ -27,8 +30,7 @@ def main():
     parser.add_argument("directory", type=Path, help="working directory for the dedicated QA cache")
     root = parser.parse_args().directory.resolve() / "maverick-qa"
     hub = root / "hub"
-    checkpoint = fetch_verified(hub, PINS["MODEL"], PINS["MODEL_REVISION"], "weights.ckpt",
-                                PINS["MODEL_SHA256"])
+    checkpoint = download_model("ontonotes", root, cache_dir=hub)
     for name, digest in PINS["ENCODER_FILES"].items():
         fetch_verified(hub, PINS["ENCODER"], PINS["ENCODER_REVISION"], name, digest)
     # The upstream checkpoint initializes its encoder/tokenizer by model ID at

@@ -3,7 +3,7 @@
 # requires-python = ">=3.8"
 # dependencies = [
 #     "numpy>=1.21.0",
-#     "torch>=2.0.0",
+#     "torch>=2.6.0",
 #     "safetensors>=0.4.0",
 #     "packaging>=21.0",
 # ]
@@ -42,7 +42,7 @@ def convert_pytorch_to_safetensors(input_path: str, output_path: str) -> None:
     try:
         # Load PyTorch state dict
         print(f"Loading PyTorch model from: {input_path}")
-        state_dict = torch.load(input_path, map_location="cpu")
+        state_dict = torch.load(input_path, map_location="cpu", weights_only=True)
         
         # Save as safetensors
         print(f"Saving safetensors to: {output_path}")

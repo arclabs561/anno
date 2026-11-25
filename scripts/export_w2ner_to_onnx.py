@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "torch>=2.0.0",
+#     "torch>=2.6.0",
 #     "transformers>=4.30.0",
 #     "safetensors>=0.4.0",
 #     "numpy>=1.21.0",
@@ -233,7 +233,7 @@ def main():
     # Load weights if provided
     if args.weights and os.path.exists(args.weights):
         print(f"Loading weights from {args.weights}...")
-        state_dict = torch.load(args.weights, map_location="cpu")
+        state_dict = torch.load(args.weights, map_location="cpu", weights_only=True)
         model.load_state_dict(state_dict, strict=False)
     
     # Export

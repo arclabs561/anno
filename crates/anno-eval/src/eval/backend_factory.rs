@@ -897,7 +897,7 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
         "maverick" => {
             let checkpoint = std::env::var_os("MAVERICK_MODEL_PATH").ok_or_else(|| {
                 anno::Error::feature_not_available(
-                    "set MAVERICK_MODEL_PATH to a model ID or local weights.ckpt",
+                    "set MAVERICK_MODEL_PATH to prepared MES safetensors or a weights-only compatible checkpoint",
                 )
             })?;
             let python = std::env::var_os("MAVERICK_PYTHON").unwrap_or_else(|| "python3".into());

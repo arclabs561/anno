@@ -297,7 +297,7 @@ upload_script() {
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.9"
-# dependencies = ["torch>=2.0", "safetensors>=0.4"]
+# dependencies = ["torch>=2.6", "safetensors>=0.4"]
 # ///
 """Convert PyTorch model weights to SafeTensors format.
 
