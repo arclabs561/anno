@@ -39,8 +39,12 @@ from the previous LitBank run.
 
 ## Reproduce
 
-Use Python 3.10 or later and the full test annotation JSONL. The experiment
-does not require rebuilding the Gutenberg text. Raw data are excluded.
+Use Python 3.10 or later and an authorized local copy of the full test annotation
+JSONL. At the pinned revision the publisher explicitly licenses the annotations
+under CC BY-NC-SA 4.0, while the card metadata says CC BY-SA 4.0. Check the
+annotation terms for your use before downloading. The publisher gives separate
+territorial guidance for the Gutenberg source texts. This replay uses only
+mention coordinates and stores aggregate counts. [Publisher’s license information](https://huggingface.co/datasets/sapienzanlp/bookcoref/blob/2c2587aca956a4225712abdcf1af72b93f18a28f/README.md#%C2%A9%EF%B8%8F-license-information)
 
 ```sh
 curl -fL https://huggingface.co/datasets/sapienzanlp/bookcoref/resolve/2c2587aca956a4225712abdcf1af72b93f18a28f/bookcoref_annotations/full/test.jsonl -o bookcoref-test.jsonl

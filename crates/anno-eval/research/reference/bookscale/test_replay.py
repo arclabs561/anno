@@ -1,9 +1,25 @@
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from run import replay
 
 
 class BookReplayTests(unittest.TestCase):
+    def test_other_annotations_cannot_claim_the_pinned_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory) / "test.jsonl"
+            data.write_text('{"doc_key":"different","clusters":[]}\n', encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, Path(__file__).with_name("run.py"), data],
+                capture_output=True, text=True,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected the pinned BookCoref test annotations", result.stderr)
+        self.assertEqual(result.stdout, "")
+
     def test_long_return_can_be_retained_but_ranked_outside_top_four(self):
         # A is frequent; four intervening people make A fifth by recency.
         doc = {"clusters": [
