@@ -466,7 +466,9 @@ The `document_delivery` adapter replays the five reviewed histories from the
 per-operation reader and final-receipt checks as the stable Cargo regression.
 For example, `observe document_delivery historical-receipt` checks a retry after
 a source revision; `issuer-token-collision` exercises an independent control.
-Run the two cases separately to preserve their distinct observations. A new seed
+Run the two cases separately to preserve their distinct observations. The delivery
+adapter namespaces shared Cargo build directories by checkout so a repaired
+worktree cannot inherit the failing executable from another worktree. A new seed
 needs provenance review and admission before it can enter the ledger.
 Rerunning the same evidence adds no observations. A clean replay closes that
 witness alone. When a seed or oracle changes, re-observe it under the new

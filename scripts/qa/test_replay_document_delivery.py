@@ -1,3 +1,5 @@
+import hashlib
+import os
 import subprocess
 import tempfile
 import unittest
@@ -19,9 +21,23 @@ class DeliveryCorpusTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown reviewed delivery seed"):
             adapter.pins(ROOT, "../unreviewed-history")
 
+    def test_shared_cargo_roots_cannot_alias_across_worktrees(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            shared = str(parent / "cargo")
+            with patch.dict(os.environ, {"CARGO_TARGET_DIR": shared, "CARGO_BUILD_BUILD_DIR": shared}):
+                a = adapter.build_env(parent / "a", CASE)
+                b = adapter.build_env(parent / "b", CASE)
+            for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+                self.assertNotEqual(a[key], b[key])
+                self.assertTrue(Path(a[key]).is_relative_to(shared))
+            self.assertEqual(a["CARGO_TARGET_DIR"], a["CARGO_BUILD_BUILD_DIR"])
+
     def test_only_a_completed_pinned_native_assertion_creates_a_failure(self):
         name = adapter.CONTRACT.test
-        marker = "delivery-oracle " + " ".join(adapter.pins(ROOT, CASE))
+        source_pins = adapter.pins(ROOT, CASE)
+        checkout = hashlib.sha256(os.fsencode(ROOT / "crates/anno")).hexdigest()
+        marker = "delivery-oracle " + " ".join([*source_pins, checkout])
         detail = f"thread '{name}' panicked at {adapter.SUPPORT.source}:101:9:\nassertion failed"
         summary = "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s"
 
@@ -34,11 +50,11 @@ class DeliveryCorpusTest(unittest.TestCase):
             binary = Path(tmp) / "native"
             binary.write_bytes(b"synthetic binary")
             with patch.object(adapter.native, "_artifacts", return_value=(binary, binary)), \
-                    patch.object(adapter, "pins", return_value=marker.split()[1:]), \
+                    patch.object(adapter, "pins", return_value=source_pins), \
                     patch.object(subprocess, "run") as run:
                 run.return_value = failed([marker, detail])
                 self.assertEqual(adapter.replay(ROOT, CASE)["outcome"], "fail")
-                for lines in ([detail], [marker, marker, detail], [marker, "setup failed"]):
+                for lines in ([detail], [marker[:-1], detail], [marker, marker, detail], [marker, "setup failed"]):
                     with self.subTest(lines=lines), self.assertRaises(ValueError):
                         run.return_value = failed(lines)
                         adapter.replay(ROOT, CASE)

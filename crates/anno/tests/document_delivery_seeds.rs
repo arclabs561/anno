@@ -96,10 +96,11 @@ fn replay_one_delivery_seed() {
             .collect()
     };
     println!(
-        "delivery-oracle {} {} {}",
+        "delivery-oracle {} {} {} {}",
         hash(&seed),
         hash(include_bytes!("document_delivery_seeds.rs")),
-        hash(include_bytes!("support/document_delivery.rs"))
+        hash(include_bytes!("support/document_delivery.rs")),
+        hash(env!("CARGO_MANIFEST_DIR").as_bytes())
     );
     check_history(&case, &seed, expected);
 }

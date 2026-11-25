@@ -44,16 +44,34 @@ def describe(root, case):
             "oracle_sha256": hashlib.sha256(json.dumps(oracle).encode()).hexdigest()}
 
 
+def build_env(root, case):
+    # An absolute target/build directory can otherwise reuse another worktree's
+    # newer producer even when Cargo reports this worktree's test target.
+    env = dict(os.environ, ANNO_DELIVERY_CASE=case, RUST_BACKTRACE="0")
+    local = root / "target"
+    target = env.get("CARGO_TARGET_DIR", local)
+    for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+        configured = (root / env.get(key, target)).resolve()
+        if configured.is_relative_to(root):
+            env[key] = str(configured)
+        else:
+            checkout = hashlib.sha256(os.fsencode(root)).hexdigest()
+            env[key] = str(configured / "anno-delivery" / checkout)
+    return env
+
+
 def replay(root, case):
     source_pins = pins(root, case)
-    env = dict(os.environ, ANNO_DELIVERY_CASE=case, RUST_BACKTRACE="0")
+    checkout = hashlib.sha256(os.fsencode(root / "crates/anno")).hexdigest()
+    marker = "delivery-oracle " + " ".join([*source_pins, checkout])
+    env = build_env(root, case)
     binary, _ = native._artifacts(root, CONTRACT, env)
     digest = native.digest(binary)
     result = subprocess.run(
         [binary, "--exact", CONTRACT.test, "--ignored", "--show-output", "--format", "pretty", "--color", "never"],
         cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
     )
-    if (result.stdout.splitlines().count("delivery-oracle " + " ".join(source_pins)) != 1
+    if (result.stdout.splitlines().count(marker) != 1
             or native.digest(binary) != digest):
         raise ValueError("executed delivery seed, compiled oracle or executable differs from its pin")
     site = SUPPORT if f"{SUPPORT.source}:" in result.stdout else CONTRACT
