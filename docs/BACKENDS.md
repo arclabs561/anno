@@ -39,7 +39,7 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 | `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `gliner2_fastino` | Fastino GLiNER2, eight-graph ONNX pipeline | Yes | experimental | `jugaadsrl/gliner2-multi-v1-onnx` at `4241d7c66b648e618c89c150bf4cf418d2f83159` |
-| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
+| `nuner` | Zero-shot NER | Yes | stable | `deepanwa/NuNerZero_onnx` (default ONNX export of `numind/NuNER_Zero`), or a prepared NuNER Zero 4k export for the `nuner_4k` evaluator |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
 | `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- (no public pre-trained weights; runs a heuristic fallback unless you supply a checkpoint to `export_tplinker_onnx.py`) |

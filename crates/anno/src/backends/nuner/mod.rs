@@ -91,7 +91,7 @@ const MAX_SPAN_WIDTH: usize = 1;
 ///
 /// # Model Variants
 ///
-/// - `NuNER::new()` / `NuNER::from_pretrained("numind/NuNER_Zero")` -- 512-token context,
+/// - `NuNER::new()` / `NuNER::from_pretrained(crate::DEFAULT_NUNER_MODEL)` -- 512-token context,
 ///   chunks at ~2000 chars.
 /// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero-4k")` -- 4096-token
 ///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.
