@@ -175,7 +175,8 @@ def main():
     args = parser.parse_args()
     current, historical = args.anno.resolve(strict=True), args.historical.resolve(strict=True)
     selector, selector_hash = pilot.built_selector(None)
-    report = {"selector_sha256": selector_hash, "seed": args.seed, "panels": {},
+    report = {"schema": "anno.qa.journey-policy-panel.v1", "selector_sha256": selector_hash,
+              "seed": args.seed, "panels": {},
               "producers": {k: pilot.native.digest(v) for k, v in (("current", current), ("historical", historical))}}
 
     def census(binary, faults):
@@ -183,6 +184,11 @@ def main():
 
     # Positive and mutation controls are measured on a fresh temporary corpus every time.
     history = simulate(selector, [lambda: census(historical, ()), lambda: census(current, ())], args.seed)
+    historical_causes = {name: arm["failure"] for name, arm in history[0]["census"].items()}
+    if historical_causes != {"span-roundtrip": "brat-incomplete-input-overwrites-review",
+                             "catalog-update": "catalog-incomplete-source-selection",
+                             "stale-revision": None}:
+        raise ValueError("historical controls did not reproduce the two known regressions")
     if any(a["failure"] for a in history[-1]["census"].values()):
         raise ValueError("fixed controls failed")
     for name in PROBES:

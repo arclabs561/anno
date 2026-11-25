@@ -551,3 +551,63 @@ out=$(mktemp -d)
 python3 scripts/qa/journey_pilot.py run \
   --anno target/debug/anno --state "$out/ledger.json" --output "$out/first" --run-id 1 --seed 41
 ```
+
+### Replay historical failures and held-out output mutations
+
+Should failure-rate sampling replace rotation? An offline comparison gave the same
+three policies one journey per round, with a fresh history for each panel. It used
+the weekly pilot's native Muxer selector and synthetic companion CLI probes.
+The historical binary accepted an incomplete BRAT import and mixed cross-document
+sources. The same commands rejected both inputs and preserved the previous outputs
+on the fixed revision. Each policy chose the BRAT journey on the first round and
+missed the other historical defect. The second round was clean.
+
+A peer froze two 12-round mutation schedules before seeing any policy picks.
+The primary schedule moved faults between journeys. The sensitivity schedule
+changed how often they returned. Each scheduled fault modified a real CLI response
+by dropping a Unicode span segment, removing a catalog posting, or replaying an
+earlier successful journal read after the head advanced. A fresh replay had to
+reproduce every detected failure. The selector received only the result of its
+own previous picks. The offline experiment ran a separate census to score misses.
+
+| Panel | Slots per policy | Muxer hits / distinct | Rotation hits / distinct | Seeded random hits / distinct | Uniform expected hits / distinct |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Two historical revisions | 2 | 1 / 1 | 1 / 1 | 1 / 1 | 0.67 / 0.67 |
+| Primary mutation schedule | 12 | 3 / 2 | 2 / 2 | 3 / 3 | 3.33 / 2.21 |
+| Sensitivity mutation schedule | 12 | 0 / 0 | 3 / 2 | 1 / 1 | 2.67 / 1.96 |
+
+A hit counts a failed selected probe, including repeated failures. Distinct counts
+unique journey and assertion pairs. On the primary schedule, Muxer first found a
+fault in round seven, rotation in five and seeded random in three. Muxer visited all
+three journeys on the sensitivity schedule and missed all seven faulted rounds.
+These short, now-public schedules support retaining the fixed checks and a rotation
+baseline. The seed, three journeys and injected response faults limit generalization.
+Each slot costs one probe, with a second invocation to confirm a failure.
+The receipt includes elapsed probe times. Wall-clock budgets can differ.
+
+To replay with locked dependencies cached, run from the repository root. Use a
+separate Cargo target directory for each producer revision. The selector is built
+from the checkout containing the replay script. The output contains picks,
+per-journey signatures, timings and executable digests.
+
+```sh
+out=$(mktemp -d)
+git worktree add --detach "$out/before" 670886fbec8bd38c43acdf19906afba5677a94a5
+git worktree add --detach "$out/after" 332daed14a0f70dfea3fdaaea54ab9faf29ba3c3
+for rev in before after; do
+  (cd "$out/$rev" && CARGO_TARGET_DIR="$out/$rev-target" cargo build --offline --locked \
+    -p anno-cli --no-default-features --features 'eval extractor-readability' --bin anno)
+done
+cases=scripts/qa/fixtures/journey-policy
+python3 scripts/qa/journey_policy_panel.py --anno "$out/after-target/debug/anno" \
+  --historical "$out/before-target/debug/anno" --seed 20261125 \
+  --schedule "$cases/primary.json" 1a383311488ad0f3c19f1ea70a600766a1bdf6df44a978c83ab18b312bc4102c \
+  --schedule "$cases/sensitivity.json" 40f30aed9a1481f3a9739d7254145b2baf7ab92eba15e46f623ff3bd53f410e1 \
+  --out "$out/panel.json"
+git worktree remove "$out/before"
+git worktree remove "$out/after"
+```
+
+Both schedule files contain only project-authored journey names under the
+repository license. Future blinded trials need fresh independently authored
+schedules and commitments recorded before policy selection.
