@@ -43,7 +43,7 @@ def failure(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
-def read_state(path, version):
+def read_state(path, version, *, canonical=False):
     if path.is_symlink():
         raise ValueError("expected a regular journey ledger")
     if not path.exists():
@@ -73,13 +73,15 @@ def read_state(path, version):
             if (type(pick) is not list or len(pick) != 2 or pick[0] not in JOURNEYS
                     or (pick[1] != "pass" and not failure(pick[1]))):
                 raise ValueError("invalid selected journey observation")
+    if canonical and data != (json.dumps(state, indent=2, sort_keys=True) + "\n").encode():
+        raise ValueError("noncanonical trusted journey ledger")
     return state
 
 
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=path.parent, mode="w", delete=False) as stream:
-        json.dump(data, stream, indent=2, allow_nan=False)
+        json.dump(data, stream, indent=2, sort_keys=True, allow_nan=False)
         stream.write("\n")
     os.replace(stream.name, path)
 
@@ -141,7 +143,9 @@ def confirmed(run):
 
 def pilot(args):
     version = cohort()
-    state = read_state(args.state, version)
+    state = read_state(args.state, version, canonical=args.prior_run is not None)
+    if args.prior_run is not None and state["last_run"] != args.prior_run:
+        raise ValueError("downloaded ledger does not match its verified producing run")
     args.output.mkdir(parents=True, exist_ok=False)
     if not 0 < args.run_id < 2**63 or not 0 <= args.seed < 2**64:
         raise ValueError("invalid run identity or seed")
@@ -175,7 +179,6 @@ def pilot(args):
         updated = {**state, "rounds": state["rounds"] + 1, "last_run": args.run_id,
                    "history": (state["history"] + [selections])[-WINDOW:]}
         write_json(args.state, updated)
-        write_json(args.output / "ledger.json", updated)
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as out:
                 print("publish=true", file=out)
@@ -191,6 +194,7 @@ if __name__ == "__main__":
         run.add_argument("--" + arg, type=Path, required=True)
     for arg in ("run-id", "seed"):
         run.add_argument("--" + arg, type=int, required=True)
+    run.add_argument("--prior-run", type=int, help="verified artifact producer, or zero for a hosted cold start")
     args = parser.parse_args()
     if args.command == "cohort":
         print(cohort())

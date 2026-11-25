@@ -25,6 +25,10 @@ class JourneyPilotTests(unittest.TestCase):
             good = dict(schema=1, cohort="abc", rounds=1, last_run=10, history=[row])
             path.write_text(json.dumps(good))
             self.assertEqual(pilot.read_state(path, "abc"), good)
+            with self.assertRaisesRegex(ValueError, "noncanonical"):
+                pilot.read_state(path, "abc", canonical=True)
+            pilot.write_json(path, good)
+            self.assertEqual(pilot.read_state(path, "abc", canonical=True), good)
             for bad in [json.dumps({**good, "extra": 1}), json.dumps({**good, "cohort": "old"}),
                         json.dumps({**good, "schema": True}), '{"schema":1,"schema":1}',
                         json.dumps({**good, "history": [dict.fromkeys(pilot.JOURNEYS, "free text")]}),
@@ -37,7 +41,7 @@ class JourneyPilotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             args = argparse.Namespace(state=directory / "state.json", output=directory / "first",
-                    run_id=101, seed=12, anno=Path(__file__), selector=directory / "selector")
+                    run_id=101, prior_run=None, seed=12, anno=Path(__file__), selector=directory / "selector")
             adaptive_inputs = []
             def select(command, **kwargs):
                 if command[0] == "git":

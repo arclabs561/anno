@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: journey-sampling-${{ github.ref }}
   cancel-in-progress: false
@@ -35,29 +36,43 @@ jobs:
           cargo fetch --locked
           cargo build --offline --locked -p anno-cli -p anno-eval --no-default-features --features 'anno-cli/eval anno-cli/extractor-readability anno-eval/eval' --bin anno --example journey_pick
           cargo test --offline --locked --no-run -p anno-cli --no-default-features --features 'eval extractor-readability' --test brat_dataset_roundtrip --test corpus_read_many
-          python3 -m unittest discover -s scripts/qa -p test_journey_pilot.py
+          python3 -m unittest discover -s scripts/qa -p 'test_journey*.py'
       - name: Identify the compatible oracle and policy
         id: corpus
         run: echo "hash=$(python3 scripts/qa/journey_pilot.py cohort)" >> "$GITHUB_OUTPUT"
-      - name: Restore default-branch journey observations
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      - name: Find the latest successful default-branch journey ledger
+        id: prior
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          JOURNEY_COHORT: ${{ steps.corpus.outputs.hash }}
+        run: python3 scripts/qa/journey_checkpoint.py
+      - name: Download the verified journey ledger
+        if: steps.prior.outputs.artifact_id != '0'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          path: ${{ runner.temp }}/journey-state/ledger.json
-          key: journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-
+          artifact-ids: ${{ steps.prior.outputs.artifact_id }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prior.outputs.prior_run }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/journey-state
       - name: Compare prospective selections against the fixed panel
         id: pilot
+        env:
+          PRIOR_RUN: ${{ steps.prior.outputs.prior_run }}
         run: |
           python3 scripts/qa/journey_pilot.py run --selector target/debug/examples/journey_pick --anno target/debug/anno \
             --state "$RUNNER_TEMP/journey-state/ledger.json" --output "$RUNNER_TEMP/journey-result" \
-            --run-id "$GITHUB_RUN_ID" --seed "$GITHUB_RUN_ID"
-      - name: Save the bounded observed ledger
-        if: ${{ !cancelled() && steps.pilot.outputs.publish == 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+            --run-id "$GITHUB_RUN_ID" --seed "$GITHUB_RUN_ID" --prior-run "$PRIOR_RUN"
+      - name: Publish the compatible journey ledger
+        if: steps.pilot.outputs.publish == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
+          name: journey-ledger-${{ steps.corpus.outputs.hash }}
           path: ${{ runner.temp }}/journey-state/ledger.json
-          key: journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 60
+          overwrite: true
       - name: Upload the public panel receipt
         if: ${{ !cancelled() && steps.pilot.outcome != 'skipped' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -66,6 +81,5 @@ jobs:
           path: |
             ${{ runner.temp }}/journey-result/plan.json
             ${{ runner.temp }}/journey-result/report.json
-            ${{ runner.temp }}/journey-result/ledger.json
           retention-days: 30
           if-no-files-found: error
