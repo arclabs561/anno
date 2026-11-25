@@ -152,7 +152,7 @@ impl Default for DiscontinuousEvalConfig {
     }
 }
 
-/// Evaluate discontinuous NER predictions against gold standard.
+/// Evaluate discontinuous NER predictions against the gold entities in the same document.
 ///
 /// # Arguments
 /// * `gold` - Ground truth discontinuous entities
@@ -193,210 +193,188 @@ pub fn evaluate_discontinuous_ner(
     pred: &[DiscontinuousEntity],
     config: &DiscontinuousEvalConfig,
 ) -> DiscontinuousNERMetrics {
-    if gold.is_empty() && pred.is_empty() {
-        return DiscontinuousNERMetrics {
-            exact_f1: 1.0,
-            exact_precision: 1.0,
-            exact_recall: 1.0,
-            entity_boundary_f1: 1.0,
-            entity_boundary_precision: 1.0,
-            entity_boundary_recall: 1.0,
-            partial_span_f1: 1.0,
-            partial_span_precision: 1.0,
-            partial_span_recall: 1.0,
-            num_predicted: 0,
-            num_gold: 0,
-            exact_matches: 0,
-            boundary_matches: 0,
-            per_type: HashMap::new(),
+    let mut counts = DiscontinuousCounts::default();
+    counts.add_document(gold, pred, config);
+    counts.metrics()
+}
+
+/// Pool match counts and overlap sums after scoring each document in its own coordinates.
+#[derive(Default)]
+pub(super) struct DiscontinuousCounts {
+    num_gold: usize,
+    num_predicted: usize,
+    exact_matches: usize,
+    boundary_matches: usize,
+    partial_precision_sum: f64,
+    partial_recall_sum: f64,
+    per_type: HashMap<String, (usize, usize, usize, usize)>, // gold, predicted, exact, boundary
+}
+
+impl DiscontinuousCounts {
+    pub(super) fn add_document(
+        &mut self,
+        gold: &[DiscontinuousGold],
+        pred: &[DiscontinuousEntity],
+        config: &DiscontinuousEvalConfig,
+    ) {
+        self.num_gold += gold.len();
+        self.num_predicted += pred.len();
+
+        // Track matches
+        let mut gold_matched_exact = vec![false; gold.len()];
+        let mut gold_matched_boundary = vec![false; gold.len()];
+        // Count gold per type
+        for g in gold {
+            let entry = self.per_type.entry(g.entity_type.clone()).or_default();
+            entry.0 += 1;
+        }
+
+        // Count pred per type
+        for p in pred {
+            let entry = self.per_type.entry(p.entity_type.clone()).or_default();
+            entry.1 += 1;
+        }
+
+        // Exact matching: spans must match exactly
+        for p in pred {
+            for (gi, g) in gold.iter().enumerate() {
+                if gold_matched_exact[gi] {
+                    continue;
+                }
+
+                // Type match check
+                if config.require_type_match && p.entity_type != g.entity_type {
+                    continue;
+                }
+
+                // Exact span match
+                if spans_match_exactly(&p.spans, &g.spans) {
+                    gold_matched_exact[gi] = true;
+                    self.exact_matches += 1;
+
+                    let entry = self.per_type.entry(g.entity_type.clone()).or_default();
+                    entry.2 += 1;
+                    break;
+                }
+            }
+        }
+
+        // Boundary matching: head and tail tokens correct
+        for p in pred {
+            for (gi, g) in gold.iter().enumerate() {
+                if gold_matched_boundary[gi] {
+                    continue;
+                }
+
+                if config.require_type_match && p.entity_type != g.entity_type {
+                    continue;
+                }
+
+                // Boundary match: first span start and last span end
+                if boundaries_match(&p.spans, &g.spans) {
+                    gold_matched_boundary[gi] = true;
+                    self.boundary_matches += 1;
+
+                    let entry = self.per_type.entry(g.entity_type.clone()).or_default();
+                    entry.3 += 1;
+                    break;
+                }
+            }
+        }
+
+        // Calculate partial span overlap scores
+        for p in pred {
+            let best_overlap = gold
+                .iter()
+                .filter(|g| !config.require_type_match || p.entity_type == g.entity_type)
+                .map(|g| calculate_multi_span_overlap(&p.spans, &g.spans))
+                .max_by(|a, b| a.total_cmp(b))
+                .unwrap_or(0.0);
+            self.partial_precision_sum += best_overlap;
+        }
+
+        for g in gold {
+            let best_overlap = pred
+                .iter()
+                .filter(|p| !config.require_type_match || p.entity_type == g.entity_type)
+                .map(|p| calculate_multi_span_overlap(&p.spans, &g.spans))
+                .max_by(|a, b| a.total_cmp(b))
+                .unwrap_or(0.0);
+            self.partial_recall_sum += best_overlap;
+        }
+    }
+
+    pub(super) fn metrics(self) -> DiscontinuousNERMetrics {
+        let DiscontinuousCounts {
+            num_gold,
+            num_predicted,
+            exact_matches,
+            boundary_matches,
+            partial_precision_sum,
+            partial_recall_sum,
+            per_type: type_stats,
+        } = self;
+
+        // An empty prediction is perfect only when the whole reference is empty.
+        let empty_score = if num_gold == 0 && num_predicted == 0 {
+            1.0
+        } else {
+            0.0
         };
-    }
-
-    // Track matches
-    let mut gold_matched_exact = vec![false; gold.len()];
-    let mut gold_matched_boundary = vec![false; gold.len()];
-    let mut pred_matched_exact = vec![false; pred.len()];
-    let mut pred_matched_boundary = vec![false; pred.len()];
-
-    // Per-type tracking
-    let mut type_stats: HashMap<String, (usize, usize, usize, usize)> = HashMap::new(); // (gold, pred, exact, boundary)
-
-    // Count gold per type
-    for g in gold {
-        let entry = type_stats.entry(g.entity_type.clone()).or_default();
-        entry.0 += 1;
-    }
-
-    // Count pred per type
-    for p in pred {
-        let entry = type_stats.entry(p.entity_type.clone()).or_default();
-        entry.1 += 1;
-    }
-
-    // Exact matching: spans must match exactly
-    for (pi, p) in pred.iter().enumerate() {
-        for (gi, g) in gold.iter().enumerate() {
-            if gold_matched_exact[gi] {
-                continue;
+        let ratio = |sum: f64, total| {
+            if total == 0 {
+                empty_score
+            } else {
+                sum / total as f64
             }
+        };
+        let exact_precision = ratio(exact_matches as f64, num_predicted);
+        let exact_recall = ratio(exact_matches as f64, num_gold);
+        let exact_f1 = f1_score(exact_precision, exact_recall);
+        let boundary_precision = ratio(boundary_matches as f64, num_predicted);
+        let boundary_recall = ratio(boundary_matches as f64, num_gold);
+        let entity_boundary_f1 = f1_score(boundary_precision, boundary_recall);
+        let partial_span_precision = ratio(partial_precision_sum, num_predicted);
+        let partial_span_recall = ratio(partial_recall_sum, num_gold);
+        let partial_span_f1 = f1_score(partial_span_precision, partial_span_recall);
 
-            // Type match check
-            if config.require_type_match && p.entity_type != g.entity_type {
-                continue;
-            }
+        // Build per-type metrics
+        let per_type: HashMap<String, TypeMetrics> = type_stats
+            .into_iter()
+            .map(|(t, (gold_count, pred_count, exact, boundary))| {
+                let exact_p = ratio(exact as f64, pred_count);
+                let exact_r = ratio(exact as f64, gold_count);
+                let boundary_p = ratio(boundary as f64, pred_count);
+                let boundary_r = ratio(boundary as f64, gold_count);
+                (
+                    t,
+                    TypeMetrics {
+                        exact_f1: f1_score(exact_p, exact_r),
+                        boundary_f1: f1_score(boundary_p, boundary_r),
+                        gold_count,
+                        pred_count,
+                        exact_matches: exact,
+                    },
+                )
+            })
+            .collect();
 
-            // Exact span match
-            if spans_match_exactly(&p.spans, &g.spans) {
-                gold_matched_exact[gi] = true;
-                pred_matched_exact[pi] = true;
-
-                let entry = type_stats.entry(g.entity_type.clone()).or_default();
-                entry.2 += 1;
-                break;
-            }
+        DiscontinuousNERMetrics {
+            exact_f1,
+            exact_precision,
+            exact_recall,
+            entity_boundary_f1,
+            entity_boundary_precision: boundary_precision,
+            entity_boundary_recall: boundary_recall,
+            partial_span_f1,
+            partial_span_precision,
+            partial_span_recall,
+            num_predicted,
+            num_gold,
+            exact_matches,
+            boundary_matches,
+            per_type,
         }
-    }
-
-    // Boundary matching: head and tail tokens correct
-    for (pi, p) in pred.iter().enumerate() {
-        for (gi, g) in gold.iter().enumerate() {
-            if gold_matched_boundary[gi] {
-                continue;
-            }
-
-            if config.require_type_match && p.entity_type != g.entity_type {
-                continue;
-            }
-
-            // Boundary match: first span start and last span end
-            if boundaries_match(&p.spans, &g.spans) {
-                gold_matched_boundary[gi] = true;
-                pred_matched_boundary[pi] = true;
-
-                let entry = type_stats.entry(g.entity_type.clone()).or_default();
-                entry.3 += 1;
-                break;
-            }
-        }
-    }
-
-    // Calculate partial span overlap scores
-    let mut partial_precision_sum = 0.0;
-    let mut partial_recall_sum = 0.0;
-
-    for p in pred {
-        let best_overlap = gold
-            .iter()
-            .filter(|g| !config.require_type_match || p.entity_type == g.entity_type)
-            .map(|g| calculate_multi_span_overlap(&p.spans, &g.spans))
-            .max_by(|a, b| a.total_cmp(b))
-            .unwrap_or(0.0);
-        partial_precision_sum += best_overlap;
-    }
-
-    for g in gold {
-        let best_overlap = pred
-            .iter()
-            .filter(|p| !config.require_type_match || p.entity_type == g.entity_type)
-            .map(|p| calculate_multi_span_overlap(&p.spans, &g.spans))
-            .max_by(|a, b| a.total_cmp(b))
-            .unwrap_or(0.0);
-        partial_recall_sum += best_overlap;
-    }
-
-    // Calculate metrics
-    let exact_matches = pred_matched_exact.iter().filter(|&&m| m).count();
-    let boundary_matches = pred_matched_boundary.iter().filter(|&&m| m).count();
-
-    let exact_precision = if !pred.is_empty() {
-        exact_matches as f64 / pred.len() as f64
-    } else {
-        0.0
-    };
-    let exact_recall = if !gold.is_empty() {
-        exact_matches as f64 / gold.len() as f64
-    } else {
-        0.0
-    };
-    let exact_f1 = f1_score(exact_precision, exact_recall);
-
-    let boundary_precision = if !pred.is_empty() {
-        boundary_matches as f64 / pred.len() as f64
-    } else {
-        0.0
-    };
-    let boundary_recall = if !gold.is_empty() {
-        boundary_matches as f64 / gold.len() as f64
-    } else {
-        0.0
-    };
-    let entity_boundary_f1 = f1_score(boundary_precision, boundary_recall);
-
-    let partial_span_precision = if !pred.is_empty() {
-        partial_precision_sum / pred.len() as f64
-    } else {
-        0.0
-    };
-    let partial_span_recall = if !gold.is_empty() {
-        partial_recall_sum / gold.len() as f64
-    } else {
-        0.0
-    };
-    let partial_span_f1 = f1_score(partial_span_precision, partial_span_recall);
-
-    // Build per-type metrics
-    let per_type: HashMap<String, TypeMetrics> = type_stats
-        .into_iter()
-        .map(|(t, (gold_count, pred_count, exact, boundary))| {
-            let exact_p = if pred_count > 0 {
-                exact as f64 / pred_count as f64
-            } else {
-                0.0
-            };
-            let exact_r = if gold_count > 0 {
-                exact as f64 / gold_count as f64
-            } else {
-                0.0
-            };
-            let boundary_p = if pred_count > 0 {
-                boundary as f64 / pred_count as f64
-            } else {
-                0.0
-            };
-            let boundary_r = if gold_count > 0 {
-                boundary as f64 / gold_count as f64
-            } else {
-                0.0
-            };
-
-            (
-                t,
-                TypeMetrics {
-                    exact_f1: f1_score(exact_p, exact_r),
-                    boundary_f1: f1_score(boundary_p, boundary_r),
-                    gold_count,
-                    pred_count,
-                    exact_matches: exact,
-                },
-            )
-        })
-        .collect();
-
-    DiscontinuousNERMetrics {
-        exact_f1,
-        exact_precision,
-        exact_recall,
-        entity_boundary_f1,
-        entity_boundary_precision: boundary_precision,
-        entity_boundary_recall: boundary_recall,
-        partial_span_f1,
-        partial_span_precision,
-        partial_span_recall,
-        num_predicted: pred.len(),
-        num_gold: gold.len(),
-        exact_matches,
-        boundary_matches,
-        per_type,
     }
 }
 
@@ -467,6 +445,49 @@ fn f1_score(precision: f64, recall: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn corpus_pools_local_matches_and_fractional_overlap_by_entity_count() {
+        let config = DiscontinuousEvalConfig::default();
+        let org = DiscontinuousGold::contiguous(0, 2, "ORG", "XY");
+        let loc = DiscontinuousGold::new(vec![(0, 2), (4, 6)], "LOC", "XY ZW");
+        let predict = |g: &DiscontinuousGold| DiscontinuousEntity {
+            spans: g.spans.clone(),
+            entity_type: g.entity_type.clone(),
+            text: g.text.clone(),
+            confidence: anno::Confidence::ONE,
+        };
+        let mut partial_loc = predict(&loc);
+        partial_loc.spans = vec![(0, 1), (5, 6)];
+        partial_loc.text = "X W".into();
+        let mut counts = DiscontinuousCounts::default();
+        counts.add_document(std::slice::from_ref(&org), &[predict(&org)], &config);
+        // Same ORG coordinates as in the first document, but only LOC is gold here.
+        counts.add_document(&[loc], &[predict(&org), partial_loc], &config);
+        counts.add_document(&[], &[], &config);
+        let m = counts.metrics();
+        assert_eq!(
+            (
+                m.num_gold,
+                m.num_predicted,
+                m.exact_matches,
+                m.boundary_matches
+            ),
+            (2, 3, 1, 2)
+        );
+        for (actual, expected) in [
+            (m.exact_f1, 0.4),
+            (m.entity_boundary_f1, 0.8),
+            (m.partial_span_precision, 0.5),
+            (m.partial_span_recall, 0.75),
+            (m.partial_span_f1, 0.6),
+            (m.per_type["ORG"].exact_f1, 2.0 / 3.0),
+            (m.per_type["LOC"].exact_f1, 0.0),
+            (m.per_type["LOC"].boundary_f1, 1.0),
+        ] {
+            assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
+        }
+    }
 
     #[test]
     fn test_exact_match() {

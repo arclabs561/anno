@@ -30,9 +30,7 @@ use std::collections::HashMap;
 use super::dataset::synthetic::{
     discontinuous::dataset as discontinuous_dataset, relations::dataset as relations_dataset,
 };
-use super::discontinuous::{
-    evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold, DiscontinuousNERMetrics,
-};
+use super::discontinuous::{DiscontinuousCounts, DiscontinuousEvalConfig, DiscontinuousNERMetrics};
 use super::relation::{
     evaluate_relation_documents, RelationEvalConfig, RelationMetrics, RelationPrediction,
 };
@@ -106,19 +104,12 @@ pub fn evaluate_discontinuous_synthetic<M: DiscontinuousNER>(
     let examples = discontinuous_dataset();
     let config = DiscontinuousEvalConfig::default();
 
-    let mut all_gold: Vec<DiscontinuousGold> = Vec::new();
-    let mut all_pred: Vec<DiscontinuousEntity> = Vec::new();
-
-    for example in &examples {
-        // Collect gold entities
-        all_gold.extend(example.entities.clone());
-
-        // Run model prediction
-        let pred = model.extract_discontinuous(&example.text, labels, threshold)?;
-        all_pred.extend(pred);
+    let mut counts = DiscontinuousCounts::default();
+    for example in examples {
+        let predicted = model.extract_discontinuous(&example.text, labels, threshold)?;
+        counts.add_document(&example.entities, &predicted, &config);
     }
-
-    Ok(evaluate_discontinuous_ner(&all_gold, &all_pred, &config))
+    Ok(counts.metrics())
 }
 
 /// Run discontinuous NER evaluation without a model (for testing metrics only).
@@ -126,20 +117,21 @@ pub fn evaluate_discontinuous_gold_vs_gold() -> DiscontinuousNERMetrics {
     let examples = discontinuous_dataset();
     let config = DiscontinuousEvalConfig::default();
 
-    let gold: Vec<DiscontinuousGold> = examples.iter().flat_map(|ex| ex.entities.clone()).collect();
-
-    // Perfect prediction = gold
-    let pred: Vec<DiscontinuousEntity> = gold
-        .iter()
-        .map(|g| DiscontinuousEntity {
-            spans: g.spans.clone(),
-            text: g.text.clone(),
-            entity_type: g.entity_type.clone(),
-            confidence: anno::Confidence::ONE,
-        })
-        .collect();
-
-    evaluate_discontinuous_ner(&gold, &pred, &config)
+    let mut counts = DiscontinuousCounts::default();
+    for example in examples {
+        let predicted: Vec<_> = example
+            .entities
+            .iter()
+            .map(|g| DiscontinuousEntity {
+                spans: g.spans.clone(),
+                text: g.text.clone(),
+                entity_type: g.entity_type.clone(),
+                confidence: anno::Confidence::ONE,
+            })
+            .collect();
+        counts.add_document(&example.entities, &predicted, &config);
+    }
+    counts.metrics()
 }
 
 // =============================================================================
@@ -275,6 +267,52 @@ pub struct SyntheticDatasetStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discontinuous_synthetic_keeps_matches_in_their_document() {
+        struct WrongDocument;
+        impl DiscontinuousNER for WrongDocument {
+            fn extract_discontinuous(
+                &self,
+                text: &str,
+                _: &[&str],
+                _: f32,
+            ) -> Result<Vec<DiscontinuousEntity>> {
+                if text == "Apple and Microsoft stocks rose sharply." {
+                    // These LOC coordinates match "New York airports" in another example.
+                    return Ok(vec![DiscontinuousEntity {
+                        spans: vec![(0, 8), (25, 33)],
+                        text: format!("{} {}", &text[..8], &text[25..33]),
+                        entity_type: "LOC".into(),
+                        confidence: anno::Confidence::ONE,
+                    }]);
+                }
+                Ok(vec![])
+            }
+        }
+        let m = evaluate_discontinuous_synthetic(&WrongDocument, &["LOC"], 0.5).unwrap();
+        assert_eq!(m.num_predicted, 1);
+        assert_eq!((m.exact_matches, m.boundary_matches), (0, 0));
+        assert_eq!(
+            (
+                m.partial_span_precision,
+                m.partial_span_recall,
+                m.partial_span_f1
+            ),
+            (0.0, 0.0, 0.0)
+        );
+        let loc = &m.per_type["LOC"];
+        assert!(loc.gold_count >= 1);
+        assert_eq!(
+            (
+                loc.pred_count,
+                loc.exact_matches,
+                loc.exact_f1,
+                loc.boundary_f1
+            ),
+            (1, 0, 0.0, 0.0)
+        );
+    }
 
     #[test]
     fn test_discontinuous_gold_vs_gold() {
