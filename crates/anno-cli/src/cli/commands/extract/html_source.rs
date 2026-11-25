@@ -130,26 +130,71 @@ mod tests {
     use anno::Signal;
 
     #[test]
-    fn gaps_in_the_renderer_map_have_no_claimed_source_bytes() {
-        let source = "<p>before <img alt='a β' src='photo.png'> after</p>".to_owned();
-        let (text, map) = strip_to_text_with_spans(&source);
-        assert_eq!(text, "before a β after");
+    fn image_alt_separators_project_to_the_image_tag() {
+        let source = "L<img alt='β'>R";
+        let (text, map) = strip_to_text_with_spans(source);
+        assert_eq!(text, "L β R");
+        let mut doc = GroundedDocument::new("image", &text);
+        for start in [1, 3] {
+            doc.add_signal(Signal::new(
+                0,
+                Location::text(start, start + 1),
+                " ",
+                "test",
+                1.0,
+            ));
+        }
+        let html = MappedHtml {
+            source: source.to_owned(),
+            text,
+            map,
+        };
+        let byte_map = html.source_map().unwrap();
+        html.record(&mut doc).unwrap();
+        let spans = &doc.html_source().unwrap().spans;
+        assert_eq!(spans.len(), 2);
+        for span in spans {
+            let [fragment] = span.fragments.as_slice() else {
+                panic!("expected the separator's image origin")
+            };
+            assert_eq!(fragment.kind, HtmlFragmentKind::Synthetic);
+            let range = fragment.source_bytes.as_ref().unwrap();
+            assert_eq!(&source[range.clone()], "<img alt='β'>");
+            let runs = byte_map
+                .project_chars(doc.text(), span.rendered_chars.clone())
+                .unwrap();
+            assert_eq!(runs.len(), 1);
+            assert_eq!(runs[0].kind, anno::SourceKind::Synthetic);
+            assert_eq!(runs[0].source_bytes.as_ref(), Some(range));
+        }
+    }
+
+    #[test]
+    fn incomplete_renderer_map_leaves_uncovered_output_unmapped() {
+        let source = "<p>ok</p>";
+        let (mut text, map) = strip_to_text_with_spans(source);
+        // Model a renderer that supplies the prefix's origin but no run for its suffix.
+        text.push('β');
         let mut doc = GroundedDocument::new("gap", &text);
-        doc.add_signal(Signal::new(
-            0,
-            Location::text(0, text.chars().count()),
-            &text,
-            "test",
-            1.0,
-        ));
-        MappedHtml { source, text, map }.record(&mut doc).unwrap();
+        doc.add_signal(Signal::new(0, Location::text(0, 3), &text, "test", 1.0));
+        let html = MappedHtml {
+            source: source.to_owned(),
+            text,
+            map,
+        };
+        let byte_map = html.source_map().unwrap();
+        html.record(&mut doc).unwrap();
         let fragments = &doc.html_source().unwrap().spans[0].fragments;
-        let hole = fragments
-            .iter()
-            .find(|fragment| fragment.kind == HtmlFragmentKind::Unmapped)
-            .unwrap();
-        assert_eq!(hole.rendered_bytes, 11..12);
-        assert_eq!(hole.source_bytes, None);
+        assert_eq!(fragments.len(), 2);
+        assert_eq!(fragments[0].kind, HtmlFragmentKind::Direct);
+        assert_eq!(fragments[0].source_bytes, Some(3..5));
+        assert_eq!(fragments[1].kind, HtmlFragmentKind::Unmapped);
+        assert_eq!(fragments[1].rendered_bytes, 2..4);
+        assert_eq!(fragments[1].source_bytes, None);
+        let gap = byte_map.project_chars(doc.text(), 2..3).unwrap();
+        assert_eq!(gap.len(), 1);
+        assert_eq!(gap[0].kind, anno::SourceKind::Unmapped);
+        assert_eq!(gap[0].source_bytes, None);
     }
 
     #[test]
