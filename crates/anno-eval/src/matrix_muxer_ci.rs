@@ -2388,11 +2388,11 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     // If the user explicitly forced a backend list, treat that as an explicit opt-in for whatever
     // feature-enabled backends they requested (including ML-ish ones). This prevents surprising
     // “fixed backend not found in candidates” behavior on local runs.
-    if std::env::var("ANNO_MUXER_FIXED_BACKEND")
+    let fixed = std::env::var("ANNO_MUXER_FIXED_BACKEND")
         .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
         .ok()
-        .is_some_and(|v| !v.trim().is_empty())
-    {
+        .is_some_and(|v| !v.trim().is_empty());
+    if fixed {
         allow_ml = true;
     }
 
@@ -2419,6 +2419,20 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     for b in allowed {
         if b == "w2ner" && !has_hf_token {
             continue;
+        }
+
+        // Fixed replays exercise construction even when prerequisites are missing.
+        // Automatic sampling spends its budget on models the current job can load.
+        #[cfg(feature = "onnx")]
+        if !fixed {
+            let hub_model = match b {
+                "gliner" | "gliner_onnx" => Some(anno::DEFAULT_GLINER_MODEL),
+                "gliner_pii" => Some(anno::models::GLINER_PII),
+                _ => None,
+            };
+            if hub_model.is_some_and(|id| !anno::GLiNEROnnx::hub_assets_available(id)) {
+                continue;
+            }
         }
 
         // Baselines: always include if present in this build.

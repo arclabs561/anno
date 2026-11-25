@@ -172,7 +172,11 @@ requires a completed sample with examples on each named task and an attempted
 worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
-policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
+policy still runs. With `ANNO_NO_DOWNLOADS=1`, the automatic sampler includes
+the Hub-backed GLiNER ONNX and GLiNER PII models when their active local Hub
+revision contains a supported graph and tokenizer. An explicit fixed GLiNER
+replay still attempts construction and records missing or invalid model assets.
+`ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
 test: it bypasses the policy and must not be used to evaluate it. Similarly,
 `ANNO_MUXER_FIXED_DATASETS` fixes the dataset panel when comparing policies.
 
