@@ -116,7 +116,7 @@ static PRINTED_VALIDITY_PERIOD: LazyLock<Regex> = LazyLock::new(|| {
         r"(?:in|out[\t\p{Zs}]+of)[\t\p{Zs}]+service|in[\t\p{Zs}]+(?:effect|force)|",
         r"lasted|took[\t\p{Zs}]+place|",
         r"(?:exhibition|festival|session|campaign|season|conference|tournament|workshop|",
-        r"programme?|trial|restoration|construction|rehearsals?)[\t\p{Zs}]+(?:runs|ran))",
+        r"program(?:me)?|trial|restoration|construction|rehearsals?)[\t\p{Zs}]+(?:runs|ran))",
         r"[\t\p{Zs}]+from[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})",
         r"[\t\p{Zs}]+(?:to|through|until)[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b",
     ))
