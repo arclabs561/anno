@@ -69,6 +69,45 @@ use crate::EntityCategory;
 use crate::{Confidence, Entity, EntityType, Language, Model, Result};
 use std::borrow::Cow;
 
+/// Check the exporter's three batch-one handshaking tensors before flat indexing.
+#[cfg(any(feature = "onnx", test))]
+fn validate_logit_shapes(
+    seq_len: usize,
+    entity_tags: usize,
+    relation_types: usize,
+    entity: (&[i64], usize),
+    head: (&[i64], usize),
+    tail: (&[i64], usize),
+) -> Result<()> {
+    let rows = seq_len
+        .checked_add(1)
+        .and_then(|next| seq_len.checked_mul(next))
+        .ok_or_else(|| crate::Error::inference("TPLinker sequence length exceeds index range"))?
+        / 2;
+    if entity_tags == 0 {
+        return Err(crate::Error::inference(
+            "TPLinker ent_logits requires a NONE tag",
+        ));
+    }
+    let relation_tags = relation_types
+        .checked_mul(3)
+        .ok_or_else(|| crate::Error::inference("TPLinker relation count exceeds index range"))?;
+    for (name, (shape, len), tags) in [
+        ("ent_logits", entity, entity_tags),
+        ("head_rel_logits", head, relation_tags),
+        ("tail_rel_logits", tail, relation_tags),
+    ] {
+        if !matches!(shape, [1, r, c] if usize::try_from(*r) == Ok(rows) && usize::try_from(*c) == Ok(tags))
+            || rows.checked_mul(tags) != Some(len)
+        {
+            return Err(crate::Error::inference(format!(
+                "TPLinker {name}: expected [1, {rows}, {tags}], got {shape:?} with {len} values"
+            )));
+        }
+    }
+    Ok(())
+}
+
 // =============================================================================
 // ONNX Backend (feature-gated)
 // =============================================================================
@@ -261,23 +300,32 @@ mod onnx_impl {
                 .map_err(|e| Error::Inference(format!("TPLinker ONNX run: {e}")))?;
 
             // Extract output tensors as flat slices with shapes
-            let (_ent_shape, ent_data) = outputs
+            let (ent_shape, ent_data) = outputs
                 .get("ent_logits")
                 .ok_or_else(|| Error::Inference("Missing ent_logits output".to_string()))?
                 .try_extract_tensor::<f32>()
                 .map_err(|e| Error::Inference(format!("extract ent_logits: {e}")))?;
 
-            let (_head_shape, head_data) = outputs
+            let (head_shape, head_data) = outputs
                 .get("head_rel_logits")
                 .ok_or_else(|| Error::Inference("Missing head_rel_logits output".to_string()))?
                 .try_extract_tensor::<f32>()
                 .map_err(|e| Error::Inference(format!("extract head_rel_logits: {e}")))?;
 
-            let (_tail_shape, tail_data) = outputs
+            let (tail_shape, tail_data) = outputs
                 .get("tail_rel_logits")
                 .ok_or_else(|| Error::Inference("Missing tail_rel_logits output".to_string()))?
                 .try_extract_tensor::<f32>()
                 .map_err(|e| Error::Inference(format!("extract tail_rel_logits: {e}")))?;
+
+            validate_logit_shapes(
+                seq_len,
+                self.config.num_entity_tags,
+                self.config.num_relation_types,
+                (ent_shape, ent_data.len()),
+                (head_shape, head_data.len()),
+                (tail_shape, tail_data.len()),
+            )?;
 
             // Decode entities from handshaking entity tags
             let entities = self.decode_entities(text, &encoding, ent_data, seq_len)?;
@@ -898,6 +946,34 @@ impl RelationExtractor for TPLinker {
 mod tests {
     use super::*;
     use std::sync::LazyLock;
+
+    #[test]
+    fn validates_each_handshaking_output_before_decoding() {
+        let entity = (&[1, 6, 5][..], 30);
+        let relation = (&[1, 6, 3][..], 18);
+        assert!(validate_logit_shapes(3, 5, 1, entity, relation, relation).is_ok());
+        // The NONE class is sufficient for entities, and zero relation types
+        // produce empty relation heads.
+        assert!(
+            validate_logit_shapes(3, 1, 0, (&[1, 6, 1], 6), (&[1, 6, 0], 0), (&[1, 6, 0], 0))
+                .is_ok()
+        );
+
+        for (name, ent, head, tail) in [
+            ("ent_logits", (&[6, 5][..], 30), relation, relation),
+            ("ent_logits", (&[2, 3, 5][..], 30), relation, relation),
+            ("head_rel_logits", entity, (&[1, 3, 6][..], 18), relation),
+            ("tail_rel_logits", entity, relation, (&[1, 6, 3][..], 17)),
+        ] {
+            let result = validate_logit_shapes(3, 5, 1, ent, head, tail);
+            assert!(
+                matches!(result, Err(crate::Error::Inference(message)) if message.contains(name))
+            );
+        }
+        assert!(validate_logit_shapes(3, 0, 1, (&[1, 6, 0], 0), relation, relation).is_err());
+        assert!(validate_logit_shapes(3, 5, usize::MAX, entity, relation, relation).is_err());
+        assert!(validate_logit_shapes(usize::MAX, 5, 1, entity, relation, relation).is_err());
+    }
 
     /// Cached TPLinker with standard thresholds (0.15/0.55).
     /// Avoids repeated ONNX model probe + disk scan per test (~10s each).
