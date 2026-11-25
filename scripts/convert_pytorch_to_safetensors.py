@@ -19,6 +19,7 @@ Usage:
     uvx --from scripts convert_pytorch_to_safetensors.py <input.bin> <output.safetensors>
 """
 
+import pickle
 import sys
 import torch
 from safetensors.torch import save_file
@@ -56,6 +57,8 @@ def convert_pytorch_to_safetensors(input_path: str, output_path: str) -> None:
             print(f"ERROR: Output file was not created: {output_path}", file=sys.stderr)
             sys.exit(1)
             
+    except pickle.UnpicklingError:
+        sys.exit("ERROR: The restricted loader could not read this tensor state dict.")
     except Exception as e:
         print(f"ERROR: Conversion failed: {e}", file=sys.stderr)
         sys.exit(1)

@@ -9,7 +9,6 @@ Run `uv run scripts/download_maverick_weights.py --model ontonotes` from an Anno
 source checkout with Cargo installed. Use `--list` to see the available models.
 """
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -24,16 +23,10 @@ from huggingface_hub import hf_hub_download
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "crates/anno/src/backends/coref"
 sys.path.insert(0, str(WORKER))
-from maverick_worker import verify_encoder
+from maverick_worker import sha256_file, verify_encoder
 
 PINS = json.loads((WORKER / "maverick_models.json").read_text())
-MODELS = {
-    "ontonotes": (PINS["MODEL"], PINS["MODEL_REVISION"], PINS["MODEL_SHA256"]),
-    "litbank": ("sapienzanlp/maverick-mes-litbank", "2cd789680357a6c1cddd36c95e022c4fef7e867b",
-                "d867ab70063e4eda11d1abfe5773a2073603887e232c9c26263837400eb8b8b7"),
-    "preco": ("sapienzanlp/maverick-mes-preco", "7528f57c2491941bb88f5f431519596d54151c28",
-              "9e0f14b076dd9824cb4c91ccc77b97fea58a3caa8244e8e5d09f656793b3115e"),
-}
+MODELS = PINS["MODELS"]
 
 
 def get_cache_dir() -> Path:
@@ -45,16 +38,13 @@ def get_cache_dir() -> Path:
 
 
 def download_model(model_name: str, output_dir: Path, cache_dir: Path | None = None) -> Path:
-    repo, revision, expected_sha = MODELS[model_name]
+    model = MODELS[model_name]
+    repo, revision = model["repo"], model["revision"]
     directory = output_dir / "maverick"
     directory.mkdir(parents=True, exist_ok=True)
     hub = {"repo_id": repo, "revision": revision, "cache_dir": cache_dir or directory / ".cache"}
     checkpoint = Path(hf_hub_download(filename="weights.ckpt", **hub))
-    digest = hashlib.sha256()
-    with checkpoint.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    if digest.hexdigest() != expected_sha:
+    if sha256_file(checkpoint) != model["source_sha256"]:
         raise ValueError(f"Checkpoint digest mismatch for {repo}@{revision}")
 
     verify_encoder(PINS, cache_dir=cache_dir)
@@ -68,6 +58,8 @@ def download_model(model_name: str, output_dir: Path, cache_dir: Path | None = N
              "--features", "candle", "--example", "maverick_export", "--", checkpoint, prepared],
             cwd=ROOT, check=True,
         )
+        if sha256_file(prepared) != model["prepared_sha256"]:
+            raise ValueError(f"Prepared checkpoint digest mismatch for {repo}@{revision}")
         config = Path(scratch) / "config.yaml"
         shutil.copyfile(hf_hub_download(filename="config.yaml", **hub), config)
         config.replace(directory / f"maverick-{model_name}-config.yaml")
@@ -84,8 +76,8 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=get_cache_dir() / "models")
     args = parser.parse_args()
     if args.list:
-        for name, (repo, revision, _) in MODELS.items():
-            print(f"{name}: https://huggingface.co/{repo}/tree/{revision}")
+        for name, model in MODELS.items():
+            print(f"{name}: https://huggingface.co/{model['repo']}/tree/{model['revision']}")
         return
     for name in MODELS if args.all else (args.model,):
         print(download_model(name, args.output_dir))
