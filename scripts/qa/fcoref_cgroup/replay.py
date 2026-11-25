@@ -24,6 +24,16 @@ def sha(path):
         return hashlib.file_digest(file, "sha256").hexdigest()
 
 
+def pinned_fp32_hashes(path):
+    # The native loader prefers the quantized encoder whenever it is present.
+    if (path / "encoder_quantized.onnx").exists():
+        raise ValueError("quantized encoder would override the pinned FP32 export")
+    hashes = {name: sha(path / name) for name in MODEL_SHA}
+    if hashes != MODEL_SHA:
+        raise ValueError("expected the pinned FP32 export")
+    return hashes
+
+
 def docker(*args):
     return subprocess.check_output(["docker", *args], text=True).strip()
 
@@ -177,9 +187,7 @@ def main():
                              ("CgroupVersion", "CpuCfsQuota", "CPUSet", "MemoryLimit", "SwapLimit", "Warnings")}
         require_controls(info)
         image = docker("image", "inspect", "--format", "{{.Id}}", args.image)
-        hashes = {name: sha(args.model / name) for name in MODEL_SHA}
-        if hashes != MODEL_SHA or (args.model / "encoder_quantized.onnx").exists():
-            raise RuntimeError("expected the pinned FP32 export")
+        hashes = pinned_fp32_hashes(args.model)
         ort_hash = sha(args.ort)
         if ort_hash != "2d518e11c7767f9fdc4413bdbeb45acf30db504ff76a82fc19d9238a3f9f6c24":
             raise RuntimeError("expected the pinned Linux x86_64 ONNX Runtime CPU library 1.24.4")

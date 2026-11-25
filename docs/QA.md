@@ -178,7 +178,7 @@ python3 scripts/qa/replay_litbank_role.py target/litbank \
 
 The oracle expects the pronoun, role and correct name to share a cluster, and the other named person to appear in a different cluster. The scorer reports all four selected pairs, with an unresolved judgment when either exact span lacks an emitted cluster. Stock FCoref on 942eb6a6 proposed all four endpoints but grouped the pronoun and role with the other named person. This single case has no frequency estimate.
 
-Use `--predictions FILE` to score a saved receipt from the example. A match exits 0 and a mismatch exits 1. An unavailable runner or model, or a source-only check with neither execution mode, reports `not_run` and exits 77. A bad source, malformed receipt, or failed invocation exits 2. Synthetic same-person, wrong-person and missing-endpoint controls run with `python3 -m unittest discover -s scripts/qa -p test_replay_litbank_role.py`.
+Live runs verify the four pinned FP32 files before and after inference and include their SHA-256 digests in `prediction_source`. A co-located quantized encoder or a mismatched digest exits 2. Use `--predictions FILE` to score saved predictions from the example. That mode records the SHA-256 of the supplied receipt and leaves the model identity unverified. A match exits 0 and a mismatch exits 1. An unavailable runner or model, or a source-only check with neither execution mode, reports `not_run` and exits 77. A bad source, malformed receipt, or failed invocation exits 2. Synthetic same-person, wrong-person and missing-endpoint controls run with `python3 -m unittest discover -s scripts/qa -p test_replay_litbank_role.py`.
 
 ### Compare compact name displays
 
