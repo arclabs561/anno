@@ -7,10 +7,12 @@ from pathlib import Path
 import sqlite3
 import tempfile
 
-from check import LIVE, answer, install_case
+from check import LIVE, answer, install_case, revision
 
 
 def read_snippets(path, at, policy, audience):
+    revision(at)
+    revision(policy)
     # Public assertion IDs and issuer labels are supplied independently of the
     # restricted text. Neither the digest nor offsets of the whole source are public.
     if audience == "public":
@@ -22,11 +24,13 @@ def read_snippets(path, at, policy, audience):
         raise ValueError(f"unknown audience {audience}")
     query = f"""
         SELECT {fields}
-        FROM selected s JOIN excerpt x ON (s.id,s.rev,s.source)=(x.id,x.rev,x.source)
+        FROM selected s JOIN excerpt x ON (s.issuer,s.id,s.rev,s.source)=(x.issuer,x.id,x.rev,x.source)
         JOIN source e ON (e.id,e.edition)=(x.source,x.edition)
         JOIN quote q ON (q.source,q.start,q.end)=(e.id,x.start,x.end)
-        WHERE s.kind='credit' AND s.role='writing'
-        ORDER BY s.id
+        WHERE s.kind='credit' AND s.role='writing' AND (:staff OR NOT EXISTS (
+            SELECT 1 FROM hidden h WHERE (h.issuer,h.assertion)=(s.issuer,s.id)
+              AND h.policy=:policy AND h.excerpt_only=1))
+        ORDER BY s.id,s.issuer
     """
     with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
@@ -49,7 +53,7 @@ def install_snippets(path, anno, first, second):
         "sources": [{"id": "proof", "edition": "original", "text": text}],
         "steps": [{"revision": 1, "put": [
             {"id": "foreword", "kind": "credit", "issuer": "press", "source": "proof",
-             "target": "person-1", "role": "writing"},
+             "target": "person-1", "role": "writing", "excerpt": {"start": 0, "end": len(first)}},
             {"id": "ledger", "kind": "credit", "issuer": "editor", "source": "proof",
              "target": "person-2", "role": "writing"},
         ]}, {"revision": 2, "put": [
@@ -57,7 +61,9 @@ def install_snippets(path, anno, first, second):
              "target": "person-3", "role": "writing"},
         ]}],
         "policies": [{"revision": 10, "hidden": ["ledger"]},
-                     {"revision": 11, "hidden": ["foreword", "ledger"]}],
+                     {"revision": 11, "hidden": ["foreword", "ledger"]},
+                     {"revision": 12, "hidden": ["ledger"],
+                      "hidden_excerpts": [{"issuer": "press", "id": "foreword"}]}],
     }
     # The second edition will separately approve only the first word.
     ranges = [("proof", 0, len(first)), ("proof", start, len(text)),
@@ -65,11 +71,11 @@ def install_snippets(path, anno, first, second):
     with closing(sqlite3.connect(path)) as db, db:
         install_case(db, case, anno, ranges)
         db.execute("""CREATE TABLE excerpt (
-            id TEXT, rev INTEGER, source TEXT, edition TEXT, start INTEGER, end INTEGER,
-            PRIMARY KEY(id,rev,source))""")
-        db.executemany("INSERT INTO excerpt VALUES (?,?,?,?,?,?)", [
-            ("foreword", 1, "proof", "original", 0, len(first)),
-            ("ledger", 1, "proof", "original", start, len(text)),
+            issuer TEXT, id TEXT, rev INTEGER, source TEXT, edition TEXT, start INTEGER, end INTEGER,
+            PRIMARY KEY(issuer,id,rev,source))""")
+        db.executemany("INSERT INTO excerpt VALUES (?,?,?,?,?,?,?)", [
+            ("press", "foreword", 1, "proof", "original", 0, len(first)),
+            ("editor", "ledger", 1, "proof", "original", start, len(text)),
         ])
 
 
@@ -94,6 +100,18 @@ def check_snippets(anno):
                 {"assertion": "ledger", "issuer": "editor", "quote": second,
                  **locator, "start": len(first) + 1, "end": len(text)},
             ]
+            # The narrower policy preserves the visible credit while withholding
+            # its exact quotation on both ways a public client can request text.
+            assert read_snippets(path, 1, 12, "public") == []
+            assert read_snippets(path, 1, 12, "staff") == expected_proofs
+            with closing(sqlite3.connect(path)) as db:
+                context = {"at": 1, "policy": 12, "role": "writing", "audience": "public"}
+                assert answer(db, {**context, "kind": "credit"}) == ["person-1"]
+                cited = {**context, "kind": "cited_credit", "target": "person-1"}
+                public_receipt, = answer(db, cited)
+                staff_receipt, = answer(db, {**cited, "audience": "staff"})
+                assert public_receipt["excerpt"] is None
+                assert staff_receipt["excerpt"]["quote"] == first
             public = read_snippets(path, 1, 10, "public")
             proofs = read_snippets(path, 1, 10, "staff")
             assert public == [authorized] and proofs == expected_proofs
@@ -112,8 +130,8 @@ def check_snippets(anno):
             assert read_snippets(path, 2, 10, "staff") == expected_proofs[1:]
             word = first.split()[0]
             with closing(sqlite3.connect(path)) as db, db:
-                db.execute("INSERT INTO excerpt VALUES (?,?,?,?,?,?)",
-                           ("foreword", 2, "proof", "original", 0, len(word)))
+                db.execute("INSERT INTO excerpt VALUES (?,?,?,?,?,?,?)",
+                           ("press", "foreword", 2, "proof", "original", 0, len(word)))
             approved = read_snippets(path, 2, 10, "public")
             assert approved == [{**authorized, "quote": word}]
             assert read_snippets(path, 2, 10, "staff") == [
@@ -128,5 +146,5 @@ def check_snippets(anno):
     assert public_views[0] == public_views[1]
     assert staff_proofs[0] != staff_proofs[1]
     assert leaky_views[0] != leaky_views[1]
-    print("22 reopened snippet views: public JSON agrees across two withheld suffixes; "
-          "staff proofs differ; revised claims need fresh excerpt approval")
+    print("26 reopened snippet views: public JSON agrees across two withheld suffixes; "
+          "staff proofs differ; current excerpt hides cover both public read paths")
