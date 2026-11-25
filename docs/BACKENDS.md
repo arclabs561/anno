@@ -459,6 +459,10 @@ only `ort` plus the model artifact.
 
 The Rust `MaverickCoref::resolve_mentions` API accepts half-open Unicode character spans for clustering-only runs. The worker uses English spaCy tokenization and a sentencizer, sends word-tokenized sentences to the model, and maps its inclusive token predictions back to source character ranges. A supplied span that splits a token raises an error. The pipeline publishes multi-mention tracks. Callers can request singleton predictions through the Rust constructor when using singleton-trained LitBank or PreCo weights.
 
+Maverick allows 15 minutes for model startup and five minutes for a request, including time queued behind another caller. Rust callers can select different durations with `MaverickCoref::with_timeouts`. If worker I/O times out, the pipe breaks, or the reply is malformed, the adapter returns an error and reaps that worker. The next document starts a fresh worker. A caller that times out in the queue leaves the active request running. A model-reported input error also leaves the worker available.
+
+The [Maverick workflow](../.github/workflows/maverick-coref.yml) exercises worker hangs and recovery on pull requests. Manually dispatch it to replay the real-weight test with a verified encoder and checkpoint. To run locally on Linux x86-64 with Python 3.12, use the workflow’s CPU installation commands and run `python scripts/qa/maverick/verify.py /path/to/workdir`. The script creates an isolated model cache, checks every artifact SHA-256 and runs inference with Hugging Face offline mode.
+
 For T5, `T5Coref::resolve_neural` preserves the ONNX model’s empty predictions and inference errors for evaluation; `resolve` retains its legacy heuristic fallback. [Grenander et al.’s incremental seq2seq method](https://arxiv.org/abs/2510.14504) uses compressed entity histories. An Anno-compatible trained checkpoint and decoding contract for that method have not been verified.
 
 #### Architecture-specific gotchas
@@ -481,7 +485,10 @@ A few backends need more than a stock `optimum-cli export onnx`:
   The CPU parity run used checkpoint revision
   `4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290`; pass it with `--revision` to reproduce the export.
   Use `anno extract --model gliner-relex --extract-relations --extract-types "person,organization" --relation-types "works for,founded" --text "Marie Curie worked at the University of Paris."`.
-  Entity-only exports retain their existing NER interface.
+  After export, run `python scripts/qa/check_gliner_relex_cli.py --anno target/debug/anno --receipt result.json`.
+  The replay checks five upstream predictions, including repeated surface names and empty
+  results. It reloads each grounded export and records the checkpoint, artifact generation,
+  native binary, ONNX Runtime and score differences in the receipt.
 - **GLiNER bi-encoder** (`gliner_poly`): produces **two** ONNX graphs --
   a text encoder and a separate label encoder for the BGE
   sentence-transformer label embeddings.
@@ -490,12 +497,18 @@ A few backends need more than a stock `optimum-cli export onnx`:
   as ONNX and the mention-ranking scorer as safetensors.
 - **W2NER**: the simplified export removes the LSTM head and substitutes
   attention pooling. The runtime expects this simplified form.
-- The TPLinker authors publish model states for their implementations. Anno’s
+- The TPLinker authors originally linked evaluation checkpoints. In the repository’s issue tracker they subsequently confirmed that the saved files were lost. The original download folder returns HTTP 404. Anno’s
   exporter checks the tensor names and shapes of its handshaking kernel and
   three trained heads. The selected dataset must use the checkpoint’s relation
   ordering. TPLinkerPlus uses a single classifier and its own tag-to-index
-  mapping, so loading its weights requires a different decoder and exporter.
-  [Author checkpoints](https://github.com/131250208/TPlinker-joint-extraction#super-parameters)
+  mapping. Feed upstream sparse predictions to the Rust decoder with
+  `cargo run -p anno --no-default-features --example decode_tplinker_plus < prediction.json`.
+  Each input supplies `text`, `tok2char_span` (Unicode code-point spans),
+  `entity_type2id`, `rel2id`, and `spots` from upstream's `get_spots_fr_shaking_tag`.
+  The output preserves window-local entity types, spans and directed predicates. Fixture parity
+  covers self-relations, nested spans, ambiguous same-span types, reverse links, and empty
+  output. This verifies tag decoding. A trained TPLinkerPlus model replay remains open.
+  [Checkpoint availability](https://github.com/131250208/TPlinker-joint-extraction/issues/89#issuecomment-3695039976)
   · [TPLinkerPlus implementation](https://github.com/131250208/TPlinker-joint-extraction/blob/master/tplinker_plus/tplinker_plus.py)
 
 #### Model-card-only repos
