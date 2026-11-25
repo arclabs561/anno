@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from itertools import combinations
 import json
+from math import fsum
 from pathlib import Path
 import subprocess
 from statistics import median
@@ -132,6 +133,57 @@ def evaluate(docs, predictions):
     return {**counts, **{name: tally.most_common(5) for name, tally in errors.items()}}
 
 
+def reader_metrics(docs, predictions, latest_cut):
+    """Score all-track B³ and the earlier occurrences returned per latest-cut query."""
+    gold_sizes, group_sizes, overlaps = Counter(), Counter(), Counter()
+    prior_gold, prior_groups, prior_overlaps = Counter(), Counter(), Counter()
+    prior_dates = defaultdict(set)
+    queries = []
+    for doc, rows in docs.items():
+        date = doc.split("/", 1)[0]
+        for i, row in enumerate(rows):
+            group = predictions[doc, i]
+            person = row.person
+            gold_sizes[person] += 1
+            group_sizes[group] += 1
+            overlaps[person, group] += 1
+            if date < latest_cut:
+                prior_gold[person] += 1
+                prior_groups[group] += 1
+                prior_overlaps[person, group] += 1
+                prior_dates[group].add(date)
+            elif date == latest_cut:
+                queries.append((person, group))
+
+    # Each of the n occurrences in a cell has n / group size precision and
+    # n / gold size recall. Self and same-document occurrences are included.
+    total = sum(gold_sizes.values())
+    precision = recall = f1 = 0.0
+    if total:
+        precision = fsum(n * n / group_sizes[g] for (_, g), n in overlaps.items()) / total
+        recall = fsum(n * n / gold_sizes[p] for (p, _), n in overlaps.items()) / total
+        f1 = 2 * precision * recall / (precision + recall)
+
+    lookup = {"queries": len(queries),
+              "queries_with_history": sum(prior_gold[p] > 0 for p, _ in queries),
+              "minimum_dates": {}}
+    for minimum in (1, 2):
+        counts = dict.fromkeys(("shown_pages", "pages_with_wrong_hits", "correct_hits",
+                                "wrong_hits", "missed_hits"), 0)
+        for person, group in queries:
+            correct = 0
+            if len(prior_dates[group]) >= minimum:
+                correct = prior_overlaps[person, group]
+                wrong = prior_groups[group] - correct
+                counts["shown_pages"] += 1
+                counts["pages_with_wrong_hits"] += wrong > 0
+                counts["correct_hits"] += correct
+                counts["wrong_hits"] += wrong
+            counts["missed_hits"] += prior_gold[person] - correct
+        lookup["minimum_dates"][str(minimum)] = counts
+    return {"b3": {"precision": precision, "recall": recall, "f1": f1}, "prior_lookup": lookup}
+
+
 def resolve_chamber_conflict(docs, predictions):
     """Retrospective reader rule: only split groups with conflicting contemporaneous roster roles."""
     observed = defaultdict(set)
@@ -164,12 +216,15 @@ def main():
         default = run_native(args.native_binary, docs)
         durations.append(perf_counter() - start)
     print("native", json.dumps(evaluate(docs, default), ensure_ascii=False))
+    print("native-reader", json.dumps(reader_metrics(docs, default, CUTS[-1])))
     gated = resolve_chamber_conflict(docs, default)
     print("roster-conflict", json.dumps(evaluate(docs, gated), ensure_ascii=False))
     for label, threshold, split in [("threshold-one", 1, False), ("relaxed", 0.5, False),
                                     ("chamber", None, True)]:
         result = run_native(args.native_binary, docs, threshold, split)
         print(label, json.dumps(evaluate(docs, result), ensure_ascii=False))
+        if label == "relaxed":
+            print("relaxed-reader", json.dumps(reader_metrics(docs, result, CUTS[-1])))
     for order in (CUTS, CUTS[::-1]):
         staged = run_native(args.native_binary, docs, cut_order=order)
         equivalent = partition(default) == partition(staged)
