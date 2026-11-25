@@ -101,3 +101,9 @@ Previously created Actions cache archives follow GitHub's existing access and ex
 ## Verify the live dataset cache
 
 Run `gh workflow run verify-dataset-cache.yml --ref main` for an authenticated check. The job reports the number of current objects under `datasets/`, including snapshots, pointers and sidecars. It then compares the WikiGold snapshot or legacy object with the pinned release SHA-256. The job summary retains the count if WikiGold is missing or fails verification. The count describes objects, so one dataset can contribute several. [Verification workflow](../.github/workflows/verify-dataset-cache.yml)
+
+The inventory resolves exact loader filenames against the compiled dataset registry. It counts legacy payloads, content-addressed snapshots, pointers and manifests separately. A dataset with only a sidecar contributes to the metadata-only count. A pointer with no listed snapshot for its registry ID warrants review. Detecting a pointer to the wrong version would also require reading the pointer. Unrecognized keys include other file layouts. The report counts legacy names matching the bulk exclusion rules without assigning them to a corpus. All public outputs are aggregate counts except for the reviewed WikiGold sample.
+
+The verified sample’s SHA-256 connects those exact bytes to the WikiGold annotation and source-text terms. Other objects remain unverified even when their keys contain a known name or digest. The publication count uses the registry’s shared-publication policy. [WikiGold source and rights](QA.md#run-a-check)
+
+The paired run records the cold S3 read, warm local read and fresh publisher retrieval. It checks the ordered tokens, BIO tags, gold spans and full-release heuristic NER scores across all three. Reported byte counts describe corpus payloads. Each load time measures one run before scoring.
