@@ -14,6 +14,7 @@ import sys
 
 import replay_crossdoc_case
 import replay_crossdoc_native
+import replay_document_delivery
 import replay_reviewed_kb
 import replay_typed_spans
 import replay_wikigold
@@ -21,6 +22,7 @@ import replay_wikigold
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS = {
     "crossdoc_cases": replay_crossdoc_case, "crossdoc_native": replay_crossdoc_native,
+    "document_delivery": replay_document_delivery,
     "reviewed_kb": replay_reviewed_kb, "typed_spans": replay_typed_spans, "wikigold": replay_wikigold,
 }
 DB_NAME = "replay-feedback.db"
@@ -360,7 +362,7 @@ def main():
         except FileNotFoundError:
             status, receipt = 2, {
                 "outcome": "error",
-                "detail": "Check ANNO_BIN (or Cargo for reviewed_kb) and the checkout files.",
+                "detail": "Check the checkout files and the case’s local executable (Cargo for native tests or ANNO_BIN for extraction).",
             }
         except Exception:
             # At the public CLI boundary every execution or protocol error is

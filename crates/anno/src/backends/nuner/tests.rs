@@ -331,3 +331,18 @@ fn span_checkpoint_uses_its_trained_width_and_unicode_offsets() {
         ("John Smith", 2, 12)
     );
 }
+
+#[cfg(feature = "onnx")]
+#[test]
+fn encode_prompt_uses_the_exported_tokenizer_marker_ids() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/bughunt7_data/hf_home/hub/models--bh7--gliner-span/snapshots/fixture");
+    let tokenizer = tokenizers::Tokenizer::from_file(dir.join("tokenizer.json")).unwrap();
+    let (ids, _, mask, words) = NuNER::new_4k()
+        .encode_prompt(&tokenizer, &["John"], &["person"])
+        .unwrap();
+    // [CLS], <<ENT>>, person, <<SEP>>, John, [SEP]
+    assert_eq!(ids, [1, 4, 10, 5, 7, 2]);
+    assert_eq!(mask, [0, 0, 0, 0, 1, 0]);
+    assert_eq!(words, 1);
+}

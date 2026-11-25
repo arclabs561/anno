@@ -28,7 +28,12 @@ anno sampler eligibility --task ner --require-cached |
   jq '.datasets[] | select(.locally_cached) | {dataset, eligible, exclusion}'
 ```
 
-An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. When S3 cache is enabled, `require_cached` permits a remote cache lookup during execution. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time.
+An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. Cached-only sampling normally requires local files. Trusted matrix CI sets both `ANNO_S3_CACHE=1` and `ANNO_MATRIX_STAGE_FROM_S3=1` to stage a missing, eligible input from the shared cache before scoring it locally. Each S3 staging attempt forbids publisher fallback. A separate `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1` pass can still try the publisher if the initial panel is empty. `ANNO_NO_DOWNLOADS=1` forces the sampler to use local dataset files, including when cached-only was unset or disabled. It suppresses both S3 staging and publisher fallback. `HF_HUB_OFFLINE=1` configures Hugging Face model access separately and permits explicitly enabled shared dataset reads. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time. The matrix first checks the evaluator's sentence input and its cache manifest. Relation extraction and coreference also check their document annotations when the scorer uses them. A NER run on a multi-task dataset can use the local sentence-format input on its own.
+
+The CI artifact `matrix-muxer-decisions` includes `matrix-dataset-pools.jsonl` for ordinary automatic dataset selection. Set `ANNO_MATRIX_DATASET_POOLS_FILE` to retain these records locally. Each row identifies the seed, strategy, task slice, cache requirement, S3 setting, and selection pass. `target_datasets` gives the requested panel size and `pool.selected_sources` identifies where each selected input was found at precheck. The evaluator can subsequently see a local hit for an input staged from S3. `pool.excluded` counts the first policy exclusion for each registered dataset outside the eligible pool. Inside the pool, `selected` lists datasets that passed a reader check, `load_rejections` counts the observed failure categories, and `backend_incompatible_count` counts candidates rejected by the estimate policy before loading. The sampler stops checking once it fills its requested panel. The availability of any unexamined candidates is unknown.
+
+Read the initial and download-fallback passes separately. A precheck may populate the cache. Fixed-dataset runs, targeted history retries and runs that stopped before automatic dataset selection have no ordinary pool receipt. Use the decision and outcome log for the final panel and measured scores. To display the recorded pools next to the outcomes, run `python3 scripts/qa/check_matrix_outcomes.py --report --dataset-pools matrix-dataset-pools.jsonl muxer-decisions.jsonl`.
+
 
 Relation extraction matches each predicted pair to gold labels in the same document. Corpus precision, recall and F1 use the summed match and item counts. The `anno-relation-document-micro-v1` policy cohort distinguishes these measurements from older scores that pooled document-relative offsets. Re-score the same inputs to build a comparable baseline.
 
@@ -455,8 +460,16 @@ case, with a second replay only to confirm a failure. Random controls, the
 reserved coverage slot and other triage slots run the native selection. The
 oldest-served eligible corpus gets the next turn, then its oldest-served
 family and case.
-The catalog adapter admits the seven named, repository-authored regression seeds.
-A new seed needs provenance review and admission before it can enter the ledger.
+The catalog adapter admits seven named, repository-authored regression seeds.
+The `document_delivery` adapter replays the five reviewed histories from the
+[native fuzz corpus](../fuzz/README.md#document-deliveries). Each runs the same
+per-operation reader and final-receipt checks as the stable Cargo regression.
+For example, `observe document_delivery historical-receipt` checks a retry after
+a source revision; `issuer-token-collision` exercises an independent control.
+Run the two cases separately to preserve their distinct observations. The delivery
+adapter namespaces shared Cargo build directories by checkout so a repaired
+worktree cannot inherit the failing executable from another worktree. A new seed
+needs provenance review and admission before it can enter the ledger.
 Rerunning the same evidence adds no observations. A clean replay closes that
 witness alone. When a seed or oracle changes, re-observe it under the new
 hashes. A changed producer can close a finding against unchanged inputs.

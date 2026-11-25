@@ -444,12 +444,7 @@ impl BackendFactory {
             #[cfg(feature = "onnx")]
             "nuner_4k" | "nunerzero4k" => {
                 use crate::backends::nuner::NuNER;
-                let checkpoint = std::env::var("NUNER_4K_MODEL_PATH").map_err(|_| {
-                    crate::Error::FeatureNotAvailable(
-                        "Set NUNER_4K_MODEL_PATH to an ONNX directory produced by scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k".to_owned(),
-                    )
-                })?;
-                NuNER::from_pretrained(&checkpoint)
+                NuNER::from_pretrained(anno::models::NUNER_ZERO_4K)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -726,11 +721,13 @@ impl BackendFactory {
                 "gliner",
                 "gliner_onnx",
                 "nuner",
-                "nuner_4k",
                 "w2ner",
                 "gliner_multitask",
                 "gliner_pii",
             ]);
+            if anno::NuNER::local_4k_export_available() {
+                backends.push("nuner_4k");
+            }
             if anno::backends::gliner_poly::GLiNERPoly::local_export_available() {
                 backends.push("gliner_poly");
             }

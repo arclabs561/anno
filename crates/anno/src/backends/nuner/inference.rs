@@ -65,7 +65,41 @@ impl NuNER {
         }
     }
 
-    /// Load a NuNER ONNX export from a local directory or the Hugging Face Hub.
+    #[cfg(feature = "onnx")]
+    fn export_4k_paths() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        use std::path::{Path, PathBuf};
+
+        fn assets(dir: &Path) -> Option<(PathBuf, PathBuf)> {
+            let tokenizer = dir.join("tokenizer.json");
+            let graph = [dir.join("model.onnx"), dir.join("onnx/model.onnx")]
+                .into_iter()
+                .find(|p| p.is_file())?;
+            tokenizer.is_file().then_some((graph, tokenizer))
+        }
+
+        if let Some(path) = std::env::var_os("NUNER_4K_MODEL_PATH").filter(|p| !p.is_empty()) {
+            return assets(Path::new(&path));
+        }
+        let cache = hf_hub::Cache::from_env();
+        let repo = hf_hub::Repo::model(crate::models::NUNER_ZERO_4K.to_owned());
+        // The export script writes beside the Hub snapshots. Recognize a prepared
+        // snapshot as well for existing offline installations.
+        assets(&cache.path().join(repo.folder_name()).join("onnx")).or_else(|| {
+            let tokenizer = cache.repo(repo).get("tokenizer.json")?;
+            assets(tokenizer.parent()?)
+        })
+    }
+
+    /// Whether the graph and tokenizer for the local 4k export are installed.
+    #[cfg(feature = "onnx")]
+    #[must_use]
+    pub fn local_4k_export_available() -> bool {
+        Self::export_4k_paths().is_some()
+    }
+
+    /// Load an ONNX export from a local directory or the Hugging Face Hub.
+    /// The canonical Zero-4k ID loads the prepared export via the Hub cache or
+    /// the explicit `NUNER_4K_MODEL_PATH` directory.
     ///
     /// Reads `HF_TOKEN` from the process environment if set. Auto-detects the 4k
     /// variant from the model ID (looks for "4k" case-insensitively) and sets
@@ -84,7 +118,14 @@ impl NuNER {
         use crate::backends::hf_loader;
 
         let dir = std::path::Path::new(model_id);
-        let (model_path, tokenizer_path, config_path) = if dir.is_dir() {
+        let (model_path, tokenizer_path, config_path) = if model_id == crate::models::NUNER_ZERO_4K
+        {
+            let (graph, tokenizer) = Self::export_4k_paths().ok_or_else(|| {
+                Error::FeatureNotAvailable("NuNER 4k needs a prepared ONNX graph and tokenizer. Run uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k, or point NUNER_4K_MODEL_PATH at an existing export directory.".into())
+            })?;
+            let config = tokenizer.with_file_name("gliner_config.json");
+            (graph, tokenizer, Some(config).filter(|p| p.is_file()))
+        } else if dir.is_dir() {
             let graph = ["model.onnx", "model_quantized.onnx", "onnx/model.onnx"]
                 .into_iter()
                 .map(|f| dir.join(f))
@@ -392,7 +433,7 @@ impl NuNER {
 
     /// Encode prompt for token mode (no span tensors).
     #[cfg(feature = "onnx")]
-    fn encode_prompt(
+    pub(super) fn encode_prompt(
         &self,
         tokenizer: &tokenizers::Tokenizer,
         text_words: &[&str],
@@ -403,16 +444,26 @@ impl NuNER {
         let mut input_ids: Vec<i64> = Vec::with_capacity(128);
         let mut word_mask: Vec<i64> = Vec::with_capacity(128);
 
-        // [START]
-        let special = tokenizer
-            .encode("", true)
-            .map_err(|e| Error::Parse(format!("Tokenizer error: {e}")))?;
-        input_ids.push(special.get_ids().first().copied().unwrap_or(TOKEN_START) as i64);
+        // Longformer and DeBERTa assign different IDs to the prompt markers.
+        let marker = |names: &[&str]| -> Result<i64> {
+            names
+                .iter()
+                .find_map(|name| tokenizer.token_to_id(name))
+                .map(i64::from)
+                .ok_or_else(|| {
+                    Error::Parse(format!(
+                        "NuNER tokenizer lacks prompt marker {}",
+                        names.join(" or ")
+                    ))
+                })
+        };
+        let ent = marker(&["<<ENT>>"])?;
+        input_ids.push(marker(&["[CLS]", "<s>"])?);
         word_mask.push(0);
 
         // <<ENT>> type1 <<ENT>> type2 ...
         for entity_type in entity_types {
-            input_ids.push(tokenizer.token_to_id("<<ENT>>").unwrap_or(TOKEN_ENT) as i64);
+            input_ids.push(ent);
             word_mask.push(0);
 
             let encoding = tokenizer
@@ -425,7 +476,7 @@ impl NuNER {
         }
 
         // <<SEP>>
-        input_ids.push(tokenizer.token_to_id("<<SEP>>").unwrap_or(TOKEN_SEP) as i64);
+        input_ids.push(marker(&["<<SEP>>"])?);
         word_mask.push(0);
 
         // Text words (word_mask starts from 1)
@@ -443,7 +494,7 @@ impl NuNER {
         }
 
         // [END]
-        input_ids.push(special.get_ids().last().copied().unwrap_or(TOKEN_END) as i64);
+        input_ids.push(marker(&["[SEP]", "</s>"])?);
         word_mask.push(0);
 
         let seq_len = input_ids.len();

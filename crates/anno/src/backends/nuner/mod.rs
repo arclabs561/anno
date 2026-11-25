@@ -38,23 +38,13 @@ use crate::Error;
 #[cfg(feature = "onnx")]
 type EncodedPrompt = (Vec<i64>, Vec<i64>, Vec<i64>, i64);
 
-/// Special token IDs for GLiNER/NuNER models (shared architecture)
-#[cfg(feature = "onnx")]
-const TOKEN_START: u32 = 1;
-#[cfg(feature = "onnx")]
-const TOKEN_END: u32 = 2;
-#[cfg(feature = "onnx")]
-const TOKEN_ENT: u32 = 128002;
-#[cfg(feature = "onnx")]
-const TOKEN_SEP: u32 = 128003;
-
 /// NuNER Zero-shot NER model.
 ///
 /// Runs label-conditioned word or span scoring from a NuNER Zero ONNX export.
 ///
 /// # Model Variants
 ///
-/// - `NuNER::new()` / `NuNER::from_pretrained("deepanwa/NuNerZero_onnx")` -- 512-token context,
+/// - `NuNER::new()` / `NuNER::from_pretrained(crate::DEFAULT_NUNER_MODEL)` -- 512-token context,
 ///   chunks at ~2000 chars.
 /// - `NuNER::new_4k()` / `NuNER::from_pretrained("/path/to/exported-4k")` -- 4096-token
 ///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.

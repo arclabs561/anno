@@ -78,6 +78,11 @@ def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
     print(f"Verification passed: output shape {outputs.logits.shape}")
 
 
+def check_export_assets(directory: Path):
+    if not all((directory / name).is_file() for name in ("model.onnx", "tokenizer.json")):
+        raise RuntimeError(f"NuNER export must contain model.onnx and tokenizer.json in {directory}")
+
+
 def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_only: bool):
     """Export the trained shared encoder, prompt tokenizer and width metadata."""
     import json
@@ -101,6 +106,7 @@ def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_
     model = GLiNER.from_pretrained(model_id).eval()
     if not longformer:
         model.export_to_onnx(save_dir=output_dir, quantize=quantize)
+        check_export_assets(output_dir)
         return
 
     from nuner_longformer_onnx import export_windows, reference_cases, verify_logits
@@ -108,6 +114,7 @@ def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_
     references = reference_cases(model)
     if verify_only:
         del model
+        check_export_assets(output_dir)
         verify_logits(output_dir / "model.onnx", references)
         return
 
@@ -118,6 +125,7 @@ def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_
         with export_windows(model):
             model.export_to_onnx(save_dir=stage)
         del model
+        check_export_assets(stage)
         verify_logits(stage / "model.onnx", references)
         for artifact in sorted(stage.iterdir(), key=lambda p: p.name == "model.onnx"):
             artifact.replace(output_dir / artifact.name)
