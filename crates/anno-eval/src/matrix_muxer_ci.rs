@@ -3119,6 +3119,12 @@ struct EstimateDatasetSelection<'a> {
     fixed: Option<&'a [String]>,
 }
 
+#[derive(serde::Serialize)]
+struct DatasetLoadRejection {
+    dataset: DatasetId,
+    reason: String,
+}
+
 #[derive(Default, serde::Serialize)]
 struct DatasetSelection {
     catalog_count: usize,
@@ -3126,6 +3132,7 @@ struct DatasetSelection {
     excluded: BTreeMap<DatasetExclusion, usize>,
     backend_incompatible_count: usize,
     load_rejections: BTreeMap<String, usize>,
+    rejection_examples: Vec<DatasetLoadRejection>,
     selected: Vec<DatasetId>,
     selected_sources: BTreeMap<String, DataSource>,
 }
@@ -3255,7 +3262,6 @@ fn choose_datasets_for_run(
         .collect();
     scored.sort_by_key(|row| (row.0, row.1));
     let mut common = estimate.map(|policy| policy.candidates.to_vec());
-    let mut rejected = Vec::new();
     for (_, _, ds) in scored {
         if selection.selected.len() == datasets_per_run {
             break;
@@ -3281,15 +3287,18 @@ fn choose_datasets_for_run(
             }
             Err(error) => {
                 let reason = dataset_rejection_message(error);
-                if rejected.len() < 3 {
-                    rejected.push((ds, reason.clone()));
+                if selection.rejection_examples.len() < 3 {
+                    selection.rejection_examples.push(DatasetLoadRejection {
+                        dataset: ds,
+                        reason: reason.clone(),
+                    });
                 }
                 *selection.load_rejections.entry(reason).or_default() += 1;
             }
         }
     }
     if selection.selected.is_empty() {
-        for (dataset, reason) in rejected {
+        for DatasetLoadRejection { dataset, reason } in &selection.rejection_examples {
             eprintln!("matrix-muxer: dataset {dataset:?} unavailable (require_cached={require_cached}): {reason:?}");
         }
     }

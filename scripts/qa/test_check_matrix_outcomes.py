@@ -78,9 +78,24 @@ class CoverageTest(unittest.TestCase):
             report_dataset_pools([json.dumps(row)])
         self.assertIn("4/6 policy-eligible, 2 load checks, 1 selected, 1 incompatible, 1 unexamined", output.getvalue())
         self.assertIn("Load rejections: dataset parse error (1)", output.getvalue())
+        example = {"dataset": "CorpusB", "reason": "dataset parse error"}
+        with redirect_stdout(output):
+            report_dataset_pools([json.dumps(row | {"pool": pool | {"rejection_examples": [example]}})])
+        self.assertIn("Rejected CorpusB (dataset parse error).", output.getvalue())
         for change in ({"catalog_count": 5}, {"selected": "unparsed"}, {"backend_incompatible_count": -1}):
             with self.assertRaisesRegex(ValueError, "line 1"):
                 report_dataset_pools([json.dumps(row | {"pool": pool | change})])
+
+    def test_matching_digests_report_distinct_dataset_ids_once(self):
+        digest = "a" * 64
+        rows = [dict(outcome("ner"), dataset=ds, dataset_sha256=sha)
+                for ds, sha in (("CorpusA", digest), ("CorpusA", digest), ("CorpusB", digest),
+                                ("MissingHash", None), ("ShortHash", "a"), ("Other", "b" * 64))]
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(io.StringIO()):
+            check(map(json.dumps, rows), report=True)
+        matches = [line for line in output.getvalue().splitlines() if "share recorded input SHA-256" in line]
+        self.assertEqual(matches, [f"Dataset IDs CorpusA, CorpusB share recorded input SHA-256 `{digest}`."])
 
     def test_failed_cells_group_retries_and_keep_tasks_distinct(self):
         row = dict(outcome("ner", hard=True), dataset="WikiGold", backend="gliner_relex",
