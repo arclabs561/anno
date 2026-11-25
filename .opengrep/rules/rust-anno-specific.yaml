@@ -1,30 +1,41 @@
-# OpenGrep rules specific to anno codebase patterns
-# These catch common issues in this particular codebase
-
 rules:
-  # ============================================================================
-  # Entity Extraction Patterns
-  # ============================================================================
-  
   - id: entity-offset-validation-missing
+    # Rust patterns in OpenGrep 1.30.2 cannot use field-list ellipses. The
+    # token matcher lets a real Entity literal contain other fields.
+    languages: [generic]
+    options:
+      generic_comment_style: cpp
     patterns:
-      - pattern: |
-          Entity {
-            start: $START,
-            end: $END,
-            ...
+      - pattern-either:
+          - pattern: 'Entity { ... start: $START, ... end: $END ... }'
+          - patterns:
+              - pattern: 'Entity { ... $START, ... $END ... }'
+              - metavariable-regex:
+                  metavariable: $START
+                  regex: '^start$'
+              - metavariable-regex:
+                  metavariable: $END
+                  regex: '^end$'
+      - pattern-not: 'Entity { let ... }'
+      - pattern-not-inside: |
+          struct Entity { ... }
+      - pattern-not-inside: |
+          if $START > $END {
+              return Err(...);
           }
-      - not:
-          - pattern: |
-              if $START > $END {
-                return Err(...);
-              }
-    message: "Entity created without offset validation. Ensure start <= end."
-    languages: [rust]
+          ...
+      - pattern-not-inside: |
+          if $START <= $END { ... }
+      - pattern-not-inside: |
+          let ($START, $END) = if $A <= $B {
+              ($A, $B)
+          } else {
+              ($B, $A)
+          };
+          ...
+    message: "Check that the entity's start offset is at most its end before constructing it."
     severity: WARNING
     metadata:
       category: correctness
     paths:
-      include:
-        - "**/entity.rs"
-        - "**/grounded.rs"
+      include: ["**/entity.rs", "**/grounded.rs"]
