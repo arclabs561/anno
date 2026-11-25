@@ -1,5 +1,7 @@
 # What published corrections require of an identity index
 
+Two studies exercise downstream readers on external release histories. The [eLife byline replay](../../verification/index_consumers/reader_cases/publisher/README.md) compares a historical reader against a reader that substitutes later author metadata. The [ROR study](../../verification/index_consumers/reader_cases/lineage/README.md) measures which changed names a prior catalog can actually retrieve and compares incremental updates with full rebuilds. The [dataset catalog](../../verification/index_consumers/reader_cases/DATASETS.md) records the available labels, version pins, and terms for additional evaluations.
+
 Anno's grounded types answer three useful questions. A `Signal` anchors an occurrence, a `Track` groups signals in a document, and an `Identity` can give a track a catalog binding. A cross-document membership publication can report which tracks its resolver groups in that edition. A different question arises when a reader asks *who made this work?* A publisher can revise its answer even when every document, signal and catalog binding stays the same. Below are public cases in which the difference matters. [Grounded types](../../crates/anno/src/core/grounded/mod.rs) · [Membership publisher](../../crates/anno/src/coalesce/memberships.rs)
 
 ## One painting, two publishers
