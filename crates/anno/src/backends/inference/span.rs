@@ -20,6 +20,7 @@ pub(crate) fn gliner_word_ranges(text: &str) -> impl Iterator<Item = std::ops::R
     WORDS.find_iter(text).map(|word| word.range())
 }
 
+#[cfg(feature = "onnx")]
 pub(crate) fn gliner_words(text: &str) -> Vec<&str> {
     gliner_word_ranges(text).map(|range| &text[range]).collect()
 }
