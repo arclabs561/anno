@@ -7806,7 +7806,7 @@ mod tests {
             let receipt = loader
                 .load_with_fetchers(
                     id,
-                    Some(&pin),
+                    None,
                     PublisherFallback::Allow,
                     |_| Err((reason, Error::InvalidInput("read failed".into()))),
                     || Ok((text.into(), "https://example.test/test.conll".into())),
