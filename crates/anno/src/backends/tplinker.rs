@@ -874,6 +874,24 @@ impl RelationExtractor for TPLinker {
         self.heuristic()
             .extract_with_handshaking(text, entity_types, relation_types, threshold)
     }
+    fn extract_with_relation_provenance(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        let output = self.extract_with_relations(text, entity_types, relation_types, threshold)?;
+        let provenance = if self.is_neural() {
+            crate::Provenance::from_producer("tplinker", crate::ExtractionMethod::Neural)
+        } else {
+            crate::Provenance::from_producer(
+                "tplinker-heuristic",
+                crate::ExtractionMethod::Heuristic,
+            )
+        };
+        Ok((output, Some(provenance)))
+    }
 }
 
 #[cfg(test)]

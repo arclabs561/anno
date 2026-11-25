@@ -35,6 +35,30 @@ impl RelationExtractor for GLiNEROnnx {
         };
         self.extract_joint(text, entities, relation_types, threshold)
     }
+    fn extract_with_relation_provenance(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        let output = self.extract_with_relations(text, entity_types, relation_types, threshold)?;
+        let mut provenance = crate::Provenance::from_producer(
+            crate::models::GLINER_RELEX,
+            crate::ExtractionMethod::Neural,
+        );
+        if let Some(generation) = self
+            .artifact_paths
+            .graph
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|p| p.to_str())
+            .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+        {
+            provenance.model_version = Some(format!("sha256:{generation}").into());
+        }
+        Ok((output, Some(provenance)))
+    }
 }
 
 impl GLiNEROnnx {
