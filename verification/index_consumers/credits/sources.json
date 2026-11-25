@@ -1,0 +1,120 @@
+{
+  "license": "MIT OR Apache-2.0",
+  "license_scope": "The SPDX expression applies to the original annotations in this file. Each linked source retains its own rights and terms.",
+  "sources": [
+    {
+      "id": "nga",
+      "evidence_type": "Museum research announcement and collection record",
+      "urls": [
+        "https://www.nga.gov/press/new-findings-national-gallery-art-suggest-existence-studio-vermeer",
+        "https://www.nga.gov/artworks/1237-girl-flute"
+      ],
+      "finding": "In October 2022 the National Gallery of Art reported that its researchers attributed Girl with a Flute to an unidentified associate of Vermeer. The collection record lists Dutch 17th Century as the artist.",
+      "limit": "The researchers give reasons for a workshop attribution. Neither the announcement nor the displayed catalog label identifies the individual painter."
+    },
+    {
+      "id": "rijks",
+      "evidence_type": "Museum exhibition announcement and lender identification",
+      "urls": [
+        "https://www.rijksmuseum.nl/en/press/press-releases/rijksmuseum-announces-list-of-vermeer-paintings"
+      ],
+      "finding": "In November 2022 the Rijksmuseum listed Girl with a Flute among the Vermeer paintings scheduled for its 2023 exhibition and named the National Gallery of Art in Washington as the lender. The exhibition list and the lender's account concern the same painting.",
+      "limit": "The list establishes how the Rijksmuseum presented the loan for that exhibition. It gives no indication that the lender revised its own attribution in response."
+    },
+    {
+      "id": "yale",
+      "evidence_type": "Archival staff case account and revised public finding aid",
+      "urls": [
+        "https://guides.library.yale.edu/c.php?g=1140330&p=9165488&t=133180",
+        "https://archives.yale.edu/repositories/11/resources/1351"
+      ],
+      "finding": "In the Palmquist papers, Yale archivists retained the transcribed title of an engraving, explained its harmful wording in file and collection notes, and added subject headings to improve discovery. The public finding aid records the revision in 2023 and distinguishes the source's title from the archive's description.",
+      "limit": "This is a documented decision about one collection. Other material and other publishers can call for replacement or restricted access."
+    },
+    {
+      "id": "george",
+      "evidence_type": "Practitioner study of local catalog changes and a later authority decision",
+      "urls": [
+        "https://doi.org/10.5860/lrts.65n3.84",
+        "https://journals.ala.org/index.php/lrts/article/view/7467/10545",
+        "https://www.loc.gov/aba/pcc/saco/cpsoed/psd-211115.html"
+      ],
+      "finding": "George and colleagues documented libraries changing subject headings in discovery interfaces or local records. Libraries reported that automated authority updates could undo local edits. In November 2021 the Library of Congress reported splitting one of the headings into two.",
+      "limit": "These are subject headings. The study documents different practices across systems and supplies no receipt that a specific consumer applied the later national change."
+    },
+    {
+      "id": "cope",
+      "evidence_type": "Anonymized editorial case and separate publication-ethics guidance",
+      "urls": [
+        "https://publicationethics.org/guidance/case/inconclusive-institutional-investigation-authorship-dispute",
+        "https://publicationethics.org/guidance/cope-position/handling-requests-author-name-changes"
+      ],
+      "finding": "In case 18-07 a journal reported that it was proceeding with a surname correction and a separate expression of concern about disputed authorship. COPE's 2024 guidance on requests to change a published name recommends protecting confidentiality and issuing a public notice only at the author's request.",
+      "limit": "COPE lists case 18-07 as ongoing. The report records intended editorial actions and does not confirm that either notice appeared. The later guidance addresses requests to change a name."
+    },
+    {
+      "id": "aps",
+      "evidence_type": "Publisher policy for updating articles, searches and metadata",
+      "urls": [
+        "https://journals.aps.org/aps-name-change-policy"
+      ],
+      "finding": "The American Physical Society describes silent and publicly dated name updates to eligible Physical Review articles. It updates article HTML and PDFs. Its journal site does not offer prior-name searches. It also communicates updated metadata to outside organizations.",
+      "limit": "Eligibility varies with the journal, article age and requested update. APS cannot guarantee whether or when an external index will display a change."
+    },
+    {
+      "id": "sci-reports",
+      "evidence_type": "Published correction, updated article and two live registry records",
+      "urls": [
+        "https://www.nature.com/articles/s41598-024-72303-4",
+        "https://www.nature.com/articles/s41598-024-66974-2",
+        "https://api.crossref.org/works/10.1038/s41598-024-72303-4",
+        "https://api.crossref.org/works/10.1038/s41598-024-66974-2"
+      ],
+      "finding": "A September 2024 correction to a July Scientific Reports article added an omitted author and revised the contribution statement. The article retained its DOI. The correction has its own DOI. Crossref exposes the link through update-to on the correction and updated-by on the article.",
+      "limit": "The publisher and registry records establish the correction and its current representation. They give no receipt or processing time for an independent downstream index."
+    },
+    {
+      "id": "lc-authority",
+      "evidence_type": "Cataloging rules and four differentiated public authority records",
+      "urls": [
+        "https://www.loc.gov/aba/publications/FreeDCM/DCM/Z01.pdf",
+        "https://www.loc.gov/aba/publications/FreeDCM/DCM_2026-03.pdf",
+        "https://id.loc.gov/authorities/names/no2014038610",
+        "https://id.loc.gov/authorities/names/no2014025694",
+        "https://id.loc.gov/authorities/names/n2014015173",
+        "https://id.loc.gov/authorities/names/nb2008012105"
+      ],
+      "finding": "Four differentiated Library of Congress records cite the same former undifferentiated record, n82004044. Their supporting works differ. Section 008/32 directs catalogers to move the citation for the person distinguished by the evidence. Section 672 separately explains how to document a requested title removal without repeating that title in the note.",
+      "limit": "The shared predecessor records catalog history. It cannot assign every old citation to one successor. The four records establish public examples, and their creation dates do not establish the dates of every intervening edit."
+    },
+    {
+      "id": "linked-art",
+      "evidence_type": "Cultural heritage data model specification",
+      "urls": [
+        "https://linked.art/model/assertion/",
+        "https://linked.art/model/object/production/"
+      ],
+      "finding": "Linked Art models the act of assigning an attribute and can associate the assignment with the person or group making it. Its production examples show how to record uncertain and formerly held maker attributions alongside a current description.",
+      "limit": "The specification illustrates representation choices. It establishes neither which museum attribution is correct nor how any particular index handles revisions and access."
+    },
+    {
+      "id": "acs",
+      "evidence_type": "Publisher's dated aggregate implementation report",
+      "urls": [
+        "https://axial.acs.org/publishing/acs-publications-name-change-policy-update"
+      ],
+      "finding": "On November 15, 2022, ACS Publications reported that it had updated approximately 400 published articles for nearly 100 researchers in two years. ACS also described accepting requests submitted by approved institutional representatives.",
+      "limit": "The publisher reports aggregate counts. They do not identify individual requests, show the distribution of work per request, or measure downstream updates."
+    },
+    {
+      "id": "emory",
+      "evidence_type": "Archivists' account and current public folder record",
+      "urls": [
+        "https://exhibits.libraries.emory.edu/the-work-is-never-finished/reparative-description/",
+        "https://archives.libraries.emory.edu/repositories/6/archival_objects/473619"
+      ],
+      "finding": "Oxford College Archives describes revising a folder title to include the person's name and retain a nickname used in published sources. The current Emory finding aid identifies the folder in Box 1 and displays the revised label.",
+      "limit": "The dates in the folder title describe its contents. The sources do not establish when the individual used a particular name or the precise time the catalog edit became visible."
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "license": "MIT OR Apache-2.0",
+  "scenarios": [
+    {
+      "name": "withdraw-interview-keep-printed-collective-and-independent-support",
+      "references": ["nga", "yale"],
+      "work": "program-leaf-17",
+      "queries": {"person": ["local-persons", "p4"], "collective": ["local-groups", "g9"]},
+      "sources": {
+        "program": [
+          {"credits": [
+            {"document": "page-front", "revision": "impression-1", "work": "program-leaf-17",
+             "catalog": "local-groups", "accession": "g9", "surface": "The Copper Finch Players",
+             "canonical_surface": "Copper Finch Ensemble", "predicate": "printed_credit", "audience": "public"}
+          ]}
+        ],
+        "interview": [
+          {"credits": [
+            {"document": "transcript", "revision": "transcript-1", "work": "program-leaf-17",
+             "catalog": "local-persons", "accession": "p4", "surface": "Veya Morin",
+             "predicate": "attributed_to", "audience": "public"}
+          ]},
+          {"credits": []},
+          {"credits": [
+            {"document": "transcript", "revision": "transcript-3", "work": "program-leaf-17",
+             "catalog": "local-persons", "accession": "p4", "surface": "Veya Morin",
+             "predicate": null, "audience": "public"}
+          ]}
+        ],
+        "register": [
+          {"credits": [
+            {"document": "production-log", "revision": "folio-1", "work": "program-leaf-17",
+             "catalog": "local-persons", "accession": "p4", "surface": "V. Morin",
+             "predicate": "attributed_to", "audience": "public"}
+          ]}
+        ]
+      },
+      "steps": [
+        {"source": "program", "edition": 1, "expect": {"printed": ["The Copper Finch Players"], "public": {}, "restricted": {}}},
+        {"source": "interview", "edition": 1, "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["interview"]}, "restricted": {"person": ["interview"]}}},
+        {"source": "register", "edition": 1, "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["interview", "register"]}, "restricted": {"person": ["interview", "register"]}}},
+        {"source": "interview", "edition": 3, "reject": "gap", "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["interview", "register"]}, "restricted": {"person": ["interview", "register"]}}},
+        {"source": "interview", "edition": 2, "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["register"]}, "restricted": {"person": ["register"]}}},
+        {"source": "interview", "edition": 2, "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["register"]}, "restricted": {"person": ["register"]}}},
+        {"source": "interview", "edition": 3, "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["register"]}, "restricted": {"person": ["register"]}}},
+        {"source": "interview", "edition": 1, "reject": "stale", "expect": {"printed": ["The Copper Finch Players"], "public": {"person": ["register"]}, "restricted": {"person": ["register"]}}}
+      ]
+    },
+    {
+      "name": "two-venues-same-spelling-and-accession-different-catalogs",
+      "references": ["nga", "rijks"],
+      "work": "glass-study-8",
+      "queries": {"first": ["studio-index", "42"], "second": ["venue-index", "42"]},
+      "sources": {
+        "north": [
+          {"credits": [
+            {"document": "label", "revision": "label-1", "work": "glass-study-8",
+             "catalog": "studio-index", "accession": "42", "surface": "Senn Vale",
+             "predicate": "attributed_to", "audience": "public"},
+            {"document": "annex-label", "revision": "label-1", "work": "glass-study-9",
+             "catalog": "venue-index", "accession": "42", "surface": "Senn Vale",
+             "predicate": "attributed_to", "audience": "public"}
+          ]},
+          {"credits": [
+            {"document": "label", "revision": "label-2", "work": "glass-study-8",
+             "catalog": "venue-index", "accession": "42", "surface": "Senn Vale",
+             "predicate": "attributed_to", "audience": "public"}
+          ]}
+        ],
+        "east": [
+          {"credits": [
+            {"document": "label", "revision": "label-1", "work": "glass-study-8",
+             "catalog": "venue-index", "accession": "42", "surface": "Senn Vale",
+             "predicate": "attributed_to", "audience": "public"},
+            {"document": "reverse-note", "revision": "label-1", "work": "glass-study-8",
+             "catalog": "studio-index", "accession": "desk", "surface": "The Silt Window Desk",
+             "canonical_surface": "Silt Desk", "predicate": "printed_credit", "audience": "restricted"}
+          ]},
+          {"credits": []}
+        ]
+      },
+      "steps": [
+        {"source": "north", "edition": 1, "expect": {"printed": [], "public": {"first": ["north"]}, "restricted": {"first": ["north"]}}},
+        {"source": "east", "edition": 1, "expect": {"printed": {"public": [], "restricted": ["The Silt Window Desk"]}, "public": {"first": ["north"], "second": ["east"]}, "restricted": {"first": ["north"], "second": ["east"]}}},
+        {"source": "north", "edition": 2, "expect": {"printed": {"public": [], "restricted": ["The Silt Window Desk"]}, "public": {"second": ["east", "north"]}, "restricted": {"second": ["east", "north"]}}},
+        {"source": "east", "edition": 2, "expect": {"printed": [], "public": {"second": ["north"]}, "restricted": {"second": ["north"]}}}
+      ]
+    },
+    {
+      "name": "attribution-access-changes-while-printed-byline-stays-public",
+      "references": ["aps"],
+      "work": "ledger-song-11",
+      "queries": {"person": ["local-persons", "p8"], "byline": ["byline-index", "b3"]},
+      "sources": {
+        "sheet": [
+          {"credits": [
+            {"document": "title-leaf", "revision": "printing-1", "work": "ledger-song-11",
+             "catalog": "byline-index", "accession": "b3", "surface": "Vellum Desk",
+             "predicate": "printed_credit", "audience": "public"}
+          ]}
+        ],
+        "ledger": [
+          {"credits": [
+            {"document": "account", "revision": "leaf-1", "work": "ledger-song-11",
+             "catalog": "local-persons", "accession": "p8", "surface": "Nivo Pell",
+             "predicate": "attributed_to", "audience": "restricted"}
+          ]},
+          {"unchanged_rows": true, "credits": [
+            {"document": "account", "revision": "leaf-1", "work": "ledger-song-11",
+             "catalog": "local-persons", "accession": "p8", "surface": "Nivo Pell",
+             "predicate": "attributed_to", "audience": "public"}
+          ]},
+          {"unchanged_rows": true, "credits": [
+            {"document": "account", "revision": "leaf-1", "work": "ledger-song-11",
+             "catalog": "local-persons", "accession": "p8", "surface": "Nivo Pell",
+             "predicate": "attributed_to", "audience": "restricted"}
+          ]}
+        ]
+      },
+      "steps": [
+        {"source": "sheet", "edition": 1, "expect": {"printed": ["Vellum Desk"], "public": {}, "restricted": {}}},
+        {"source": "ledger", "edition": 1, "expect": {"printed": ["Vellum Desk"], "public": {}, "restricted": {"person": ["ledger"]}}},
+        {"source": "ledger", "edition": 2, "expect": {"printed": ["Vellum Desk"], "public": {"person": ["ledger"]}, "restricted": {"person": ["ledger"]}}},
+        {"source": "ledger", "edition": 3, "expect": {"printed": ["Vellum Desk"], "public": {}, "restricted": {"person": ["ledger"]}}},
+        {"source": "ledger", "edition": 2, "reject": "stale", "expect": {"printed": ["Vellum Desk"], "public": {}, "restricted": {"person": ["ledger"]}}}
+      ]
+    }
+  ]
+}
