@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use anno::core::grounded::html_source::source_sha256;
 use clap::Args;
 use serde_json::json;
 use std::{fs, io, path::PathBuf};
@@ -32,12 +31,10 @@ pub(super) fn run(args: SourceSpanArgs) -> Result<(), String> {
         let original = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         if let Some(map) = doc.source_map() {
             map.verify(&original, doc.text())?;
-        } else if let Some(expected) = original_sha256 {
+        } else if let Some(legacy) = doc.html_source() {
             let html =
                 std::str::from_utf8(&original).map_err(|_| "expected original UTF-8 HTML")?;
-            if source_sha256(html) != expected {
-                return Err("original file SHA-256 differs from the saved HTML source".into());
-            }
+            legacy.verify(html, doc.text())?;
         } else {
             return Err("this document has no original source digest to verify".into());
         }
