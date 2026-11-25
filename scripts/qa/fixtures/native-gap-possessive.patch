@@ -1,0 +1,40 @@
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+index 5b7db6db..987bd256 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+@@ -413,6 +413,16 @@ impl MentionRankingCoref {
+             {
+                 // Strip trailing punctuation from proper noun text
+                 let clean_word = word.trim_end_matches(|c: char| c.is_ascii_punctuation());
++                // English genitive 's belongs to the phrase, not the name span.
++                // Internal apostrophes, as in O'Neil, remain part of the name.
++                let clean_word = if self.config.language == "en" {
++                    clean_word
++                        .strip_suffix("'s")
++                        .or_else(|| clean_word.strip_suffix("’s"))
++                        .unwrap_or(clean_word)
++                } else {
++                    clean_word
++                };
+                 if clean_word.is_empty() {
+                     continue;
+                 }
+@@ -1449,6 +1459,18 @@ mod tests {
+         assert_eq!(dotted, plain);
+     }
+
++    #[test]
++    fn english_possessives_exclude_the_clitic_from_proper_name_spans() {
++        let model = MentionRankingCoref::new();
++        let text = "Zoë met O'Neil's sister and Renée’s brother by King's.";
++        let chars: Vec<char> = text.chars().collect();
++        let mentions = model.detect_mentions(text).unwrap();
++        for name in ["O'Neil", "Renée", "King"] {
++            let m = mentions.iter().find(|m| m.text == name).expect(name);
++            assert_eq!(chars[m.start..m.end].iter().collect::<String>(), name);
++        }
++    }
++
+     /// A capitalised word after ". " is sentence-initial and is not a proper
+     /// noun mention, so two sentence-initial "The"s do not form a cluster.
+     #[test]
