@@ -1049,6 +1049,7 @@ checksum = "7eed2c4702fa172d1ce21078faa7c5203e69f5394d48cc436d25928394a867a2"
 [[package]]
 name = "deformat"
 version = "0.17.2"
+source = "git+https://github.com/arclabs561/deformat?rev=63206bb2514687c4404a726799a4f425cda38943#63206bb2514687c4404a726799a4f425cda38943"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
@@ -4658,6 +4659,7 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.3.2"
+source = "git+https://github.com/arclabs561/textprep?rev=6beb88a6b48ecb8ef30984b137473da6a2af2b92#6beb88a6b48ecb8ef30984b137473da6a2af2b92"
 dependencies = [
  "aho-corasick",
  "stop-words",
@@ -4669,6 +4671,7 @@ dependencies = [
 [[package]]
 name = "textprep-source-map"
 version = "0.1.0"
+source = "git+https://github.com/arclabs561/textprep?rev=6beb88a6b48ecb8ef30984b137473da6a2af2b92#6beb88a6b48ecb8ef30984b137473da6a2af2b92"
 dependencies = [
  "hmac-sha256",
  "serde",
