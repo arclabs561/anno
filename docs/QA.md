@@ -75,6 +75,12 @@ The pinned LitBank release grants CC BY 4.0, which permits commercial reuse of t
 
 For an older local cache containing raw annotations in `LitBank.cache`, place the matching source beside it as `LitBank.txt`. An annotation-only cache returns an error naming the missing path. Reading a compatible local cache preserves its existing bytes. To obtain the attributed publisher pair separately, point `ANNO_CACHE_DIR` at an empty directory and run `anno dataset download --dataset LitBank`. Flat NER uses the leftmost outer mention when labels nest.
 
+## Score a local TACRED or Re-TACRED split
+
+Copy an authorized TACRED split JSON to `$ANNO_CACHE_DIR/datasets/TACRED.cache`. For Re-TACRED, apply the authors’ patch to a licensed TACRED split and place the resulting split at `$ANNO_CACHE_DIR/datasets/ReTACRED.cache`. The public patch contains ID-to-label mappings and requires the original sentences. Both inputs stay local. [TACRED distribution](https://catalog.ldc.upenn.edu/LDC2018T24) · [Re-TACRED patch and release notes](https://github.com/gstoica27/Re-TACRED)
+
+Run `anno dataset eval --task relation --dataset retacred --model heuristic` (or use `--dataset tacred`). Each record contributes one document. Positive labels create directed subject-to-object relations. A `no_relation` record has empty gold and can still incur false positives. The scorer evaluates extracted argument spans and relation labels. Published TACRED classification benchmarks supply the argument pair to the model.
+
 ## Check what a negative span means
 
 Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.

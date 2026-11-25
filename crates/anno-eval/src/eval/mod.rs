@@ -303,6 +303,7 @@ pub mod sampling;
 pub mod shell_nouns;
 pub mod synthetic;
 pub mod synthetic_gen;
+mod tacred;
 pub mod task_evaluator;
 
 #[cfg(feature = "eval-profiling")]

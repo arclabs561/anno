@@ -336,6 +336,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         Task::RelationExtraction => &[
             DatasetId::CrossREAI,
             DatasetId::ReTACRED,
+            DatasetId::TACRED,
             DatasetId::NYTFB,
             DatasetId::WEBNLG,
             DatasetId::GoogleRE,

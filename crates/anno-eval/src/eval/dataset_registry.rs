@@ -2178,7 +2178,7 @@ define_datasets! {
     },
     ReTACRED {
         name: "Re-TACRED",
-        description: "Large-scale relation extraction. 41 relation types + no_relation. Cleaned TACRED.",
+        description: "Reannotated TACRED sentence pairs for relation extraction.",
         // NOTE: Re-TACRED is distributed as a delta/cleaned relabeling that depends on the
         // original TACRED distribution (LDC). We intentionally do not provide a direct URL
         // here to avoid accidentally pointing at unrelated files.
@@ -2188,11 +2188,11 @@ define_datasets! {
         domain: "news",
         license: "LDC",
         citation: "Stoica et al. (2021)",
-        paper_url: "https://aclanthology.org/2021.acl-long.359/",
+        paper_url: "https://arxiv.org/abs/2104.08398",
         year: 2021,
-        format: "JSONL",
-        size_hint: "~106k relations",
-        notes: "Cleaned version of TACRED with relabeling; requires original TACRED",
+        format: "JSON",
+        size_hint: "91,467 instances (v1.1)",
+        notes: "Supply a local split produced by the authors’ v1.1 patch for licensed TACRED. The label map alone contains no sentences.",
         access_status: DependsOnOther,
         categories: [relation_extraction],
     },
@@ -3964,10 +3964,10 @@ define_datasets! {
         citation: "Zhang et al. (2017)",
         paper_url: "https://aclanthology.org/D17-1004/",
         year: 2017,
-        format: "JSONL",
+        format: "JSON",
         size_hint: "106k examples",
         example: "subj: 'Tim Cook', obj: 'Apple', relation: per:employee_of, text: 'Tim Cook is the CEO of Apple Inc.'",
-        notes: "42 relations; majority no_relation; known label noise; Re-TACRED fixes some issues",
+        notes: "Supply an authorized local JSON split from LDC2018T24. The majority class is no_relation.",
         access_status: Registration,
         categories: [relation_extraction],
     },

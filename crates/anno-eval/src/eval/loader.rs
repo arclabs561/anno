@@ -143,6 +143,7 @@ enum DatasetParsePlan {
     JsonlNer,
     WikiannJson,
     TweetNer7,
+    Tacred,
     DocredJson,
     GoogleReCorpus,
     ChisiecJson,
@@ -397,15 +398,14 @@ impl LoadableDatasetId {
             // Relation extraction datasets use JSON format with entity pairs and relations.
             // Common structure: {entities: [...], relations: [...], text: "..."}
             //
-            // The DocredJson parser handles the CrossRE sentence format (CrossREAI),
-            // ReTACRED, and similar formats. It does not parse DocRED itself.
+            // The DocredJson parser handles the CrossRE sentence format (CrossREAI)
+            // and similar formats. It does not parse DocRED itself.
             // Some datasets (SciERC, PolyIE, EnzChemRED) are auto-detected via
             // registry_hint_plan() but listed here for explicit control.
             //
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -503,6 +503,9 @@ impl LoadableDatasetId {
     #[must_use]
     fn registry_hint_plan(id: DatasetId) -> Option<DatasetParsePlan> {
         // Hybrids / special cases first.
+        if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
+            return Some(DatasetParsePlan::Tacred);
+        }
         if id == DatasetId::CHisIEC {
             // CHisIEC is multi-task and uses a custom JSON array format (not DocRED/CrossRE).
             // It MUST not be auto-detected as DocredJson.
@@ -3500,7 +3503,10 @@ impl DatasetLoader {
         // whose registry format is CoNLL. Dispatch it before the format-specific
         // parser: treating the one-line JSON document as CoNLL creates one enormous
         // token and can make downstream model evaluation exhaust memory.
-        if id != DatasetId::PreCo && self.is_hf_api_response(content) {
+        if id != DatasetId::PreCo
+            && plan != DatasetParsePlan::Tacred
+            && self.is_hf_api_response(content)
+        {
             return match plan {
                 DatasetParsePlan::CadecHybrid => self.parse_cadec_hf_api(content, id),
                 _ => self.parse_hf_api_response(content, id),
@@ -3522,6 +3528,18 @@ impl DatasetLoader {
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
+            DatasetParsePlan::Tacred => Ok(LoadedDataset {
+                id,
+                sentences: super::tacred::records(content)?
+                    .into_iter()
+                    .map(|record| record.sentence(id))
+                    .collect(),
+                loaded_at: super::timestamp::now(),
+                source_url: id.download_url().to_string(),
+                data_source: DataSource::LocalCache,
+                temporal_metadata: Self::get_temporal_metadata(id),
+                metadata: id.default_metadata(),
+            }),
             DatasetParsePlan::DocredJson => self.parse_docred(content, id),
             DatasetParsePlan::GoogleReCorpus => self.parse_google_re_corpus(content, id),
             DatasetParsePlan::ChisiecJson => self.parse_chisiec(content, id),
@@ -5725,7 +5743,7 @@ impl DatasetLoader {
 
     /// Load relation extraction dataset, returning documents with relations.
     ///
-    /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
+    /// Supports CrossRE and locally supplied TACRED and Re-TACRED splits, among others.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if let Some(reason) = id.relation_span_limitation() {
             return Err(Error::InvalidInput(reason.into()));
@@ -5759,8 +5777,11 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<Vec<RelationDocument>> {
         match id {
+            DatasetId::TACRED | DatasetId::ReTACRED => Ok(super::tacred::records(content)?
+                .into_iter()
+                .map(|record| record.document())
+                .collect()),
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED

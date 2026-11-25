@@ -740,8 +740,9 @@ DATASETS = {
     
     "tacred": {
         "group": "relations",
-        "hf_dataset": "DFKI-SLT/tacred",
-        "output": "tacred.json",
+        "manual": True,
+        "url": "https://catalog.ldc.upenn.edu/LDC2018T24",
+        "output": "TACRED.cache",
         "description": "TACRED: Large-scale relation classification",
     },
     "semeval2010_task8": {
