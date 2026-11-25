@@ -45,6 +45,10 @@ test = false
 path = "src/bin/muxer_audit.rs"
 
 [[example]]
+name = "journey_pick"
+required-features = ["eval"]
+
+[[example]]
 name = "reviewed_seed_campaign"
 required-features = ["eval"]
 

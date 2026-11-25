@@ -1,0 +1,71 @@
+name: Developer journey sampling
+on:
+  schedule:
+    - cron: '49 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: journey-sampling-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANNO_NO_DOWNLOADS: "1"
+      ANNO_S3_CACHE: "0"
+      HF_HUB_OFFLINE: "1"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
+      - name: Prepare locked dependencies and offline executables
+        run: |
+          cargo fetch --locked
+          cargo build --offline --locked -p anno-cli -p anno-eval --no-default-features --features 'anno-cli/eval anno-cli/extractor-readability anno-eval/eval' --bin anno --example journey_pick
+          cargo test --offline --locked --no-run -p anno-cli --no-default-features --features 'eval extractor-readability' --test brat_dataset_roundtrip --test corpus_read_many
+          python3 -m unittest discover -s scripts/qa -p test_journey_pilot.py
+      - name: Identify the compatible oracle and policy
+        id: corpus
+        run: echo "hash=$(python3 scripts/qa/journey_pilot.py cohort)" >> "$GITHUB_OUTPUT"
+      - name: Restore default-branch journey observations
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/journey-state/ledger.json
+          key: journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-
+      - name: Compare prospective selections against the fixed panel
+        id: pilot
+        run: |
+          python3 scripts/qa/journey_pilot.py run --selector target/debug/examples/journey_pick --anno target/debug/anno \
+            --state "$RUNNER_TEMP/journey-state/ledger.json" --output "$RUNNER_TEMP/journey-result" \
+            --run-id "$GITHUB_RUN_ID" --seed "$GITHUB_RUN_ID"
+      - name: Save the bounded observed ledger
+        if: ${{ !cancelled() && steps.pilot.outputs.publish == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/journey-state/ledger.json
+          key: journey-v1-${{ github.ref_name }}-${{ steps.corpus.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload the public panel receipt
+        if: ${{ !cancelled() && steps.pilot.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: journey-comparison-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/journey-result/plan.json
+            ${{ runner.temp }}/journey-result/report.json
+            ${{ runner.temp }}/journey-result/ledger.json
+          retention-days: 30
+          if-no-files-found: error

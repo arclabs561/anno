@@ -515,3 +515,24 @@ limit set before testing. [LitBank source](https://github.com/dbamman/litbank/tr
 The sampler keeps a separate history cohort for this opt-in research mode.
 Gold mentions and raw-text FCoref runs have their own mention sources and reject
 the additional proposals.
+
+## Compare three developer journeys
+
+The weekly and manually dispatched **Developer journey sampling** workflow runs on the default branch. Its fixed panel exercises three public CLI workflows on project-authored synthetic inputs. The BRAT round trip checks exact repeated, discontinuous Unicode spans against two source revisions. The catalog correction checks published postings through a separate query reader before and after the update, including an unchanged catalog with the same accession. The stale-revision check verifies that a pinned read rejects an advanced head and that a refreshed head returns the same reviewed documents. The expectations are exposed regression controls. [Workflow](../.github/workflows/journey-sampling.yml) · [Catalog reader expectations](../scripts/qa/fixtures/crossdoc/catalog-revision.queries.json)
+
+Each round writes its picks before executing the panel. Balanced rotation, seeded random, and Muxer each get one pick. Muxer maximizes the upper confidence bound on its own observed rate of confirmed contract failures. Ties use the rotating candidate order. The runner then executes the full three-case census once and shares a case's verdict when picks coincide. A failure must reproduce with the same assertion signature on a second execution. The report gives census outcomes and elapsed times, the three selected outcomes, and whether a failure signature is new to that policy within the retained window. Elapsed time includes harness preparation. Equal pick budgets do not guarantee equal wall-clock cost. Results from this small, exposed panel measure contract rediscovery and coverage. New defect discovery requires fresh cases and independent expectations.
+
+The trusted ledger stores the last 16 complete rounds of each policy's own selections. A policy never learns from a census case it did not pick. Invalid input, unavailable executables, inconsistent reruns, and unrecognized harness failures are inconclusive. An incomplete round exits 2, retains a diagnostic report, and leaves the prior checkpoint intact. Retrying a completed run ID leaves its observations intact. Failures confirmed by the oracle are valid measurements. The workflow uploads aggregate receipts and the validated compact ledger and restores only its default-branch cache for the same policy and oracle fingerprint. Cache eviction starts a new history. The latest trusted workflow artifact contains a backup. Private inputs, model calls, and credentials are unnecessary.
+
+To reproduce locally, use one writer per ledger and a fresh directory for each receipt. Fetch locked dependencies once before the offline run. The selector and both native harnesses must use the same feature configuration as the pilot.
+
+```sh
+cargo fetch --locked
+cargo build --offline --locked -p anno-cli -p anno-eval --no-default-features \
+  --features 'anno-cli/eval anno-cli/extractor-readability anno-eval/eval' --bin anno --example journey_pick
+cargo test --offline --locked --no-run -p anno-cli --no-default-features \
+  --features 'eval extractor-readability' --test brat_dataset_roundtrip --test corpus_read_many
+out=$(mktemp -d)
+python3 scripts/qa/journey_pilot.py run --selector target/debug/examples/journey_pick \
+  --anno target/debug/anno --state "$out/ledger.json" --output "$out/first" --run-id 1 --seed 41
+```
