@@ -1,0 +1,59 @@
+name: Verify S3 dataset cache
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  verify:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      BUCKET: ${{ vars.ANNO_S3_BUCKET || 'arc-anno-data' }}
+      # Same release as scripts/qa/prepare_matrix_wikigold.sh.
+      WIKIGOLD_SHA256: c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
+    steps:
+      - name: Assume the cache role with read-only access to the verification inputs
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.ANNO_AWS_REGION || 'us-east-1' }}
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[
+              {"Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::${{ env.BUCKET }}",
+               "Condition":{"StringEquals":{"s3:prefix":"datasets/"}}},
+              {"Effect":"Allow","Action":"s3:GetObject","Resource":[
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache",
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/by-sha256/${{ env.WIKIGOLD_SHA256 }}/WikiGold.cache"]}
+            ]}
+      - name: Count current objects and verify the pinned WikiGold bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          trap 'rm -rf -- "$work"' EXIT
+          # JSON output lets the AWS CLI combine all pages before applying the query.
+          aws s3api list-objects-v2 --bucket "$BUCKET" --prefix datasets/ \
+            --output json --query 'Contents[].Key' > "$work/keys.json"
+          count=$(jq 'length' "$work/keys.json")
+          echo "Current objects under datasets/: $count" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          snapshot="datasets/by-sha256/$WIKIGOLD_SHA256/WikiGold.cache"
+          legacy="datasets/WikiGold.cache"
+          for key in "$snapshot" "$legacy"; do
+            if jq -e --arg key "$key" '(. // []) | index($key) != null' "$work/keys.json" >/dev/null; then
+              # One extra byte makes a longer object fail even if its prefix matches.
+              aws s3api get-object --bucket "$BUCKET" --key "$key" --range bytes=0-318530 \
+                "$work/sample" >/dev/null
+              echo "$WIKIGOLD_SHA256  $work/sample" | sha256sum --check --status || {
+                echo 'WikiGold checksum mismatch.' | tee -a "$GITHUB_STEP_SUMMARY"
+                exit 1
+              }
+              echo "Verified $key (SHA-256 $WIKIGOLD_SHA256)." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          done
+          echo 'Neither pinned WikiGold object path was present. No checksum verified.' | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 1
