@@ -91,12 +91,18 @@ fn coreference() {
     // ok: coref-chain-validation
     save(CorefChain::new(known));
     // ruleid: coref-metric-computation
-    compute_muc(gold, predicted)?;
-    compute_b3(predicted, gold)?;
+    let muc = CorefScores::from_tuple(muc_score(predicted, gold));
+    let b_cubed = CorefScores::from_tuple(b_cubed_score(gold, predicted));
 }
 
 fn consistent_metrics() {
     // ok: coref-metric-computation
-    compute_muc(gold, predicted)?;
-    compute_b3(gold, predicted)?;
+    let muc = CorefScores::from_tuple(muc_score(predicted, gold));
+    let b_cubed = CorefScores::from_tuple(b_cubed_score(predicted, gold));
+}
+
+fn self_comparison() {
+    // ok: coref-metric-computation
+    let muc = CorefScores::from_tuple(muc_score(gold, gold));
+    let b_cubed = CorefScores::from_tuple(b_cubed_score(gold, gold));
 }

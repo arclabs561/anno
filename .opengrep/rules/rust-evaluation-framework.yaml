@@ -205,16 +205,20 @@ rules:
         - "**/eval/cdcr.rs"
 
   - id: coref-metric-computation
-    pattern: |
-      compute_muc($GOLD, $PRED)?;
-      ...
-      compute_b3($PRED, $GOLD)?;
-    message: "MUC and B3 receive the two arguments in opposite order. Verify the gold and prediction inputs."
+    patterns:
+      - pattern: |
+          let $MUC = CorefScores::from_tuple(muc_score($PRED, $GOLD));
+          ...
+          let $B3 = CorefScores::from_tuple(b_cubed_score($GOLD, $PRED));
+      - pattern-not: |
+          let $MUC = CorefScores::from_tuple(muc_score($SAME, $SAME));
+          ...
+          let $B3 = CorefScores::from_tuple(b_cubed_score($SAME, $SAME));
+    message: "MUC and B³ receive opposite argument orders. Pass predicted chains first and gold chains second to both metrics."
     languages: [rust]
     severity: INFO
     metadata:
       category: correctness
     paths:
       include:
-        - "**/eval/coref_metrics.rs"
-
+        - "crates/anno/src/metrics/coref_metrics.rs"
