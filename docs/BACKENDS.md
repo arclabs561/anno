@@ -472,7 +472,7 @@ not “backends” in the NER table sense:
 
 ## Where weights come from
 
-All ML models download from HuggingFace on first use. See the tables above for default model IDs per backend.
+Several ML backends download their default weights from Hugging Face on first use. NuNER 4k and GLiNER Poly require prepared ONNX exports. See the tables above for model IDs.
 
 Override with model-specific flags or environment variables.
 
@@ -483,7 +483,7 @@ Some models only distribute PyTorch weights. Export scripts in `scripts/` conver
 | Script | Target model | Notes |
 |--------|-------------|-------|
 | `export_gliner_poly_onnx.py` | GLiNER bi-encoder (v1/v2) | Dual strategy: library export, then manual fallback. Produces `model.onnx` + `label_encoder.onnx` |
-| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Delegates GLiNER variants to `export_gliner_poly_onnx.py` |
+| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Uses GLiNER’s uni-encoder export for the 4k checkpoint. The evaluator discovers the default export directory or a directory supplied through `NUNER_4K_MODEL_PATH` |
 | `export_deberta_ner_to_onnx.py` | DeBERTa-v3 NER | Standard token classifier export |
 | `export_biomedical_ner_to_onnx.py` | d4data/biomedical-ner-all | Uses Optimum; optional INT8 quantization |
 | `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |

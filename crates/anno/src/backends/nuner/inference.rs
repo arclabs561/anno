@@ -60,7 +60,40 @@ impl NuNER {
         }
     }
 
-    /// Load NuNER model from HuggingFace.
+    #[cfg(feature = "onnx")]
+    fn export_4k_paths() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        use std::path::{Path, PathBuf};
+
+        fn assets(dir: &Path) -> Option<(PathBuf, PathBuf)> {
+            let tokenizer = dir.join("tokenizer.json");
+            let graph = [dir.join("model.onnx"), dir.join("onnx/model.onnx")]
+                .into_iter()
+                .find(|p| p.is_file())?;
+            tokenizer.is_file().then_some((graph, tokenizer))
+        }
+
+        if let Some(path) = std::env::var_os("NUNER_4K_MODEL_PATH").filter(|p| !p.is_empty()) {
+            return assets(Path::new(&path));
+        }
+        let cache = hf_hub::Cache::from_env();
+        let repo = hf_hub::Repo::model(crate::models::NUNER_ZERO_4K.to_owned());
+        // The export script writes beside the Hub snapshots. Recognize a prepared
+        // snapshot as well for existing offline installations.
+        assets(&cache.path().join(repo.folder_name()).join("onnx")).or_else(|| {
+            let tokenizer = cache.repo(repo).get("tokenizer.json")?;
+            assets(tokenizer.parent()?)
+        })
+    }
+
+    /// Whether the graph and tokenizer for the local 4k export are installed.
+    #[cfg(feature = "onnx")]
+    #[must_use]
+    pub fn local_4k_export_available() -> bool {
+        Self::export_4k_paths().is_some()
+    }
+
+    /// Load a NuNER ONNX export. The 4k publisher distributes PyTorch weights,
+    /// so its canonical ID uses the prepared export or `NUNER_4K_MODEL_PATH`.
     ///
     /// Reads `HF_TOKEN` from the process environment if set. Auto-detects the 4k
     /// variant from the model ID (looks for "4k" case-insensitively) and sets
@@ -78,22 +111,33 @@ impl NuNER {
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
-
-        let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
-        let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
+        let (model_path, tokenizer_path) = if model_id == crate::models::NUNER_ZERO_4K {
+            Self::export_4k_paths().ok_or_else(|| {
+                Error::FeatureNotAvailable("NuNER 4k needs a prepared ONNX graph and tokenizer. Run uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k, or point NUNER_4K_MODEL_PATH at an existing export directory.".into())
+            })?
+        } else {
+            let api = hf_loader::hf_api()?;
+            let repo = api.model(model_id.to_string());
+            (
+                hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?,
+                hf_loader::download_model_file(&repo, &["tokenizer.json"])?,
+            )
+        };
 
         let session =
             hf_loader::create_onnx_session(&model_path, hf_loader::OnnxSessionConfig::default())?;
         let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
 
+        let uses_spans = session
+            .inputs()
+            .iter()
+            .any(|input| input.name() == "span_idx");
         let is_4k = model_id.to_lowercase().contains("4k");
 
         Ok(Self {
             model_id: model_id.to_string(),
             threshold: 0.5,
-            requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
+            requires_span_tensors: std::sync::atomic::AtomicBool::new(uses_spans),
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -456,7 +500,7 @@ impl NuNER {
 
     /// Encode prompt for token mode (no span tensors).
     #[cfg(feature = "onnx")]
-    fn encode_prompt(
+    pub(super) fn encode_prompt(
         &self,
         tokenizer: &tokenizers::Tokenizer,
         text_words: &[&str],
@@ -467,13 +511,26 @@ impl NuNER {
         let mut input_ids: Vec<i64> = Vec::with_capacity(128);
         let mut word_mask: Vec<i64> = Vec::with_capacity(128);
 
-        // [START]
-        input_ids.push(TOKEN_START as i64);
+        // Longformer and DeBERTa assign different IDs to the prompt markers.
+        let marker = |names: &[&str]| -> Result<i64> {
+            names
+                .iter()
+                .find_map(|name| tokenizer.token_to_id(name))
+                .map(i64::from)
+                .ok_or_else(|| {
+                    Error::Parse(format!(
+                        "NuNER tokenizer lacks prompt marker {}",
+                        names.join(" or ")
+                    ))
+                })
+        };
+        let ent = marker(&["<<ENT>>"])?;
+        input_ids.push(marker(&["[CLS]", "<s>"])?);
         word_mask.push(0);
 
         // <<ENT>> type1 <<ENT>> type2 ...
         for entity_type in entity_types {
-            input_ids.push(TOKEN_ENT as i64);
+            input_ids.push(ent);
             word_mask.push(0);
 
             let encoding = tokenizer
@@ -486,7 +543,7 @@ impl NuNER {
         }
 
         // <<SEP>>
-        input_ids.push(TOKEN_SEP as i64);
+        input_ids.push(marker(&["<<SEP>>"])?);
         word_mask.push(0);
 
         // Text words (word_mask starts from 1)
@@ -504,7 +561,7 @@ impl NuNER {
         }
 
         // [END]
-        input_ids.push(TOKEN_END as i64);
+        input_ids.push(marker(&["[SEP]", "</s>"])?);
         word_mask.push(0);
 
         let seq_len = input_ids.len();

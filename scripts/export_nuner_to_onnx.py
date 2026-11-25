@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "torch>=2.0.0",
+#     "gliner==0.2.30",
 #     "transformers>=4.30.0",
 #     "onnx>=1.14.0",
 #     "optimum[onnxruntime]>=1.16.0",
@@ -13,24 +14,18 @@
 Export NuNER Zero models to ONNX format.
 
 NuNER models come in two architectures:
-  - Token classifier (e.g., deepanwa/NuNerZero_onnx): standard BIO tagging
+  - Transformers token classifier: standard BIO tagging
   - GLiNER-based (e.g., numind/NuNER_Zero-4k): span classification
 
-This script auto-detects the architecture. For GLiNER-based models, it
-delegates to export_gliner_poly_onnx.py.
+This script uses the GLiNER checkpoint's native exporter to keep the prompt encoder and span scorer in one graph.
 
 Usage:
-    uv run scripts/export_nuner_to_onnx.py --model deepanwa/NuNerZero_onnx
     uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k
 
-For the 4k variant (GLiNER-based), prefer using export_gliner_poly_onnx.py directly:
-    uv run scripts/export_gliner_poly_onnx.py --model numind/NuNER_Zero-4k
 """
 
 import argparse
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 
@@ -38,11 +33,9 @@ def is_gliner_model(model_id: str) -> bool:
     """Check if a HuggingFace model uses GLiNER architecture."""
     from huggingface_hub import list_repo_files
 
-    try:
-        files = list_repo_files(model_id)
-        return "gliner_config.json" in files
-    except Exception:
-        return False
+    if Path(model_id).is_dir():
+        return (Path(model_id) / "gliner_config.json").is_file()
+    return "gliner_config.json" in list_repo_files(model_id)
 
 
 def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
@@ -83,24 +76,13 @@ def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
 
 
 def export_gliner_model(model_id: str, output_dir: Path, quantize: bool):
-    """Delegate GLiNER-based models to export_gliner_poly_onnx.py."""
-    print(f"Detected: GLiNER architecture (has gliner_config.json)")
-    print(f"Delegating to export_gliner_poly_onnx.py...")
+    """Export the prompt-conditioned span graph and its training tokenizer."""
+    from gliner import GLiNER
 
-    script_dir = Path(__file__).parent
-    gliner_script = script_dir / "export_gliner_poly_onnx.py"
-
-    if not gliner_script.exists():
-        print(f"ERROR: {gliner_script} not found", file=sys.stderr)
-        print(f"For GLiNER-based NuNER models, use export_gliner_poly_onnx.py directly.")
-        sys.exit(1)
-
-    cmd = ["uv", "run", str(gliner_script), "--model", model_id, "--output", str(output_dir)]
-    if quantize:
-        cmd.append("--quantize")
-
-    result = subprocess.run(cmd)
-    sys.exit(result.returncode)
+    model = GLiNER.from_pretrained(model_id)
+    model.export_to_onnx(save_dir=output_dir, quantize=quantize)
+    if not (output_dir / "model.onnx").is_file() or not (output_dir / "tokenizer.json").is_file():
+        raise RuntimeError(f"NuNER export must contain model.onnx and tokenizer.json in {output_dir}")
 
 
 def main():

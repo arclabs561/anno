@@ -78,16 +78,6 @@ use crate::Error;
 #[cfg(feature = "onnx")]
 type EncodedPrompt = (Vec<i64>, Vec<i64>, Vec<i64>, i64);
 
-/// Special token IDs for GLiNER/NuNER models (shared architecture)
-#[cfg(feature = "onnx")]
-const TOKEN_START: u32 = 1;
-#[cfg(feature = "onnx")]
-const TOKEN_END: u32 = 2;
-#[cfg(feature = "onnx")]
-const TOKEN_ENT: u32 = 128002;
-#[cfg(feature = "onnx")]
-const TOKEN_SEP: u32 = 128003;
-
 /// Maximum span width for span-based inference.
 /// NuNER uses max_width=1 (single-word spans only) per its gliner_config.json.
 /// This matches the Python GLiNER implementation's prepare_span_idx function.
