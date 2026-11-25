@@ -9,7 +9,9 @@ use std::path::Path;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/bughunt7_data/bert_cjk/model.onnx");
-    let config = OnnxSessionConfig::default();
+    let directory = tempfile::tempdir()?;
+    let mut config = OnnxSessionConfig::default();
+    config.profile_prefix = Some(directory.path().join("cpu"));
     let mut cpu = create_onnx_session_with_provider(&path, config, OnnxExecutionProvider::Cpu)?;
     let ids = Tensor::from_array(([1, 9], vec![0_i64; 9]))?;
     let mask = Tensor::from_array(([1, 9], vec![1_i64; 9]))?;
@@ -21,6 +23,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             assert_eq!(score, if i == tag { 10.0 } else { -10.0 });
         }
     }
+    let cpu_logits_verified = scores.len();
+    drop(outputs);
+    let profile = std::fs::read(cpu.end_profiling()?)?;
+    let events: Vec<serde_json::Value> = serde_json::from_slice(&profile)?;
+    assert!(
+        events
+            .iter()
+            .any(|e| e["cat"] == "Session" && e["name"] == "model_run"),
+        "the explicit CPU session did not record inference in its profile"
+    );
+
     assert!(
         !ort::ep::DirectML::default().is_available()?,
         "expected a CPU runtime with no DirectML provider"
@@ -39,7 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::json!({
-            "ort_build": ort::info(), "cpu_logits_verified": scores.len(),
+            "ort_build": ort::info(), "cpu_logits_verified": cpu_logits_verified,
+            "cpu_profile_model_run_verified": true,
             "directml_advertised": false, "directml_registration_error": message,
         })
     );

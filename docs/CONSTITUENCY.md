@@ -19,7 +19,11 @@ Subsequent adapter runs can omit `--download`. The script then requires a cached
 or local model and disables Hugging Face downloads. `ANNO_NO_DOWNLOADS=1`
 rejects `--download`. The `uv` dependency installation is separate from model
 downloads; provision that environment first for an offline deployment. The
-adjacent script lockfile pins the Python dependency resolution.
+adjacent script lockfile pins the Python dependency resolution. The CLI loads
+parser weights with PyTorch’s restricted loader. Benepar 0.2.0 uses a tokenizer
+API from Transformers 4.x. Changes to the adapter and its lockfile replay the
+English checkpoint and compare every token, span, and constituent with the
+[checked-in parse](../testdata/constituency/benepar_en3.json).
 
 The adapter uses spaCy's blank English tokenizer and rule-based sentencizer by
 default. `--language` selects a different spaCy tokenizer, and `--model` selects
