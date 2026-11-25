@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -31,12 +32,30 @@ def scan_counts(report):
     return len(scanned), len(findings)
 
 
+def check_target_coverage(log, scanned):
+    # The pinned CLI reports the number of configured and applicable rules.
+    # JSON paths are pack-wide, so they cannot detect one rule with no targets.
+    configured = re.search(r"with (\d+) Code rules?:\s*$", log, re.MULTILINE)
+    executed = re.search(r"^Ran (\d+) rules? on (\d+) files?:", log, re.MULTILINE)
+    if not configured or not executed:
+        raise ValueError("OpenGrep did not report its production rule coverage")
+    total = int(configured[1])
+    active, paths = map(int, executed.groups())
+    if not total or active != total or paths != scanned:
+        raise ValueError(f"OpenGrep applied {active}/{total} configured rules to {paths} files (JSON: {scanned})")
+    return active
+
+
 def scan(name, config, targets):
     report = Path(f"opengrep-{name}-results.json")
     report.unlink(missing_ok=True)
-    subprocess.run(["opengrep", "scan", "-f", config, "--json", "--output", report, *targets], check=True)
+    command = ["opengrep", "scan", "-f", config, "--json", "--output", report, *targets]
+    completed = subprocess.run(command, stderr=subprocess.PIPE, text=True)
+    print(completed.stderr, end="", file=sys.stderr)
+    completed.check_returncode()
     scanned, findings = scan_counts(report)
-    print(f"{name}: {scanned} scanned, {findings} findings", flush=True)
+    rules = check_target_coverage(completed.stderr, scanned)
+    print(f"{name}: {rules} rules, {scanned} scanned, {findings} findings", flush=True)
 
 
 def check_fixture_ids(config, declared, checks):

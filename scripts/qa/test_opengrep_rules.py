@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from opengrep_rules import check_fixture_ids, scan_counts
+from opengrep_rules import check_fixture_ids, check_target_coverage, scan_counts
 
 
 class ScanCountsTests(unittest.TestCase):
@@ -29,6 +29,16 @@ class ScanCountsTests(unittest.TestCase):
                     path.write_text(json.dumps(report))
                     with self.assertRaises((KeyError, TypeError, ValueError)):
                         scan_counts(path)
+
+
+class ProductionCoverageTests(unittest.TestCase):
+    def test_each_configured_rule_has_a_target(self):
+        status = "  Scanning 3 files tracked by git with 2 Code rules:\n"
+        self.assertEqual(check_target_coverage(status + "Ran 2 rules on 3 files: 0 findings.", 3), 2)
+        with self.assertRaisesRegex(ValueError, "applied 1/2"):
+            check_target_coverage(status + "Ran 1 rule on 3 files: 0 findings.", 3)
+        with self.assertRaisesRegex(ValueError, "did not report"):
+            check_target_coverage(status, 3)
 
 
 class FixtureCoverageTests(unittest.TestCase):
