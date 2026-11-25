@@ -122,3 +122,67 @@ fn direct_score_identifies_the_measured_basis() {
         assert_eq!(row["direct"][0]["similarity"], 1.0);
     }
 }
+
+#[test]
+fn a_credit_release_pins_access_alongside_unchanged_membership() {
+    use anno::publication::{IndexEdition, IndexEditionScope, IndexSnapshot, PublicationError};
+    use serde_json::json;
+
+    let mut corpus = Corpus::new();
+    corpus.add_document(document("register-page", "Iona Reed"));
+    let evidence =
+        publish_memberships(&mut corpus, "register", 1, 0.5, true, &BTreeMap::new()).unwrap();
+    let (source_key, _) = evidence.rows().next().unwrap();
+    let credit = |sequence, access: &str| {
+        IndexSnapshot::new(
+            "register/credits",
+            sequence,
+            BTreeMap::from([(
+                vec!["credit-1".into()],
+                json!({
+                    "evidence": source_key, "work": "work-17", "predicate": "attributed_to",
+                    "subject": ["people", "P7"], "access": access,
+                }),
+            )]),
+        )
+        .unwrap()
+    };
+    let restricted = credit(1, "restricted");
+    let same_sequence_grant = credit(1, "public");
+    assert!(matches!(
+        same_sequence_grant.changes_since(&restricted),
+        Err(PublicationError::ConflictingRevision)
+    ));
+
+    let public = credit(2, "public");
+    let delta = public.changes_since(&restricted).unwrap();
+    let [(_, old)] = delta.removed() else {
+        panic!("expected one removal")
+    };
+    let [(_, new)] = delta.upserted() else {
+        panic!("expected one upsert")
+    };
+    assert_eq!(old["access"], "restricted");
+    assert_eq!(new["access"], "public");
+
+    let release = |sequence, claims: &IndexSnapshot| {
+        IndexEdition::new(
+            IndexEditionScope {
+                collection: "works".into(),
+                source: "register".into(),
+                audience: "staff".into(),
+            },
+            sequence,
+            vec![evidence.checkpoint().clone(), claims.checkpoint().clone()],
+        )
+        .unwrap()
+    };
+    let before = release(1, &restricted);
+    assert_ne!(before.members(), release(1, &same_sequence_grant).members());
+    let after = release(2, &public);
+    assert!(before.members().contains(evidence.checkpoint()));
+    assert!(after.members().contains(evidence.checkpoint()));
+    assert!(before.members().contains(restricted.checkpoint()));
+    assert!(after.members().contains(public.checkpoint()));
+    assert_ne!(before.members(), after.members());
+}
