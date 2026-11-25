@@ -56,6 +56,10 @@ pub struct BenchmarkArgs {
     #[arg(long)]
     pub cached_only: bool,
 
+    /// JSON file containing ordered entity_types and relation_types for every relation document.
+    #[arg(long, value_name = "JSON")]
+    pub relation_schema: Option<std::path::PathBuf>,
+
     /// Output file for markdown report (default: stdout)
     #[arg(short, long)]
     pub output: Option<String>,
@@ -161,6 +165,7 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                     max_examples: args.max_examples,
                     seed: Some(*seed),
                     cached_only: args.cached_only,
+                    relation_schema: args.relation_schema.clone(),
                     output: args
                         .output
                         .as_ref()
@@ -192,7 +197,9 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                 match t.to_lowercase().as_str() {
                     "ner" | "ner_task" => parsed.push(Task::NER),
                     "coref" | "coreference" | "intradoc_coref" => parsed.push(Task::IntraDocCoref),
-                    "relation" | "relation_extraction" => parsed.push(Task::RelationExtraction),
+                    "re" | "relation" | "relation_extraction" => {
+                        parsed.push(Task::RelationExtraction)
+                    }
                     other => {
                         return Err(format!(
                             "Unknown task: {}. Use: ner, coref, relation",
@@ -219,6 +226,24 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
         } else {
             vec![] // Empty = use all suitable datasets
         };
+
+        let relation_schema = args
+            .relation_schema
+            .as_ref()
+            .map(|path| {
+                if !tasks.contains(&Task::RelationExtraction) {
+                    return Err("--relation-schema requires the relation task".to_string());
+                }
+                let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+                let schema: anno_eval::eval::relation::RelationSchema =
+                    serde_json::from_slice(&data)
+                        .map_err(|e| format!("{}: {e}", path.display()))?;
+                schema
+                    .validate()
+                    .map_err(|e| format!("{}: {e}", path.display()))?;
+                Ok(schema)
+            })
+            .transpose()?;
 
         // Parse backends
         let backends = backend_strs;
@@ -260,6 +285,9 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                 }
                 if let Some(seed) = args.seed {
                     cmd.arg("--seed").arg(seed.to_string());
+                }
+                if let Some(path) = &args.relation_schema {
+                    cmd.arg("--relation-schema").arg(path);
                 }
                 if args.cached_only {
                     cmd.arg("--cached-only");
@@ -304,6 +332,7 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                     max_examples: args.max_examples,
                     seed: args.seed,
                     cached_only: args.cached_only,
+                    relation_schema: args.relation_schema.clone(),
                     output: args.output.clone(),
                     output_json: args.output_json.clone(),
                 };
@@ -372,6 +401,9 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
                 builder = builder.with_seed(seed);
             }
 
+            if let Some(schema) = relation_schema {
+                builder = builder.with_relation_schema(schema);
+            }
             let config = builder.build();
 
             println!("Running comprehensive evaluation...");
@@ -491,6 +523,9 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
             builder = builder.with_seed(seed);
         }
 
+        if let Some(schema) = relation_schema {
+            builder = builder.with_relation_schema(schema);
+        }
         let config = builder.build();
 
         println!("Running comprehensive evaluation...");

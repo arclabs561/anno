@@ -21,6 +21,7 @@ pub struct TaskEvalConfigBuilder {
     seed: Option<u64>,
     require_cached: bool,
     relation_threshold: f32,
+    relation_schema: Option<crate::eval::relation::RelationSchema>,
     robustness: bool,
     compute_familiarity: bool,
     temporal_stratification: bool,
@@ -103,6 +104,12 @@ impl TaskEvalConfigBuilder {
         self
     }
 
+    /// Supply one ordered set of entity and relation labels to every relation document.
+    pub fn with_relation_schema(mut self, schema: crate::eval::relation::RelationSchema) -> Self {
+        self.relation_schema = Some(schema);
+        self
+    }
+
     /// Enable robustness testing.
     pub fn with_robustness(mut self, enable: bool) -> Self {
         self.robustness = enable;
@@ -152,6 +159,7 @@ impl TaskEvalConfigBuilder {
             seed: self.seed,
             require_cached: self.require_cached,
             relation_threshold: self.relation_threshold,
+            relation_schema: self.relation_schema,
             robustness: self.robustness,
             compute_familiarity: self.compute_familiarity,
             temporal_stratification: self.temporal_stratification,
@@ -174,6 +182,7 @@ impl Default for TaskEvalConfigBuilder {
             seed: Some(42),
             require_cached: false,
             relation_threshold: 0.5f32,
+            relation_schema: None,
             robustness: false,
             compute_familiarity: true,
             temporal_stratification: false,

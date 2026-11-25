@@ -22,7 +22,7 @@ use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 use crate::eval::profiling;
 use crate::eval::provenance::{
     artifact_status, canonical_entity_type_label, current_build_provenance,
-    legacy_eval_run_provenance, policy_cohort_key, EXPLICIT_SKIP_SCHEMA_VERSION,
+    legacy_eval_run_provenance, policy_cohort_key_with_schema, EXPLICIT_SKIP_SCHEMA_VERSION,
 };
 pub use crate::eval::provenance::{
     ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
@@ -31,6 +31,7 @@ pub use crate::eval::provenance::{
     ExecutionProvenanceStatus, InferenceSettingProvenance, NerInferenceProvenance,
     NerLabelPolicyReport,
 };
+use crate::eval::relation::{RelationPromptPolicy, RelationSchema};
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
@@ -184,6 +185,9 @@ pub struct TaskEvalConfig {
     pub require_cached: bool,
     /// Confidence threshold for relation extraction (default: 0.5)
     pub relation_threshold: f32,
+    /// Ordered relation prompt vocabulary. None uses each document's gold label vocabulary.
+    #[serde(default)]
+    pub relation_schema: Option<RelationSchema>,
     /// Whether to run robustness testing (perturbations)
     pub robustness: bool,
     /// Whether to compute familiarity scores for zero-shot evaluations
@@ -212,6 +216,13 @@ pub struct TaskEvalConfig {
 }
 
 impl TaskEvalConfig {
+    fn relation_prompt_policy(&self, task: Task) -> Option<RelationPromptPolicy> {
+        (task == Task::RelationExtraction).then(|| match &self.relation_schema {
+            Some(schema) => RelationPromptPolicy::Fixed(schema.clone()),
+            None => RelationPromptPolicy::DocumentGold,
+        })
+    }
+
     fn experimental_coref_policy(&self, task: Task) -> Option<CorefPredictedMentions> {
         (matches!(task, Task::IntraDocCoref | Task::AbstractAnaphora)
             && self.coref_predicted_mentions != CorefPredictedMentions::BackendDefault)
@@ -229,6 +240,7 @@ impl Default for TaskEvalConfig {
             seed: Some(42),
             require_cached: false,
             relation_threshold: 0.5,
+            relation_schema: None,
             robustness: false,
             compute_familiarity: true, // Default to true for zero-shot awareness
             temporal_stratification: false,
@@ -250,6 +262,7 @@ impl std::fmt::Debug for TaskEvalConfig {
             .field("seed", &self.seed)
             .field("require_cached", &self.require_cached)
             .field("relation_threshold", &self.relation_threshold)
+            .field("relation_schema", &self.relation_schema)
             .field("robustness", &self.robustness)
             .field("compute_familiarity", &self.compute_familiarity)
             .field("temporal_stratification", &self.temporal_stratification)
@@ -350,6 +363,8 @@ struct RelationEvaluationReceipt {
     metrics: HashMap<String, f64>,
     document_count: usize,
     gold_relation_count: usize,
+    sample_sha256: String,
+    producer_documents: std::collections::BTreeMap<String, usize>,
 }
 
 struct ProvenanceInput<'a> {
@@ -910,6 +925,7 @@ impl TaskEvaluator {
                 confidence_intervals: input.config.confidence_intervals,
                 robustness: input.config.robustness,
                 relation_threshold: input.config.relation_threshold,
+                relation_prompt: input.config.relation_prompt_policy(input.task),
                 coref_predicted_mentions: input.config.experimental_coref_policy(input.task),
                 ner_inference: Self::ner_inference_provenance(
                     input.task,
@@ -920,10 +936,10 @@ impl TaskEvaluator {
             evaluated_sample: input.evaluated_sample,
             observation_id: None,
             muxer_run_id: self.muxer_run_id.clone(),
-            policy_cohort_key: policy_cohort_key(
+            policy_cohort_key: policy_cohort_key_with_schema(
                 input.task,
                 input.dataset.id,
-                input.config.seed.unwrap_or(42),
+                input.config.relation_schema.as_ref(),
                 input.config.max_examples,
                 input.config.require_cached,
                 input.config.coref_use_gold_mentions,
@@ -997,6 +1013,7 @@ impl TaskEvaluator {
                 confidence_intervals: config.confidence_intervals,
                 robustness: config.robustness,
                 relation_threshold: config.relation_threshold,
+                relation_prompt: config.relation_prompt_policy(task),
                 coref_predicted_mentions: config.experimental_coref_policy(task),
                 scheduling: EvaluationScheduling::NotRun {
                     reason: reason.to_string(),
@@ -1006,10 +1023,10 @@ impl TaskEvaluator {
             evaluated_sample: None,
             observation_id: None,
             muxer_run_id: self.muxer_run_id.clone(),
-            policy_cohort_key: policy_cohort_key(
+            policy_cohort_key: policy_cohort_key_with_schema(
                 task,
                 dataset,
-                config.seed.unwrap_or(42),
+                config.relation_schema.as_ref(),
                 config.max_examples,
                 config.require_cached,
                 config.coref_use_gold_mentions,
@@ -1050,6 +1067,9 @@ impl TaskEvaluator {
 
     /// Run comprehensive evaluation across all valid combinations.
     pub fn evaluate_all(&self, config: TaskEvalConfig) -> Result<ComprehensiveEvalResults> {
+        if let Some(schema) = &config.relation_schema {
+            schema.validate()?;
+        }
         let seed = config.seed.unwrap_or(42);
         let mut results = Vec::new();
         let mut tasks_evaluated = Vec::new();
@@ -1518,6 +1538,8 @@ impl TaskEvaluator {
                     evaluated_sample: Some(EvaluatedSampleProvenance {
                         schema_version: 1,
                         unit: EvaluatedSampleUnit::Sentence,
+                        sample_sha256: None,
+                        relation_producer_documents: Default::default(),
                         unit_count: documents.len(),
                         gold_item_count,
                     }),
@@ -1567,6 +1589,8 @@ impl TaskEvaluator {
                 let evaluated_sample = EvaluatedSampleProvenance {
                     schema_version: 1,
                     unit: EvaluatedSampleUnit::Document,
+                    sample_sha256: Some(relation.sample_sha256),
+                    relation_producer_documents: relation.producer_documents,
                     unit_count: relation.document_count,
                     gold_item_count: relation.gold_relation_count,
                 };
@@ -3264,10 +3288,28 @@ impl TaskEvaluator {
         };
         let relation_docs = Self::sample_documents(relation_docs, config);
 
+        // Hash the ordered task inputs, including reference spans, so paired runs
+        // can prove they scored identical samples even if the cache file changes.
+        use sha2::{Digest, Sha256};
+        let mut sample_hash = Sha256::new();
+        for doc in &relation_docs {
+            let row = serde_json::to_vec(&(&doc.text, &doc.relations))
+                .map_err(|e| crate::Error::InvalidInput(e.to_string()))?;
+            sample_hash.update(row);
+            sample_hash.update(b"\n");
+        }
+        let prompt_policy = config
+            .relation_prompt_policy(Task::RelationExtraction)
+            .unwrap();
         let mut predictions_by_doc = vec![Vec::new(); relation_docs.len()];
 
         // Use the loaded artifact: relation support can depend on its exported heads.
         let relation_extractor = backend.as_relation_extractor();
+        if config.relation_schema.is_some() && relation_extractor.is_none() {
+            return Err(crate::Error::FeatureNotAvailable(format!(
+                "backend {backend_name:?} cannot accept a fixed relation schema"
+            )));
+        }
         if matches!(backend_name, "gliner_relex" | "relex") && relation_extractor.is_none() {
             return Err(crate::Error::FeatureNotAvailable(
                 "GLiNER-Relex relation evaluation needs a joint export with relation outputs"
@@ -3296,6 +3338,7 @@ impl TaskEvaluator {
             .unwrap_or(true);
         let mut gold_endpoints = vec![false; relation_docs.len()];
         let mut oracle_tplinker_docs_used: usize = 0;
+        let mut producer_documents = std::collections::BTreeMap::new();
 
         for (doc_index, (doc, predicted)) in relation_docs
             .iter()
@@ -3305,32 +3348,16 @@ impl TaskEvaluator {
             let text = &doc.text;
 
             if let Some(rel_extractor) = relation_extractor {
-                // Use RelationExtractor to extract relations
-                // Get entity types and relation types from gold relations
-                let entity_types: Vec<&str> = doc
-                    .relations
-                    .iter()
-                    .flat_map(|r| [r.head_type.as_str(), r.tail_type.as_str()])
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect();
-
-                let relation_types: Vec<&str> = doc
-                    .relations
-                    .iter()
-                    .map(|r| r.relation_type.as_str())
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect();
+                let (entity_types, relation_types) = prompt_policy.labels(&doc.relations);
 
                 // Use configurable threshold from TaskEvalConfig
-                match rel_extractor.extract_with_relations(
+                match rel_extractor.extract_with_relation_provenance(
                     text,
                     &entity_types,
                     &relation_types,
                     config.relation_threshold,
                 ) {
-                    Ok(extraction) => {
+                    Ok((extraction, producer)) => {
                         // TPLinker baseline: optionally use gold entity spans/types as the candidate
                         // entity set, then run our lightweight relation heuristics. This avoids the
                         // baseline being “always junk” due purely to entity boundary mismatch.
@@ -3403,6 +3430,9 @@ impl TaskEvaluator {
                                     });
                                 }
                             }
+                            *producer_documents
+                                .entry("gold-endpoint-heuristic".to_owned())
+                                .or_insert(0) += 1;
                             gold_endpoints[doc_index] = true;
                             oracle_tplinker_docs_used += 1;
                             continue;
@@ -3491,10 +3521,17 @@ impl TaskEvaluator {
                                     });
                                 }
                             }
+                            *producer_documents
+                                .entry("gold-endpoint-heuristic".to_owned())
+                                .or_insert(0) += 1;
                             gold_endpoints[doc_index] = true;
                             continue;
                         }
 
+                        let source = producer
+                            .map(|p| p.source.into_owned())
+                            .unwrap_or_else(|| "unreported".to_owned());
+                        *producer_documents.entry(source).or_insert(0) += 1;
                         // Convert ExtractionWithRelations to RelationPrediction
                         for triple in &extraction.relations {
                             if let (Some(head), Some(tail)) = (
@@ -3520,6 +3557,9 @@ impl TaskEvaluator {
                     }
                 }
             } else {
+                *producer_documents
+                    .entry("proximity-heuristic".to_owned())
+                    .or_insert(0) += 1;
                 // Fallback: Extract entities and create proximity-based heuristic relations
                 let entities = match backend.extract_entities(text, None) {
                     Ok(ents) => ents,
@@ -3556,7 +3596,7 @@ impl TaskEvaluator {
         // Relation datasets in `anno` (e.g. CrossREAI/CHisIEC) commonly use a richer entity-type
         // schema than our `EntityType` enum. Require span + relation-type agreement, but do not
         // hard-require entity-type string equality by default.
-        let config = RelationEvalConfig {
+        let scoring = RelationEvalConfig {
             require_entity_type_match: false,
             ..RelationEvalConfig::default()
         };
@@ -3565,7 +3605,7 @@ impl TaskEvaluator {
                 .iter()
                 .zip(&predictions_by_doc)
                 .map(|(doc, pred)| (doc.relations.as_slice(), pred.as_slice())),
-            &config,
+            &scoring,
         );
 
         let mut metrics = HashMap::new();
@@ -3600,15 +3640,50 @@ impl TaskEvaluator {
             "boundary_relation_matches".into(),
             metrics_result.boundary_matches as f64,
         );
-        // Predicted endpoints still receive the reference label vocabulary for
-        // that document when the extractor accepts entity and relation prompts.
+        let prompt_docs = if relation_extractor.is_some() {
+            relation_docs.len()
+        } else {
+            0
+        };
+        let fixed_prompt_docs = if config.relation_schema.is_some() {
+            prompt_docs
+        } else {
+            0
+        };
         metrics.insert(
             "gold_label_prompt_docs".into(),
-            if relation_extractor.is_some() {
-                relation_docs.len() as f64
-            } else {
-                0.0
-            },
+            (prompt_docs - fixed_prompt_docs) as f64,
+        );
+        metrics.insert("fixed_label_prompt_docs".into(), fixed_prompt_docs as f64);
+        metrics.insert(
+            "unprompted_docs".into(),
+            (relation_docs.len() - prompt_docs) as f64,
+        );
+        if let Some(schema) = &config.relation_schema {
+            let outside_schema = relation_docs
+                .iter()
+                .flat_map(|doc| &doc.relations)
+                .filter(|r| {
+                    !schema.relation_types.contains(&r.relation_type)
+                        || !schema.entity_types.contains(&r.head_type)
+                        || !schema.entity_types.contains(&r.tail_type)
+                })
+                .count();
+            metrics.insert(
+                "gold_relations_outside_fixed_schema".into(),
+                outside_schema as f64,
+            );
+        }
+        let empty_docs = relation_docs
+            .iter()
+            .zip(&predictions_by_doc)
+            .filter(|(doc, _)| doc.relations.is_empty());
+        metrics.insert("gold_empty_docs".into(), empty_docs.clone().count() as f64);
+        metrics.insert(
+            "predictions_on_gold_empty_docs".into(),
+            empty_docs
+                .map(|(_, predictions)| predictions.len())
+                .sum::<usize>() as f64,
         );
         let oracle_docs_used = gold_endpoints.iter().filter(|&&gold| gold).count();
         metrics.insert("oracle_docs_used".to_string(), oracle_docs_used as f64);
@@ -3637,7 +3712,7 @@ impl TaskEvaluator {
                         .zip(&gold_endpoints)
                         .filter(|(_, used_gold)| **used_gold == supplied)
                         .map(|((doc, pred), _)| (doc.relations.as_slice(), pred.as_slice())),
-                    &config,
+                    &scoring,
                 );
                 &subset
             };
@@ -3669,6 +3744,12 @@ impl TaskEvaluator {
             metrics,
             document_count: relation_docs.len(),
             gold_relation_count: metrics_result.num_gold,
+            producer_documents,
+            sample_sha256: sample_hash
+                .finalize()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
         })
     }
 
@@ -4090,10 +4171,10 @@ impl ComprehensiveEvalResults {
                 }
                 Task::RelationExtraction => {
                     md.push_str(
-                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs | Predicted-endpoint strict F1 | Gold-endpoint strict F1 | N | ms |\n",
+                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs (endpoints) | Predicted-endpoint strict F1 | Gold-endpoint strict F1 | Fixed prompt docs | Gold prompt docs | N | ms |\n",
                     );
                     md.push_str(
-                        "|---------|---------|--------|----------|-------------|-------------|-------------|---|----|\n",
+                        "|---------|---------|--------|----------|-------------|-------------|-------------|---|---|---|----|\n",
                     );
                     true
                 }
@@ -4282,8 +4363,14 @@ impl ComprehensiveEvalResults {
                                     .get(key)
                                     .map_or_else(|| "—".into(), |v| format!("{:.1}", v * 100.0))
                             };
+                            let prompt_count = |key| {
+                                result
+                                    .metrics
+                                    .get(key)
+                                    .map_or_else(|| "—".into(), |v| format!("{v:.0}"))
+                            };
                             md.push_str(&format!(
-                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} | {} | {} |\n",
+                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} | {} | {} | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
                                 strict,
@@ -4291,6 +4378,8 @@ impl ComprehensiveEvalResults {
                                 oracle_docs,
                                 endpoint_f1("predicted_endpoint_strict_f1"),
                                 endpoint_f1("gold_endpoint_strict_f1"),
+                                prompt_count("fixed_label_prompt_docs"),
+                                prompt_count("gold_label_prompt_docs"),
                                 result.num_examples,
                                 time_str
                             ));
@@ -5366,6 +5455,85 @@ mod tests {
             receipt.metrics.get("num_gold_relations").copied(),
             Some(0.0)
         );
+    }
+
+    #[test]
+    fn fixed_relation_schema_is_independent_of_document_gold() {
+        let schema = RelationSchema {
+            entity_types: vec!["car".into(), "person".into()],
+            relation_types: vec!["owns".into()],
+        };
+        let policy = RelationPromptPolicy::Fixed(schema.clone());
+        assert_eq!(policy.labels(&[]), (vec!["car", "person"], vec!["owns"]));
+        let gold = crate::eval::relation::RelationGold::new(
+            (0, 1),
+            "PER",
+            "A",
+            (2, 3),
+            "ORG",
+            "B",
+            "hired",
+        );
+        assert_eq!(
+            policy.labels(std::slice::from_ref(&gold)),
+            policy.labels(&[])
+        );
+        assert_eq!(
+            RelationPromptPolicy::DocumentGold.labels(&[gold]),
+            (vec!["ORG", "PER"], vec!["hired"])
+        );
+        assert!(RelationSchema {
+            entity_types: vec![],
+            ..schema.clone()
+        }
+        .validate()
+        .is_err());
+        assert!(RelationSchema {
+            relation_types: vec!["a".into(), "a".into()],
+            ..schema.clone()
+        }
+        .validate()
+        .is_err());
+
+        let cache = tempfile::tempdir().unwrap();
+        let input = r#"[{"tokens":"甲乙","entities":[{"type":"PER","start":0,"end":1,"span":"甲"},{"type":"ORG","start":1,"end":2,"span":"乙"}],"relations":[{"type":"unknown","head":0,"tail":1}]}]"#;
+        std::fs::write(
+            cache.path().join(DatasetId::CHisIEC.cache_filename()),
+            input,
+        )
+        .unwrap();
+        let eval = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let config = || TaskEvalConfig {
+            tasks: vec![Task::RelationExtraction],
+            datasets: vec![DatasetId::CHisIEC],
+            backends: vec!["tplinker".into()],
+            require_cached: true,
+            ..Default::default()
+        };
+        let fixed = eval
+            .evaluate_all(TaskEvalConfig {
+                relation_schema: Some(schema),
+                ..config()
+            })
+            .unwrap();
+        let oracle = eval.evaluate_all(config()).unwrap();
+        let (f, o) = (&fixed.results[0], &oracle.results[0]);
+        assert!(f.success && o.success, "{:?} {:?}", f.error, o.error);
+        assert_eq!(f.metrics["fixed_label_prompt_docs"], 1.0);
+        assert_eq!(f.metrics["gold_label_prompt_docs"], 0.0);
+        assert_eq!(f.metrics["gold_relations_outside_fixed_schema"], 1.0);
+        assert_eq!(f.metrics["num_gold_relations"], 1.0);
+        assert_eq!(o.metrics["gold_label_prompt_docs"], 1.0);
+        assert_eq!(o.metrics["fixed_label_prompt_docs"], 0.0);
+        assert_eq!(f.provenance.evaluated_sample, o.provenance.evaluated_sample);
+        assert_ne!(
+            f.provenance.policy_cohort_key,
+            o.provenance.policy_cohort_key
+        );
+        assert!(matches!(
+            f.provenance.runtime.relation_prompt,
+            Some(RelationPromptPolicy::Fixed(_))
+        ));
     }
 
     #[test]

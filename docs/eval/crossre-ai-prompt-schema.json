@@ -1,0 +1,35 @@
+{
+  "entity_types": [
+    "algorithm",
+    "conference",
+    "country",
+    "field",
+    "location",
+    "metrics",
+    "misc",
+    "organisation",
+    "person",
+    "product",
+    "programlang",
+    "researcher",
+    "task",
+    "university"
+  ],
+  "relation_types": [
+    "artifact",
+    "cause-effect",
+    "compare",
+    "general-affiliation",
+    "named",
+    "origin",
+    "part-of",
+    "physical",
+    "related-to",
+    "role",
+    "temporal",
+    "topic",
+    "type-of",
+    "usage",
+    "win-defeat"
+  ]
+}

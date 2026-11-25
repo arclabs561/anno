@@ -123,6 +123,12 @@ pub struct EvaluatedSampleProvenance {
     pub schema_version: u32,
     /// Unit passed through the task evaluator.
     pub unit: EvaluatedSampleUnit,
+    /// Counts of relation documents scored by each effective prediction producer.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub relation_producer_documents: std::collections::BTreeMap<String, usize>,
+    /// SHA-256 of ordered JSON text/reference-relation tuples, newline-delimited (relation tasks).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample_sha256: Option<String>,
     /// Number of units actually scored after task-specific sampling.
     pub unit_count: usize,
     /// Number of task gold items in those units (relations for relation extraction).
@@ -138,6 +144,8 @@ struct PolicyCohortConditions<'a> {
     cached_only: bool,
     enabled_features: &'a [String],
     scorer: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    relation_schema: Option<&'a crate::eval::relation::RelationSchema>,
 }
 
 /// Produce the pre-selection cohort used by muxer coverage accounting.
@@ -154,6 +162,26 @@ pub(crate) fn policy_cohort_key(
     coref_use_gold_mentions: bool,
     coref_predicted_mentions: crate::eval::task_evaluator::CorefPredictedMentions,
 ) -> Option<String> {
+    policy_cohort_key_with_schema(
+        task,
+        dataset,
+        None,
+        max_examples,
+        cached_only,
+        coref_use_gold_mentions,
+        coref_predicted_mentions,
+    )
+}
+
+pub(crate) fn policy_cohort_key_with_schema(
+    task: Task,
+    dataset: DatasetId,
+    relation_schema: Option<&crate::eval::relation::RelationSchema>,
+    max_examples: Option<usize>,
+    cached_only: bool,
+    coref_use_gold_mentions: bool,
+    coref_predicted_mentions: crate::eval::task_evaluator::CorefPredictedMentions,
+) -> Option<String> {
     let build = current_build_provenance();
     serde_json::to_string(&PolicyCohortConditions {
         schema: "anno-eval-policy-cohort-v1",
@@ -162,6 +190,7 @@ pub(crate) fn policy_cohort_key(
         max_examples,
         cached_only,
         enabled_features: &build.enabled_features,
+        relation_schema: relation_schema.filter(|_| task == Task::RelationExtraction),
         // Legacy coreference rows did not record whether the resolver received gold mentions.
         scorer: match task {
             Task::Temporal => "anno-timex-source-spans-v1",
@@ -486,6 +515,9 @@ pub struct EvalRuntimeProvenance {
     pub robustness: bool,
     /// Relation confidence threshold in effect for relation tasks.
     pub relation_threshold: f32,
+    /// Requested relation label policy. Actual prompt and endpoint counts live in the metrics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_prompt: Option<crate::eval::relation::RelationPromptPolicy>,
     /// Requested experimental mention policy, when selected for a coreference task.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coref_predicted_mentions: Option<crate::eval::task_evaluator::CorefPredictedMentions>,
