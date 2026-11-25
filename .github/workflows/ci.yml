@@ -159,7 +159,7 @@ jobs:
       - name: Test HuggingFace downloader regression (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_download_hf_datasets.py
       - name: Test external parser adapter contract (no model downloads)
-        run: uv run --python 3.12 --with nltk==3.10.3 --with spacy==3.8.16 python -m unittest discover -s scripts -p test_parse_benepar.py
+        run: uv run --python 3.12 --with nltk==3.10.4 --with spacy==3.8.16 python -m unittest discover -s scripts -p test_parse_benepar.py
       - name: Check external parser script lock consistency
         run: uv lock --script scripts/parse_benepar.py --check
   clippy:

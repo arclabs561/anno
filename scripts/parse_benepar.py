@@ -3,6 +3,7 @@
 # requires-python = ">=3.11,<3.13"
 # dependencies = [
 #     "benepar==0.2.0",
+#     "nltk==3.10.4",
 #     "spacy>=3.8,<3.9",
 #     "transformers>=4.40,<4.50",
 #     "torch>=2.6,<3",
