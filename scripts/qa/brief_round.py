@@ -158,12 +158,46 @@ def replay_evidence(receipt):
     return f"Reviewed replay evaluated 1 case. Outcome {outcome}."
 
 
+def benchmark_evidence(receipt):
+    """Project recorded benchmark fields into a source-free reviewer handoff."""
+    rows = receipt["results"]
+    if not isinstance(rows, list):
+        raise ValueError("expected benchmark result rows")
+    lines = [f"Benchmark result rows: {len(rows)}."]
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("expected a benchmark result object")
+        dataset, backend = row.get("dataset"), row.get("backend")
+        if not all(isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", v)
+                   for v in (dataset, backend)):
+            raise ValueError("invalid benchmark dataset or backend identifier")
+        success = row.get("success")
+        if type(success) is not bool:
+            raise ValueError("expected a benchmark success flag")
+        provenance = row.get("provenance") or {}
+        if not isinstance(provenance, dict):
+            raise ValueError("invalid benchmark provenance")
+        observed = provenance.get("dataset") or {}
+        if not isinstance(observed, dict):
+            raise ValueError("invalid benchmark dataset provenance")
+        tier = observed.get("data_source")
+        if tier not in ("S3 cache", "local cache", "original URL", "embedded",
+                        "skipped (unavailable)", "unavailable before dataset load"):
+            tier = "unrecorded"
+        version = observed.get("version")
+        digest = version if isinstance(version, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", version) else "unrecorded"
+        lines.append(f"- {dataset} / {backend}: success={success}, source={tier}, digest={digest}")
+    return "\n".join(lines)
+
+
 def evidence(directory):
     if directory.is_file():
         if directory.suffix == ".jsonl":
             return outcome_evidence(directory)
         receipt = json.loads(directory.read_text(encoding="utf-8"))
         if isinstance(receipt, dict):
+            if "kind" not in receipt and "results" in receipt and "summary" in receipt:
+                return benchmark_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-query-case.v1":
                 return query_case_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-case.v1":
@@ -216,11 +250,18 @@ def main():
     parser.add_argument("receipts", type=Path)
     parser.add_argument("claim")
     parser.add_argument("--trace", type=Path, help="create a local round trace at a new SQLite path")
+    parser.add_argument("--compact", action="store_true", help="include the next review step and a guide reference")
     args = parser.parse_args()
     try:
         summary = evidence(args.receipts)
+        guidance = (
+            "Check the claim against the original receipt. Record one counterexample or the next "
+            "replay that would distinguish the explanations. For independent labeling, share the "
+            "input and contract before the producer output. See docs/ADVERSARIAL_QA.md in this checkout."
+            if args.compact else GUIDE.read_text()
+        )
         handoff = (f"# Coordinator handoff\n\nClaim to investigate: {args.claim}\n\n"
-                   f"Starting evidence\n\n{summary}\n\n{GUIDE.read_text()}\n")
+                   f"Starting evidence\n\n{summary}\n\n{guidance}\n")
         if args.trace:
             trace_id = initialize(args.trace, handoff)
             print(f"QA trace {trace_id} at {args.trace}", file=sys.stderr)

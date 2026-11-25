@@ -77,6 +77,8 @@ For a labeled round, pass the [domain span checker’s JSON report](DOMAIN_QA.md
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
 
+For a benchmark handoff, pass the saved JSON to `python3 scripts/qa/brief_round.py REPORT.json "Which dataset source supplied this run?" --compact`. Each row names the backend, recorded source and available SHA-256. A missing digest stays unrecorded. The compact form also works for matrix outcomes and named replays. Omit `--compact` to include the full guide for a reviewer without a checkout.
+
 ### Choose how to ask the oracle
 
 The oracle receives one UTF-8 task file containing the approved source, annotation contract, units and requested JSON shape. Keep the coordinator's handoff, previous answers and producer results elsewhere. All three routes take the same task. The resulting answer file can go directly to the checker for that task.

@@ -11,6 +11,29 @@ from brief_round import evidence
 
 
 class RoundEvidenceTest(unittest.TestCase):
+    def test_benchmark_handoff_uses_recorded_source_and_digest(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            digest = "sha256:" + "a" * 64
+            row = dict(dataset="WikiGold", backend="heuristic", success=True)
+            path.write_text(json.dumps({"summary": {}, "results": [
+                dict(row, provenance={"dataset": {"data_source": "S3 cache", "version": digest,
+                                                   "source_url": "PRIVATE_SENTINEL"}}),
+                dict(row, success=False, error="PRIVATE_SENTINEL"),
+            ]}))
+            script = Path(__file__).with_name("brief_round.py")
+            command = [sys.executable, str(script), str(path), "Which input did the run use?"]
+            brief = subprocess.check_output([*command, "--compact"], text=True)
+            full = subprocess.check_output(command, text=True)
+            self.assertIn(f"success=True, source=S3 cache, digest={digest}", brief)
+            self.assertIn("success=False, source=unrecorded, digest=unrecorded", brief)
+            self.assertNotIn("PRIVATE_SENTINEL", brief)
+            self.assertLess(len(brief), len(full))
+            row["dataset"] = "invalid\nidentifier"
+            path.write_text(json.dumps({"summary": {}, "results": [row]}))
+            with self.assertRaises(ValueError):
+                evidence(path)
+
     def test_only_completed_measurements_present_scores(self):
         with TemporaryDirectory() as tmp:
             directory = Path(tmp)
