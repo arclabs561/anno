@@ -12,7 +12,7 @@ import torch
 
 REVISION = "c9305b14aaa528aa0ecc69236e1fafac3e36f95f"
 DIGEST = "dd4037c483c733a3a9161d690d77ebbb96b1b84efeeca334c2da66a194f8fbdd"
-OUT = Path(__file__).resolve().parents[2] / "testdata/grounded/tplinker_plus_tags.json"
+OUT = Path(__file__).resolve().parents[2] / "crates/anno/tests/fixtures/tplinker_plus_tags.json"
 
 
 def main():

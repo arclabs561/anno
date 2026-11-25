@@ -15,6 +15,7 @@ include = [
   "/src/**/*.rs",
   "/src/backends/coref/maverick_worker.py",
   "/tests/fixtures/maverick-worker.sh",
+  "/tests/fixtures/tplinker_plus_tags.json",
   "/examples/fcoref_word_spans.rs",
   "/examples/coref_gap_panel.rs",
   "/examples/import_dwie_relations.rs",

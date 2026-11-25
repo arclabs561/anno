@@ -28,18 +28,19 @@ Neither domain has identical token sequences across its train and test files. AI
 
 ## Reproduce the comparison
 
-Cache a verified native joint export for `knowledgator/gliner-relex-large-v1.0` and build the CLI with `eval` and `onnx`. The replay requires Linux and a Python 3 standard library. It verifies dataset checksums before building the prompt, the effective producer for every document, the graph, tokenizer and model configuration fingerprints, identical sample hashes, and quality denominators. Choose two allowed CPU numbers and an output directory that does not already exist. [Replay script](../../scripts/qa/crossre_prompt_replay.py) · [Backend setup](../BACKENDS.md)
+Cache a verified native joint export for `knowledgator/gliner-relex-large-v1.0` and build the CLI with `eval` and `onnx`. The replay requires Linux and a Python 3 standard library. It verifies dataset checksums before building the prompt, the effective producer for every document, the graph, tokenizer and model configuration fingerprints, identical sample hashes, and quality denominators. The upstream repository declares GPL-3.0 and does not specify separate terms for the annotations. Use the data under the terms applicable to your work. The following commands keep the raw inputs and replay artifacts in a temporary directory outside the checkout. Choose two CPU numbers allowed on your host. [Replay script](../../scripts/qa/crossre_prompt_replay.py) · [Backend setup](../BACKENDS.md)
 
 ```bash
-mkdir -p crossre-input
+replay_dir="$(mktemp -d)"
+mkdir "$replay_dir/input"
 base=https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data
 for domain in ai literature; do
   for split in train test; do
-    curl -fsSL "$base/$domain-$split.json" -o "crossre-input/$domain-$split.json"
+    curl -fsSL "$base/$domain-$split.json" -o "$replay_dir/input/$domain-$split.json"
   done
 done
 python3 scripts/qa/crossre_prompt_replay.py --anno target/debug/anno \
-  --data crossre-input --out crossre-results --cpus 0,1
+  --data "$replay_dir/input" --out "$replay_dir/results" --cpus 0,1
 ```
 
 Each row uses a fresh process with the same CPU affinity, ONNX Runtime 1.24.2, threshold 0.5, and cached artifacts. The process times include startup, fingerprinting, model load and scoring. Other tasks shared the host. Wall times are one observation per condition. The fixed AI Relex arm used the earlier native executable from the 32-sentence comparison. The two executables use the same extraction and scoring implementations and the same graph, tokenizer and model configuration. Their binary hashes are recorded. [Earlier 32-sentence comparison](crossre-ai-prompt-comparison.md)

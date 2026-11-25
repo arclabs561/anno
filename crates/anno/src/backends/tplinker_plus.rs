@@ -174,10 +174,9 @@ mod tests {
 
     #[test]
     fn matches_upstream_handshaking_tagger() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../testdata/grounded/tplinker_plus_tags.json"
-        ))
-        .unwrap();
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/tplinker_plus_tags.json"))
+                .unwrap();
         for case in fixture["cases"].as_array().unwrap() {
             let mut input: PlusPrediction = serde_json::from_value(case["input"].clone()).unwrap();
             assert_eq!(serde_json::json!(input.tags().unwrap()), fixture["tags"]);
