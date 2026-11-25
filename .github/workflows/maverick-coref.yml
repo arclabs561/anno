@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/maverick-coref.yml'
       - 'crates/anno/src/backends/coref/maverick*'
+      - 'crates/anno/tests/fixtures/maverick-worker.sh'
       - 'crates/anno/Cargo.toml'
       - 'scripts/qa/maverick/**'
 

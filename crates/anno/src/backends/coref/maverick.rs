@@ -298,47 +298,18 @@ mod tests {
     mod lifecycle {
         use super::*;
         use std::fs;
-        use std::os::unix::fs::PermissionsExt;
         use std::path::Path;
-
-        fn fixture() -> tempfile::TempDir {
-            let dir = tempfile::tempdir().unwrap();
-            let script = dir.path().join("worker");
-            fs::write(
-                &script,
-                r#"#!/bin/sh
-echo "$$" >> "$4/pids"
-if [ -f "$4/hang-start" ]; then
-    sleep 20 &
-    echo "$!" > "$4/helper-pid"
-    wait
-    exit
-fi
-printf '"ready"\n'
-if [ -f "$4/block-input" ]; then exec sleep 20; fi
-while IFS= read -r line; do
-    case "$line" in
-        *hang*) exec sleep 20 ;;
-        *crash*) exit 2 ;;
-        *broken*) printf 'invalid frame\n' ;;
-        *reject*) printf '{"error":"invalid span"}\n' ;;
-        *) printf '{"clusters":[[[0,1]]]}\n' ;;
-    esac
-done
-"#,
-            )
-            .unwrap();
-            fs::set_permissions(script, fs::Permissions::from_mode(0o700)).unwrap();
-            dir
-        }
 
         fn launch(path: &Path) -> Result<MaverickCoref> {
             MaverickCoref::with_timeouts(
-                path.join("worker"),
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/maverick-worker.sh"
+                ),
                 path,
                 false,
+                Duration::from_secs(3),
                 Duration::from_secs(1),
-                Duration::from_millis(250),
             )
         }
 
@@ -351,24 +322,21 @@ done
         }
 
         fn assert_reaped(pid: &str) {
-            assert!(
-                !Command::new("kill")
-                    .args(["-0", pid])
-                    .stderr(Stdio::null())
-                    .status()
-                    .unwrap()
-                    .success(),
+            let pid = rustix::process::Pid::from_raw(pid.parse().unwrap()).unwrap();
+            assert_eq!(
+                rustix::process::test_kill_process(pid),
+                Err(rustix::io::Errno::SRCH),
                 "worker {pid} is still present"
             );
         }
 
         #[test]
         fn hung_startup_is_bounded_and_reaped() {
-            let dir = fixture();
+            let dir = tempfile::tempdir().unwrap();
             fs::write(dir.path().join("hang-start"), "").unwrap();
             let start = Instant::now();
             let error = launch(dir.path()).err().expect("hung worker started");
-            assert!(error.to_string().contains("startup timed out"));
+            assert!(error.to_string().contains("startup timed out"), "{error}");
             assert!(start.elapsed() < Duration::from_secs(10));
             assert_reaped(&pids(dir.path())[0]);
             #[cfg(target_os = "linux")]
@@ -394,7 +362,7 @@ done
 
         #[test]
         fn stalled_requests_broken_frames_and_exits_restart_cleanly() {
-            let dir = fixture();
+            let dir = tempfile::tempdir().unwrap();
             let model = launch(dir.path()).unwrap();
             for (document, expected_error) in [
                 ("hang", "request timed out"),
@@ -403,11 +371,8 @@ done
             ] {
                 let before = pids(dir.path());
                 let start = Instant::now();
-                assert!(model
-                    .resolve(document)
-                    .unwrap_err()
-                    .to_string()
-                    .contains(expected_error));
+                let error = model.resolve(document).unwrap_err();
+                assert!(error.to_string().contains(expected_error), "{error}");
                 assert!(start.elapsed() < Duration::from_secs(10));
                 assert!(!model.is_available());
                 assert_reaped(before.last().unwrap());
@@ -422,7 +387,7 @@ done
 
         #[test]
         fn a_queue_timeout_keeps_the_active_worker() {
-            let dir = fixture();
+            let dir = tempfile::tempdir().unwrap();
             let model = launch(dir.path()).unwrap();
             let before = pids(dir.path());
             let active_request = model.worker.lock();
@@ -437,16 +402,13 @@ done
 
         #[test]
         fn timeout_also_covers_blocked_writes() {
-            let dir = fixture();
+            let dir = tempfile::tempdir().unwrap();
             let marker = dir.path().join("block-input");
             fs::write(&marker, "").unwrap();
             let model = launch(dir.path()).unwrap();
             let start = Instant::now();
-            assert!(model
-                .resolve(&"a".repeat(2 * 1024 * 1024))
-                .unwrap_err()
-                .to_string()
-                .contains("request timed out"));
+            let error = model.resolve(&"a".repeat(2 * 1024 * 1024)).unwrap_err();
+            assert!(error.to_string().contains("request timed out"), "{error}");
             assert!(start.elapsed() < Duration::from_secs(10));
             assert_reaped(&pids(dir.path())[0]);
             fs::remove_file(marker).unwrap();

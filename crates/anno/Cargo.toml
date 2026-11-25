@@ -14,6 +14,7 @@ categories = ["text-processing", "artificial-intelligence"]
 include = [
   "/src/**/*.rs",
   "/src/backends/coref/maverick_worker.py",
+  "/tests/fixtures/maverick-worker.sh",
   "/examples/fcoref_word_spans.rs",
   "/examples/import_dwie_relations.rs",
   # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
