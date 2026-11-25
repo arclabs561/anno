@@ -2261,13 +2261,16 @@ impl DatasetLoader {
     ///
     /// Implements exponential backoff retry strategy:
     /// - 3 retries maximum
-    /// - Initial delay: 1 second
-    /// - Exponential backoff: 2^attempt seconds
-    /// - Max delay: 10 seconds
+    /// - Backoff delays: 1, 2, then 4 seconds
     ///
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
+        self.download_from_url(id, id.download_url().to_owned())
+    }
+
+    #[cfg(feature = "eval")]
+    fn download_from_url(&self, id: DatasetId, url: String) -> Result<(String, String)> {
         if id.requires_local_source() {
             return Err(Error::InvalidInput(format!(
                 "{} requires an authorized local source. Place it at {}. {}",
@@ -2276,7 +2279,6 @@ impl DatasetLoader {
                 id.notes().unwrap_or_default()
             )));
         }
-        let url = id.download_url().to_string();
         if id == DatasetId::LitBank {
             let source_url = url
                 .strip_suffix(".ann")
@@ -2495,46 +2497,8 @@ impl DatasetLoader {
             }
         }
 
-        // Regular download with retry logic
-        const MAX_RETRIES: u32 = 3;
-        const INITIAL_DELAY_SECS: u64 = 1;
-
-        let mut last_error = None;
-
-        for attempt in 0..=MAX_RETRIES {
-            match self.download_attempt(&url) {
-                Ok(content) => {
-                    // Checksum validation removed - registry doesn't provide expected_checksum
-                    // Future: Add checksum validation if registry provides it
-
-                    return Ok((content, url.clone()));
-                }
-                Err(e) => {
-                    last_error = Some(e);
-                    if attempt < MAX_RETRIES {
-                        let delay_secs = (INITIAL_DELAY_SECS * (1 << attempt)).min(10);
-                        log::warn!(
-                            "Download attempt {} failed for {}, retrying in {}s...",
-                            attempt + 1,
-                            url,
-                            delay_secs
-                        );
-                        std::thread::sleep(std::time::Duration::from_secs(delay_secs));
-                    }
-                }
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| {
-            Error::InvalidInput(format!(
-                "Failed to download {} after {} retries. \
-                 Check network connection and try again. \
-                 URL: {}",
-                id.name(),
-                MAX_RETRIES + 1,
-                url
-            ))
-        }))
+        let content = self.download_attempt(&url)?;
+        Ok((content, url))
     }
 
     /// Extract `<org>/<dataset>` from `https://huggingface.co/datasets/<org>/<dataset>(/...)`.
@@ -3075,9 +3039,7 @@ impl DatasetLoader {
         Err(Error::InvalidInput("hf-hub not available".to_string()))
     }
 
-    /// Single download attempt with retry logic.
-    ///
-    /// Retries up to 3 times with exponential backoff for transient failures (timeouts, 5xx errors).
+    /// Download a text object with up to three retries for transient failures.
     #[cfg(feature = "eval")]
     fn download_attempt(&self, url: &str) -> Result<String> {
         const MAX_RETRIES: usize = 3;
@@ -3090,24 +3052,25 @@ impl DatasetLoader {
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match agent
+            let response = agent
                 .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
                 .build()
                 .call()
-            {
-                Ok(response) => {
-                    if response.status() == 200 {
-                        // Success - read content
-                        let content = response.into_body().read_to_string().map_err(|e| {
-                            Error::InvalidInput(format!(
-                                "Failed to read response from {}: {}. \
-                                 Response may be too large or corrupted.",
-                                url, e
-                            ))
-                        })?;
-
+                .and_then(|response| {
+                    let status = response.status().as_u16();
+                    let body = response.into_body().read_to_string();
+                    if status == 200 {
+                        body.map(|content| (status, content))
+                    } else {
+                        // An unreadable error body must not hide the HTTP status.
+                        Ok((status, body.unwrap_or_default()))
+                    }
+                });
+            match response {
+                Ok((status, content)) => {
+                    if status == 200 {
                         // Heuristic guardrail: many registry URLs are dataset homepages. If we fetch HTML,
                         // treat it as a download failure so we don't silently cache garbage and then parse
                         // "0 sentences".
@@ -3126,17 +3089,17 @@ impl DatasetLoader {
                         return Ok(content);
                     }
 
-                    let status = response.status().as_u16();
-                    let body = response.into_body().read_to_string().unwrap_or_default();
-                    let body = body.trim();
+                    let body = content.trim();
                     let body_preview = if body.len() > 800 {
-                        format!("{}…", &body[..800])
+                        format!("{}…", &body[..body.floor_char_boundary(800)])
                     } else {
                         body.to_string()
                     };
 
-                    // Retry on 5xx server errors (transient)
-                    if (500..600).contains(&status) && attempt < MAX_RETRIES {
+                    // Retry timeouts, rate limits and server errors.
+                    if (matches!(status, 408 | 429) || (500..600).contains(&status))
+                        && attempt < MAX_RETRIES
+                    {
                         let wait_ms = 1000 * (1 << attempt); // Exponential backoff: 1s, 2s, 4s
                         log::debug!(
                             "Server error {} downloading {} (attempt {}/{}), retrying in {}ms...",
@@ -3184,14 +3147,10 @@ impl DatasetLoader {
                 ) => {
                     // Network errors (timeouts, connection failures) - retry
                     let error_msg = format!("{}", e);
-                    let is_timeout = matches!(e, ureq::Error::Timeout(_))
-                        || error_msg.contains("timeout")
-                        || error_msg.contains("timed out");
-
-                    if is_timeout && attempt < MAX_RETRIES {
+                    if attempt < MAX_RETRIES {
                         let wait_ms = 1000 * (1 << attempt); // Exponential backoff
                         log::debug!(
-                            "Timeout downloading {} (attempt {}/{}), retrying in {}ms...",
+                            "Network error downloading {} (attempt {}/{}), retrying in {}ms...",
                             url,
                             attempt + 1,
                             MAX_RETRIES + 1,
@@ -3202,7 +3161,6 @@ impl DatasetLoader {
                         continue;
                     }
 
-                    // Final attempt failed or non-timeout error
                     return Err(Error::InvalidInput(format!(
                         "Network error downloading {}: {}. \
                          Check your internet connection and try again. \
@@ -7622,6 +7580,66 @@ mod tests {
             assert_eq!(row["locally_cached"], true);
             assert_eq!(row["eligible"], false);
             assert_eq!(row["exclusion"], "missing_relation_spans");
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn direct_download_retries_transient_responses_only() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::{TcpListener, TcpStream};
+
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        // The four-byte character crosses byte 800 of a permanent error response.
+        let localized = format!("{}🌊", "x".repeat(799));
+        for (status, body, content_length, failures, expected_requests) in [
+            (404, localized.as_str(), localized.len(), 1, 1),
+            (429, "ner", 3, 1, 2),
+            (503, "ner", 3, 1, 2),
+            (503, "ner", 3, 4, 4),
+            (200, "n", 3, 1, 2),
+        ] {
+            let body = body.to_owned();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = std::thread::spawn(move || {
+                let mut requests = 0;
+                for stream in listener.incoming() {
+                    let mut stream = stream.unwrap();
+                    let mut headers = BufReader::new(&stream).lines();
+                    if headers.next().is_none() {
+                        break;
+                    }
+                    for header in headers {
+                        if header.unwrap().is_empty() {
+                            break;
+                        }
+                    }
+                    requests += 1;
+                    let (status, body, length) = if requests <= failures {
+                        (status, body.as_str(), content_length)
+                    } else {
+                        (200, "ner", 3)
+                    };
+                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{body}").unwrap();
+                }
+                requests
+            });
+            let url = format!("http://{address}/wikigold.txt");
+            let result = loader.download_from_url(DatasetId::WikiGold, url.clone());
+            // Wake the accept loop with EOF after all client requests have completed.
+            drop(TcpStream::connect(address).unwrap());
+            assert_eq!(server.join().unwrap(), expected_requests, "HTTP {status}");
+            if expected_requests <= failures {
+                let message = result.unwrap_err().to_string();
+                assert!(message.contains(&format!("HTTP {status}")));
+                if status == 404 {
+                    assert!(message.ends_with(&format!("{}…", "x".repeat(799))));
+                }
+            } else {
+                assert_eq!(result.unwrap(), ("ner".to_owned(), url));
+            }
         }
     }
 

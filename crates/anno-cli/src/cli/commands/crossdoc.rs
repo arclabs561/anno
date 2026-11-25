@@ -14,8 +14,6 @@ use anno::coalesce::Resolver;
 #[cfg(feature = "eval")]
 use anno::core::grounded::{DeliveryOutcome, DocumentDelivery};
 #[cfg(feature = "eval")]
-use anno::offset::TextSpan;
-#[cfg(feature = "eval")]
 use anno::{Corpus, GroundedDocument};
 #[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
@@ -40,7 +38,7 @@ pub enum CandidateMode {
 #[derive(clap::Parser, Debug)]
 pub struct CrossDocArgs {
     /// Directory containing text files to process (optional if --import is used)
-    #[arg(value_name = "DIR")]
+    #[arg(value_name = "DIR", conflicts_with_all = ["import", "stdin"])]
     pub directory: Option<String>,
 
     /// Model backend to use for entity extraction
@@ -48,7 +46,7 @@ pub struct CrossDocArgs {
     pub model: ModelBackend,
 
     /// Similarity threshold for clustering (0.0-1.0)
-    #[arg(short, long, default_value = "0.6")]
+    #[arg(short, long, default_value = "0.6", value_parser = super::parse_similarity_threshold)]
     pub threshold: f64,
 
     /// Raw directory candidate generation (default: exhaustive up to 100 documents, then lsh)
@@ -113,48 +111,38 @@ pub struct CrossDocArgs {
 }
 
 #[cfg(feature = "eval")]
-struct ContextSnippet<'a> {
-    before_marker: &'static str,
-    before: &'a str,
-    entity_text: &'a str,
-    after: &'a str,
-    after_marker: &'static str,
-}
-
-#[cfg(feature = "eval")]
-fn context_snippet<'a>(
-    text: &'a str,
-    entity_start_char: usize,
-    entity_end_char: usize,
-    context_window_chars: usize,
-) -> ContextSnippet<'a> {
-    let text_char_count = text.chars().count();
-    let start = entity_start_char.min(text_char_count);
-    let mut end = entity_end_char.min(text_char_count);
-    if end < start {
-        end = start;
+fn context_snippet(text: &str, coverage: anno::SpanCoverage<'_>, window: usize) -> String {
+    let ranges = coverage.ranges();
+    let Some(first) = ranges.first() else {
+        return String::new();
+    };
+    let mut chars = text.chars();
+    // Advance through the original Unicode source once, preserving every gap.
+    let mut take = |count: usize| {
+        let remaining = chars.as_str();
+        if count > 0 {
+            chars.nth(count - 1);
+        }
+        &remaining[..remaining.len() - chars.as_str().len()]
+    };
+    let mut cursor = first.start.saturating_sub(window);
+    take(cursor);
+    let mut result = String::new();
+    if cursor > 0 {
+        result.push_str("...");
     }
-
-    let context_start = start.saturating_sub(context_window_chars);
-    let context_end = (end + context_window_chars).min(text_char_count);
-
-    let before = TextSpan::from_chars(text, context_start, start).extract(text);
-    let entity_text = TextSpan::from_chars(text, start, end).extract(text);
-    let after = TextSpan::from_chars(text, end, context_end).extract(text);
-
-    ContextSnippet {
-        // Only show ellipses when the context is clipped, not merely because there is
-        // non-empty text before/after the entity.
-        before_marker: if context_start > 0 { "..." } else { "" },
-        before,
-        entity_text,
-        after,
-        after_marker: if context_end < text_char_count {
-            "..."
-        } else {
-            ""
-        },
+    for range in ranges {
+        result.push_str(take(range.start - cursor));
+        result.push('[');
+        result.push_str(&color("1;32", take(range.end.saturating_sub(range.start))));
+        result.push(']');
+        cursor = range.end;
     }
+    result.push_str(take(window));
+    if !chars.as_str().is_empty() {
+        result.push_str("...");
+    }
+    result
 }
 
 /// Build the import view from current track assignments. Entity indices in
@@ -249,12 +237,18 @@ fn import_documents(
         } else if pattern.contains(['*', '?', '[']) {
             let paths =
                 glob(pattern).map_err(|e| format!("Invalid glob pattern '{pattern}': {e}"))?;
+            let previous_len = inputs.len();
             for entry in paths {
                 let path =
                     entry.map_err(|e| format!("Failed to expand import '{pattern}': {e}"))?;
-                if path.is_file() {
+                let metadata = fs::metadata(&path)
+                    .map_err(|e| format!("Failed to inspect import '{}': {e}", path.display()))?;
+                if metadata.is_file() {
                     inputs.push(Input::File(path));
                 }
+            }
+            if inputs.len() == previous_len {
+                return Err(format!("Import pattern '{pattern}' matched no files"));
             }
         } else {
             inputs.push(Input::File(PathBuf::from(pattern)));
@@ -653,6 +647,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         )
     };
 
+    let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
+    let singleton_clusters = || final_clusters.iter().filter(|c| c.len() == 1).count();
+
     // Prepare output
     let output_text = match args.format {
         OutputFormat::Json => {
@@ -661,13 +658,15 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             if !delivery_outcomes.is_empty() {
                 output.insert("deliveries".into(), serde_json::json!(delivery_outcomes));
             }
-            output.insert("metadata".to_string(), serde_json::json!({
+            output.insert(
+                "metadata".to_string(),
+                serde_json::json!({
                 "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
                 "candidate_mode": candidate_mode,
                 "documents_processed": doc_count,
                 "total_entities": total_entities,
                 "clusters_found": final_clusters.len(),
-                "cross_document_clusters": final_clusters.iter().filter(|c| c.doc_count() > 1).count(),
+                "cross_document_clusters": cross_doc_clusters,
                 "threshold": args.threshold,
                 "require_type_match": args.require_type_match,
                 "filters": {
@@ -676,7 +675,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 "entity_types": args.entity_types,
                 "max_clusters": args.max_clusters,
                     }
-                }));
+                }),
+            );
             output.insert(
                 "clusters".to_string(),
                 serde_json::to_value(&final_clusters)
@@ -720,8 +720,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             output.push('\n');
 
             // Summary header
-            let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
-            let singleton_clusters = final_clusters.len() - cross_doc_clusters;
 
             output.push_str(&format!("{}\n", color("1;33", "Summary")));
             output.push_str(&format!("  Documents: {}\n", doc_count));
@@ -730,7 +728,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 "  Clusters: {} ({} cross-doc, {} singleton)\n",
                 final_clusters.len(),
                 color("32", &cross_doc_clusters.to_string()),
-                singleton_clusters
+                singleton_clusters()
             ));
             if !args.entity_types.is_empty() {
                 output.push_str(&format!(
@@ -848,44 +846,35 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     };
 
                     for (doc_id, entity_idx) in cluster.mentions.iter().take(sample_size) {
+                        let render =
+                            |text: &str, surface: &str, coverage: anno::SpanCoverage<'_>| {
+                                if args.verbose {
+                                    context_snippet(text, coverage, 50)
+                                } else {
+                                    format!("\"{surface}\"")
+                                }
+                            };
                         let mention = if use_corpus {
                             corpus.get_document(doc_id).and_then(|doc| {
                                 let signal = doc.signals().get(*entity_idx)?;
-                                let (start, end) = signal.text_offsets()?;
-                                Some((doc.text(), signal.surface(), start, end))
+                                Some(render(
+                                    doc.text(),
+                                    signal.surface(),
+                                    signal.location.coverage().view(),
+                                ))
                             })
                         } else {
                             doc_index.get(doc_id.as_str()).and_then(|doc| {
                                 let entity = doc.entities.get(*entity_idx)?;
-                                Some((
-                                    doc.text.as_str(),
-                                    entity.text.as_str(),
-                                    entity.start(),
-                                    entity.end(),
-                                ))
+                                Some(render(&doc.text, &entity.text, entity.coverage()))
                             })
                         };
-                        let Some((text, surface, start, end)) = mention else {
-                            continue;
-                        };
-                        if args.verbose {
-                            let snippet = context_snippet(text, start, end, 50);
+                        if let Some(mention) = mention {
                             output.push_str(&format!(
-                                "    {} {}: {}{}[{}]{}{}\n",
+                                "    {} {}: {}\n",
                                 color("90", "•"),
                                 color("36", doc_id),
-                                snippet.before_marker,
-                                snippet.before,
-                                color("1;32", snippet.entity_text),
-                                snippet.after,
-                                snippet.after_marker
-                            ));
-                        } else {
-                            output.push_str(&format!(
-                                "    {} {}: \"{}\"\n",
-                                color("90", "•"),
-                                color("36", doc_id),
-                                surface
+                                mention
                             ));
                         }
                     }
@@ -916,8 +905,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             output
         }
         OutputFormat::Summary => {
-            let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
-            let singleton_clusters = final_clusters.len() - cross_doc_clusters;
             let avg_cluster_size = if final_clusters.is_empty() {
                 0.0
             } else {
@@ -983,7 +970,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     cross_doc_clusters as f64 / final_clusters.len() as f64 * 100.0
                 }
             ));
-            output.push_str(&format!("  Singleton clusters: {}\n", singleton_clusters));
+            output.push_str(&format!("  Singleton clusters: {}\n", singleton_clusters()));
             output.push_str(&format!(
                 "  Average cluster size: {:.2} mentions\n",
                 avg_cluster_size
@@ -1214,8 +1201,12 @@ mod tests {
             needle
         );
 
-        let snippet = context_snippet(text, span.char_start, span.char_end, 5);
-        assert_eq!(snippet.entity_text, needle);
+        let snippet = context_snippet(
+            text,
+            anno::SpanCoverage::Contiguous(span.char_start..span.char_end),
+            5,
+        );
+        assert!(snippet.contains(&format!("[{}]", super::color("1;32", needle))));
     }
 }
 

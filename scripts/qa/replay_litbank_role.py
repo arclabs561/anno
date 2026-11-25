@@ -1,5 +1,6 @@
 """Replay four selected LitBank identity judgments with Anno's fcoref_word_spans example."""
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -8,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from check_span_assertions import indexed, source_sha256
+from fcoref_cgroup.replay import pinned_fp32_hashes
 from score_person_mentions import model_spans, span
 
 
@@ -73,22 +75,27 @@ def main():
     fixture = json.loads(FIXTURE.read_text())
     doc, named = prepare(fixture, args.litbank)
     if args.predictions:
-        predictions = json.loads(args.predictions.read_bytes())
+        data = args.predictions.read_bytes()
+        predictions = json.loads(data)
+        provenance = {"kind": "saved_predictions", "receipt_sha256": hashlib.sha256(data).hexdigest()}
     elif args.runner:
         if not args.runner.is_file() or not os.access(args.runner, os.X_OK):
             return unavailable(doc, "configured fcoref_word_spans executable is unavailable")
-        required = ("config.json", "tokenizer.json", "scorer_weights.safetensors", "encoder.onnx")
-        missing = [name for name in required if not (args.model_dir / name).is_file()]
-        if missing:
-            return unavailable(doc, "missing FCoref model files: " + ", ".join(missing))
+        try:
+            hashes = pinned_fp32_hashes(args.model_dir)
+        except FileNotFoundError as exc:
+            return unavailable(doc, f"missing FCoref model file: {Path(exc.filename).name}")
         with tempfile.TemporaryDirectory() as temp:
             panel = Path(temp) / "panel.json"
             panel.write_text(json.dumps([doc]), encoding="utf-8")
             output = subprocess.check_output([args.runner.resolve(), args.model_dir, panel])
             predictions = json.loads(output)
+        pinned_fp32_hashes(args.model_dir)  # Refuse a changed export before emitting its receipt.
+        provenance = {"kind": "pinned_fp32", "files_sha256": hashes}
     else:
         return unavailable(doc, "no model or saved predictions supplied")
     result = score(doc, named, fixture["pairs"], predictions)
+    result["prediction_source"] = provenance
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "pass" else 1
 

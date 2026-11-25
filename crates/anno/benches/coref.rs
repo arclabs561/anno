@@ -65,10 +65,35 @@ fn bench_coref_to_grounded(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_grounded_validation(c: &mut Criterion) {
+    use anno::{GroundedDocument, Location, Signal};
+
+    let mut group = c.benchmark_group("grounded/validate");
+    for count in [256, 512, 1024, 2048] {
+        let mut doc = GroundedDocument::new("dense", "甲 🦊 ".repeat(count));
+        for index in 0..count {
+            let start = 4 * index + 2;
+            doc.add_signal(Signal::new(
+                0,
+                Location::text(start, start + 1),
+                "🦊",
+                "ANIMAL",
+                1.0,
+            ));
+        }
+        assert!(doc.is_valid());
+        group.bench_with_input(BenchmarkId::from_parameter(count), &doc, |b, doc| {
+            b.iter(|| black_box(doc).is_valid())
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_coref_resolve,
     bench_coref_scaling,
-    bench_coref_to_grounded
+    bench_coref_to_grounded,
+    bench_grounded_validation
 );
 criterion_main!(benches);

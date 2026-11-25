@@ -9,6 +9,31 @@ def _label(value):
     return isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", value) is not None
 
 
+# ModelBackend CLI aliases and runtime names returned by Model::name().
+# A shared architecture alone (e.g. bert-onnx for multiple checkpoints)
+# cannot establish the identity of a specialized requested model.
+def canonical_backend(name):
+    normalized = name.lower().replace("_", "-")
+    aliases = {
+        "regex": "pattern", "statistical": "heuristic", "tplink": "tplinker",
+        "bert": "bert-onnx", "deberta": "deberta-v3", "biomedical-ner": "biomedical",
+        "pii": "gliner-pii", "gliner-onnx": "gliner",
+        "glinermultitask-onnx": "gliner-multitask", "candlener": "candle-ner",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def backend_matches(requested, runtime):
+    if not isinstance(runtime, str) or not runtime:
+        return False
+    backend = canonical_backend(requested)
+    if backend in {"stacked", "ensemble"}:
+        separator = r"\+" if backend == "stacked" else r"\|"
+        if re.fullmatch(rf"{backend}\([A-Za-z0-9_-]+(?:{separator}[A-Za-z0-9_-]+)*\)", runtime):
+            return True
+    return canonical_backend(runtime) == backend
+
+
 def valid_domain_name(name):
     return isinstance(name, str) and bool(name) and name == name.strip() and name.isprintable()
 
@@ -25,12 +50,14 @@ def _host(url):
 def coverage_summary(receipt):
     """Count sampled catalog entries, paired inputs and independent source content."""
     if (not isinstance(receipt, dict) or receipt.get("kind") != "anno.qa.cross-domain"
-            or type(receipt.get("schema_version")) is not int or receipt["schema_version"] != 1
+            or type(receipt.get("schema_version")) is not int or receipt["schema_version"] not in (1, 2)
             or type(receipt.get("seed")) is not int):
-        raise ValueError("expected a version 1 cross-domain receipt with a seed")
+        raise ValueError("expected a version 1 or 2 cross-domain receipt with a seed")
     backends = receipt.get("backends")
     if (not isinstance(backends, list) or not backends or not all(_label(x) for x in backends)
             or len(set(backends)) != len(backends)):
+        raise ValueError("expected distinct requested backends")
+    if receipt["schema_version"] == 2 and len({canonical_backend(b) for b in backends}) != len(backends):
         raise ValueError("expected distinct requested backends")
     eligible = receipt.get("eligible_sources")
     if (not isinstance(eligible, dict) or not eligible
@@ -43,7 +70,7 @@ def coverage_summary(receipt):
     matched = Counter()
     failures = Counter()
     seen_urls = set()
-    matched_urls = set()
+    input_matched_urls = set()
     final_hosts = set()
     domains_per_hash = defaultdict(set)
     texts_per_domain = defaultdict(set)
@@ -69,6 +96,7 @@ def coverage_summary(receipt):
             continue
         _host(source["selected_url"])
         observed = {}
+        backend_failures = set()
         for check in checks:
             if not isinstance(check, dict) or not _label(check.get("backend")):
                 raise ValueError("invalid backend check")
@@ -76,10 +104,17 @@ def coverage_summary(receipt):
             if backend in observed or backend not in backends:
                 raise ValueError("duplicate or unexpected backend")
             status = check.get("status")
-            if status not in ("ok", "error", "timeout"):
+            if status not in ("ok", "error", "timeout", "backend_mismatch", "backend_unverified"):
                 raise ValueError("invalid backend status")
             observed[backend] = None
-            if status == "ok":
+            if status in {"ok", "backend_mismatch", "backend_unverified"}:
+                runtime = check.get("reported_model")
+                if runtime is not None and (not isinstance(runtime, str) or not runtime.strip()):
+                    raise ValueError("invalid runtime backend identity")
+                if receipt["schema_version"] == 1 or runtime is None or status == "backend_unverified":
+                    backend_failures.add("backend_unverified")
+                elif status == "backend_mismatch" or not backend_matches(backend, runtime):
+                    backend_failures.add("backend_mismatch")
                 final_url, digest = check.get("final_url"), check.get("text_hash")
                 _host(final_url)
                 if not isinstance(digest, str) or not re.fullmatch(r"xxh3:[0-9a-f]{16}", digest):
@@ -94,10 +129,13 @@ def coverage_summary(receipt):
         if len(identities) != 1:
             failures["input_mismatch"] += 1
             continue
+        input_matched_urls.add(url)
+        if backend_failures:
+            failures["backend_mismatch" if "backend_mismatch" in backend_failures else "backend_unverified"] += 1
+            continue
         final_url, digest = identities.pop()
         final_hosts.add(_host(final_url))
         matched[topic] += 1
-        matched_urls.add(url)
         texts_per_domain[topic].add(digest)
         domains_per_hash[digest].add(topic)
     replay_counts = None
@@ -112,11 +150,11 @@ def coverage_summary(receipt):
         for url, outcome in outcomes.items():
             if outcome not in ("matched", "changed", "unverified"):
                 raise ValueError("invalid replay outcome")
-            if url not in matched_urls and outcome != "unverified":
+            if url not in input_matched_urls and outcome != "unverified":
                 raise ValueError("replay agreement requires a verified current input")
         replay_counts = dict(Counter(outcomes.values()))
     return {
-        "replay": replay_counts, "selected": len(sources), "matched": sum(matched.values()), "failures": dict(failures),
+        "replay": replay_counts, "input_matched": len(input_matched_urls), "selected": len(sources), "matched": sum(matched.values()), "failures": dict(failures),
         "final_hosts": len(final_hosts), "distinct_texts": len(domains_per_hash),
         "shared_across_domains": sum(len(domains) > 1 for domains in domains_per_hash.values()),
         "domains": {topic: {
@@ -134,11 +172,14 @@ def render_coverage(receipt):
     lines = [
         f"Catalog topics sampled: {sum(x['selected'] > 0 for x in domains.values())}/{len(domains)}. "
         f"Inputs verified on every requested backend: {summary['matched']}/{summary['selected']}.",
+        f"Matching input URL and text hash across requests: {summary['input_matched']}/{summary['selected']}.",
         f"Verified inputs reached {summary['final_hosts']} distinct final hosts and "
         f"{summary['distinct_texts']} distinct rendered texts. "
         f"{summary['shared_across_domains']} text hashes appeared under multiple catalog topics.",
         f"Sources omitted from verified coverage: {counts.get('discovery', 0)} discovery failures, "
-        f"{counts.get('backend', 0)} backend failures, {counts.get('input_mismatch', 0)} input mismatches.",
+        f"{counts.get('backend', 0)} backend failures, {counts.get('input_mismatch', 0)} input mismatches, "
+        f"{counts.get('backend_mismatch', 0)} runtime backend mismatches, "
+        f"{counts.get('backend_unverified', 0)} unverified runtime identities.",
         "",
         "| Catalog topic | Eligible | Selected | Verified | Distinct texts | Texts unique to this topic |",
         "|---|---:|---:|---:|---:|---:|",

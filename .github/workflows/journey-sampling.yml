@@ -34,7 +34,7 @@ jobs:
       - name: Prepare locked dependencies and offline executables
         run: |
           cargo fetch --locked
-          cargo build --offline --locked -p anno-cli -p anno-eval --no-default-features --features 'anno-cli/eval anno-cli/extractor-readability anno-eval/eval' --bin anno --example journey_pick
+          cargo build --offline --locked -p anno-cli --no-default-features --features 'eval extractor-readability' --bin anno
           cargo test --offline --locked --no-run -p anno-cli --no-default-features --features 'eval extractor-readability' --test brat_dataset_roundtrip --test corpus_read_many
           python3 -m unittest discover -s scripts/qa -p 'test_journey*.py'
       - name: Identify the compatible oracle and policy
@@ -61,7 +61,7 @@ jobs:
         env:
           PRIOR_RUN: ${{ steps.prior.outputs.prior_run }}
         run: |
-          python3 scripts/qa/journey_pilot.py run --selector target/debug/examples/journey_pick --anno target/debug/anno \
+          python3 scripts/qa/journey_pilot.py run --anno target/debug/anno \
             --state "$RUNNER_TEMP/journey-state/ledger.json" --output "$RUNNER_TEMP/journey-result" \
             --run-id "$GITHUB_RUN_ID" --seed "$GITHUB_RUN_ID" --prior-run "$PRIOR_RUN"
       - name: Publish the compatible journey ledger

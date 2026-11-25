@@ -32,6 +32,7 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
 
     let json: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
     assert_eq!(json["provenance"]["model"], "pattern");
+    assert_eq!(json["provenance"]["runtime_model"], "regex");
     assert_eq!(
         json["provenance"]["entity_sources"],
         serde_json::json!(["pattern"])
@@ -69,6 +70,7 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
     assert_eq!(lines[0]["provenance"]["model"], "pattern");
+    assert_eq!(lines[0]["provenance"]["runtime_model"], "regex");
     let text_hash = format!("xxh3:{:016x}", xxhash_rust::xxh3::xxh3_64(text.as_bytes()));
     assert_eq!(json["provenance"]["text_hash"], text_hash);
     assert_eq!(lines[0]["provenance"]["text_hash"], text_hash);
@@ -106,6 +108,7 @@ fn provenance_does_not_invent_entity_sources_when_nothing_is_emitted() {
 
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["provenance"]["model"], "pattern");
+    assert_eq!(json["provenance"]["runtime_model"], "regex");
     assert_eq!(json["entities"], serde_json::json!([]));
     assert!(json["provenance"].get("entity_sources").is_none());
 }

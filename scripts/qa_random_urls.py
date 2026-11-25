@@ -42,9 +42,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 
 if __package__:
-    from .qa.domain_coverage import coverage_summary, render_coverage
+    from .qa.domain_coverage import backend_matches, canonical_backend, coverage_summary, render_coverage
 else:
-    from qa.domain_coverage import coverage_summary, render_coverage
+    from qa.domain_coverage import backend_matches, canonical_backend, coverage_summary, render_coverage
 
 # ---------------------------------------------------------------------------
 # Source pool
@@ -487,6 +487,8 @@ def validate_extraction(data: object) -> None:
     prov = data.get("provenance")
     if not isinstance(prov, dict) or not isinstance(prov.get("model"), str) or not prov["model"].strip():
         raise ValueError("missing provenance model")
+    if "runtime_model" in prov and (not isinstance(prov["runtime_model"], str) or not prov["runtime_model"].strip()):
+        raise ValueError("invalid runtime model")
     if "source_url" in prov:
         url = prov["source_url"]
         if not isinstance(url, str) or any(ch.isspace() or ord(ch) < 32 for ch in url):
@@ -572,7 +574,7 @@ def run_anno(
             result.error_msg = f"invalid extraction: {e}"
             return result
         prov = data["provenance"]
-        result.reported_model = prov["model"]
+        result.reported_model = prov.get("runtime_model", "")
         result.url = prov.get("source_url") or url
         result.text_hash = prov.get("text_hash", "")
         result.detected_lang = prov.get("language", "")
@@ -585,6 +587,14 @@ def run_anno(
                 return result
         if source.category == "documents" and result.detected_lang != source.lang:
             result.error_msg = f"expected {source.lang}, detected {result.detected_lang or 'unknown'}"
+            return result
+        if not result.reported_model:
+            result.status = "backend_unverified"
+            result.error_msg = "extract provenance did not identify the runtime model"
+            return result
+        if not backend_matches(backend, result.reported_model):
+            result.status = "backend_mismatch"
+            result.error_msg = f"requested {backend}, runtime reported {result.reported_model}"
             return result
         result.status = "OK"
         result.entity_count = len(data["entities"])
@@ -890,10 +900,12 @@ def cross_domain_receipt(seed, backends, eligible, urls, results):
     checks = defaultdict(list)
     for run in results:
         if run.backend:
-            checks[run.source].append({"backend": run.backend, "status": run.status.lower(),
-                                       "final_url": run.url if run.status == "OK" else None,
-                                       "text_hash": run.text_hash if run.status == "OK" else None})
-    return {"kind": "anno.qa.cross-domain", "schema_version": 1, "seed": seed,
+            has_input = run.status in {"OK", "backend_mismatch", "backend_unverified"}
+            checks[run.source].append({"backend": run.backend, "reported_model": run.reported_model or None,
+                                       "status": run.status.lower(),
+                                       "final_url": run.url if has_input else None,
+                                       "text_hash": run.text_hash if has_input else None})
+    return {"kind": "anno.qa.cross-domain", "schema_version": 2, "seed": seed,
             "backends": backends, "eligible_sources": eligible,
             "sources": [{"domain": source.domain, "source_url": source.url,
                          "selected_url": url, "checks": checks[source]} for source, url in urls.items()]}
@@ -961,7 +973,7 @@ def main() -> int:
             backends = reference["backends"] if reference is not None else ["stacked"]
         else:
             backends = [b.strip() for b in args.backends.split(",")]
-        if (len(set(backends)) != len(backends)
+        if (len({canonical_backend(b) for b in backends}) != len(backends)
                 or any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", b) for b in backends)):
             raise ValueError("expected distinct backend names")
         if args.public_summary:

@@ -16,7 +16,9 @@ from check_catalog_history import build_cli
 
 
 class ViewMismatch(AssertionError):
-    pass
+    def __init__(self, case, step, audience, subject):
+        self.witness = {"step": step, "audience": audience, "subject": list(subject) if subject else None}
+        super().__init__(f"{case} step {step}: stale {audience} {subject} answer")
 
 
 @dataclass
@@ -168,7 +170,7 @@ def replay(scenario, publications, *, stale_cache=False):
                 if sorted(answer) != list(clean):
                     raise AssertionError(f"{scenario['name']} step {i}: fixture/rebuild differ for {audience} {subject}")
                 if actual != clean:
-                    raise ViewMismatch(f"{scenario['name']} step {i}: stale {audience} {subject} answer")
+                    raise ViewMismatch(scenario["name"], i, audience, subject)
     return len(scenario["steps"])
 
 
@@ -190,17 +192,20 @@ def main():
             raise ValueError(f"missing, repeated or unknown source reference in {scenario['name']}")
         publications = publish(binary, scenario)
         steps = replay(scenario, publications)
-        stale = None
         try:
             replay(scenario, publications, stale_cache=True)
         except ViewMismatch as fault:
+            if fault.witness != scenario["stale_cache_witness"]:
+                raise AssertionError(f"{fault}; expected {scenario['stale_cache_witness']}") from fault
             stale = str(fault)
+        else:
+            raise AssertionError(f"{scenario['name']} failed to detect its stale-cache witness")
         row_empty = sum(pub.delta is not None and not pub.delta["removed"] and not pub.delta["upserted"]
                         for pub in publications.values())
         report.append({"case": scenario["name"], "steps": steps, "editions": len(publications),
                        "deltas_with_unchanged_rows": row_empty, "stale_cache_control": stale})
-    if not any(case["stale_cache_control"] for case in report):
-        raise AssertionError("cases failed to distinguish a reader retaining stale cached responses")
+    if not report:
+        raise AssertionError("expected at least one credit scenario")
     print(json.dumps(report, indent=2))
 
 
