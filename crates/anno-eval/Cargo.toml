@@ -49,12 +49,20 @@ name = "journey_pick"
 required-features = ["eval"]
 
 [[example]]
+name = "cache_inventory"
+required-features = ["eval"]
+
+[[example]]
 name = "reviewed_seed_campaign"
 required-features = ["eval"]
 
 [[example]]
 name = "muxer_decision_loop"
 path = "examples/muxer_decision_loop.rs"
+required-features = ["eval"]
+
+[[example]]
+name = "wikigold_cache_probe"
 required-features = ["eval"]
 
 [[example]]

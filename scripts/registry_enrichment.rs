@@ -1,5 +1,5 @@
 // Auto-generated s3_path additions
-// Copy these into the appropriate dataset blocks in dataset_registry.rs
+// Historical filename suggestions include ambiguous substring matches. Regenerate and verify before use.
 
 // ACE05RE: s3_path: "datasets/ace2005.json",
 // ACE2005: s3_path: "datasets/ace2005.json",
