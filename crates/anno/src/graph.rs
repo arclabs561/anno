@@ -245,7 +245,10 @@ pub fn entities_to_knowledge_graph(
         kg.add_triple(Triple::new(
             iri.as_str(),
             RDFS_LABEL,
-            format!("\"{}\"", escape_literal(&entity.text)),
+            format!(
+                "\"{}\"",
+                escape_literal(&crate::export::annotation_surface(entity))
+            ),
         ));
         kg.add_triple(Triple::new(
             iri.as_str(),
@@ -257,6 +260,13 @@ pub fn entities_to_knowledge_graph(
             format!("{}endOffset", anno_ns),
             format!("\"{}\"^^<{}>", entity.end(), XSD_INT),
         ));
+        if let Some(segments) = crate::export::rdf_source_segments(entity) {
+            kg.add_triple(Triple::new(
+                iri.as_str(),
+                format!("{anno_ns}sourceSegments"),
+                format!("\"{segments}\""),
+            ));
+        }
         kg.add_triple(Triple::new(
             iri.as_str(),
             format!("{}confidence", anno_ns),
@@ -271,7 +281,7 @@ pub fn entities_to_knowledge_graph(
     }
 
     for (rel, h, t) in crate::export::resolved_relations(entities, relations) {
-        let pred = format!("{}/rel/{}", base, uri_safe(&rel.relation_type));
+        let pred = crate::export::relation_iri(base, &rel.relation_type);
         let mut triple = Triple::new(
             entity_iris[h].as_str(),
             pred.as_str(),

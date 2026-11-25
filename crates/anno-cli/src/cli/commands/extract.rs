@@ -327,7 +327,23 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
     // path so entity/relation indices remain consistent.
-    let (mut entities, mut relation_triples) = if args.extract_relations {
+    let standard_extraction = || {
+        if let Some(ref custom_types) = extract_types {
+            return extract_with_custom_types(
+                &model,
+                &text,
+                custom_types,
+                args.threshold,
+                args.quiet,
+            );
+        }
+        let backend = model.create_model().map_err(CliError::from)?;
+        let entities = backend
+            .extract_entities(&text, None)
+            .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
+        Ok((entities, backend.name()))
+    };
+    let (mut entities, mut relation_triples, runtime_model) = if args.extract_relations {
         let entity_schema: Vec<&str> = if let Some(ref custom_types) = extract_types {
             custom_types.iter().map(|s| s.as_str()).collect()
         } else {
@@ -342,7 +358,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 let out = re
                     .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
                     .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations)
+                (out.entities, out.relations, anno::Model::name(&re))
             }
             #[cfg(feature = "onnx")]
             ModelBackend::GlinerMultitask => {
@@ -354,39 +370,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 let out = re
                     .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
                     .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations)
+                (out.entities, out.relations, anno::Model::name(&re))
             }
             _ => {
-                // Standard extraction, then heuristic relation detection.
-                let ents = if let Some(ref custom_types) = extract_types {
-                    extract_with_custom_types(
-                        &model,
-                        &text,
-                        custom_types,
-                        args.threshold,
-                        args.quiet,
-                    )?
-                } else {
-                    let backend = model.create_model().map_err(CliError::from)?;
-                    backend
-                        .extract_entities(&text, None)
-                        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
-                };
-                (ents, Vec::new())
+                let (entities, runtime) = standard_extraction()?;
+                (entities, Vec::new(), runtime)
             }
         }
     } else {
-        let ents = if let Some(ref custom_types) = extract_types {
-            // Zero-shot extraction with custom types
-            extract_with_custom_types(&model, &text, custom_types, args.threshold, args.quiet)?
-        } else {
-            // Standard extraction
-            let backend = model.create_model().map_err(CliError::from)?;
-            backend
-                .extract_entities(&text, None)
-                .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
-        };
-        (ents, Vec::new())
+        let (entities, runtime) = standard_extraction()?;
+        (entities, Vec::new(), runtime)
     };
 
     let elapsed = start.elapsed();
@@ -608,7 +601,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                model.name(),
+                model,
+                runtime_model,
                 &entities_out,
                 elapsed,
                 language,
@@ -630,7 +624,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                model.name(),
+                model,
+                runtime_model,
                 &entities_out,
                 elapsed,
                 language,
@@ -918,7 +913,7 @@ fn extract_with_custom_types(
     custom_types: &[String],
     threshold: Option<f64>,
     quiet: bool,
-) -> Result<Vec<anno::Entity>, CliError> {
+) -> Result<(Vec<anno::Entity>, &'static str), CliError> {
     use super::super::output::color;
 
     // When ONNX is not enabled, `--extract-types` is unsupported and these become unused.
@@ -941,6 +936,7 @@ fn extract_with_custom_types(
                         .map_err(|e| CliError::from(format!("Failed to create GLiNER Poly: {e}")))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
+                    .map(|entities| (entities, anno::Model::name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {e}")));
             }
             ModelBackend::Gliner | ModelBackend::GlinerRelex => {
@@ -953,6 +949,7 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Failed to create GLiNER model: {}", e)))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
+                    .map(|entities| (entities, anno::Model::name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::GlinerMultitask => {
@@ -964,6 +961,7 @@ fn extract_with_custom_types(
                 })?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
+                    .map(|entities| (entities, anno::Model::name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Nuner => {
@@ -975,6 +973,7 @@ fn extract_with_custom_types(
                         })?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
+                    .map(|entities| (entities, anno::Model::name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             _ => {}
@@ -992,6 +991,7 @@ fn extract_with_custom_types(
     let model = backend.create_model().map_err(CliError::from)?;
     model
         .extract_entities(text, None)
+        .map(|entities| (entities, model.name()))
         .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))
 }
 
@@ -1113,7 +1113,8 @@ fn entity_json(
 
 fn build_provenance(
     text: &str,
-    model: &str,
+    model: ModelBackend,
+    runtime_model: &str,
     entities: &[serde_json::Value],
     elapsed: std::time::Duration,
     language: Option<(Language, &'static str)>,
@@ -1165,7 +1166,8 @@ fn build_provenance(
     let confidence_stats = compute_confidence_stats(&confs);
 
     let mut prov = serde_json::json!({
-        "model": model,
+        "model": model.name(),
+        "runtime_model": runtime_model,
         "text_chars": text.chars().count(),
         "entity_count": ents.len(),
         "elapsed_ms": (elapsed.as_secs_f64() * 1000.0),

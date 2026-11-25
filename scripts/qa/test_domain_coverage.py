@@ -11,7 +11,7 @@ def site(topic, host, digest="0", final_host="common.example"):
     url = f"https://{host}/doc"
     return {
         "source_url": url, "selected_url": url, "domain": topic,
-        "checks": [{"backend": model, "status": "ok", "final_url": f"https://{final_host}/doc",
+        "checks": [{"backend": model, "reported_model": model, "status": "ok", "final_url": f"https://{final_host}/doc",
                     "text_hash": "xxh3:" + digest * 16} for model in ["pattern", "stacked"]],
     }
 
@@ -19,7 +19,7 @@ def site(topic, host, digest="0", final_host="common.example"):
 class CoverageTest(unittest.TestCase):
     def setUp(self):
         self.rows = [site("art", "art.example"), site("law", "law.example")]
-        self.data = {"kind": "anno.qa.cross-domain", "schema_version": 1, "seed": 42,
+        self.data = {"kind": "anno.qa.cross-domain", "schema_version": 2, "seed": 42,
                      "backends": ["pattern", "stacked"], "sources": self.rows,
                      "eligible_sources": {"art": 2, "law": 1, "science": 1}}
 
@@ -35,6 +35,27 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("topics sampled: 2/3", handoff)
         self.assertIn("| science | 1 | 0 | 0 | 0 | 0 |", handoff)
         self.assertNotIn("art.example", handoff)
+
+    def test_legacy_reference_keeps_document_comparison_only(self):
+        self.data["schema_version"] = 1
+        for source in self.rows:
+            for check in source["checks"]:
+                del check["reported_model"]
+        self.data["replay"] = {"reference_sha256": "a" * 64,
+                               "outcomes": {s["source_url"]: "matched" for s in self.rows}}
+        q = coverage_summary(self.data)
+        self.assertEqual((q["input_matched"], q["matched"], q["replay"]), (2, 0, {"matched": 2}))
+        self.assertEqual(q["failures"], {"backend_unverified": 2})
+
+    def test_composite_names_and_aliases_must_match_the_requested_backend(self):
+        self.rows[0]["checks"][0]["reported_model"] = "regex"
+        self.rows[0]["checks"][1]["reported_model"] = "stacked(regex+heuristic)"
+        self.rows[1]["checks"][1]["reported_model"] = "regex"
+        q = coverage_summary(self.data)
+        self.assertEqual((q["matched"], q["failures"]), (1, {"backend_mismatch": 1}))
+        self.data["backends"] = ["regex", "pattern"]
+        with self.assertRaisesRegex(ValueError, "distinct requested"):
+            coverage_summary(self.data)
 
     def test_distinct_inputs_on_one_host_and_input_drift(self):
         self.rows[1] = site("law", "law.example", "1")

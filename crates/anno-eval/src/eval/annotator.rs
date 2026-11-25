@@ -437,6 +437,7 @@ impl<'a> AnnotatorAnalyzer<'a> {
     /// Confidence is the number of distinct raters voting for the selected type
     /// divided by the number of raters on the document. A rater who gives a span
     /// conflicting types supplies no type vote. A span with no type votes is omitted.
+    /// Equal vote counts select the lexicographically first label. Results are in span order.
     pub fn aggregate_gold(&self, doc_id: &str) -> Vec<(Annotation, f64)> {
         let doc = match self.corpus.documents.get(doc_id) {
             Some(d) => d,
@@ -447,7 +448,10 @@ impl<'a> AnnotatorAnalyzer<'a> {
         let mut result = Vec::new();
         for ((start, end), ratings) in doc.span_ratings() {
             let votes = ratings.type_counts();
-            if let Some((best_type, best_count)) = votes.into_iter().max_by_key(|&(_, n)| n) {
+            if let Some((best_type, best_count)) = votes
+                .into_iter()
+                .max_by_key(|&(label, n)| (n, std::cmp::Reverse(label)))
+            {
                 result.push((
                     Annotation::new(ratings.text, start, end, best_type, "aggregated"),
                     best_count as f64 / n_annotators as f64,
@@ -455,6 +459,7 @@ impl<'a> AnnotatorAnalyzer<'a> {
             }
         }
 
+        result.sort_unstable_by_key(|(ann, _)| (ann.start, ann.end));
         result
     }
 }
@@ -669,6 +674,25 @@ mod tests {
         assert_eq!(gold.len(), 1);
         assert_eq!(gold[0].0.entity_type, "ORG"); // Majority vote
         assert!(gold[0].1 > 0.5); // > 50% agreement
+    }
+
+    #[test]
+    fn tied_votes_have_a_stable_label_and_span_order() {
+        for labels in [["PER", "ORG"], ["ORG", "PER"]] {
+            let mut corpus = MultiAnnotatorCorpus::new();
+            for (rater, label) in ["A", "B"].into_iter().zip(labels) {
+                corpus.add_annotation("doc", rater, vec![("b", 2, 3, label), ("a", 0, 1, label)]);
+            }
+            let analyzer = AnnotatorAnalyzer::new(&corpus);
+            for _ in 0..8 {
+                let gold = analyzer.aggregate_gold("doc");
+                let summary: Vec<_> = gold
+                    .iter()
+                    .map(|(a, conf)| (a.start, a.entity_type.as_str(), *conf))
+                    .collect();
+                assert_eq!(summary, [(0, "ORG", 0.5), (2, "ORG", 0.5)]);
+            }
+        }
     }
 
     #[test]
