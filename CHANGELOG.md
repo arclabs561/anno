@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Rust and grounded JSON migration
+
+- Code constructing a complete `Signal` literal must set `mention_type: None` when the producer supplies no linguistic form. An explicit `Some(MentionType::Unknown)` records that the producer supplied an unknown form. Existing `Signal::new` calls need no change.
+- Grounded JSON accepts older documents with no mention form or relation evidence. To preserve newly recorded evidence across read–modify–write operations, use a writer that supports `relation_evidence`. The source document and endpoint identifiers are checked on reload. [Grounded document contract](docs/CONTRACT.md#grounded-relation-evidence)
+
 ## [0.16.0]
 
 ### Changed (breaking)
