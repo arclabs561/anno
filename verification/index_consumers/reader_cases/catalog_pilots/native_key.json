@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "answers": {
+    "release/ad6c808f-2948-478a-aad5-3e02a9692e67": {
+      "billing": ["Fennesz + Sakamoto"], "producer": [], "writer": [], "lyricist": []
+    },
+    "release/0e97456e-9471-4869-bf43-10ea495f666a": {
+      "billing": ["5Loops"], "producer": ["db08dae0-013a-43a8-b735-cc8aa62a83c1"], "writer": [], "lyricist": []
+    },
+    "recording/b040d89e-190f-47a0-af7f-20534101056c": {
+      "billing": ["Tinchy Stryder featuring Giggs, Professor Green, Tinie Tempah, Devlin, Example, Chipmunk"],
+      "producer": [], "writer": [], "lyricist": []
+    },
+    "work/dee610f0-e425-311f-be39-554747afbddf": {
+      "billing": [], "producer": [],
+      "writer": [
+        "3cce3d37-d44f-46a2-b1e3-cd7247d5015c",
+        "7684f1ee-2154-475f-b05d-608c91a0e3e9",
+        "7d02ae50-d541-49f1-9c44-b3f0f12b696a",
+        "8ec6bf47-d22f-4a2f-b930-0f7feb10ea3f",
+        "8f6381eb-dc62-4f92-be73-ab40905fba68",
+        "a94d7f4a-5fbe-4395-ad2b-444e56a94278",
+        "db8ebf34-1b58-4524-a1b5-e91f66e4fa5f"
+      ],
+      "lyricist": []
+    }
+  }
+}

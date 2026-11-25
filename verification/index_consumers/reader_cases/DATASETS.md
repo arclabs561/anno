@@ -2,6 +2,15 @@
 
 The ranks below prioritize questions the contributor-credit and ROR cases leave open. Fetch source data separately for an evaluation and record the source version, selected files and checksums alongside its results. The reader fixtures include a PLOS adaptation under CC BY and original fictional cases. [PLOS correction and terms](https://doi.org/10.1371/journal.pone.0337268)
 
+## Executed follow-ups
+
+| Reader decision | Source and evaluation |
+| --- | --- |
+| Show a reviewable cross-spelling suggestion with its source occurrence | [AjMC source-item and language holdouts and local JSON reader](candidates/README.md) · [Swiss GeoNames alias confirmation](confirmation/README.md) |
+| Return a shortlist or automatically assign an organization | [ROR release transitions and S2AFF labeled affiliations](lineage/retrieval/README.md) |
+| Distinguish an incomplete lookup from an entity outside the dated catalog | [NILK byte-window replay and cross-page NIL clustering](open_world/README.md) |
+| Open a former area code, preserve a billed artist spelling, or identify a documented role | [ONS succession and MusicBrainz billing, guest-vocal and work-credit pilots](catalog_pilots/README.md) |
+
 | Rank | Source | Reader question | What the label establishes |
 | --- | --- | --- | --- |
 | 1 | HIPE-2022 historical newspapers | Can a reader group separately observed mentions and abstain on an unlinked one? | A literal or metonymic mention has an annotated Wikidata referent or a NIL label under the task’s KB convention. |

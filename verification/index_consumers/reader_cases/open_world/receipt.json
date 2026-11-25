@@ -1,0 +1,64 @@
+{
+  "darus": "10.18419/darus-3454",
+  "design_sha256": "c75f202d24e72ba60f63f8b67f38aa2224e28f716572dc88313be5e9cb3ffa3a",
+  "result": {
+    "duplicate_ids": {
+      "test": 0,
+      "train": 0
+    },
+    "empty_test_mentions": 1,
+    "excluded_records_from_shared_pages": 384,
+    "nil_with_later_id": 103,
+    "old_catalog_nil": 103,
+    "policies": {
+      "exact": {
+        "links": {
+          "id_unsampled.ambiguous": 5,
+          "id_unsampled.empty": 6804,
+          "id_unsampled.wrong": 116,
+          "nil.empty": 102,
+          "nil.wrong": 1
+        },
+        "nil_pairs": {
+          "correct": 11,
+          "gold": 30,
+          "missed": 19,
+          "wrong": 0
+        }
+      },
+      "fold": {
+        "links": {
+          "id_unsampled.ambiguous": 6,
+          "id_unsampled.empty": 6799,
+          "id_unsampled.wrong": 120,
+          "nil.empty": 102,
+          "nil.wrong": 1
+        },
+        "nil_pairs": {
+          "correct": 21,
+          "gold": 30,
+          "missed": 9,
+          "wrong": 0
+        }
+      }
+    },
+    "queries": 7028,
+    "sampled_catalog_ids": 5275,
+    "shared_pages": 9,
+    "test_pages": 1871,
+    "test_records": 7412,
+    "train_pages": 176,
+    "train_records": 7091
+  },
+  "sha256": {
+    "test-0.jsonl.part": "e4f36836684ece055d373bf16645f2e7b928c44972ea96de22fc9f6514aee92f",
+    "test-2915247861.jsonl.part": "0eda7de815d2588dbf1001dd9fac69e3be4eeb62e119cf5242943d34505a328d",
+    "test-5830495723.jsonl.part": "daa0b9574a6f3ab895abf4d9200d13622db89bb05fcfaffe864eac3c915badc5",
+    "test-8745743585.jsonl.part": "c16b3ff8cbd44db3b580aca0b97fe444c8698ff3f0a3ad71d965a9564f2cdc30",
+    "train-0.jsonl.part": "83726c4c116c41ee0d585e15f308d0a79fc9ac3c2f26f1239d95f2bb53446526",
+    "train-2361586355.jsonl.part": "ddb8cd27956645da843c2d2c3e23a6f49aa8519c5f92521a21ec986bebe439a5",
+    "train-4723172710.jsonl.part": "7a164930fe57bc88e17495dceefd3ca583a05f4bd6f12706f3ea433c5a6673ca",
+    "train-7084759065.jsonl.part": "6eece128101b91229e28a4a2017304d14f182539a7d0ef19de8d90b08928b6c1"
+  },
+  "version": 1
+}
