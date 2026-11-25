@@ -1,6 +1,7 @@
 """Measure CrossRE gold co-window eligibility, actual scored candidates, and decoded relations."""
 import argparse
 from collections import Counter
+from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
@@ -41,21 +42,26 @@ def gold_graph(doc):
     return text, nodes, edges
 
 
-def measure(doc, model, schema, worker, token_limit, window, overlap):
+def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace=False):
     text, gold_mentions, gold = gold_graph(doc)
     original_decode = model._decode
     captured = []
 
     def decode(candidates, *args):
-        captured.append(candidates)
+        captured.append((candidates, args[-1]))
         return original_decode(candidates, *args)
 
     model._decode = decode
     try:
-        result, windows = worker["extract_document"](model, schema, text, window, overlap, token_limit)
+        with ExitStack() as stack:
+            if loss_trace:
+                from jointie_loss import DecoderTrace
+                trace = DecoderTrace()
+                trace.watch(stack, model)
+            result, windows = worker["extract_document"](model, schema, text, window, overlap, token_limit)
     finally:
         model._decode = original_decode
-    scores, = captured
+    (scores, config), = captured
 
     def occurrence(key):
         label, start, end = key
@@ -86,8 +92,44 @@ def measure(doc, model, schema, worker, token_limit, window, overlap):
     }
     if not decoded <= scored:
         raise ValueError("unconstrained directed schema produced an edge absent from the scorer")
-    return {"document": doc["doc_key"], "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
+    row = {"document": doc["doc_key"], "source_sha256": hashlib.sha256(text.encode()).hexdigest(),
             "windows": windows, "counts": counts}
+    if loss_trace:
+        row["edge_trace"] = trace.losses(gold, scores, config, windows, decoded)
+        row["decoded_mention_keys"] = sorted(selected.values())
+        row["decoded_edge_keys"] = sorted(decoded)
+        counts["sparse_directed_predicate_span_pairs"] = len({(h[1:], p, t[1:]) for h,p,t in scored})
+        row["feasible"] = result.feasible
+        counts["feasible_documents"] = int(result.feasible)
+        reasons = Counter(edge["first_loss"] for edge in row["edge_trace"])
+        if sum(reasons.values()) != len(gold) or reasons["matched"] != len(gold & decoded):
+            raise ValueError("gold edge outcomes do not reconcile with the model output")
+        counts.update({"first_loss_" + reason: n for reason,n in sorted(reasons.items())})
+    return row
+
+
+def attribute_schema(rows, routes):
+    """Use the declared production schema independently of geometry or model scores."""
+    for row in rows:
+        for edge in row["edge_trace"]:
+            pair = routes.get(edge["predicate"])
+            if pair is None:
+                reason = "predicate_outside_schema"
+            elif edge["head"][0] not in pair[0] or edge["tail"][0] not in pair[1]:
+                reason = "endpoint_types_outside_schema"
+            else:
+                reason = None
+            edge["schema_allows_gold_types"] = reason is None
+            if reason is not None:
+                if edge["first_loss"] == "matched":
+                    raise ValueError("unexpected decoded edge outside declared schema")
+                edge["first_loss"] = reason
+        counts = row["counts"]
+        for key in list(counts):
+            if key.startswith("first_loss_"):
+                del counts[key]
+        for reason, n in Counter(e["first_loss"] for e in row["edge_trace"]).items():
+            counts["first_loss_" + reason] = n
 
 
 def main():
@@ -96,6 +138,8 @@ def main():
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--check", type=Path, help="Require identical document identities, candidates, window coverage and decoded counts")
+    parser.add_argument("--training-routes", type=Path, help="Restrict allowed head and tail types per predicate to their observed CrossRE AI training types")
+    parser.add_argument("--loss-trace", action="store_true", help="Retain one observed outcome per gold directed typed edge")
     parser.add_argument("--documents", type=int, default=8)
     parser.add_argument("--window-words", type=int, default=16)
     parser.add_argument("--overlap-words", type=int, default=4)
@@ -116,16 +160,35 @@ def main():
     vocab = json.loads(SCHEMA.read_bytes())
     labels = vocab["entity_types"]
     schema = JointSchema().entities(labels)
-    for relation in vocab["relation_types"]:
-        schema.relation(relation, labels, labels)
+    routes = {r: (labels, labels) for r in vocab["relation_types"]}
+    train_digest = None
+    if args.training_routes:
+        training = args.training_routes.read_bytes()
+        train_digest = hashlib.sha256(training).hexdigest()
+        if train_digest != "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3":
+            raise ValueError("Expected pinned CrossRE AI training split")
+        routes = {r: (set(), set()) for r in vocab["relation_types"]}
+        for line in training.splitlines():
+            _, _, examples = gold_graph(json.loads(line))
+            for head, name, tail in examples:
+                routes[name][0].add(head[0])
+                routes[name][1].add(tail[0])
+        routes = {r: (sorted(heads), sorted(tails)) for r, (heads, tails) in routes.items()}
+    for relation, (heads, tails) in routes.items():
+        schema.relation(relation, heads, tails)
     model = JointIE.from_pretrained(str(args.checkpoint), device="cpu", local_files_only=True)
     schema = model.compile_schema(schema)
     limit = json.loads((args.checkpoint / "encoder_config/config.json").read_bytes())["max_position_embeddings"]
-    rows = [json.loads(s) for s in data.splitlines()[:args.documents]]
+    lines = data.splitlines()
+    if args.documents > len(lines):
+        parser.error("requested document count exceeds the source split")
+    rows = [json.loads(s) for s in lines[:args.documents]]
     results = []
     with torch.inference_mode():
         for row in rows:
-            results.append(measure(row, model, schema, worker, limit, args.window_words, args.overlap_words))
+            results.append(measure(row, model, schema, worker, limit, args.window_words, args.overlap_words, args.loss_trace))
+    if args.loss_trace:
+        attribute_schema(results, routes)
     totals = Counter()
     for row in results:
         totals.update(row["counts"])
@@ -134,10 +197,17 @@ def main():
               "checkpoint_revision": "b5d42bf7dc7d01c40304ae4ed43c2f13c325a75b", "checkpoint_files": hashes,
               "gliner2": gliner2.__version__, "torch": torch.__version__, "window_words": args.window_words,
               "overlap_words": args.overlap_words, "totals": dict(totals), "documents": results}
+    if args.loss_trace:
+        report.update(enrolled_documents=args.documents, scored_documents=len(results))
+    if args.training_routes:
+        report.update(training_sha256=train_digest, allowed_endpoint_types={r: list(pair) for r, pair in routes.items()})
     if args.check:
         expected = json.loads(args.check.read_bytes())
-        for key in ("dataset_sha256", "checkpoint_files", "vocabulary_sha256", "window_words",
-                    "overlap_words", "totals", "documents"):
+        fields = ["dataset_sha256", "checkpoint_files", "vocabulary_sha256", "window_words",
+                  "overlap_words", "totals", "documents"]
+        if args.training_routes:
+            fields.extend(["training_sha256", "allowed_endpoint_types"])
+        for key in fields:
             if report[key] != expected[key]:
                 raise ValueError(f"coverage replay differs for {key}")
     args.output.write_text(json.dumps(report, indent=2) + "\n")
