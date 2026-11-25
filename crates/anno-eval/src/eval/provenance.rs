@@ -5,7 +5,7 @@
 //! loader, evaluator, and constructed backend; unavailable facts are explicit.
 
 use crate::eval::backend_factory::{BackendConstructionReceipt, ModelArtifactFileReceipt};
-use crate::eval::loader::DatasetId;
+use crate::eval::loader::{DatasetId, S3FallbackReason};
 use crate::eval::task_mapping::Task;
 use anno::EntityType;
 use serde::{Deserialize, Serialize};
@@ -310,6 +310,13 @@ pub struct DatasetRunProvenance {
     pub source_url: String,
     /// Actual loader source, such as local cache or original URL.
     pub data_source: String,
+    /// SHA-256 of the generic loader input, before evaluation samples it.
+    /// Document-oriented scorers can read additional inputs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_sha256: Option<String>,
+    /// Reason the generic loader fell back from the configured S3 cache to the publisher.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub s3_fallback: Option<S3FallbackReason>,
     /// Dataset split selected by the loader.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub split: Option<String>,

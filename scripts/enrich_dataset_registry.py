@@ -42,7 +42,7 @@ def get_cached_files():
     return result
 
 def normalize_name(name: str) -> str:
-    """Normalize a name for fuzzy matching."""
+    """Normalize spelling and separators for an exact basename comparison."""
     return re.sub(r'[^a-z0-9]', '', name.lower())
 
 def parse_registry():
@@ -111,51 +111,29 @@ def check_url_health(url: str) -> dict:
         return {"status": "error", "url": url, "error": str(e)}
 
 def match_cache_to_registry(datasets: dict, cached_files: dict) -> dict:
-    """Match cached files to registry datasets."""
+    """Suggest a path only when one complete basename identifies one registry entry."""
+    variants_by_name = defaultdict(set)
+    for variant, metadata in datasets.items():
+        for name in (variant, metadata["name"]):
+            if normalized := normalize_name(name):
+                variants_by_name[normalized].add(variant)
+
+    files_by_variant = defaultdict(list)
+    for filename, cache_info in cached_files.items():
+        variants = variants_by_name.get(normalize_name(Path(filename).stem), set())
+        if len(variants) == 1:
+            variant = next(iter(variants))
+            files_by_variant[variant].append((filename, cache_info))
+
     matches = {}
-    
-    # Create normalized lookup
-    cache_normalized = {}
-    for filename, info in cached_files.items():
-        base = filename.rsplit('.', 1)[0]
-        norm = normalize_name(base)
-        cache_normalized[norm] = (filename, info)
-    
-    for variant, info in datasets.items():
-        if info["s3_path"]:
-            continue  # Already has s3_path
-        
-        variant_norm = normalize_name(variant)
-        name_norm = normalize_name(info["name"])
-        
-        # Try exact matches first
-        for cache_norm, (filename, cache_info) in cache_normalized.items():
-            if variant_norm == cache_norm or name_norm == cache_norm:
-                matches[variant] = {
-                    "s3_path": cache_info["path"],
-                    "filename": filename,
-                    "match_type": "exact",
-                }
-                break
-        
-        # Try substring matches
-        if variant not in matches:
-            for cache_norm, (filename, cache_info) in cache_normalized.items():
-                if variant_norm in cache_norm or cache_norm in variant_norm:
-                    matches[variant] = {
-                        "s3_path": cache_info["path"],
-                        "filename": filename,
-                        "match_type": "substring_variant",
-                    }
-                    break
-                if name_norm in cache_norm or cache_norm in name_norm:
-                    matches[variant] = {
-                        "s3_path": cache_info["path"],
-                        "filename": filename,
-                        "match_type": "substring_name",
-                    }
-                    break
-    
+    for variant, candidates in files_by_variant.items():
+        if len(candidates) == 1 and not datasets[variant]["s3_path"]:
+            filename, cache_info = candidates[0]
+            matches[variant] = {
+                "s3_path": cache_info["path"],
+                "filename": filename,
+                "match_type": "exact",
+            }
     return matches
 
 def generate_hf_alt_sources(datasets: dict) -> dict:
@@ -222,7 +200,7 @@ def generate_rust_updates(s3_matches: dict, hf_additions: dict) -> str:
     """Generate Rust code snippets for registry updates."""
     lines = []
     lines.append("// Auto-generated s3_path additions")
-    lines.append("// Copy these into the appropriate dataset blocks in dataset_registry.rs")
+    lines.append("// Verify the bytes and provenance before adding a proposed dataset path.")
     lines.append("")
     
     for variant, match in sorted(s3_matches.items()):

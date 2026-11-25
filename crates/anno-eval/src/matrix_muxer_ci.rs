@@ -1107,6 +1107,14 @@ struct DecisionOutcomeLog {
     max_examples: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     dataset_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dataset_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dataset_split: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    s3_fallback: Option<crate::eval::loader::S3FallbackReason>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evaluator_revision: Option<String>,
     coref_gold: bool,
     coref_english_pronouns: bool,
     dataset: String,
@@ -2788,13 +2796,22 @@ fn check_dataset_usable(
         .len()
     } else {
         let loadable = LoadableDatasetId::try_from(ds)?;
-        if require_cached {
-            loader.load(loadable)?
+        let receipt = if require_cached {
+            loader.load_with_receipt(loadable)?
         } else {
-            loader.load_or_download(loadable)?
-        }
-        .sentences
-        .len()
+            loader.load_or_download_with_receipt(loadable)?
+        };
+        // A candidate check can warm the local cache before the evaluator loads it.
+        eprintln!(
+            "matrix-muxer: dataset precheck {}",
+            serde_json::json!({
+                "dataset": ds,
+                "dataset_source": receipt.dataset.data_source.to_string(),
+                "dataset_sha256": receipt.content_sha256,
+                "s3_fallback": receipt.s3_fallback,
+            })
+        );
+        receipt.dataset.sentences.len()
     };
     if count == 0 {
         return Err(anno::Error::InvalidInput(
@@ -4562,10 +4579,12 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     task: r.task.code(),
                     seed,
                     max_examples: example_limit,
-                    dataset_sha256: r.provenance.dataset.version.as_deref()
-                        .and_then(|v| v.strip_prefix("sha256:"))
-                        .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-                        .map(str::to_ascii_lowercase),
+                    dataset_sha256: r.provenance.dataset.content_sha256.clone(),
+                    dataset_source: r.provenance.dataset.content_sha256.as_ref()
+                        .map(|_| r.provenance.dataset.data_source.clone()),
+                    dataset_split: r.provenance.dataset.split.clone(),
+                    s3_fallback: r.provenance.dataset.s3_fallback,
+                    evaluator_revision: r.provenance.build.source_revision.clone(),
                     coref_gold,
                     coref_english_pronouns: coref_predicted_mentions
                         == crate::eval::task_evaluator::CorefPredictedMentions::NerWithEnglishPronouns,
