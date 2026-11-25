@@ -73,4 +73,12 @@ anno corpus --store program.sqlite apply correction.json --approval "$REVIEWED_A
 
 Inspect the affected tracks before supplying the approval token. Follow the same preview/apply sequence with `--document` for an incoming revision that conflicts with a reviewed binding. The token binds the operation, payload, displayed scope, and exact journal head. The assignment and delivery commands serialize writers. Each accepted journal row commits the operation, the original document bytes, the scope and the receipt together. A reader reconstructs its corpus from one SQLite snapshot. Replaying an already committed approval returns its original receipt.
 
+For a review spanning several documents, take the distinct document IDs from the assignment preview's `proposal.scope.affected_tracks`. Pass its `head` as the read precondition. For example, if the scope includes two programs, inspect both before applying the reviewed approval.
+
+```sh
+anno corpus --store program.sqlite read-many --at-head "$PREVIEW_HEAD" 8:programs/doc-7 8:programs/doc-9
+```
+
+The response contains `head` and `documents` in request order, including duplicates. The command accepts 1–128 IDs and verifies the full journal once per call. An unknown document or mismatched head fails before any documents are printed. Omitting `--at-head` reads the current head. For a larger selection, use the same preview head for every request. If the journal advances before inspection finishes, obtain a fresh preview and inspect its scope again. The response covers only the requested documents.
+
 This adapter targets local corpora where replaying the retained history per command is affordable. All accepted deliveries stay recognizable for the life of the journal. Back up the whole SQLite database with SQLite's backup facilities. Reconstructing an empty database from current document exports loses the delivery and review history. If a later version computes a different review scope or receipt during recovery, the command reports the incompatible event. Keep the prior executable and database available for a reviewed migration.
