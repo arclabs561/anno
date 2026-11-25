@@ -32,6 +32,8 @@ jobs:
                "Condition":{"StringEquals":{"s3:prefix":"datasets/"}}},
               {"Effect":"Allow","Action":"s3:GetObject","Resource":[
                 "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache",
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache.latest.json",
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache.manifest.json",
                 "arn:aws:s3:::${{ env.BUCKET }}/datasets/by-sha256/${{ env.WIKIGOLD_SHA256 }}/WikiGold.cache"]}
             ]}
       - name: Count current objects and verify the pinned WikiGold bytes

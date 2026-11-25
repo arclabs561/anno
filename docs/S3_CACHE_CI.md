@@ -107,3 +107,5 @@ The inventory resolves exact loader filenames against the compiled dataset regis
 The verified sample’s SHA-256 connects those exact bytes to the WikiGold annotation and source-text terms. Other objects remain unverified even when their keys contain a known name or digest. The publication count uses the registry’s shared-publication policy. [WikiGold source and rights](QA.md#run-a-check)
 
 The paired run records the cold S3 read, warm local read and fresh publisher retrieval. It checks the ordered tokens, BIO tags, gold spans and full-release heuristic NER scores across all three. Reported byte counts describe corpus payloads. Each load time measures one run before scoring.
+
+The loader comparison runs on the default branch. Its read-only session can also read the WikiGold pointer and manifest so the ordinary loader can resolve its snapshot. The only permitted corpus payloads are the pinned WikiGold snapshot and the legacy WikiGold key. The check compares the cold S3 load and warm local load with the registered upstream release using the parsed tokens, gold spans and heuristic score.
