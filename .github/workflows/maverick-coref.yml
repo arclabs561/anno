@@ -8,6 +8,8 @@ on:
       - 'crates/anno/src/backends/coref/maverick*'
       - 'crates/anno/tests/fixtures/maverick-worker.sh'
       - 'crates/anno/Cargo.toml'
+      - 'crates/anno/examples/maverick_export.rs'
+      - 'scripts/download_maverick_weights.py'
       - 'scripts/qa/maverick/**'
 
 permissions:
@@ -29,6 +31,7 @@ jobs:
     timeout-minutes: 45
     env:
       CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,8 +41,11 @@ jobs:
           python-version: '3.12.14'
       - name: Install pinned CPU runtime
         run: |
-          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu 'torch==2.8.0+cpu'
+          grep -Ex 'torch==[0-9.]+[+]cpu' scripts/qa/maverick/requirements-cpu-py312.txt > "$RUNNER_TEMP/torch-cpu.txt"
+          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu -r "$RUNNER_TEMP/torch-cpu.txt"
           python -m pip install -r scripts/qa/maverick/requirements-cpu-py312.txt
           python -m pip check
+      - name: Test local checkpoint preparation
+        run: python -m unittest discover -s scripts/qa/maverick -p test_weights.py
       - name: Verify checkpoint and encoder digests and run offline inference
         run: python scripts/qa/maverick/verify.py "$RUNNER_TEMP"

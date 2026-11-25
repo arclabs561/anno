@@ -521,21 +521,24 @@ impl Model for RegexNER {
 
         // Dates (high confidence - very specific patterns)
         let date_text = table::with_cell_boundaries(text);
-        let mut identifiers = IDENTIFIER_VALUES
-            .captures_iter(&date_text)
-            .filter_map(|caps| {
-                let value = caps.name("value").expect("identifier value capture");
-                let token = value.as_str().trim_end_matches('.');
-                let bare_date = DATE_ISO.find(token).is_some_and(|m| m.as_str() == token);
-                (bare_date || caps.name("opaque").is_some()).then_some(value)
-            })
-            .peekable();
-        for m in DATE_ISO.find_iter(&date_text) {
-            while identifiers.next_if(|id| id.end() <= m.start()).is_some() {}
-            if !identifiers.peek().is_some_and(|id| id.start() <= m.start())
-                && is_calendar_date(m.as_str())
-            {
-                add_entity(m, EntityType::Date, 0.95, "DATE_ISO");
+        let mut iso_dates = DATE_ISO.find_iter(&date_text).peekable();
+        if iso_dates.peek().is_some() {
+            let mut identifiers = IDENTIFIER_VALUES
+                .captures_iter(&date_text)
+                .filter_map(|caps| {
+                    let value = caps.name("value").expect("identifier value capture");
+                    let token = value.as_str().trim_end_matches('.');
+                    let bare_date = DATE_ISO.find(token).is_some_and(|m| m.as_str() == token);
+                    (bare_date || caps.name("opaque").is_some()).then_some(value)
+                })
+                .peekable();
+            for m in iso_dates {
+                while identifiers.next_if(|id| id.end() <= m.start()).is_some() {}
+                if !identifiers.peek().is_some_and(|id| id.start() <= m.start())
+                    && is_calendar_date(m.as_str())
+                {
+                    add_entity(m, EntityType::Date, 0.95, "DATE_ISO");
+                }
             }
         }
         // English dates

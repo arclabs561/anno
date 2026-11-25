@@ -1,0 +1,540 @@
+{
+  "active_catalog": 102742,
+  "implementation_sha256": "30fb3686a45bc076cebda41161bbbed5568a03592edd1bdbd5f7f06c115c60e1",
+  "labels_sha256": "2385f28c6c1275f0114cf15c33d164672af7a2a6a88d0c03178e04236c3de8c3",
+  "ledger_sha256": "1894598ddb7852bc18f6aa6252f33ec4f8f716830bd67e34593d8ce3afa09c3c",
+  "metadata": {
+    "test": {
+      "annotated_id_occurrences": 623,
+      "distinct_annotated_ids": 286,
+      "distinct_unavailable_ids": 0,
+      "known_target_in_block": 186,
+      "multi_id_rows": 16,
+      "partial_availability_rows": 0,
+      "unavailable_id_occurrences": 0
+    },
+    "val": {
+      "annotated_id_occurrences": 573,
+      "distinct_annotated_ids": 282,
+      "distinct_unavailable_ids": 0,
+      "known_target_in_block": 184,
+      "multi_id_rows": 36,
+      "partial_availability_rows": 0,
+      "unavailable_id_occurrences": 0
+    }
+  },
+  "panels": {
+    "natural": {
+      "test": {
+        "available": {
+          "budget": {
+            "1": {
+              "gains": 9,
+              "hits": {
+                "location": 140,
+                "native": 133
+              },
+              "losses": 2,
+              "misses": {
+                "location": 466,
+                "native": 473
+              },
+              "shown_each": 606
+            },
+            "3": {
+              "gains": 4,
+              "hits": {
+                "location": 161,
+                "native": 157
+              },
+              "losses": 0,
+              "misses": {
+                "location": 445,
+                "native": 449
+              },
+              "shown_each": 1787
+            },
+            "5": {
+              "gains": 0,
+              "hits": {
+                "location": 164,
+                "native": 164
+              },
+              "losses": 0,
+              "misses": {
+                "location": 442,
+                "native": 442
+              },
+              "shown_each": 2818
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 53,
+              "deferred": 553,
+              "unjudged_link": 0,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 44,
+              "deferred": 562,
+              "unjudged_link": 0,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {
+            "correct/correct": 43,
+            "correct/deferred": 1,
+            "deferred/correct": 10,
+            "deferred/deferred": 552
+          },
+          "order_changed": 84,
+          "queries": 606,
+          "shortlist_sizes": {
+            "2": 31,
+            "3": 46,
+            "4": 27,
+            "5": 502
+          }
+        },
+        "no_ror_label": {
+          "budget": {
+            "1": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 38
+            },
+            "3": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 113
+            },
+            "5": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 181
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 0,
+              "deferred": 38,
+              "unjudged_link": 0,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 0,
+              "deferred": 38,
+              "unjudged_link": 0,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {
+            "deferred/deferred": 38
+          },
+          "order_changed": 5,
+          "queries": 38,
+          "shortlist_sizes": {
+            "2": 1,
+            "3": 3,
+            "5": 34
+          }
+        },
+        "unavailable": {
+          "budget": {
+            "1": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            },
+            "3": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            },
+            "5": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 0,
+              "deferred": 0,
+              "unjudged_link": 0,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 0,
+              "deferred": 0,
+              "unjudged_link": 0,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {},
+          "order_changed": 0,
+          "queries": 0,
+          "shortlist_sizes": {}
+        }
+      },
+      "val": {
+        "available": {
+          "budget": {
+            "1": {
+              "gains": 4,
+              "hits": {
+                "location": 164,
+                "native": 161
+              },
+              "losses": 1,
+              "misses": {
+                "location": 373,
+                "native": 376
+              },
+              "shown_each": 537
+            },
+            "3": {
+              "gains": 1,
+              "hits": {
+                "location": 171,
+                "native": 170
+              },
+              "losses": 0,
+              "misses": {
+                "location": 366,
+                "native": 367
+              },
+              "shown_each": 1602
+            },
+            "5": {
+              "gains": 0,
+              "hits": {
+                "location": 177,
+                "native": 177
+              },
+              "losses": 0,
+              "misses": {
+                "location": 360,
+                "native": 360
+              },
+              "shown_each": 2549
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 52,
+              "deferred": 485,
+              "unjudged_link": 0,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 45,
+              "deferred": 492,
+              "unjudged_link": 0,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {
+            "correct/correct": 42,
+            "correct/deferred": 3,
+            "deferred/correct": 10,
+            "deferred/deferred": 482
+          },
+          "order_changed": 86,
+          "queries": 537,
+          "shortlist_sizes": {
+            "2": 9,
+            "3": 40,
+            "4": 29,
+            "5": 459
+          }
+        },
+        "no_ror_label": {
+          "budget": {
+            "1": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 51
+            },
+            "3": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 152
+            },
+            "5": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 246
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 0,
+              "deferred": 50,
+              "unjudged_link": 1,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 0,
+              "deferred": 50,
+              "unjudged_link": 1,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {
+            "deferred/deferred": 50,
+            "unjudged_link/unjudged_link": 1
+          },
+          "order_changed": 4,
+          "queries": 51,
+          "shortlist_sizes": {
+            "2": 1,
+            "3": 2,
+            "4": 2,
+            "5": 46
+          }
+        },
+        "unavailable": {
+          "budget": {
+            "1": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            },
+            "3": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            },
+            "5": {
+              "gains": null,
+              "hits": null,
+              "losses": null,
+              "misses": null,
+              "shown_each": 0
+            }
+          },
+          "gate": {
+            "location": {
+              "correct": 0,
+              "deferred": 0,
+              "unjudged_link": 0,
+              "wrong": 0
+            },
+            "native": {
+              "correct": 0,
+              "deferred": 0,
+              "unjudged_link": 0,
+              "wrong": 0
+            }
+          },
+          "gate_pairs": {},
+          "order_changed": 0,
+          "queries": 0,
+          "shortlist_sizes": {}
+        }
+      }
+    },
+    "val_entity_disjoint": {
+      "budget": {
+        "1": {
+          "gains": 4,
+          "hits": {
+            "location": 156,
+            "native": 153
+          },
+          "losses": 1,
+          "misses": {
+            "location": 320,
+            "native": 323
+          },
+          "shown_each": 476
+        },
+        "3": {
+          "gains": 1,
+          "hits": {
+            "location": 161,
+            "native": 160
+          },
+          "losses": 0,
+          "misses": {
+            "location": 315,
+            "native": 316
+          },
+          "shown_each": 1420
+        },
+        "5": {
+          "gains": 0,
+          "hits": {
+            "location": 164,
+            "native": 164
+          },
+          "losses": 0,
+          "misses": {
+            "location": 312,
+            "native": 312
+          },
+          "shown_each": 2256
+        }
+      },
+      "gate": {
+        "location": {
+          "correct": 51,
+          "deferred": 425,
+          "unjudged_link": 0,
+          "wrong": 0
+        },
+        "native": {
+          "correct": 42,
+          "deferred": 434,
+          "unjudged_link": 0,
+          "wrong": 0
+        }
+      },
+      "gate_pairs": {
+        "correct/correct": 41,
+        "correct/deferred": 1,
+        "deferred/correct": 10,
+        "deferred/deferred": 424
+      },
+      "order_changed": 77,
+      "queries": 476,
+      "shortlist_sizes": {
+        "2": 8,
+        "3": 38,
+        "4": 24,
+        "5": 406
+      }
+    },
+    "withheld": {
+      "test": {
+        "budget": {
+          "1": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 606
+          },
+          "3": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 1787
+          },
+          "5": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 2815
+          }
+        },
+        "gate": {
+          "location": {
+            "correct": 0,
+            "deferred": 603,
+            "unjudged_link": 0,
+            "wrong": 3
+          },
+          "native": {
+            "correct": 0,
+            "deferred": 605,
+            "unjudged_link": 0,
+            "wrong": 1
+          }
+        },
+        "gate_pairs": {
+          "deferred/deferred": 603,
+          "deferred/wrong": 2,
+          "wrong/wrong": 1
+        },
+        "order_changed": 80,
+        "queries": 606,
+        "shortlist_sizes": {
+          "2": 31,
+          "3": 48,
+          "4": 26,
+          "5": 501
+        }
+      },
+      "val": {
+        "budget": {
+          "1": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 537
+          },
+          "3": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 1601
+          },
+          "5": {
+            "gains": null,
+            "hits": null,
+            "losses": null,
+            "misses": null,
+            "shown_each": 2548
+          }
+        },
+        "gate": {
+          "location": {
+            "correct": 0,
+            "deferred": 535,
+            "unjudged_link": 0,
+            "wrong": 2
+          },
+          "native": {
+            "correct": 0,
+            "deferred": 535,
+            "unjudged_link": 0,
+            "wrong": 2
+          }
+        },
+        "gate_pairs": {
+          "deferred/deferred": 535,
+          "wrong/wrong": 2
+        },
+        "order_changed": 87,
+        "queries": 537,
+        "shortlist_sizes": {
+          "2": 10,
+          "3": 39,
+          "4": 29,
+          "5": 459
+        }
+      }
+    }
+  },
+  "protocol_sha256": "a6e0b906d2761db9fcc568312b4e3b8cdf2fc5d591be9f0d99a8e3989bd03eec",
+  "ror_sha256": "d71fd8d20d753fed8f7b5e08aa2215ad4cda2b2378c7f2a9f977ad17605504a6"
+}

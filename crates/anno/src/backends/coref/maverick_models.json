@@ -1,0 +1,30 @@
+{
+  "ENCODER": "microsoft/deberta-v3-large",
+  "ENCODER_REVISION": "64a8c8eab3e352a784c658aef62be1662607476f",
+  "ENCODER_FILES": {
+    "config.json": "ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d",
+    "pytorch_model.bin": "dd5b5d93e2db101aaf281df0ea1216c07ad73620ff59c5b42dccac4bf2eef5b5",
+    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+    "tokenizer_config.json": "3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d"
+  },
+  "MODELS": {
+    "ontonotes": {
+      "repo": "sapienzanlp/maverick-mes-ontonotes",
+      "revision": "087a90f0380ec1f20ed19732b657f53fd3542c81",
+      "source_sha256": "b42053ce171ea904d10d92de5458dce2e8189ef1050e1705e7fced50d2479c1f",
+      "prepared_sha256": "565b739f90f6372fb6f80e05cc592646067781722fd51385efa8b8602d45c970"
+    },
+    "litbank": {
+      "repo": "sapienzanlp/maverick-mes-litbank",
+      "revision": "2cd789680357a6c1cddd36c95e022c4fef7e867b",
+      "source_sha256": "d867ab70063e4eda11d1abfe5773a2073603887e232c9c26263837400eb8b8b7",
+      "prepared_sha256": "c348eb3fa69d9ce0ced6a443a096fca4b05ffbf97046ad02953ae23ba787c7d5"
+    },
+    "preco": {
+      "repo": "sapienzanlp/maverick-mes-preco",
+      "revision": "7528f57c2491941bb88f5f431519596d54151c28",
+      "source_sha256": "9e0f14b076dd9824cb4c91ccc77b97fea58a3caa8244e8e5d09f656793b3115e",
+      "prepared_sha256": "fbd2cdb8ca9209248405df8ef86bffb03f2ff38bb5bb1d4da7390ac5abe4c4e3"
+    }
+  }
+}

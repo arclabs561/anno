@@ -1,0 +1,6 @@
+# Replays verify the exact bytes of the frozen inputs and retained receipts.
+protocol.txt text eol=lf
+implementation.txt text eol=lf
+context-results.json text eol=lf
+context-native-audit.json text eol=lf
+expected.sha256 text eol=lf

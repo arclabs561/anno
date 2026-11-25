@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "torch>=2.0.0",
+#     "torch>=2.6.0",
 #     "datasets>=2.14.0",
 #     "transformers>=4.30.0",
 #     "tqdm>=4.65.0",
@@ -423,7 +423,7 @@ def train_bilstm_crf():
                 break
     
     # Load best model
-    model.load_state_dict(torch.load('bilstm_crf_best.pt'))
+    model.load_state_dict(torch.load('bilstm_crf_best.pt', weights_only=True))
     
     # Final evaluation
     print("\nFinal evaluation on test set:")

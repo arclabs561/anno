@@ -14,10 +14,12 @@ categories = ["text-processing", "artificial-intelligence"]
 include = [
   "/src/**/*.rs",
   "/src/backends/coref/maverick_worker.py",
+  "/src/backends/coref/maverick_models.json",
   "/tests/fixtures/maverick-worker.sh",
   "/tests/fixtures/tplinker_plus_tags.json",
   "/examples/fcoref_word_spans.rs",
   "/examples/coref_gap_panel.rs",
+  "/examples/maverick_export.rs",
   "/examples/import_dwie_relations.rs",
   # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
   # whitelist shipped 0.10.0 without them, breaking those features on crates.io
@@ -181,6 +183,10 @@ required-features = ["onnx-directml"]
 [[example]]
 name = "gliner2_candle_lora_demo"
 required-features = ["gliner2-fastino-candle"]
+
+[[example]]
+name = "maverick_export"
+required-features = ["candle"]
 
 [package.metadata.docs.rs]
 # Hardware-specific features are mutually platform-bound: in particular,

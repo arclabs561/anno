@@ -1,5 +1,5 @@
 //! CPU inference with the optional `maverick-coref` Python runtime. One worker
-//! retains its model across documents. Supply an upstream checkpoint or hub ID.
+//! retains its model across documents. Supply prepared MES safetensors or an official Hub ID prepared in the local cache.
 use super::{CorefBackend, CorefCluster};
 use crate::{Error, Result};
 use parking_lot::Mutex;
@@ -38,6 +38,7 @@ impl Worker {
         let mut child = command
             .args(["-u", "-c", include_str!("maverick_worker.py")])
             .arg(checkpoint)
+            .arg(include_str!("maverick_models.json"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()

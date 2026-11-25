@@ -30,11 +30,11 @@ pub struct ImportArgs {
     #[arg(short, long, default_value = "brat")]
     pub format: ExportFormat,
 
-    /// Align CoNLL tokens or verify JSONL mention text and character offsets against one UTF-8 document
+    /// Align CoNLL tokens or check brat and JSONL mention spans against one UTF-8 document
     #[arg(long, value_name = "PATH")]
     pub source_text: Option<PathBuf>,
 
-    /// Include source text. Multi-span brat records always need the matching .txt file.
+    /// Include source text. Multi-span brat records need a .txt companion or --source-text.
     #[arg(long)]
     pub include_text: bool,
 
@@ -158,10 +158,12 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         .map_err(|e| format!("Failed to inspect output: {e}"))?;
 
     let source_text = if let Some(path) = &args.source_text {
-        if !matches!(args.format, ExportFormat::Conll | ExportFormat::Jsonl)
-            || !args.input.is_file()
+        if !matches!(
+            args.format,
+            ExportFormat::Brat | ExportFormat::Conll | ExportFormat::Jsonl
+        ) || !args.input.is_file()
         {
-            return Err("--source-text requires a single CoNLL or JSONL input file".into());
+            return Err("--source-text requires a single brat, CoNLL or JSONL input file".into());
         }
         if output_exists && same_existing_file(path, &args.output)? {
             return Err(format!(
@@ -328,7 +330,7 @@ fn import_file(
     source_text: Option<&str>,
 ) -> Result<Vec<ImportedAnnotation>, String> {
     match format {
-        ExportFormat::Brat => import_brat(input, include_text),
+        ExportFormat::Brat => import_brat(input, include_text, source_text),
         ExportFormat::Conll => import_conll(input, source_text),
         ExportFormat::Jsonl => import_jsonl(input, source_text),
         ExportFormat::NTriples => import_ntriples(input),
@@ -342,14 +344,22 @@ fn import_file(
 }
 
 /// Import from brat standoff format
-fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnotation>, String> {
+fn import_brat(
+    input: &Path,
+    include_text: bool,
+    source_text: Option<&str>,
+) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
     // A multi-span annotation needs the source to distinguish newlines from omitted words.
     let txt_path = input.with_extension("txt");
-    let source = std::cell::OnceCell::new();
+    let supplied = source_text.map(|text| (text, anno::offset::build_char_to_byte_map(text)));
+    let companion = std::cell::OnceCell::new();
     let read_source = || {
-        source
+        if let Some((text, bytes)) = &supplied {
+            return Ok((*text, bytes.as_slice()));
+        }
+        companion
             .get_or_init(|| {
                 fs::read_to_string(&txt_path).map(|text| {
                     let bytes = anno::offset::build_char_to_byte_map(&text);
@@ -357,6 +367,7 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
                 })
             })
             .as_ref()
+            .map(|(text, bytes)| (text.as_str(), bytes.as_slice()))
     };
 
     let mut annotations = Vec::new();
@@ -405,11 +416,24 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
                     txt_path.display()
                 ))
             })?;
-            import_brat_segments(spans, reference, source, bytes)
+            import_brat_segments(spans, reference, source, bytes, supplied.is_some())
                 .map_err(|e| context(&format!("{tid}: {e}")))?
         } else {
             let range = brat_span(spans).map_err(|e| context(&format!("{tid}: {e}")))?;
-            let text = if !reference.is_empty() {
+            let text = if let Some((original, bytes)) = &supplied {
+                if range.is_empty() || range.end >= bytes.len() {
+                    return Err(context(&format!(
+                        "{tid}: expected a nonempty span within the source text"
+                    )));
+                }
+                let surface = &original[bytes[range.start]..bytes[range.end]];
+                if !reference.is_empty() && reference != surface {
+                    return Err(context(&format!(
+                        "{tid}: brat reference text does not match its source span"
+                    )));
+                }
+                surface.to_owned()
+            } else if !reference.is_empty() {
                 reference.to_owned()
             } else if let Some((txt, _)) = include_text.then(read_source).and_then(Result::ok) {
                 txt.chars().skip(range.start).take(range.len()).collect()
@@ -451,9 +475,16 @@ fn import_brat_segments(
     reference: &str,
     source: &str,
     bytes: &[usize],
+    require_nonempty: bool,
 ) -> Result<(ImportedSpan, String), String> {
     let segments = SourceSegments::new(spans.split(';').map(brat_span).collect::<Result<_, _>>()?)?;
     let (joined, original) = segments.surfaces(source, bytes)?;
+    if require_nonempty
+        && segments.0.iter().all(Range::is_empty)
+        && original.is_none_or(str::is_empty)
+    {
+        return Err("empty segments cover no source text".into());
+    }
     if !reference.is_empty() && reference != joined {
         return Err("brat reference text does not match its source spans".into());
     }
@@ -986,7 +1017,7 @@ mod tests {
             fs::write(path.with_extension("txt"), &text).unwrap();
             fs::write(&path, ann).unwrap();
             for include_text in [false, true] {
-                let rows = import_brat(&path, include_text).unwrap();
+                let rows = import_brat(&path, include_text, None).unwrap();
                 assert_eq!(rows.len(), 1);
                 assert_eq!(rows[0].text, mention);
                 assert_eq!(rows[0].span.bounds(), 2..end);
@@ -1000,10 +1031,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("gap.ann");
         fs::write(&path, "T1\tLOC 0 3;8 12\tNew York").unwrap();
-        let err = import_brat(&path, false).unwrap_err();
+        let err = import_brat(&path, false, None).unwrap_err();
         assert!(err.contains("gap.txt"), "{err}");
         fs::write(path.with_extension("txt"), "New and York").unwrap();
-        let rows = import_brat(&path, false).unwrap();
+        let rows = import_brat(&path, false, None).unwrap();
         assert_eq!(rows[0].text, "New York");
         assert_eq!(rows[0].span.bounds(), 0..12);
 
@@ -1016,7 +1047,10 @@ mod tests {
             ("0 3;8 4", "New York"),
         ] {
             fs::write(&path, format!("T1\tLOC {spans}\t{reference}")).unwrap();
-            assert!(import_brat(&path, true).is_err(), "{spans}: {reference}");
+            assert!(
+                import_brat(&path, true, None).is_err(),
+                "{spans}: {reference}"
+            );
         }
     }
 
@@ -1044,7 +1078,7 @@ mod tests {
                 let endpoints = [first.start, first.end, second.start, second.end];
                 if !endpoints.is_sorted() {
                     assert!(
-                        import_brat_segments(&spans, "", source, &bytes).is_err(),
+                        import_brat_segments(&spans, "", source, &bytes, false).is_err(),
                         "{spans}"
                     );
                     continue;
@@ -1064,7 +1098,7 @@ mod tests {
                     reference.clone()
                 };
                 let (span, surface) =
-                    import_brat_segments(&spans, &reference, source, &bytes).unwrap();
+                    import_brat_segments(&spans, &reference, source, &bytes, false).unwrap();
                 let ImportedSpan::Segmented(segment) = span else {
                     panic!("flattened {spans}")
                 };
