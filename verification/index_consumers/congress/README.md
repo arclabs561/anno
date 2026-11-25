@@ -63,6 +63,21 @@ The last row is a post-hoc, retrospective reader experiment. It trusts different
 
 Resolving the entire accumulated corpus after each dated cut in forward and reverse arrival order yielded the same final memberships as bulk. Final numeric IDs differed from bulk on 1,785 and 1,798 occurrences, respectively. The median default run in five fresh optimized processes took 1.821 s on the shared four-CPU Xeon container. This duration includes pipe I/O, checked track construction, resolving and reading back identities. It excludes reconstruction of the dated views and gold scoring. The experiment appends distinct dated documents; it does not model source replacement, a catalog authority, or a latency guarantee. The input licenses and acquisition receipts are above.
 
+### What an earlier-record lookup returns
+
+The same command emits `native-reader` and `relaxed-reader` results from the default and relaxed native partitions. B³ precision and recall average over all 1,798 tracks, including the query track itself and same-document neighbors. B³ F1 is the harmonic mean of those two averages. At thresholds 0.7 and 0.5, B³ F1 was 0.99178 and 0.98876, respectively.
+
+For each of the 598 occurrences in the latest cut, the simulated reader returns earlier occurrences in its predicted group. One query returning three occurrences counts as one shown page and three hits. A target may also be relevant to another query. The reference set includes 1,090 such query–target pairs across 509 queries with earlier same-ID records. The other 89 queries remain in the coverage denominator. The filter admits a whole result when its candidates span the specified number of distinct earlier dates. Multiple documents from the same date count once.
+
+| Resolver threshold | Earlier dates required | Pages shown / 598 | Shown pages with any wrong hit | Correct hits | Wrong hits | Missed hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.7 | 1 | 507 | 1 | 1,073 | 4 | 17 |
+| 0.7 | 2 | 415 | 1 | 959 | 4 | 131 |
+| 0.5 | 1 | 513 | 22 | 1,088 | 54 | 2 |
+| 0.5 | 2 | 424 | 21 | 979 | 53 | 111 |
+
+At 0.7 the two-date rule removed 114 correct hits. The four wrong hits survived on the same namesake page because the mistaken association appeared across both earlier dates. The dates come from one directory project. Repetition alone provides little protection against its recurring namesake error. This is a retrospective read of one partition built from all three cuts on a panel selected to include that collision. It does not estimate performance on unseen people or an online resolver with only earlier observations.
+
 ## Check predecessor suggestions across roster corrections
 
 With the locally reconstructed `roster.jsonl` and CLI from the replay above, run the read-only lookup against each immediately preceding edition.

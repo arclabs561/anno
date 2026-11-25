@@ -76,6 +76,14 @@ The producer can supply ordinary `--since` delta receipts to `stage`. The subscr
 
 Publication verifies the required versions and commits the manifest and its SHA-256 digest in one SQLite write transaction. Reads, eviction and manifest redelivery check the persisted digest. Recover a damaged manifest or a preview store without digests by staging trusted snapshots and republishing the original manifests into a fresh database. A `waiting` result names missing checkpoints and the currently visible edition. Retry the manifest after staging the missing versions. Reading without a number returns the latest published manifest and all its members in one read transaction. Republishing a historical manifest reports the current edition. Each read includes the edition it actually returned.
 
+When a publisher reports that a correction was released in edition 14, a live reader can request that release or a later one for the same collection, source and audience.
+
+```bash
+"${edition[@]}" read catalog.sqlite --min-edition 14
+```
+
+The command checks the latest published manifest in the SQLite transaction that supplies the returned members. If the local edition is 12, the command exits with an error and writes no result to stdout. After edition 17 is published, the same request returns edition 17, even if edition 14 was never installed. Staging a receipt alone cannot satisfy the minimum. Use the positional edition number for a historical read. The minimum refers to the publisher's collection release. Individual member streams have their own sequences, and the application still decides which projections the caller may see.
+
 Retain versions needed for historical reads and replay. To release rows, pass a native checkpoint JSON file to `evict catalog.sqlite checkpoint.json`. The current edition's members remain pinned. Historical manifests and checkpoint identities remain available after row eviction. Reading an evicted edition reports the missing member until the exact full snapshot is restored. SQLite can reuse the freed pages. Keep an assertion history when a query needs to explain changes between published editions. In the fixture the direct endpoint delta for Blair is empty even though the intervening release credits Blair.
 
 The [CLI replay](../../verification/index_consumers/check_editions.py) compares 540 fresh reader processes against the publisher's bulk receipts across all 90 causal delivery orders. It also kills a writer while another process holds open the previous edition. The optional `--measure` workload stages an update to one of 250 postings in each member, publishes a second edition and recovers a new subscriber from full snapshots. One local debug build produced the following measurements. Times include CLI startup, SQLite commits and native verification. The publication interval starts with delivery of the first delta. The catch-up interval starts with delivery of the first full target snapshot.
