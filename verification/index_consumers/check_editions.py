@@ -191,6 +191,35 @@ def minimum_edition_reads(binary, client, temp, snapshots):
     client.call("read", db, "--min-edition", floor, error="manifest body missing")
 
 
+def reissued_member(client, temp, snapshots):
+    """A newer collection can explicitly select an older member after a withdrawal."""
+    db = temp / "reissue.sqlite"
+    old, withdrawn = snapshots[0, 0], snapshots[0, 1]
+    old_body = json.loads(old.read_text())
+    empty_body = json.loads(withdrawn.read_text())
+    assert [row["surface"] for row in old_body["rows"]] == ["Arden"]
+    assert empty_body["rows"] == []
+    for snapshot in (old, withdrawn):
+        client.call("stage", db, snapshot)
+    for edition, members in [(10, [old]), (11, [withdrawn]), (12, [])]:
+        manifest = client.call("manifest", edition, *members)
+        assert client.call("publish", db, save(temp / f"release-{edition}", manifest))["status"] == "published"
+
+    checkpoint = save(temp / "reissue-checkpoint", old_body["checkpoint"])
+    assert client.call("evict", db, checkpoint)["evicted"]
+    client.call("read", db, 10, error="evicted member")
+    latest = client.call("read", db, "--min-edition", 11)
+    assert latest["manifest"]["edition"] == 12 and latest["members"] == []
+    release = client.call("manifest", 13, old)
+    manifest_path = save(temp / "reissue-release", release)
+    assert client.call("publish", db, manifest_path)["status"] == "waiting"
+    assert client.call("read", db, "--min-edition", 11) == latest
+    client.call("stage", db, old)
+    assert client.call("publish", db, manifest_path)["status"] == "published"
+    assert client.call("read", db, "--min-edition", 11) == {"manifest": release, "members": [old_body]}
+    assert client.call("read", db, 11)["members"] == [empty_body]
+
+
 def observe_pending(db):
     # SQLite coalesces SHARED locks between connections in one process. Use an
     # independent process to prove that the writer is at its final commit lock.
@@ -387,6 +416,7 @@ def run(binary, review_example=False):
             reviewed_catalog(binary, directory, client)
         snapshots, deltas, manifests, bulk = prepare(binary, directory, client)
         minimum_edition_reads(binary, client, directory, snapshots)
+        reissued_member(client, directory, snapshots)
         base = schedules(client, directory, snapshots, deltas, manifests, bulk)
         failure_cases(binary, client, directory, base, snapshots, deltas, manifests, bulk)
         integrity_cases(client, directory, base, snapshots, manifests, bulk)
