@@ -237,6 +237,7 @@ fn flat_json_and_full_export_share_the_analyzed_edition() {
         "--quiet",
     ]);
     verify_domain(&doc, raw);
+    assert_eq!(flat["source_map"], doc["source_map"]);
     let text = doc["text"].as_str().unwrap();
     assert_eq!(text, "🦊 alice@example.org");
     let entity = &flat["entities"][0];
