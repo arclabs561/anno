@@ -154,6 +154,7 @@ pub(crate) mod ort_compat;
 pub mod regex;
 pub mod stacked;
 pub mod tplinker;
+pub mod tplinker_plus;
 pub mod w2ner;
 
 /// Ensemble NER - weighted voting across multiple backends.

@@ -1,0 +1,495 @@
+{
+  "source_revision": "c9305b14aaa528aa0ecc69236e1fafac3e36f95f",
+  "source_file_sha256": "dd4037c483c733a3a9161d690d77ebbb96b1b84efeeca334c2da66a194f8fbdd",
+  "tags": [
+    "absent⺀OH2SH",
+    "absent⺀OT2ST",
+    "absent⺀SH2OH",
+    "absent⺀ST2OT",
+    "knows⺀OH2SH",
+    "knows⺀OT2ST",
+    "knows⺀SH2OH",
+    "knows⺀ST2OT",
+    "org⺀EH2ET",
+    "person⺀EH2ET",
+    "team⺀EH2ET",
+    "works at⺀OH2SH",
+    "works at⺀OT2ST",
+    "works at⺀SH2OH",
+    "works at⺀ST2OT"
+  ],
+  "cases": [
+    {
+      "name": "reverse_self_nested_and_repeated",
+      "input": {
+        "text": "Zoë at Élan Labs met Zoë",
+        "tok2char_span": [
+          [
+            0,
+            3
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            7,
+            11
+          ],
+          [
+            12,
+            16
+          ],
+          [
+            17,
+            20
+          ],
+          [
+            21,
+            24
+          ]
+        ],
+        "rel2id": {
+          "works at": 4,
+          "knows": 0,
+          "absent": 3
+        },
+        "entity_type2id": {
+          "org": 2,
+          "person": 0,
+          "team": 1
+        },
+        "spots": [
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            2,
+            3,
+            8
+          ],
+          [
+            2,
+            2,
+            10
+          ],
+          [
+            5,
+            5,
+            9
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            2,
+            13
+          ],
+          [
+            0,
+            3,
+            14
+          ],
+          [
+            0,
+            5,
+            4
+          ],
+          [
+            0,
+            5,
+            5
+          ],
+          [
+            2,
+            2,
+            13
+          ],
+          [
+            2,
+            3,
+            12
+          ],
+          [
+            0,
+            2,
+            2
+          ]
+        ]
+      },
+      "output": {
+        "entity_list": [
+          {
+            "type": "person",
+            "text": "Zoë",
+            "tok_span": [
+              0,
+              1
+            ],
+            "char_span": [
+              0,
+              3
+            ]
+          },
+          {
+            "type": "team",
+            "text": "Élan",
+            "tok_span": [
+              2,
+              3
+            ],
+            "char_span": [
+              7,
+              11
+            ]
+          },
+          {
+            "type": "org",
+            "text": "Élan Labs",
+            "tok_span": [
+              2,
+              4
+            ],
+            "char_span": [
+              7,
+              16
+            ]
+          },
+          {
+            "type": "person",
+            "text": "Zoë",
+            "tok_span": [
+              5,
+              6
+            ],
+            "char_span": [
+              21,
+              24
+            ]
+          }
+        ],
+        "relation_list": [
+          {
+            "subject": "Zoë",
+            "object": "Zoë",
+            "subj_tok_span": [
+              0,
+              1
+            ],
+            "obj_tok_span": [
+              0,
+              1
+            ],
+            "subj_char_span": [
+              0,
+              3
+            ],
+            "obj_char_span": [
+              0,
+              3
+            ],
+            "predicate": "knows"
+          },
+          {
+            "subject": "Zoë",
+            "object": "Élan Labs",
+            "subj_tok_span": [
+              0,
+              1
+            ],
+            "obj_tok_span": [
+              2,
+              4
+            ],
+            "subj_char_span": [
+              0,
+              3
+            ],
+            "obj_char_span": [
+              7,
+              16
+            ],
+            "predicate": "works at"
+          },
+          {
+            "subject": "Zoë",
+            "object": "Zoë",
+            "subj_tok_span": [
+              5,
+              6
+            ],
+            "obj_tok_span": [
+              0,
+              1
+            ],
+            "subj_char_span": [
+              21,
+              24
+            ],
+            "obj_char_span": [
+              0,
+              3
+            ],
+            "predicate": "knows"
+          },
+          {
+            "subject": "Élan Labs",
+            "object": "Élan",
+            "subj_tok_span": [
+              2,
+              4
+            ],
+            "obj_tok_span": [
+              2,
+              3
+            ],
+            "subj_char_span": [
+              7,
+              16
+            ],
+            "obj_char_span": [
+              7,
+              11
+            ],
+            "predicate": "works at"
+          }
+        ]
+      }
+    },
+    {
+      "name": "same_span_two_types",
+      "input": {
+        "text": "Zoë at Élan Labs met Zoë",
+        "tok2char_span": [
+          [
+            0,
+            3
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            7,
+            11
+          ],
+          [
+            12,
+            16
+          ],
+          [
+            17,
+            20
+          ],
+          [
+            21,
+            24
+          ]
+        ],
+        "rel2id": {
+          "works at": 4,
+          "knows": 0,
+          "absent": 3
+        },
+        "entity_type2id": {
+          "org": 2,
+          "person": 0,
+          "team": 1
+        },
+        "spots": [
+          [
+            2,
+            3,
+            8
+          ],
+          [
+            2,
+            3,
+            10
+          ],
+          [
+            2,
+            2,
+            6
+          ],
+          [
+            3,
+            3,
+            7
+          ]
+        ]
+      },
+      "output": {
+        "entity_list": [
+          {
+            "type": "org",
+            "text": "Élan Labs",
+            "tok_span": [
+              2,
+              4
+            ],
+            "char_span": [
+              7,
+              16
+            ]
+          },
+          {
+            "type": "team",
+            "text": "Élan Labs",
+            "tok_span": [
+              2,
+              4
+            ],
+            "char_span": [
+              7,
+              16
+            ]
+          }
+        ],
+        "relation_list": [
+          {
+            "subject": "Élan Labs",
+            "object": "Élan Labs",
+            "subj_tok_span": [
+              2,
+              4
+            ],
+            "obj_tok_span": [
+              2,
+              4
+            ],
+            "subj_char_span": [
+              7,
+              16
+            ],
+            "obj_char_span": [
+              7,
+              16
+            ],
+            "predicate": "knows"
+          },
+          {
+            "subject": "Élan Labs",
+            "object": "Élan Labs",
+            "subj_tok_span": [
+              2,
+              4
+            ],
+            "obj_tok_span": [
+              2,
+              4
+            ],
+            "subj_char_span": [
+              7,
+              16
+            ],
+            "obj_char_span": [
+              7,
+              16
+            ],
+            "predicate": "knows"
+          },
+          {
+            "subject": "Élan Labs",
+            "object": "Élan Labs",
+            "subj_tok_span": [
+              2,
+              4
+            ],
+            "obj_tok_span": [
+              2,
+              4
+            ],
+            "subj_char_span": [
+              7,
+              16
+            ],
+            "obj_char_span": [
+              7,
+              16
+            ],
+            "predicate": "knows"
+          },
+          {
+            "subject": "Élan Labs",
+            "object": "Élan Labs",
+            "subj_tok_span": [
+              2,
+              4
+            ],
+            "obj_tok_span": [
+              2,
+              4
+            ],
+            "subj_char_span": [
+              7,
+              16
+            ],
+            "obj_char_span": [
+              7,
+              16
+            ],
+            "predicate": "knows"
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "text": "Zoë at Élan Labs met Zoë",
+        "tok2char_span": [
+          [
+            0,
+            3
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            7,
+            11
+          ],
+          [
+            12,
+            16
+          ],
+          [
+            17,
+            20
+          ],
+          [
+            21,
+            24
+          ]
+        ],
+        "rel2id": {
+          "works at": 4,
+          "knows": 0,
+          "absent": 3
+        },
+        "entity_type2id": {
+          "org": 2,
+          "person": 0,
+          "team": 1
+        },
+        "spots": []
+      },
+      "output": {
+        "entity_list": [],
+        "relation_list": []
+      }
+    }
+  ]
+}
