@@ -12,9 +12,9 @@ import tempfile
 from replay_matrix_feedback import ROOT, TEST, sampler_env
 
 FIXTURES = {
-    "AnnoNerSmoke": "matrix-smoke.conll",
-    "AnnoTimexSmoke": "matrix-smoke-timex.jsonl",
-    "AnnoTimexContrast": "timex-contrast/rows.jsonl",
+    "AnnoNerSmoke": "crates/anno-eval/fixtures/matrix-smoke.conll",
+    "AnnoTimexSmoke": "scripts/qa/fixtures/matrix-smoke-timex.jsonl",
+    "AnnoTimexContrast": "scripts/qa/fixtures/timex-contrast/rows.jsonl",
 }
 
 
@@ -60,7 +60,7 @@ def replay(args):
         datasets = cache / "datasets"
         if args.dataset in FIXTURES:
             datasets.mkdir()
-            source = ROOT / "scripts/qa/fixtures" / FIXTURES[args.dataset]
+            source = ROOT / FIXTURES[args.dataset]
             shutil.copyfile(source, datasets / f"{args.dataset}.cache")
         else:
             if not args.cache_dir or not (args.cache_dir / "datasets").is_dir():

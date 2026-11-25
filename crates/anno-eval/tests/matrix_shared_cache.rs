@@ -48,8 +48,7 @@ esac
         fs::create_dir_all(&datasets).unwrap();
         if name != "empty-offline" {
             fs::copy(
-                Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../scripts/qa/fixtures/matrix-smoke.conll"),
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/matrix-smoke.conll"),
                 datasets.join("AnnoNerSmoke.cache"),
             )
             .unwrap();

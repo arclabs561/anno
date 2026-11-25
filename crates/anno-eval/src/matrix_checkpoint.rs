@@ -349,7 +349,7 @@ mod tests {
         let loader = DatasetLoader::with_cache_dir(directory.path()).unwrap();
         fs::write(
             directory.path().join(DatasetId::WikiGold.cache_filename()),
-            include_bytes!("../../../scripts/qa/fixtures/matrix-smoke.conll"),
+            include_bytes!("../fixtures/matrix-smoke.conll"),
         )
         .unwrap();
         let old = std::env::var_os("ANNO_EVAL_HISTORY");
