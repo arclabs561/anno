@@ -60,6 +60,13 @@ relations and update stored RDF and queries using those labels. If both labels
 occurred, the old predicate alone cannot identify which original label a
 particular edge used.
 
+For a discontinuous mention all three RDF writers add a `vocab#sourceSegments`
+literal. Its ordered, half-open Unicode character offsets use BRAT notation,
+such as `2 5;10 13`. The start and end offsets still describe the envelope.
+The dataset importer checks the segment bounds and preserves them in JSONL.
+It also reads segments from Anno’s older v2 occurrence IRIs when the literal
+is absent. Contiguous mentions need only the start and end offsets.
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,

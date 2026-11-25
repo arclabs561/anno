@@ -230,6 +230,34 @@ pub fn to_conll(text: &str, entities: &[Entity]) -> String {
     lines.join("\n")
 }
 
+/// Older grounded records store the enclosing text. Exclude lexical gaps from
+/// the label but retain line breaks, just as the BRAT/JSONL importer does.
+pub(crate) fn annotation_surface(entity: &Entity) -> std::borrow::Cow<'_, str> {
+    let coverage = entity.coverage();
+    let segments = coverage.ranges();
+    if let [first, .., last] = segments {
+        let base = first.start;
+        let bytes = crate::offset::build_char_to_byte_map(&entity.text);
+        if bytes.len() - 1 == last.end - base {
+            let slice =
+                |start: usize, end: usize| &entity.text[bytes[start - base]..bytes[end - base]];
+            if segments.windows(2).any(|parts| {
+                !slice(parts[0].end, parts[1].start)
+                    .bytes()
+                    .all(|c| matches!(c, b'\r' | b'\n'))
+            }) {
+                return segments
+                    .iter()
+                    .map(|part| slice(part.start, part.end))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .into();
+            }
+        }
+    }
+    entity.text.as_str().into()
+}
+
 /// Export entities as JSONL (one JSON object per entity). Discontinuous
 /// entities include their original character ranges. For a legacy bounding
 /// surface with lexical gaps, only the covered pieces are emitted, joined
@@ -242,40 +270,15 @@ pub fn to_jsonl(entities: &[Entity], source_label: &str, include_confidence: boo
         .iter()
         .map(|e| {
             let mut obj = serde_json::json!({
-                "text": e.text,
+                "text": annotation_surface(e),
                 "type": e.entity_type.as_label(),
                 "start": e.start(),
                 "end": e.end(),
                 "source": source_label,
             });
-            if let Some(span) = e
-                .discontinuous_span
-                .as_ref()
-                .filter(|s| s.is_discontinuous())
-            {
-                let segments = span.segments();
-                obj["segments"] = serde_json::json!(segments);
-                // A signal can carry the original bounding substring instead of
-                // the joined pieces. Interpret offsets relative to that substring
-                // only when its scalar length matches the segment envelope.
-                let base = segments[0].start;
-                let end = segments[segments.len() - 1].end;
-                let bytes = crate::offset::build_char_to_byte_map(&e.text);
-                if bytes.len() - 1 == end - base {
-                    let slice =
-                        |start: usize, end: usize| &e.text[bytes[start - base]..bytes[end - base]];
-                    if segments.windows(2).any(|parts| {
-                        !slice(parts[0].end, parts[1].start)
-                            .bytes()
-                            .all(|c| matches!(c, b'\r' | b'\n'))
-                    }) {
-                        obj["text"] = serde_json::json!(segments
-                            .iter()
-                            .map(|part| slice(part.start, part.end))
-                            .collect::<Vec<_>>()
-                            .join(" "));
-                    }
-                }
+            let coverage = e.coverage();
+            if coverage.ranges().len() > 1 {
+                obj["segments"] = serde_json::json!(coverage.ranges());
             }
             if include_confidence {
                 obj["confidence"] = serde_json::json!(e.confidence);
@@ -331,6 +334,19 @@ fn additional_segments(entity: &Entity) -> &[std::ops::Range<usize>] {
         [single] if single.start == entity.start() && single.end == entity.end() => &[],
         segments => segments,
     }
+}
+
+/// Lexical form of anno:sourceSegments, shared by all three RDF writers.
+pub(crate) fn rdf_source_segments(entity: &Entity) -> Option<String> {
+    let coverage = entity.coverage();
+    let segments = coverage.ranges();
+    (segments.len() > 1).then(|| {
+        segments
+            .iter()
+            .map(|r| format!("{} {}", r.start, r.end))
+            .collect::<Vec<_>>()
+            .join(";")
+    })
 }
 
 /// Each RDF subject identifies a typed occurrence in one document revision.
@@ -480,7 +496,7 @@ pub fn to_ntriples_for_document(
             "{} {} \"{}\" .",
             ent,
             rdfs_label,
-            escape_ntriples(&entity.text)
+            escape_ntriples(&annotation_surface(entity))
         ));
         lines.push(format!(
             "{} <{}startOffset> \"{}\"^^<http://www.w3.org/2001/XMLSchema#integer> .",
@@ -494,6 +510,9 @@ pub fn to_ntriples_for_document(
             anno_ns,
             entity.end()
         ));
+        if let Some(segments) = rdf_source_segments(entity) {
+            lines.push(format!("{ent} <{anno_ns}sourceSegments> \"{segments}\" ."));
+        }
         lines.push(format!(
             "{} <{}confidence> \"{}\"^^<http://www.w3.org/2001/XMLSchema#float> .",
             ent, anno_ns, entity.confidence
@@ -560,13 +579,16 @@ pub fn to_jsonld_for_document(
             let mut node = serde_json::json!({
                 "@id": id,
                 "@type": format!("{}{}Type", anno_ns, uri_safe(e.entity_type.as_label())),
-                "rdfs:label": e.text,
+                "rdfs:label": annotation_surface(e),
                 "anno:startOffset": e.start(),
                 "anno:endOffset": e.end(),
                 "prov:hadPrimarySource": {
                     "@id": doc_iri
                 }
             });
+            if let Some(segments) = rdf_source_segments(e) {
+                node["anno:sourceSegments"] = serde_json::Value::String(segments);
+            }
             if include_confidence {
                 node["anno:confidence"] = serde_json::json!(e.confidence);
             }

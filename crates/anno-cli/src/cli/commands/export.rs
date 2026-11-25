@@ -175,16 +175,26 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     let files: Vec<PathBuf> = if args.input.is_file() {
         vec![args.input.clone()]
     } else {
-        fs::read_dir(&args.input)
-            .map_err(|e| format!("Failed to read directory: {}", e))?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| {
-                p.is_file()
-                    && p.extension()
-                        .is_some_and(|e| e == "txt" || e == "json" || e == "jsonl")
-            })
-            .collect()
+        let mut inputs = Vec::new();
+        let entries = fs::read_dir(&args.input)
+            .map_err(|e| format!("Failed to read directory {}: {e}", args.input.display()))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|e| format!("Failed to list {}: {e}", args.input.display()))?
+                .path();
+            if !path
+                .extension()
+                .is_some_and(|e| e == "txt" || e == "json" || e == "jsonl")
+            {
+                continue;
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("Failed to inspect {}: {e}", path.display()))?;
+            if metadata.is_file() {
+                inputs.push(path);
+            }
+        }
+        inputs
     };
 
     if files.is_empty() {
