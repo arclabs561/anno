@@ -25,28 +25,46 @@ def measured_counts(values, *keys):
     return tuple(map(int, result))
 
 
+def registry_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", value):
+        raise ValueError("expected registry identifiers for the dataset and backend")
+    return value
+
+
 def outcome_evidence(path):
     lines = []
+    selected = {}
+    observed = set()
     with path.open(encoding="utf-8") as stream:
-        for line in stream:
+        for number, line in enumerate(stream, 1):
             if not line.strip():
                 continue
             row = json.loads(line)
+            scope = tuple(row.get(k) for k in ("run_id", "strategy", "slice"))
+            scoped = all(isinstance(value, str) and value for value in scope)
             if row.get("record_type") != "outcome":
+                # Some selectors name only the first backend; these rows give a lower bound.
+                if scoped and "record_type" not in row and row.get("chosen"):
+                    if not isinstance(row["chosen"], str) or not isinstance(row.get("datasets"), list):
+                        raise ValueError("invalid matrix selection")
+                    backends = [registry_id(value) for value in row["chosen"].split(",")]
+                    for value in row["datasets"]:
+                        dataset = registry_id(value)
+                        for backend in backends:
+                            selected.setdefault((scope, dataset, backend), number)
                 continue
-            dataset, backend = row["dataset"], row["backend"]
-            if not all(isinstance(s, str) and re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", s)
-                       for s in (dataset, backend)):
-                raise ValueError("expected registry identifiers for the dataset and backend")
+            dataset, backend = registry_id(row["dataset"]), registry_id(row["backend"])
+            if scoped:
+                observed.add((scope, dataset, backend))
             score = row.get("primary_f1")
             if row.get("hard_junk") or row.get("cost_units") == 0 or score is None:
-                lines.append(f"- {dataset} / {backend}: no usable score. Check execution first.")
+                lines.append(f"- Line {number}, {dataset} / {backend}: no usable score. Check execution first.")
                 continue
             if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
                 raise ValueError("invalid primary F1")
             if type(row.get("ok")) is not bool:
                 raise ValueError("invalid outcome status")
-            lines.append(f"- {dataset} / {backend}: ok={row['ok']}, primary F1={score}")
+            lines.append(f"- Line {number}, {dataset} / {backend}: ok={row['ok']}, primary F1={score}")
             counts = row.get("structural_counts")
             coref = measured_counts(counts, "gold_coref_links", "reachable_gold_links",
                                     "matched_coref_links", "predicted_coref_links")
@@ -83,8 +101,13 @@ def outcome_evidence(path):
                     lines.append(f"  {alarms}/{empty} gold-empty sentences triggered. Preserve that control.")
                 else:
                     lines.append("  No gold-empty sentences were scored. Reserve a labeled negative panel.")
+    for key, number in selected.items():
+        if key not in observed:
+            _, dataset, backend = key
+            lines.append(f"- Line {number} selects {dataset} / {backend}. This file contains no outcome "
+                         "with a matching run, strategy and slice. Execution and score are unknown.")
     if not lines:
-        raise ValueError("completed measurement has no outcome rows")
+        raise ValueError("matrix receipt contains no outcome or identifiable selection rows")
     return "\n".join(lines)
 
 

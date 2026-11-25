@@ -52,6 +52,34 @@ class RoundEvidenceTest(unittest.TestCase):
                 record_type="outcome", dataset="WikiGold", backend="heuristic", ok=True, primary_f1=0.0)))
             self.assertIn("ok=True, primary F1=0.0", evidence(directory))
 
+    def test_selections_only_match_outcomes_in_the_same_scope(self):
+        selected = dict(run_id="run-1", strategy="estimate", slice="ner", datasets=["Sample"],
+                        chosen="ridge,reed", round=1, remaining=["PRIVATE_CANDIDATE"])
+        outcome = dict(run_id="run-1", strategy="estimate", slice="ner", record_type="outcome",
+                       dataset="Sample", backend="ridge", primary_f1=0.0, cost_units=4, ok=False)
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "decisions.jsonl"
+
+            def brief(*rows):
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+                return evidence(path)
+
+            for other_scope in ({"run_id": "run-2"}, {"strategy": "fixed"}, {"slice": "re"}):
+                with self.subTest(scope=other_scope):
+                    text = brief(outcome, selected, dict(outcome, backend="reed", **other_scope))
+                    self.assertIn("Line 1, Sample / ridge: ok=False, primary F1=0.0", text)
+                    self.assertIn("Line 2 selects Sample / reed", text)
+                    self.assertEqual(text.count("Execution and score are unknown"), 1)
+                    self.assertNotIn("PRIVATE_CANDIDATE", text)
+            text = brief(selected)
+            self.assertEqual(text.count("Execution and score are unknown"), 2)
+            self.assertNotIn("primary F1", text)
+            self.assertNotIn("unknown", brief(selected, outcome, dict(outcome, backend="reed")))
+            with self.assertRaisesRegex(ValueError, "no outcome or identifiable selection"):
+                brief(dict(selected, chosen=None))
+            with self.assertRaisesRegex(ValueError, "registry identifiers"):
+                brief(dict(selected, chosen="ridge,private\ntext"))
+
     def test_real_measurements_select_different_challenges_without_forwarding_source_text(self):
         base = dict(record_type="outcome", dataset="Synthetic", backend="control", ok=False,
                     primary_f1=0.25, cost_units=2, source_text="PRIVATE_SENTINEL")
