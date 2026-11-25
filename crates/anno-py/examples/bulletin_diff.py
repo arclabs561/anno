@@ -17,14 +17,20 @@ def read_dates(path, extractor):
     for entity in extractor.extract(text):
         if entity.label.upper() != "DATE":
             continue
-        parts = [text[start:end] for start, end in entity.segments]
+        segments = getattr(entity, "segments", None)
+        if segments is None:
+            # The published 0.1.0 wheel exposes contiguous ranges.
+            if text[entity.start:entity.end] != entity.text:
+                raise ValueError(f"Could not verify the date quote in {path}")
+            segments = [(entity.start, entity.end)]
+        parts = [text[start:end] for start, end in segments]
         line_start = text.rfind("\n", 0, entity.start) + 1
         line_end = text.find("\n", entity.end)
         dates[tuple(parts)].append({
             "line": text.count("\n", 0, entity.start) + 1,
             "source_line": text[line_start:line_end if line_end >= 0 else len(text)],
-            "segments": entity.segments,
-            "detector": entity.source,
+            "segments": segments,
+            "detector": getattr(entity, "source", None),
         })
     source = {"file": str(path), "sha256": hashlib.sha256(raw).hexdigest()}
     return source, dates
@@ -35,7 +41,7 @@ def main():
     parser.add_argument("before", type=Path)
     parser.add_argument("after", type=Path)
     args = parser.parse_args()
-    extractor = anno_py.Extractor(backend="offline")
+    extractor = anno_py.Extractor()
     before_source, before = read_dates(args.before, extractor)
     after_source, after = read_dates(args.after, extractor)
     changes = []
