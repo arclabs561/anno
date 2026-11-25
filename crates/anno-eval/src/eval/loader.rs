@@ -3079,7 +3079,7 @@ impl DatasetLoader {
 
                     let body = content.trim();
                     let body_preview = if body.len() > 800 {
-                        format!("{}…", &body[..800])
+                        format!("{}…", &body[..body.floor_char_boundary(800)])
                     } else {
                         body.to_string()
                     };
@@ -7527,12 +7527,16 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
-        for (first_status, first_body, expected_requests) in [
-            (404, "ner", 1),
-            (429, "ner", 2),
-            (503, "ner", 2),
-            (200, "n", 2),
+        // The four-byte character crosses byte 800 of a permanent error response.
+        let localized = format!("{}🌊", "x".repeat(799));
+        for (status, body, content_length, failures, expected_requests) in [
+            (404, localized.as_str(), localized.len(), 1, 1),
+            (429, "ner", 3, 1, 2),
+            (503, "ner", 3, 1, 2),
+            (503, "ner", 3, 4, 4),
+            (200, "n", 3, 1, 2),
         ] {
+            let body = body.to_owned();
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let address = listener.local_addr().unwrap();
             let server = std::thread::spawn(move || {
@@ -7549,12 +7553,12 @@ mod tests {
                         }
                     }
                     requests += 1;
-                    let (status, body) = if requests == 1 {
-                        (first_status, first_body)
+                    let (status, body, length) = if requests <= failures {
+                        (status, body.as_str(), content_length)
                     } else {
-                        (200, "ner")
+                        (200, "ner", 3)
                     };
-                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: 3\r\nConnection: close\r\n\r\n{body}").unwrap();
+                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{body}").unwrap();
                 }
                 requests
             });
@@ -7562,13 +7566,13 @@ mod tests {
             let result = loader.download_from_url(DatasetId::WikiGold, url.clone());
             // Wake the accept loop with EOF after all client requests have completed.
             drop(TcpStream::connect(address).unwrap());
-            assert_eq!(
-                server.join().unwrap(),
-                expected_requests,
-                "HTTP {first_status}"
-            );
-            if first_status == 404 {
-                assert!(result.unwrap_err().to_string().contains("HTTP 404"));
+            assert_eq!(server.join().unwrap(), expected_requests, "HTTP {status}");
+            if expected_requests <= failures {
+                let message = result.unwrap_err().to_string();
+                assert!(message.contains(&format!("HTTP {status}")));
+                if status == 404 {
+                    assert!(message.ends_with(&format!("{}…", "x".repeat(799))));
+                }
             } else {
                 assert_eq!(result.unwrap(), ("ner".to_owned(), url));
             }
