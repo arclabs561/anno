@@ -326,15 +326,22 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
     // path so entity/relation indices remain consistent.
     let mut ran_joint = false;
+    let mut relation_provenance = None;
     let (mut entities, mut relation_triples) = if args.extract_relations {
         let backend = model.create_model().map_err(CliError::from)?;
         let entity_schema: Vec<&str> = extract_types.iter().flatten().map(String::as_str).collect();
         if let Some(extractor) = backend.as_relation_extractor() {
             let rel_schema: Vec<&str> = relation_types.iter().map(String::as_str).collect();
-            let out = extractor
-                .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
+            let (out, producer) = extractor
+                .extract_with_relation_provenance(
+                    &text,
+                    &entity_schema,
+                    &rel_schema,
+                    relation_threshold,
+                )
                 .map_err(|e| CliError::from(format!("Relation extraction failed: {e}")))?;
             ran_joint = true;
+            relation_provenance = producer;
             (out.entities, out.relations)
         } else {
             #[cfg(feature = "onnx")]
@@ -459,6 +466,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             max_span_distance: args.relation_max_span_distance,
             extract_triggers: false,
         };
+        relation_provenance = Some(anno::Provenance::from_producer(
+            "relation-heuristic",
+            anno::ExtractionMethod::Heuristic,
+        ));
         relation_triples = extract_relation_triples_simple(&entities, &text, &rel_strs, &cfg);
     }
 
@@ -500,6 +511,24 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         retain_endpoints(&mut entities, &mut relation_triples, |i, _| {
             !rejected.contains(&i)
         });
+    }
+    for edge in &relation_triples {
+        let endpoint = |index: usize| {
+            entities
+                .get(index)
+                .zip(doc.signals().get(index))
+                .map(|(entity, signal)| (entity.clone(), signal.id))
+                .ok_or_else(|| {
+                    CliError::from(format!(
+                        "Relation endpoint {index} is outside the validated mention batch"
+                    ))
+                })
+        };
+        let (head, head_id) = endpoint(edge.head_idx)?;
+        let (tail, tail_id) = endpoint(edge.tail_idx)?;
+        let relation = anno::Relation::new(head, tail, edge.relation_type.clone(), edge.confidence);
+        doc.record_relation_by_signal_ids(relation, head_id, tail_id, relation_provenance.clone())
+            .map_err(|e| CliError::from(format!("Could not record grounded relation: {e}")))?;
     }
     if let Some(html) = mapped_html {
         html.record(&mut doc)?;
