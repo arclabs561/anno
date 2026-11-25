@@ -1066,12 +1066,10 @@ jobs:
   # A per-PR gate was rejected rather than pinned: an unsafe-use count is a
   # statistic, and this repo defines no acceptable threshold or baseline for it.
   # The fixture-backed rules must scan and pass their positive/negative cases.
-  # Findings are advisory. Legacy pack errors are reported separately.
+  # Findings are advisory. Every checked-in OpenGrep pack must run successfully.
   opengrep:
     name: OpenGrep Static Analysis
     runs-on: ubuntu-latest
-    # Keep the job advisory until the remaining packs parse and their precision is measured.
-    continue-on-error: true
     if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
@@ -1080,6 +1078,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install OpenGrep
+        id: install-opengrep
         # Pinned release binary, checked against the SHA-256 GitHub reports
         # for the release asset, instead of running install.sh from main.
         env:
@@ -1095,69 +1094,19 @@ jobs:
       - name: Run OpenGrep (registry rules, advisory)
         # `--config auto` fetches the semgrep registry rule set at run time: the
         # effective rules are unpinned and need network access. Kept advisory so
-        # a registry outage or rule churn cannot fail the build.
+        # a registry outage or rule churn cannot fail the build. The Rust bundled-weight
+        # test parses the generated CRF coefficient table, which exceeds the scanner token limit.
         continue-on-error: true
         run: |
           opengrep scan \
-            --config auto \
+            --config auto --exclude crates/anno/src/backends/crf_weights.json \
             --json --output opengrep-results.json \
             --sarif-output opengrep-results.sarif \
             crates/anno/
-      - name: Ensure SARIF output exists
-        if: always()
-        run: |
-          if [ ! -f opengrep-results.sarif ]; then
-            printf '%s\n' '{"version":"2.1.0","runs":[]}' > opengrep-results.sarif
-          fi
-      - name: Run OpenGrep rules covered by fixtures
-        run: |
-          opengrep scan -f .opengrep/rules/rust-validated.yaml \
-            --json --output opengrep-validated-results.json crates/
-      # Legacy packs still contain unsupported operators or Rust patterns.
-      # Keep their diagnostics and artifacts while individual rules gain fixtures.
-      - name: Run OpenGrep (custom rules - general)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-security.yaml \
-            --json --output opengrep-security-results.json \
-            crates/anno/
-      - name: Run OpenGrep (custom rules - NLP/ML patterns)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-nlp-ml-patterns.yaml \
-            --json --output opengrep-nlp-results.json \
-            crates/anno/
-      - name: Run OpenGrep (custom rules - evaluation framework)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-evaluation-framework.yaml \
-            --json --output opengrep-eval-results.json \
-            crates/anno-eval/
-      - name: Run OpenGrep (custom rules - anno-specific)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-anno-specific.yaml \
-            --json --output opengrep-anno-results.json \
-            crates/anno/
-      - name: Run OpenGrep (custom rules - error handling)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-error-handling.yaml \
-            --json --output opengrep-error-results.json \
-            crates/anno/
-      - name: Run OpenGrep (custom rules - memory patterns)
-        continue-on-error: true
-        run: |
-          opengrep scan \
-            -f .opengrep/rules/rust-memory-patterns.yaml \
-            --json --output opengrep-memory-results.json \
-            crates/anno/
+      - name: Scan checked-in OpenGrep rule packs
+        run: python3 scripts/qa/opengrep_rules.py
       - name: Validate rules
+        if: ${{ !cancelled() && steps.install-opengrep.outcome == 'success' }}
         run: bash scripts/validate-rules.sh
       - name: Report finding counts (advisory)
         if: always()
@@ -1175,7 +1124,7 @@ jobs:
             opengrep-memory-results.json
           do
             if [ -s "$f" ]; then
-              if ! jq -e 'type == "object" and (.errors | type == "array" and length == 0)' "$f" > /dev/null; then
+              if ! jq -e 'type == "object" and .errors == [] and (.results | type == "array") and (.paths.scanned | type == "array" and length > 0)' "$f" > /dev/null; then
                 incomplete=$((incomplete + 1))
                 printf 'OpenGrep %s: scan errors; see JSON artifact\n' "$f"
               fi
@@ -1191,31 +1140,14 @@ jobs:
             echo "## OpenGrep findings (advisory)"
             echo ""
             echo "Scans with errors or missing output: ${incomplete}."
-            echo "Total: ${total}. Advisory only; see the SARIF upload and artifacts."
+            echo "Total findings: ${total}. Findings are advisory. Checked-in rule packs must complete."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: always() && hashFiles('opengrep-results.sarif') != '' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         continue-on-error: true
         with:
           sarif_file: opengrep-results.sarif
-      - name: Ensure JSON outputs exist
-        if: always()
-        run: |
-          for f in \
-            opengrep-results.json \
-            opengrep-validated-results.json \
-            opengrep-security-results.json \
-            opengrep-nlp-results.json \
-            opengrep-eval-results.json \
-            opengrep-anno-results.json \
-            opengrep-error-results.json \
-            opengrep-memory-results.json
-          do
-            if [ ! -f "$f" ]; then
-              printf '%s\n' '[]' > "$f"
-            fi
-          done
       - name: Upload JSON results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -1235,7 +1167,6 @@ jobs:
     name: OpenGrep Static Analysis (trusted branch)
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    continue-on-error: true
     permissions:
       contents: read
       security-events: write
