@@ -427,8 +427,8 @@
         "tracks_added": 2
       },
       "native_wire_track_confidence": {
-        "1": 1.0,
-        "0": 1.0
+        "0": 1.0,
+        "1": 1.0
       }
     },
     {

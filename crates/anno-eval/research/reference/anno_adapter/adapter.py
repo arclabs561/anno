@@ -81,7 +81,8 @@ def read_grounded(doc, row, backend):
         locations[signal_id] = (start, end)
     assigned = set()
     tracks = {}
-    for key, track in row["tracks"].items():
+    for key in sorted(row["tracks"], key=int):
+        track = row["tracks"][key]
         track_id = track["id"]
         if type(track_id) is not int or str(track_id) != key or track_id < 0:
             raise ValueError(f"{doc['id']}: inconsistent track ID {key}")
@@ -279,7 +280,8 @@ def audit(doc, prediction, args):
         "duplicate_contiguous_spans": len(locations) - len(emitted),
         "excluded_noncontiguous_signal_ids": unsupported,
         "native_wire_track_confidence": {
-            str(track["id"]): track.get("cluster_confidence") for track in prediction["tracks"].values()
+            key: prediction["tracks"][key].get("cluster_confidence")
+            for key in sorted(prediction["tracks"], key=int)
         },
         "alignment": {
             contract: selection(emitted, lookup, negatives, len(mentions))
