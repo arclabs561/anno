@@ -36,6 +36,10 @@ use std::sync::LazyLock;
 /// | URL | `https://example.com` |
 /// | Phone | "(555) 123-4567", "+1-555-1234" |
 ///
+/// Output spans are flat. A numeric date component in an HTTP(S) path can
+/// be included in the complete URL span.
+/// Dates in the surrounding text have their own spans.
+///
 /// # Example
 ///
 /// ```rust
@@ -282,47 +286,114 @@ static EMAIL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static URL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\bhttps?://[^\s<>\[\]{}|\\^`\x00-\x1f]+").expect("valid regex")
+    Regex::new(r#"(?i)\bhttps?://[^\s<>"\[\]{}|\\^`\x00-\x1f]+"#).expect("valid regex")
 });
 
-// Mask a matching outer parenthesis before scanning: Markdown and Japanese
-// prose can place another word or link immediately after it. Replacing the
-// delimiter with a space of the same UTF-8 width preserves source offsets.
+// An apostrophe within a word is part of the path, even in quoted prose.
+fn word_apostrophe(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .is_some_and(char::is_alphabetic)
+        && text[byte + 1..]
+            .chars()
+            .next()
+            .is_some_and(char::is_alphabetic)
+}
+
+// Mask matching outer parentheses or a closing single quote before scanning.
+// A bare URL can contain any of these characters. Equal-width spaces keep offsets.
 fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     let mut result = std::borrow::Cow::Borrowed(text);
-    if !text.contains(['(', '（']) {
+    if !text.contains(['(', '（', '\'']) {
         return result;
     }
     let mut wrapper = None;
     let mut depth = 0;
     for (byte, ch) in text.char_indices() {
         if let Some((open, close)) = wrapper {
-            if ch == open {
-                depth += 1;
-            } else if ch == close {
+            if ch == close {
+                if ch == '\'' && word_apostrophe(text, byte) {
+                    continue;
+                }
                 depth -= 1;
                 if depth == 0 {
-                    let space = if close == ')' { " " } else { "　" };
+                    let space = if close == '）' { "　" } else { " " };
                     result
                         .to_mut()
                         .replace_range(byte..byte + ch.len_utf8(), space);
                     wrapper = None;
                 }
+            } else if ch == open {
+                depth += 1;
             } else if ch.is_whitespace() {
                 wrapper = None;
             }
-        } else if matches!(ch, '(' | '（') {
+        } else if matches!(ch, '(' | '（' | '\'') {
             let rest = &text.as_bytes()[byte + ch.len_utf8()..];
             if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
                 rest.get(..scheme.len())
                     .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
             }) {
-                wrapper = Some((ch, if ch == '(' { ')' } else { '）' }));
+                wrapper = Some((
+                    ch,
+                    match ch {
+                        '(' => ')',
+                        '（' => '）',
+                        _ => ch,
+                    },
+                ));
                 depth = 1;
             }
         }
     }
     result
+}
+
+// Determine each URL boundary once, including for links with many date components.
+fn date_link_range(text: &str, url: regex::Match<'_>) -> Option<std::ops::Range<usize>> {
+    let wrapped = matches!(
+        (
+            text[..url.start()].chars().next_back(),
+            text[url.end()..].chars().next()
+        ),
+        (Some('('), Some(')'))
+            | (Some('（'), Some('）'))
+            | (Some('<'), Some('>'))
+            | (Some('"'), Some('"'))
+            | (Some('\''), Some('\''))
+    );
+    let value = if wrapped {
+        url.as_str()
+    } else {
+        let value = url.as_str().trim_end_matches(['.', ',']);
+        // Unwrapped commas, quotes and other punctuation may introduce another
+        // field or sentence. Keep the original predictions in ambiguous text.
+        if !value.char_indices().all(|(byte, ch)| {
+            ch.is_alphanumeric()
+                || "-._~:/?#@%&=+".contains(ch)
+                || (ch == '\'' && word_apostrophe(value, byte))
+        }) {
+            return None;
+        }
+        value
+    };
+    let end = url.start() + value.len();
+    Some(url.start()..end)
+}
+
+fn link_containing_date(
+    text: &str,
+    date: regex::Match<'_>,
+    links: &[std::ops::Range<usize>],
+) -> Option<std::ops::Range<usize>> {
+    let next = links.partition_point(|link| link.end <= date.start());
+    let link = links.get(next)?;
+    let start = date.start();
+    (link.start < start
+        && date.end() <= link.end
+        && text[link.start..start].ends_with(['/', '-', '=', '#']))
+    .then(|| link.clone())
 }
 
 // A percent escape is exactly '%' followed by two ASCII hex digits in the URL.
@@ -377,6 +448,12 @@ impl Model for RegexNER {
         use crate::offset::SpanConverter;
         use crate::Provenance;
         let mut entities = Vec::new();
+        let url_input = url_text(text);
+        let urls: Vec<_> = URL.find_iter(&url_input).collect();
+        let date_links: Vec<_> = urls
+            .iter()
+            .filter_map(|&url| date_link_range(text, url))
+            .collect();
 
         // Performance optimization: Build SpanConverter once for all byte-to-char conversions
         // ROI: High - called once per extract_entities, saves O(n) per regex match
@@ -387,13 +464,19 @@ impl Model for RegexNER {
         // for consistency with evaluation (GoldEntity uses char offsets).
         let mut add_entity =
             |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
-                // Convert byte offsets to character offsets for Unicode correctness
-                // Use optimized SpanConverter instead of bytes_to_chars
-                let char_start = converter.byte_to_char(m.start());
-                let char_end = converter.byte_to_char(m.end());
+                let link = match pattern {
+                    "DATE_ISO" | "DATE_US" => link_containing_date(text, m, &date_links),
+                    _ => None,
+                };
+                let (range, entity_type, confidence, pattern) = match link {
+                    Some(range) => (range, EntityType::Url, 0.98, "URL"),
+                    None => (m.range(), entity_type, confidence, pattern),
+                };
+                let char_start = converter.byte_to_char(range.start);
+                let char_end = converter.byte_to_char(range.end);
                 if !overlaps(&entities, char_start, char_end) {
                     entities.push(Entity::with_provenance(
-                        &text[m.range()],
+                        &text[range],
                         entity_type,
                         char_start,
                         char_end,
@@ -492,8 +575,6 @@ impl Model for RegexNER {
         }
 
         // Preserve numeric substrings before a percent-encoded octet in the address.
-        let url_input = url_text(text);
-        let urls: Vec<_> = URL.find_iter(&url_input).collect();
         for m in PERCENT.find_iter(text) {
             if is_url_escape(m, &urls) {
                 continue;
@@ -1169,6 +1250,34 @@ mod tests {
                 "https://example.org/作品（上）"
             ]
         );
+    }
+
+    #[test]
+    fn dated_links_respect_field_delimiters_and_neighboring_dates() {
+        for quote in ['"', '\''] {
+            let url = "https://example.org/2024-06-15/O'Brien/at/12:30";
+            let text = format!("📚 {quote}{url}{quote},{quote}2027-04-21{quote}");
+            let entities = extract(&text);
+            assert!(entities
+                .iter()
+                .any(|e| e.entity_type == EntityType::Url && e.text == url));
+            assert!(entities
+                .iter()
+                .any(|e| e.entity_type == EntityType::Date && e.text == "2027-04-21"));
+            assert!(!has_type(&entities, &EntityType::Time));
+        }
+        for (text, date) in [
+            ("https://example.org/2024-06-15,2024-07-02", "2024-07-02"),
+            (
+                "https://example.org/report。2024年6月15日。",
+                "2024年6月15日",
+            ),
+            ("https://example.org/key.May 3, 2026", "May 3, 2026"),
+        ] {
+            assert!(extract(text)
+                .iter()
+                .any(|e| e.entity_type == EntityType::Date && e.text == date));
+        }
     }
 
     #[test]
