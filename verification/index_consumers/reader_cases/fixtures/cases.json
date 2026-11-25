@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "plos-role-lists",
+      "work": "doi:10.1371/journal.pone.0221732",
+      "sources": [
+        {"id": "authors", "edition": "observed-2026-11-25", "text": "Julian Fürmetz\nTimur Nuritidinow — Data curation\nHolger Hoefling — Visualization"},
+        {"id": "notice", "edition": "notice-2025-11-24-observed-2026-11-25", "text": "Data curation: Timur Nuritidinow, Arne Mueller.\nVisualization: Arne Mueller, Holger Hoefling."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [
+          {"id": "selected-name", "kind": "printed", "issuer": "plos-one", "source": "authors", "start": 0, "end": 14, "target": "plos:julian-fuermetz"},
+          {"id": "page-data-tn", "kind": "credit", "issuer": "plos-one", "source": "authors", "role": "Data curation", "target": "plos:timur-nuritidinow"},
+          {"id": "page-vis-hh", "kind": "credit", "issuer": "plos-one", "source": "authors", "role": "Visualization", "target": "plos:holger-hoefling"}
+        ]},
+        {"revision": 2, "put": [
+          {"id": "notice-data-tn", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Data curation", "target": "plos:timur-nuritidinow"},
+          {"id": "notice-data-am", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Data curation", "target": "plos:arne-mueller"},
+          {"id": "notice-vis-am", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Visualization", "target": "plos:arne-mueller"},
+          {"id": "notice-vis-hh", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Visualization", "target": "plos:holger-hoefling"}
+        ]}
+      ],
+      "policies": [{"revision": 1, "hidden": []}],
+      "queries": [
+        {"id": "selected-name-before", "kind": "printed", "source": "authors", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "selected-name-after", "kind": "printed", "source": "authors", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "page-data-curation", "kind": "credit", "role": "Data curation", "source": "authors", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "notice-data-curation", "kind": "credit", "role": "Data curation", "source": "notice", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "page-visualization", "kind": "credit", "role": "Visualization", "source": "authors", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "notice-visualization", "kind": "credit", "role": "Visualization", "source": "notice", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "support-new-role", "kind": "evidence", "role": "Data curation", "target": "plos:arne-mueller", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "both-surfaces-support-role", "kind": "evidence", "role": "Data curation", "target": "plos:timur-nuritidinow", "at": 2, "policy": 1, "audience": "public"}
+      ]
+    },
+    {
+      "id": "shared-byline",
+      "work": "synthetic:atlas-issue",
+      "sources": [
+        {"id": "page", "edition": "issue-7", "text": "Début • Copper Atlas"},
+        {"id": "roster", "edition": "roster-1", "text": "Copper Atlas is a byline used independently by Elin and Remy."},
+        {"id": "colophon", "edition": "note-2", "text": "For this issue, the publisher credits Remy with writing."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [
+          {"id": "byline", "kind": "printed", "issuer": "atlas-press", "source": "page", "start": 8, "end": 20, "target": "catalog:desk"},
+          {"id": "desk", "kind": "reference", "issuer": "atlas-press", "source": "page", "target": "catalog:desk"},
+          {"id": "elin", "kind": "reference", "issuer": "roster", "source": "roster", "target": "people:elin"},
+          {"id": "remy", "kind": "reference", "issuer": "roster", "source": "roster", "target": "people:remy"}
+        ]},
+        {"revision": 2, "put": [
+          {"id": "writer", "kind": "credit", "issuer": "atlas-press", "source": "colophon", "role": "writing", "target": "people:remy"}
+        ]}
+      ],
+      "policies": [{"revision": 1, "hidden": []}],
+      "queries": [
+        {"id": "literal", "kind": "printed", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "name-index", "kind": "reference", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "individual-credit-before", "kind": "credit", "role": "writing", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "individual-credit-after", "kind": "credit", "role": "writing", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "separate-role", "kind": "credit", "role": "editing", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "name-index-after", "kind": "reference", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "byline-after", "kind": "printed", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "wrong-person-evidence", "kind": "evidence", "role": "writing", "target": "people:elin", "at": 2, "policy": 1, "audience": "public"}
+      ]
+    },
+    {
+      "id": "undo-reference-rewrite",
+      "work": "synthetic:map-index",
+      "sources": [
+        {"id": "accession-card", "edition": "card-1", "text": "The card cites register entry A."},
+        {"id": "merge-decision", "edition": "decision-2", "text": "The register redirects citations of A to B."},
+        {"id": "second-card", "edition": "card-3", "text": "The second card cites B from its own inspection."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [
+          {"id": "first-reference", "kind": "reference", "issuer": "map-library", "source": "accession-card", "target": "catalog:a"}
+        ]},
+        {"revision": 2, "put": [
+          {"id": "migration", "kind": "redirect", "issuer": "register", "source": "merge-decision", "from": "catalog:a", "target": "catalog:b"}
+        ]},
+        {"revision": 3, "put": [
+          {"id": "second-reference", "kind": "reference", "issuer": "map-library", "source": "second-card", "target": "catalog:b"}
+        ]},
+        {"revision": 4, "withdraw": ["migration"]}
+      ],
+      "policies": [{"revision": 1, "hidden": []}, {"revision": 2, "hidden": ["migration"]}],
+      "queries": [
+        {"id": "original", "kind": "reference", "source": "accession-card", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "redirected", "kind": "reference", "source": "accession-card", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "independent-before-undo", "kind": "reference", "source": "second-card", "at": 3, "policy": 1, "audience": "public"},
+        {"id": "old-mention-after-undo", "kind": "reference", "source": "accession-card", "at": 4, "policy": 1, "audience": "public"},
+        {"id": "independent-after-undo", "kind": "reference", "source": "second-card", "at": 4, "policy": 1, "audience": "public"},
+        {"id": "all-after-undo", "kind": "reference", "at": 4, "policy": 1, "audience": "public"},
+        {"id": "redirect-withheld", "kind": "reference", "source": "accession-card", "at": 3, "policy": 2, "audience": "public"},
+        {"id": "no-role-from-either-reference", "kind": "credit", "role": "editing", "at": 3, "policy": 1, "audience": "public"}
+      ]
+    },
+    {
+      "id": "two-support-withdrawals",
+      "work": "synthetic:estuary-proof",
+      "sources": [
+        {"id": "workshop", "edition": "proof-1", "text": "Estuary Workshop"},
+        {"id": "press", "edition": "statement-1", "text": "The press credits Cedar with translation and editing."},
+        {"id": "archive", "edition": "statement-1", "text": "In a separate record the archive credits Cedar with translation."},
+        {"id": "joint-minutes", "edition": "minutes-1", "text": "Layout statements, as recorded by the meeting secretary: the press credits Rowan; the archive credits Cedar."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [
+          {"id": "label", "kind": "printed", "issuer": "estuary-press", "source": "workshop", "start": 0, "end": 16, "target": "catalog:workshop"},
+          {"id": "press-credit", "kind": "credit", "issuer": "estuary-press", "source": "press", "role": "translation", "target": "people:cedar"},
+          {"id": "editing", "kind": "credit", "issuer": "estuary-press", "source": "press", "role": "editing", "target": "people:cedar"},
+          {"id": "archive-credit", "kind": "credit", "issuer": "estuary-archive", "source": "archive", "role": "translation", "target": "people:cedar"},
+          {"id": "press-layout", "kind": "credit", "issuer": "estuary-press", "source": "joint-minutes", "role": "layout", "target": "people:rowan"},
+          {"id": "archive-layout", "kind": "credit", "issuer": "estuary-archive", "source": "joint-minutes", "role": "layout", "target": "people:cedar"}
+        ]},
+        {"revision": 2, "withdraw": ["press-credit"]},
+        {"revision": 3, "withdraw": ["archive-credit"]}
+      ],
+      "policies": [
+        {"revision": 1, "hidden": []},
+        {"revision": 2, "hidden": ["archive-credit", "press-credit"]},
+        {"revision": 3, "hidden": []}
+      ],
+      "queries": [
+        {"id": "layout-as-reported-by-press", "kind": "credit", "role": "layout", "source": "joint-minutes", "issuer": "estuary-press", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "layout-as-reported-by-archive", "kind": "credit", "role": "layout", "source": "joint-minutes", "issuer": "estuary-archive", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "layout-on-joint-minutes", "kind": "credit", "role": "layout", "source": "joint-minutes", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "issuer-does-not-become-source", "kind": "credit", "role": "layout", "source": "press", "issuer": "estuary-press", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "press-evidence-for-archive-target", "kind": "evidence", "role": "layout", "target": "people:cedar", "issuer": "estuary-press", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "initial-credit", "kind": "credit", "role": "translation", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "initial-support", "kind": "evidence", "role": "translation", "target": "people:cedar", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "one-support", "kind": "evidence", "role": "translation", "target": "people:cedar", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "one-credit", "kind": "credit", "role": "translation", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "public-with-permission-revoked", "kind": "credit", "role": "translation", "at": 2, "policy": 2, "audience": "public"},
+        {"id": "staff-same-content-after-revocation", "kind": "evidence", "role": "translation", "target": "people:cedar", "at": 2, "policy": 2, "audience": "staff"},
+        {"id": "historical-read-with-later-permissions", "kind": "credit", "role": "translation", "at": 1, "policy": 2, "audience": "public"},
+        {"id": "unrelated-role", "kind": "credit", "role": "editing", "at": 2, "policy": 2, "audience": "public"},
+        {"id": "unchanged-byline", "kind": "printed", "at": 2, "policy": 2, "audience": "public"},
+        {"id": "no-support-left", "kind": "evidence", "role": "translation", "target": "people:cedar", "at": 3, "policy": 1, "audience": "staff"},
+        {"id": "no-credit-left", "kind": "credit", "role": "translation", "at": 3, "policy": 1, "audience": "public"},
+        {"id": "other-role-after-both-withdrawals", "kind": "credit", "role": "editing", "at": 3, "policy": 2, "audience": "public"},
+        {"id": "policy-restored-while-support-existed", "kind": "evidence", "role": "translation", "target": "people:cedar", "at": 2, "policy": 3, "audience": "public"},
+        {"id": "policy-restored-after-withdrawal", "kind": "credit", "role": "translation", "at": 3, "policy": 3, "audience": "public"}
+      ]
+    },
+    {
+      "id": "conflated-at-ingest",
+      "work": "synthetic:imported-catalog",
+      "sources": [
+        {"id": "import", "edition": "export-9", "text": "Archive Room"},
+        {"id": "transfer-note", "edition": "transfer-1", "text": "The exporting catalog used Archive Room for both a place and an editorial collective. The export does not assign the individual occurrences to either."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [
+          {"id": "import-label", "kind": "printed", "issuer": "transferred-catalog", "source": "import", "start": 0, "end": 12, "target": "import:room"},
+          {"id": "import-reference", "kind": "reference", "issuer": "transferred-catalog", "source": "import", "target": "import:room"}
+        ]}
+      ],
+      "policies": [{"revision": 1, "hidden": []}],
+      "queries": [
+        {"id": "source-label", "kind": "printed", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "supplied-record", "kind": "reference", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "no-documentary-credit", "kind": "credit", "role": "writing", "at": 1, "policy": 1, "audience": "public"},
+        {"id": "no-evidence-for-candidate", "kind": "evidence", "role": "writing", "target": "people:editor", "at": 1, "policy": 1, "audience": "public"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "answers": {
+    "plos-role-lists": {
+      "selected-name-before": ["Julian Fürmetz"],
+      "selected-name-after": ["Julian Fürmetz"],
+      "page-data-curation": ["plos:timur-nuritidinow"],
+      "notice-data-curation": ["plos:arne-mueller", "plos:timur-nuritidinow"],
+      "page-visualization": ["plos:holger-hoefling"],
+      "notice-visualization": ["plos:arne-mueller", "plos:holger-hoefling"],
+      "support-new-role": ["notice-data-am"],
+      "both-surfaces-support-role": ["notice-data-tn", "page-data-tn"]
+    },
+    "shared-byline": {
+      "literal": ["Copper Atlas"],
+      "name-index": ["catalog:desk", "people:elin", "people:remy"],
+      "individual-credit-before": [],
+      "individual-credit-after": ["people:remy"],
+      "separate-role": [],
+      "name-index-after": ["catalog:desk", "people:elin", "people:remy"],
+      "byline-after": ["Copper Atlas"],
+      "wrong-person-evidence": []
+    },
+    "undo-reference-rewrite": {
+      "original": ["catalog:a"],
+      "redirected": ["catalog:b"],
+      "independent-before-undo": ["catalog:b"],
+      "old-mention-after-undo": ["catalog:a"],
+      "independent-after-undo": ["catalog:b"],
+      "all-after-undo": ["catalog:a", "catalog:b"],
+      "redirect-withheld": ["catalog:a"],
+      "no-role-from-either-reference": []
+    },
+    "two-support-withdrawals": {
+      "layout-as-reported-by-press": ["people:rowan"],
+      "layout-as-reported-by-archive": ["people:cedar"],
+      "layout-on-joint-minutes": ["people:cedar", "people:rowan"],
+      "issuer-does-not-become-source": [],
+      "press-evidence-for-archive-target": [],
+      "initial-credit": ["people:cedar"],
+      "initial-support": ["archive-credit", "press-credit"],
+      "one-support": ["archive-credit"],
+      "one-credit": ["people:cedar"],
+      "public-with-permission-revoked": [],
+      "staff-same-content-after-revocation": ["archive-credit"],
+      "historical-read-with-later-permissions": [],
+      "unrelated-role": ["people:cedar"],
+      "unchanged-byline": ["Estuary Workshop"],
+      "no-support-left": [],
+      "no-credit-left": [],
+      "other-role-after-both-withdrawals": ["people:cedar"],
+      "policy-restored-while-support-existed": ["archive-credit"],
+      "policy-restored-after-withdrawal": []
+    },
+    "conflated-at-ingest": {
+      "source-label": ["Archive Room"],
+      "supplied-record": ["import:room"],
+      "no-documentary-credit": [],
+      "no-evidence-for-candidate": []
+    }
+  }
+}
