@@ -132,6 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let strict_logit_tolerance_pass = max_abs_logit_delta <= MAX_ABS_LOGIT_DELTA;
     let provider_assignment_pass = accelerator_nodes > 0;
 
+    let paths = anno_model.artifact_paths();
     // Keep provider-specific keys in existing CoreML receipts stable.
     let receipt = serde_json::json!({
         "schema_version": 1, "text": TEXT, "model_dir": model_dir, "graph": graph,
@@ -145,7 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "warm_runs": WARM_RUNS, "timed_runs": TIMED_RUNS,
         "cpu_min_argmax_margin": cpu_min_argmax_margin,
         (format!("{key}_min_argmax_margin")): accelerator_min_argmax_margin,
-        "cpu_mean_ms": cpu_mean_ms, (format!("{key}_mean_ms")): accelerator_mean_ms,
+        "cpu_mean_ms": cpu_warm_ms, (format!("{key}_mean_ms")): accelerator_warm_ms,
         "cpu_profile": cpu_profile, (format!("{key}_profile")): accelerator_profile,
         "cpu_assignments": cpu_assignments, (format!("{key}_assignments")): accelerator_assignments,
     });
