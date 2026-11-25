@@ -101,6 +101,9 @@ def stale(directory, binary, mutate):
 
 
 PROBES = dict(zip(pilot.JOURNEYS, (span, catalog, stale), strict=True))
+MUTATION_SIGNATURES = {"span-roundtrip": "brat-output-segments",
+                      "catalog-update": "catalog-current-edition-postings",
+                      "stale-revision": "journal-stale-pinned-response"}
 
 
 def observe(binary, name, mutate):
@@ -112,6 +115,18 @@ def observe(binary, name, mutate):
     if signature and one() != signature:
         raise ValueError(f"{name} did not reproduce")
     return {"failure": signature, "elapsed_ms": round((time.monotonic() - started) * 1000)}
+
+
+def mutation_census(binary, faults):
+    census = {}
+    for name, signature in MUTATION_SIGNATURES.items():
+        active = name in faults
+        arm = observe(binary, name, active)
+        expected = signature if active else None
+        if arm["failure"] != expected:
+            raise ValueError(f"{name} expected {expected!r}, observed {arm['failure']!r}")
+        census[name] = arm
+    return census
 
 
 def simulate(selector, rounds, seed):
@@ -179,11 +194,11 @@ def main():
               "seed": args.seed, "panels": {},
               "producers": {k: pilot.native.digest(v) for k, v in (("current", current), ("historical", historical))}}
 
-    def census(binary, faults):
-        return {name: observe(binary, name, name in faults) for name in PROBES}
+    def baseline(binary):
+        return {name: observe(binary, name, False) for name in PROBES}
 
     # Positive and mutation controls are measured on a fresh temporary corpus every time.
-    history = simulate(selector, [lambda: census(historical, ()), lambda: census(current, ())], args.seed)
+    history = simulate(selector, [lambda: baseline(historical), lambda: baseline(current)], args.seed)
     historical_causes = {name: arm["failure"] for name, arm in history[0]["census"].items()}
     if historical_causes != {"span-roundtrip": "brat-incomplete-input-overwrites-review",
                              "catalog-update": "catalog-incomplete-source-selection",
@@ -191,9 +206,7 @@ def main():
         raise ValueError("historical controls did not reproduce the two known regressions")
     if any(a["failure"] for a in history[-1]["census"].values()):
         raise ValueError("fixed controls failed")
-    for name in PROBES:
-        if not observe(current, name, True)["failure"]:
-            raise ValueError(f"mutation control survived for {name}")
+    mutation_census(current, PROBES)
 
     def record(key, trace):
         report["panels"][key] = {"rounds": trace, "scores": summarize(trace)}
@@ -202,7 +215,7 @@ def main():
         if digest in report["panels"]:
             raise ValueError("duplicate schedule")
         schedule = sealed_schedule(Path(path), digest)
-        trace = simulate(selector, (lambda faults=faults: census(current, faults) for faults in schedule), args.seed)
+        trace = simulate(selector, (lambda faults=faults: mutation_census(current, faults) for faults in schedule), args.seed)
         record(digest, trace)
     pilot.write_json(args.out, report)
 

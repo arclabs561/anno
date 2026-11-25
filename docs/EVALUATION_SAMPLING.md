@@ -567,8 +567,9 @@ The primary schedule moved faults between journeys. The sensitivity schedule
 changed how often they returned. Each scheduled fault modified a real CLI response
 by dropping a Unicode span segment, removing a catalog posting, or replaying an
 earlier successful journal read after the head advanced. A fresh replay had to
-reproduce every detected failure. The selector received only the result of its
-own previous picks. The offline experiment ran a separate census to score misses.
+reproduce every detected failure. An unexpected failure, a surviving mutation or
+a mismatched signature invalidates the schedule run. The selector received only
+the result of its own previous picks. The offline experiment ran a separate census to score misses.
 
 | Panel | Slots per policy | Muxer hits / distinct | Rotation hits / distinct | Seeded random hits / distinct | Uniform expected hits / distinct |
 | --- | ---: | ---: | ---: | ---: | ---: |

@@ -36,6 +36,18 @@ class PanelTests(unittest.TestCase):
         self.assertAlmostEqual(scores["uniform_expectation"]["distinct_failures"], 5 / 9)
         self.assertAlmostEqual(scores["uniform_expectation"]["hits"], 2 / 3)
 
+    def test_faulted_round_requires_the_scheduled_signature(self):
+        for observed in (None, "another-assertion"):
+            with self.subTest(observed=observed), patch.object(
+                    panel, "observe", return_value={"failure": observed}):
+                with self.assertRaisesRegex(ValueError, "expected 'brat-output-segments'"):
+                    panel.mutation_census(None, ["span-roundtrip"])
+
+    def test_clean_round_rejects_unexpected_failure(self):
+        with patch.object(panel, "observe", return_value={"failure": "unexpected"}):
+            with self.assertRaisesRegex(ValueError, "expected None, observed 'unexpected'"):
+                panel.mutation_census(None, [])
+
     def test_schedule_checks_commitment_and_arm_set(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "panel.json"
