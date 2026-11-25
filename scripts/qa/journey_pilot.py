@@ -47,11 +47,14 @@ def cohort():
     return hashlib.sha256(json.dumps([(str(p), native.digest(ROOT / p)) for p in cohort_inputs()]).encode()).hexdigest()
 
 
+def checkout_revision():
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+
+
 def checkout_provenance():
-    def git(*args):
-        return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
-    return {"revision": git("rev-parse", "HEAD"),
-            "cohort_inputs_dirty": bool(git("status", "--porcelain", "--untracked-files=all", "--", *cohort_inputs()))}
+    # Capture the checkout before writing the plan, including untracked pilot sources.
+    status = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT)
+    return {"revision": checkout_revision(), "checkout_dirty": bool(status)}
 
 
 def built_selector(supplied):
@@ -202,7 +205,7 @@ def pilot(args):
     producer = native.digest(binary)
     census = {name: confirmed(lambda: measure_case(name, binary)) for name in JOURNEYS}
     if (cohort() != version or native.digest(binary) != producer
-            or native.digest(selector) != selector_hash or checkout_provenance() != source):
+            or native.digest(selector) != selector_hash or checkout_revision() != source["revision"]):
         raise ValueError("source, oracle or producer changed during measurement")
     row = {name: result["observation"] for name, result in census.items()}
     results = {}

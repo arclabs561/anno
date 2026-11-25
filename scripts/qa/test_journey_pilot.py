@@ -51,7 +51,7 @@ class JourneyPilotTests(unittest.TestCase):
             before = None
             with patch.object(pilot, "cohort", return_value="abc"), \
                     patch.object(pilot.subprocess, "check_output", return_value=json.dumps(record)), \
-                    patch.object(pilot, "picks") as picks:
+                    patch.object(pilot, "picks", side_effect=AssertionError("stale selector reached execution")) as picks:
                 for run_id in (1, 2):
                     if run_id == 2:
                         row = dict.fromkeys(pilot.POLICIES, ["span-roundtrip", "pass"])
@@ -66,17 +66,20 @@ class JourneyPilotTests(unittest.TestCase):
                 supplied.write_bytes(built.read_bytes())
                 self.assertEqual(pilot.built_selector(supplied), (built, pilot.native.digest(built)))
 
-    def test_untracked_policy_input_is_dirty_but_an_unrelated_output_is_ignored(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(pilot, "ROOT", Path(tmp)), \
-                patch.object(pilot, "cohort_inputs", return_value=[Path("policy")]):
+    def test_dirty_checkout_includes_untracked_policy_and_modified_producer(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(pilot, "ROOT", Path(tmp)):
             root = Path(tmp)
             subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
+            (root / "producer").write_text("original")
+            subprocess.run(["git", "add", "producer"], cwd=root, check=True)
             subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                             "commit", "--allow-empty", "--quiet", "-m", "initial"], cwd=root, check=True)
-            (root / "report").write_text("local output")
-            self.assertFalse(pilot.checkout_provenance()["cohort_inputs_dirty"])
+            self.assertFalse(pilot.checkout_provenance()["checkout_dirty"])
             (root / "policy").write_text("prototype")
-            self.assertTrue(pilot.checkout_provenance()["cohort_inputs_dirty"])
+            self.assertTrue(pilot.checkout_provenance()["checkout_dirty"])
+            (root / "policy").unlink()
+            (root / "producer").write_text("modified")
+            self.assertTrue(pilot.checkout_provenance()["checkout_dirty"])
 
     def test_prospective_picks_census_and_retry(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,7 +104,7 @@ class JourneyPilotTests(unittest.TestCase):
 
             with patch.object(pilot, "cohort", return_value="abc"), patch.dict(pilot.os.environ, {}, clear=True), \
                     patch.object(pilot, "built_selector", return_value=(args.selector, selector_hash)), \
-                    patch.object(pilot, "checkout_provenance", return_value={"revision": "a"*40, "cohort_inputs_dirty": False}), \
+                    patch.object(pilot, "checkout_provenance", return_value={"revision": "a"*40, "checkout_dirty": False}), \
                     patch.object(pilot.subprocess, "check_output", side_effect=select), \
                     patch.object(pilot, "measure_case", side_effect=measure) as measure_case:
                 self.assertEqual(pilot.pilot(args), 2)
