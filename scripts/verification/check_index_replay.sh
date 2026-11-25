@@ -30,3 +30,5 @@ python3 verification/index_consumers/check_editions.py --review-example
 python3 verification/index_consumers/credits/check_cases.py
 python3 verification/index_consumers/credits/check_search.py
 python3 verification/index_consumers/reader_cases/check.py --bounded
+python3 verification/index_consumers/reader_cases/formal/check_support.py
+python3 -m unittest discover -s scripts/qa -p 'test_replay_reader_cases.py'
