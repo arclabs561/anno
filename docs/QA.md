@@ -62,7 +62,7 @@ For DWIE, use one directory of gold documents and one of predictions, with exact
 python3 crates/anno-eval/examples/docred/score_dwie.py gold/ predicted/ --endpoints predicted
 ```
 
-The native mention-span evaluator reports strict and boundary scores separately for documents with predicted endpoints and those scored by heuristics over gold endpoints. The JSON metric `gold_label_prompt_docs` counts documents whose extractor received the reference entity and relation label vocabulary. Predicted spans in these documents are still conditioned on knowing which labels appear.
+The native mention-span evaluator reports strict and boundary scores separately for documents with predicted endpoints and those scored by heuristics over gold endpoints. An endpoint group with zero gold and zero predicted relations retains its counts and omits F1. The legacy aggregate scores an empty reference and empty prediction as 1.0. The JSON metric `gold_label_prompt_docs` counts documents whose extractor received the reference entity and relation label vocabulary. Predicted spans in these documents are still conditioned on knowing which labels appear.
 
 ### Run the JEREX joint checkpoint
 

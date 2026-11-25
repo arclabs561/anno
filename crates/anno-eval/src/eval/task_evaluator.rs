@@ -3641,8 +3641,10 @@ impl TaskEvaluator {
                 );
                 &subset
             };
-            metrics.insert(format!("{prefix}_strict_f1"), score.strict_f1);
-            metrics.insert(format!("{prefix}_boundary_f1"), score.boundary_f1);
+            if score.num_gold > 0 || score.num_predicted > 0 {
+                metrics.insert(format!("{prefix}_strict_f1"), score.strict_f1);
+                metrics.insert(format!("{prefix}_boundary_f1"), score.boundary_f1);
+            }
             metrics.insert(format!("{prefix}_gold_relations"), score.num_gold as f64);
             metrics.insert(
                 format!("{prefix}_predicted_relations"),
@@ -5364,6 +5366,39 @@ mod tests {
             receipt.metrics.get("num_gold_relations").copied(),
             Some(0.0)
         );
+    }
+
+    #[test]
+    fn empty_relation_document_has_counts_without_endpoint_f1() {
+        let cache = tempfile::tempdir().unwrap();
+        let input = r#"[{"tokens":"甲乙","entities":[],"relations":[]}]"#;
+        std::fs::write(
+            cache.path().join(DatasetId::CHisIEC.cache_filename()),
+            input,
+        )
+        .unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let model = anno::AnyModel::new("no-op", "test model", vec![], |_, _| Ok(vec![]));
+        let receipt = evaluator
+            .evaluate_relation_task(
+                "no-op",
+                &model,
+                &empty_dataset(DatasetId::CHisIEC),
+                &TaskEvalConfig::default(),
+            )
+            .unwrap();
+        assert_eq!(receipt.metrics["strict_f1"], 1.0);
+        assert_eq!(receipt.metrics["predicted_endpoint_docs"], 1.0);
+        assert_eq!(receipt.metrics["predicted_endpoint_gold_relations"], 0.0);
+        assert_eq!(
+            receipt.metrics["predicted_endpoint_predicted_relations"],
+            0.0
+        );
+        assert_eq!(receipt.metrics["predicted_endpoint_strict_matches"], 0.0);
+        assert!(!receipt.metrics.contains_key("predicted_endpoint_strict_f1"));
+        assert!(!receipt
+            .metrics
+            .contains_key("predicted_endpoint_boundary_f1"));
     }
 
     #[test]
