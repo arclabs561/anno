@@ -2,7 +2,7 @@
 """
 Fast internal link check for docs markdown.
 
-- Checks relative markdown links under `docs/`
+- Checks relative markdown links in the README, docs and repository skills
 - Ignores external URLs and `mailto:`
 - Strips fenced code blocks to reduce false positives
 - Skips `docs/archive/` (intentionally historical + cursor-ignored)
@@ -96,6 +96,7 @@ def main() -> int:
     anchor_cache: dict[Path, set[str]] = {}
 
     md_paths: list[Path] = list(docs_root.rglob("*.md"))
+    md_paths.extend((repo_root / ".agents" / "skills").rglob("*.md"))
     if readme_path.exists():
         md_paths.append(readme_path)
 
@@ -165,7 +166,7 @@ def main() -> int:
                 if frag not in anchor_cache[target_abs]:
                     broken_anchors.append((md_path.relative_to(repo_root), link, target_abs, frag))
 
-    scope = "docs/ (excluding docs/archive/)"
+    scope = "docs/ (excluding docs/archive/), .agents/skills/"
     if readme_path.exists():
         scope += " and README.md"
     print(f"Checked {checked} relative links and {anchor_checked} anchors under {scope}")

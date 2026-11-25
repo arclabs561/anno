@@ -26,6 +26,8 @@ cargo +nightly-2026-05-01 fuzz run --dev --sanitizer address document_delivery \
 
 Replay a minimized input on stable Rust by setting `ANNO_DELIVERY_INPUT` to its path and running `cargo test --locked -p anno --no-default-features --test document_delivery_seeds replay_local_delivery_input -- --ignored`.
 
+The five shared histories are eligible for a [reviewed Muxer slot](../docs/EVALUATION_SAMPLING.md#replay-a-reviewed-corpus-witness-in-a-triage-slot). From the checkout under test, `python3 scripts/qa/replay_feedback.py replay document_delivery historical-receipt` runs one history offline and reports its source, oracle and producer hashes. Use `--cache-dir DIRECTORY observe document_delivery historical-receipt` to record it. The ledger gives triage priority to a reproduced assertion failure. A passing control contributes no failure credit.
+
 Keep local inputs and minimized failures under the ignored `fuzz/corpus/` and `fuzz/artifacts/` directories. Promote an original synthetic reproducer by adding its bytes and independent reader expectation to the shared seed replay. The generated histories exercise the in-memory session API.
 
 ## Reviewed catalog assignments

@@ -384,10 +384,10 @@ pub(super) fn next_cell(
             {
                 continue;
             }
-        } else if !pinned_dataset_candidates(loader, &[task], cached).contains(&dataset) {
+        } else if !dataset_eligibility(loader, &[task], cached).contains(&(dataset, None)) {
             continue;
         }
-        if check_dataset_usable(loader, dataset, cached).is_ok() {
+        if check_dataset_usable(loader, &[task], dataset, cached).is_ok() {
             plan.first = Some(cell);
             break;
         }

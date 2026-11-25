@@ -4,44 +4,7 @@
 //! library concern. The library takes `&str`; the CLI resolves formats into text.
 
 use std::collections::HashMap;
-use std::path::Path;
-use ureq::tls::{parse_pem, PemItem, RootCerts, TlsConfig};
 use ureq::ResponseExt;
-
-/// Use ureq's bundled roots unless the caller explicitly supplies a CA bundle.
-fn http_agent(ca_file: Option<&Path>) -> Result<ureq::Agent, String> {
-    let mut config = ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(60)))
-        .http_status_as_error(false);
-    if let Some(path) = ca_file {
-        let bytes = std::fs::read(path)
-            .map_err(|e| format!("Cannot read SSL_CERT_FILE {}: {e}", path.display()))?;
-        let mut roots = Vec::new();
-        for item in parse_pem(&bytes) {
-            match item.map_err(|e| format!("Invalid SSL_CERT_FILE {}: {e}", path.display()))? {
-                PemItem::Certificate(cert) => roots.push(cert),
-                _ => {
-                    return Err(format!(
-                        "Expected certificates in SSL_CERT_FILE {}",
-                        path.display()
-                    ))
-                }
-            }
-        }
-        if roots.is_empty() {
-            return Err(format!(
-                "No certificates in SSL_CERT_FILE {}",
-                path.display()
-            ));
-        }
-        config = config.tls_config(
-            TlsConfig::builder()
-                .root_certs(RootCerts::from(roots))
-                .build(),
-        );
-    }
-    Ok(config.build().into())
-}
 
 /// Resolved content from a URL.
 #[derive(Debug, Clone)]
@@ -86,8 +49,8 @@ impl UrlResolver for HttpResolver {
     }
 
     fn resolve(&self, url: &str) -> Result<ResolvedContent, String> {
-        let ca_file = std::env::var_os("SSL_CERT_FILE");
-        let response = http_agent(ca_file.as_deref().map(Path::new))?
+        let response = anno_eval::eval::http::agent(std::time::Duration::from_secs(60))
+            .map_err(|e| e.to_string())?
             .get(url)
             .call()
             .map_err(|e| {
@@ -225,18 +188,6 @@ impl UrlResolver for CompositeResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn explicitly_configured_ca_file_must_provide_certificates() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        assert!(http_agent(None).is_ok());
-        assert!(http_agent(Some(&root.join("missing-ca-bundle.pem")))
-            .unwrap_err()
-            .contains("Cannot read SSL_CERT_FILE"));
-        assert!(http_agent(Some(&root.join("Cargo.toml")))
-            .unwrap_err()
-            .contains("No certificates in SSL_CERT_FILE"));
-    }
 
     #[test]
     fn http_resolver_can_resolve_http() {

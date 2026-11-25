@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 from replay_matrix_feedback import sampler_env
-from check_matrix_outcomes import RANDOM_TASKS, WIKIGOLD, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap
+from check_matrix_outcomes import RANDOM_TASKS, WIKIGOLD, check, check_fixed_sample, check_temporal_contrast, check_temporal_smoke, check_ner_smoke, check_wikigold_bootstrap, report_dataset_pools
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -66,6 +66,21 @@ class CoverageTest(unittest.TestCase):
         with redirect_stdout(output), redirect_stderr(io.StringIO()):
             self.assertTrue(check([], report=True))
         self.assertIn("temporal (no outcome)", output.getvalue())
+
+    def test_dataset_pools_separate_reader_failures_and_unexamined_candidates(self):
+        pool = {"catalog_count": 6, "eligible_count": 4, "excluded": {"cache_required": 2},
+                "selected": ["AnnoTimexSmoke"], "backend_incompatible_count": 1,
+                "load_rejections": {"dataset parse error": 1}}
+        row = {"schema_version": 1, "strategy": "random", "slice": "temporal",
+               "pass": "initial", "pool": pool}
+        output = io.StringIO()
+        with redirect_stdout(output):
+            report_dataset_pools([json.dumps(row)])
+        self.assertIn("4/6 policy-eligible, 2 load checks, 1 selected, 1 incompatible, 1 unexamined", output.getvalue())
+        self.assertIn("Load rejections: dataset parse error (1)", output.getvalue())
+        for change in ({"catalog_count": 5}, {"selected": "unparsed"}, {"backend_incompatible_count": -1}):
+            with self.assertRaisesRegex(ValueError, "line 1"):
+                report_dataset_pools([json.dumps(row | {"pool": pool | change})])
 
     def test_failed_cells_group_retries_and_keep_tasks_distinct(self):
         row = dict(outcome("ner", hard=True), dataset="WikiGold", backend="gliner_relex",

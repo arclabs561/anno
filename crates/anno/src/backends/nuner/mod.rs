@@ -78,16 +78,6 @@ use crate::Error;
 #[cfg(feature = "onnx")]
 type EncodedPrompt = (Vec<i64>, Vec<i64>, Vec<i64>, i64);
 
-/// Special token IDs for GLiNER/NuNER models (shared architecture)
-#[cfg(feature = "onnx")]
-const TOKEN_START: u32 = 1;
-#[cfg(feature = "onnx")]
-const TOKEN_END: u32 = 2;
-#[cfg(feature = "onnx")]
-const TOKEN_ENT: u32 = 128002;
-#[cfg(feature = "onnx")]
-const TOKEN_SEP: u32 = 128003;
-
 /// Maximum span width for span-based inference.
 /// NuNER uses max_width=1 (single-word spans only) per its gliner_config.json.
 /// This matches the Python GLiNER implementation's prepare_span_idx function.
@@ -101,7 +91,7 @@ const MAX_SPAN_WIDTH: usize = 1;
 ///
 /// # Model Variants
 ///
-/// - `NuNER::new()` / `NuNER::from_pretrained("numind/NuNER_Zero")` -- 512-token context,
+/// - `NuNER::new()` / `NuNER::from_pretrained(crate::DEFAULT_NUNER_MODEL)` -- 512-token context,
 ///   chunks at ~2000 chars.
 /// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero-4k")` -- 4096-token
 ///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.

@@ -6,6 +6,7 @@
 # Usage:
 #   ./scripts/sync_datasets_s3.sh upload    # Upload local models, scripts and manifest to S3
 #   ./scripts/sync_datasets_s3.sh download  # Download from S3
+#   ./scripts/sync_datasets_s3.sh download-datasets  # Only permitted dataset objects
 #   ./scripts/sync_datasets_s3.sh sync      # Bidirectional sync (local wins)
 #   ./scripts/sync_datasets_s3.sh status    # Show what's cached
 #   ./scripts/sync_datasets_s3.sh ls        # List S3 contents
@@ -189,7 +190,7 @@ upload_all() {
     log_info "Upload complete."
 }
 
-download_all() {
+download_datasets() {
     local cache_policy pattern
     local -a dataset_filters=()
     # Filter legacy names and content-addressed paths in pre-provisioned stores.
@@ -197,16 +198,22 @@ download_all() {
     while IFS= read -r pattern; do
         dataset_filters+=(--exclude "$pattern")
     done <<< "$cache_policy"
-    log_info "Downloading permitted artifacts from S3..."
-    
-    mkdir -p "$DATASETS_DIR" "$MODELS_DIR" "$SCRIPTS_DIR"
-    
+    mkdir -p "$DATASETS_DIR"
     if [[ "$S3_CMD" == "s5cmd" ]]; then
-        s5cmd sync --size-only "${dataset_filters[@]}" "$S3_BUCKET/datasets/*" "$DATASETS_DIR/" 2>/dev/null || true
+        s5cmd sync --size-only "${dataset_filters[@]}" "$S3_BUCKET/datasets/*" "$DATASETS_DIR/"
+    else
+        aws s3 sync "$S3_BUCKET/datasets/" "$DATASETS_DIR" --size-only "${dataset_filters[@]}"
+    fi
+}
+
+download_all() {
+    log_info "Downloading permitted artifacts from S3..."
+    download_datasets
+    mkdir -p "$MODELS_DIR" "$SCRIPTS_DIR"
+    if [[ "$S3_CMD" == "s5cmd" ]]; then
         s5cmd sync --size-only "$S3_BUCKET/models/*" "$MODELS_DIR/" 2>/dev/null || true
         s5cmd sync --size-only "$S3_BUCKET/scripts/*" "$SCRIPTS_DIR/" 2>/dev/null || true
     else
-        aws s3 sync "$S3_BUCKET/datasets/" "$DATASETS_DIR" --size-only "${dataset_filters[@]}"
         aws s3 sync "$S3_BUCKET/models/" "$MODELS_DIR" --size-only
         aws s3 sync "$S3_BUCKET/scripts/" "$SCRIPTS_DIR" --size-only
     fi
@@ -355,6 +362,10 @@ case "${1:-status}" in
         check_aws
         upload_all
         ;;
+    download-datasets)
+        detect_s3_cmd
+        download_datasets
+        ;;
     download)
         check_aws
         download_all
@@ -382,11 +393,12 @@ case "${1:-status}" in
     *)
         echo "Anno Cache Sync Tool"
         echo ""
-        echo "Usage: $0 {upload|download|sync|status|ls|size|upload-script}"
+        echo "Usage: $0 {upload|download|download-datasets|sync|status|ls|size|upload-script}"
         echo ""
         echo "Commands:"
         echo "  upload        Upload local cache to S3"
         echo "  download      Download S3 cache to local"
+        echo "  download-datasets  Download permitted datasets only"
         echo "  sync          Bidirectional sync (local wins)"
         echo "  status        Show cache status"
         echo "  ls            List S3 bucket contents"

@@ -143,8 +143,11 @@ enum DatasetParsePlan {
     JsonlNer,
     WikiannJson,
     TweetNer7,
+    Tacred,
     DocredJson,
+    SciErcJson,
     GoogleReCorpus,
+    FewRel,
     ChisiecJson,
     CadecHybrid,
     Bc5cdr,
@@ -379,7 +382,6 @@ impl LoadableDatasetId {
             | DatasetId::BookCoref
             | DatasetId::BookCorefSplit
             | DatasetId::WIESP2022NER
-            | DatasetId::FewRel
             | DatasetId::PIIMasking200k
             | DatasetId::B2NERD
             | DatasetId::OpenNER
@@ -397,15 +399,14 @@ impl LoadableDatasetId {
             // Relation extraction datasets use JSON format with entity pairs and relations.
             // Common structure: {entities: [...], relations: [...], text: "..."}
             //
-            // The DocredJson parser handles the CrossRE sentence format (CrossREAI),
-            // ReTACRED, and similar formats. It does not parse DocRED itself.
+            // The DocredJson parser handles the CrossRE sentence format (CrossREAI)
+            // and similar formats. It does not parse DocRED itself.
             // Some datasets (SciERC, PolyIE, EnzChemRED) are auto-detected via
             // registry_hint_plan() but listed here for explicit control.
             //
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -414,7 +415,6 @@ impl LoadableDatasetId {
             | DatasetId::CovEReD
             | DatasetId::ACE2005
             | DatasetId::MuDoCo
-            | DatasetId::SciERCNER
             // Added 2025-01-27: RE datasets with public URLs but missing hints
             // Note: SciERC, PolyIE, EnzChemRED are now handled by registry_hint_plan() auto-detection
             => DatasetParsePlan::DocredJson,
@@ -503,6 +503,16 @@ impl LoadableDatasetId {
     #[must_use]
     fn registry_hint_plan(id: DatasetId) -> Option<DatasetParsePlan> {
         // Hybrids / special cases first.
+        if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
+            return Some(DatasetParsePlan::Tacred);
+        }
+        if id == DatasetId::SciERC {
+            return Some(DatasetParsePlan::SciErcJson);
+        }
+        if id == DatasetId::SciERCNER {
+            // The local NER projection uses sentence/ner arrays in CrossRE-style JSONL.
+            return Some(DatasetParsePlan::DocredJson);
+        }
         if id == DatasetId::CHisIEC {
             // CHisIEC is multi-task and uses a custom JSON array format (not DocRED/CrossRE).
             // It MUST not be auto-detected as DocredJson.
@@ -513,6 +523,9 @@ impl LoadableDatasetId {
             DatasetId::CADEC | DatasetId::ShARe13 | DatasetId::ShARe14
         ) {
             return Some(DatasetParsePlan::CadecHybrid);
+        }
+        if id == DatasetId::FewRel {
+            return Some(DatasetParsePlan::FewRel);
         }
         if id == DatasetId::GoogleRE {
             // The Google relation-extraction-corpus files are not DocRED/CrossRE.
@@ -620,7 +633,6 @@ impl LoadableDatasetId {
                 | DatasetId::BookCoref
                 | DatasetId::BookCorefSplit
                 | DatasetId::WIESP2022NER
-                | DatasetId::FewRel
                 | DatasetId::PIIMasking200k
                 | DatasetId::B2NERD
                 | DatasetId::OpenNER
@@ -760,7 +772,7 @@ impl LoadableDatasetId {
                 }
 
                 // Relation extraction: unambiguous only when the dataset is *only* RE.
-                // Also handle RE datasets that might have NER as secondary task (e.g., SciERCNER).
+                // Also handle RE datasets with NER as a secondary task.
                 "JSON" | "JSONL" if is_re && !is_coref && !is_event => {
                     Some(DatasetParsePlan::DocredJson)
                 }
@@ -1793,6 +1805,19 @@ impl DatasetLoader {
         self.load_with_policy(id, None, PublisherFallback::Allow)
     }
 
+    /// Stage a missing generic input from the configured shared cache. Keep an
+    /// existing local file and its manifest checks authoritative.
+    #[cfg(feature = "eval")]
+    pub(crate) fn stage_from_shared_cache(
+        &self,
+        id: LoadableDatasetId,
+    ) -> Result<DatasetLoadReceipt> {
+        if self.cache_path(id).exists() {
+            return self.load_with_receipt(id);
+        }
+        self.load_with_policy(id, None, PublisherFallback::Forbid)
+    }
+
     /// Require a particular SHA-256 of the generic parser input. Local bytes have priority.
     /// On a cold cache, try the exact S3 snapshot and then the legacy object. Reject a
     /// digest mismatch before publishing newly fetched bytes. A different local version
@@ -2646,11 +2671,8 @@ impl DatasetLoader {
             "https://datasets-server.huggingface.co/splits?dataset={}",
             Self::url_encode_component(dataset)
         );
-        let response = ureq::get(&url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
+        let response = super::http::agent(std::time::Duration::from_secs(30))?
+            .get(&url)
             .call()
             .map_err(|e| Error::InvalidInput(format!("Failed to query HF splits: {}", e)))?;
 
@@ -2688,18 +2710,13 @@ impl DatasetLoader {
     fn download_hf_dataset_file_from_hub(&self, dataset: &str) -> Result<(String, String)> {
         // Example API: https://huggingface.co/api/datasets/coref-data/preco_raw
         let api_url = format!("https://huggingface.co/api/datasets/{}", dataset);
-        let response = ureq::get(&api_url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
-            .call()
-            .map_err(|e| {
-                Error::InvalidInput(format!(
-                    "Failed to query HuggingFace dataset metadata for {}: {}",
-                    dataset, e
-                ))
-            })?;
+        let agent = super::http::agent(std::time::Duration::from_secs(30))?;
+        let response = agent.get(&api_url).call().map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to query HuggingFace dataset metadata for {}: {}",
+                dataset, e
+            ))
+        })?;
 
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
@@ -2748,13 +2765,7 @@ impl DatasetLoader {
 
         // Best-effort: avoid downloading huge files if a max byte limit is configured.
         if let Some(limit) = Self::max_download_bytes() {
-            if let Ok(resp) = ureq::head(&file_url)
-                .config()
-                .timeout_global(Some(std::time::Duration::from_secs(30)))
-                .http_status_as_error(false)
-                .build()
-                .call()
-            {
+            if let Ok(resp) = agent.head(&file_url).call() {
                 if resp.status() == 200 {
                     if let Some(len) = resp
                         .headers()
@@ -3036,14 +3047,15 @@ impl DatasetLoader {
         const MAX_TIMEOUT_SECS: u64 = 120;
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            let response = ureq::get(url)
+            let response = agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
                 .and_then(|response| {
@@ -3194,14 +3206,15 @@ impl DatasetLoader {
         const MAX_BYTES: usize = 50 * 1024 * 1024; // 50 MB limit
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            match agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
             {
@@ -3458,7 +3471,11 @@ impl DatasetLoader {
         // whose registry format is CoNLL. Dispatch it before the format-specific
         // parser: treating the one-line JSON document as CoNLL creates one enormous
         // token and can make downstream model evaluation exhaust memory.
-        if id != DatasetId::PreCo && self.is_hf_api_response(content) {
+        if id != DatasetId::PreCo
+            && plan != DatasetParsePlan::Tacred
+            && plan != DatasetParsePlan::SciErcJson
+            && self.is_hf_api_response(content)
+        {
             return match plan {
                 DatasetParsePlan::CadecHybrid => self.parse_cadec_hf_api(content, id),
                 _ => self.parse_hf_api_response(content, id),
@@ -3480,7 +3497,23 @@ impl DatasetLoader {
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
+            DatasetParsePlan::Tacred => Ok(LoadedDataset {
+                id,
+                sentences: super::tacred::records(content)?
+                    .into_iter()
+                    .map(|record| record.sentence(id))
+                    .collect(),
+                loaded_at: super::timestamp::now(),
+                source_url: id.download_url().to_string(),
+                data_source: DataSource::LocalCache,
+                temporal_metadata: Self::get_temporal_metadata(id),
+                metadata: id.default_metadata(),
+            }),
             DatasetParsePlan::DocredJson => self.parse_docred(content, id),
+            DatasetParsePlan::FewRel => self.parse_fewrel(content),
+            DatasetParsePlan::SciErcJson => {
+                self.parse_crossre_sentences(super::scierc::sentences(content, true)?, id)
+            }
             DatasetParsePlan::GoogleReCorpus => self.parse_google_re_corpus(content, id),
             DatasetParsePlan::ChisiecJson => self.parse_chisiec(content, id),
             DatasetParsePlan::CadecHybrid => {
@@ -4704,20 +4737,21 @@ impl DatasetLoader {
     ///
     /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        self.parse_crossre_sentences(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+            id,
+        )
+    }
+
+    fn parse_crossre_sentences(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+        id: DatasetId,
+    ) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // CrossRE format: sentence array + ner array
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,
@@ -4781,6 +4815,28 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
+    fn parse_fewrel(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::FewRel;
+        let examples = match super::fewrel::read(content) {
+            Ok(examples) => examples,
+            // Older locally prepared BIO caches are valid for the generic sentence
+            // reader. They have no predicates for the relation reader.
+            Err(err) => return self.parse_jsonl_ner(content, id).map_err(|_| err),
+        };
+        Ok(LoadedDataset {
+            id,
+            sentences: examples
+                .into_iter()
+                .map(super::fewrel::Example::into_sentence)
+                .collect(),
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
             metadata: id.default_metadata(),
@@ -5683,7 +5739,7 @@ impl DatasetLoader {
 
     /// Load relation extraction dataset, returning documents with relations.
     ///
-    /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
+    /// Supports CrossRE and locally supplied TACRED and Re-TACRED splits, among others.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if let Some(reason) = id.relation_span_limitation() {
             return Err(Error::InvalidInput(reason.into()));
@@ -5717,8 +5773,14 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<Vec<RelationDocument>> {
         match id {
+            DatasetId::TACRED | DatasetId::ReTACRED => Ok(super::tacred::records(content)?
+                .into_iter()
+                .map(|record| record.document())
+                .collect()),
+            DatasetId::SciERC => {
+                self.parse_crossre_relations(super::scierc::sentences(content, false)?)
+            }
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -5728,6 +5790,10 @@ impl DatasetLoader {
                 // All these datasets use the CrossRE sentence format
                 self.parse_docred_relations(content)
             }
+            DatasetId::FewRel => Ok(super::fewrel::read(content)?
+                .into_iter()
+                .map(super::fewrel::Example::into_document)
+                .collect()),
             DatasetId::CHisIEC => {
                 // CHisIEC uses a different JSON format with entity indices
                 self.parse_chisiec_relations(content)
@@ -5779,22 +5845,20 @@ impl DatasetLoader {
     ///
     /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
     fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
+        self.parse_crossre_relations(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+        )
+    }
+
+    fn parse_crossre_relations(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+    ) -> Result<Vec<RelationDocument>> {
         use super::relation::RelationGold;
-
         let mut documents = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // Get sentence tokens
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,
@@ -7793,15 +7857,17 @@ mod tests {
             assert!(!loader.cache_path(id).exists());
             for reason in [S3FallbackReason::NotFound, S3FallbackReason::AccessDenied] {
                 let failure = |_: &str| Err((reason, Error::InvalidInput("read failed".into())));
-                let res = loader.load_with_fetchers(
-                    id,
-                    Some(&pin),
-                    PublisherFallback::Forbid,
-                    failure,
-                    || panic!("publisher fallback was forbidden"),
-                );
-                assert!(res.is_err());
-                assert!(!loader.cache_path(id).exists());
+                for wanted in [None, Some(pin.as_str())] {
+                    let res = loader.load_with_fetchers(
+                        id,
+                        wanted,
+                        PublisherFallback::Forbid,
+                        failure,
+                        || panic!("publisher fallback was forbidden"),
+                    );
+                    assert!(res.is_err());
+                    assert!(!loader.cache_path(id).exists());
+                }
                 let res = loader.load_with_fetchers(
                     id,
                     Some(&pin),
@@ -7989,6 +8055,27 @@ mod tests {
             loader.compute_sha256("abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn scierc_local_ner_projection_has_no_relation_task() {
+        let id = DatasetId::SciERCNER;
+        assert_eq!(id.tasks_or_inferred(), vec!["ner"]);
+        assert!(!id.is_relation_extraction());
+        assert!(id.requires_local_source());
+        assert!(!id.is_automatable_download());
+        assert!(DatasetId::SciERC.is_relation_extraction());
+
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let example = r#"{"sentence":["A","mosaic","lens"],"ner":[[1,2,"Method"]]}"#;
+        let data = loader.parse_content_str(example, id).unwrap();
+        assert_eq!(data.sentences[0].entities()[0].text, "mosaic lens");
+        assert!(loader
+            .load_relation(id)
+            .unwrap_err()
+            .to_string()
+            .contains("not a relation extraction dataset"));
     }
 
     #[test]
@@ -10227,7 +10314,6 @@ CEO,O
             DatasetId::BookCoref,
             DatasetId::BookCorefSplit,
             DatasetId::WIESP2022NER,
-            DatasetId::FewRel,
             DatasetId::PIIMasking200k,
             DatasetId::B2NERD,
             DatasetId::OpenNER,
@@ -10297,13 +10383,12 @@ CEO,O
 
     #[test]
     fn test_fewrel_jsonl_parse() {
-        // FewRel has relation extraction in JSONL format. Tags use the
-        // documented JsonlNer shape (BIO strings); integer ids are only known
-        // for MultiNERD.
+        // Legacy, locally prepared BIO rows remain readable by the generic loader.
         let fewrel_sample = r#"{"tokens":["John","works","at","Google","."],"ner_tags":["B-PER","O","O","B-ORG","O"]}"#;
 
-        let loader = DatasetLoader::new().unwrap();
-        let result = loader.parse_jsonl_ner(fewrel_sample, DatasetId::FewRel);
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let result = loader.parse_content_str(fewrel_sample, DatasetId::FewRel);
         assert!(result.is_ok());
 
         let dataset = result.unwrap();
