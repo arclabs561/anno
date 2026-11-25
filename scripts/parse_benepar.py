@@ -5,7 +5,7 @@
 #     "benepar==0.2.0",
 #     "nltk==3.10.4",
 #     "spacy>=3.8,<3.9",
-#     "transformers>=4.40,<4.50",
+#     "transformers>=4.57.6,<5",
 #     "torch>=2.6,<3",
 # ]
 # ///
@@ -153,6 +153,8 @@ def main() -> None:
     if not args.download or os.environ.get("ANNO_NO_DOWNLOADS") == "1":
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    # The published parser export is a tensor state dictionary.
+    os.environ["TORCH_FORCE_WEIGHTS_ONLY_LOAD"] = "1"
     with contextlib.redirect_stdout(sys.stderr):
         result = parse_text(text, args.model, args.language, args.download)
     json.dump(result, sys.stdout, ensure_ascii=False)
