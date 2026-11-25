@@ -1,22 +1,19 @@
 # Quickstart
 
-Extract entities with the CLI or a reusable Rust model. The examples below
-start with offline heuristics; model downloads and evaluation are optional.
+Extract entities with the CLI or a reusable Rust model. To try the offline
+Python bindings on a pair of documents, [compare dates in two bulletins](../crates/anno-py/README.md#compare-dates-in-two-bulletins).
 
 ## Install
 
-Run `cargo add anno` for the current published release. To target the 0.16 release line, use this dependency.
-
-```toml
-[dependencies]
-anno = "0.16"
-```
-
-Install the CLI:
+These commands select the releases published on crates.io. Run the first
+from the Rust project that will use Anno.
 
 ```bash
+cargo add anno
 cargo install anno-cli --locked
 ```
+
+To use the library from a local clone, run `cargo add anno --path /path/to/anno/crates/anno` in your project.
 
 For the English heuristic and pattern examples, this smaller build includes
 the Readability HTML extractor and skips the ONNX runtime.
@@ -27,10 +24,11 @@ cargo install anno-cli --locked --no-default-features --features extractor-reada
 
 Single-text scoring with `anno eval` works in the standard CLI. Add
 `--features eval` for dataset benchmarks or cross-document clustering.
-To build from a local clone with those features:
+For commands marked as using this checkout, install the CLI from the repository
+root with those features.
 
 ```bash
-cargo install --path crates/anno-cli --bin anno --features "onnx eval"
+cargo install --locked --path crates/anno-cli --bin anno --features "onnx eval"
 ```
 
 ## CLI: extract entities

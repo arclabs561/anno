@@ -2,14 +2,38 @@
 
 Python bindings for [anno](https://github.com/arclabs561/anno).
 
-The default build uses pattern + heuristic backends: no model downloads and it
-works offline. Offsets count Unicode code points and index Python strings
-directly. A contiguous entity has `e.segments == [(e.start, e.end)]`.
-For a discontinuous entity, `e.start` and `e.end` bound the whole mention,
-including any gaps. Get the exact source pieces with
-`[text[start:end] for start, end in e.segments]`.
+The default extractor runs offline. Offsets count Unicode code points and
+index Python strings directly.
 
-## Install (development)
+## Compare dates in two bulletins
+
+A harbor office extended its application deadline. From the repository root,
+install the released wheel and run the example on the two original notices:
+
+```sh
+cd crates/anno-py
+python3 -m venv .venv
+.venv/bin/python -m pip install anno-py==0.1.0
+.venv/bin/python examples/bulletin_diff.py \
+  examples/bulletins/bulletin-edition-1.txt examples/bulletins/bulletin-edition-2.txt
+grep -n 'public drawing' examples/bulletins/bulletin-edition-*.txt
+```
+
+The JSON shows December 4 removed and December 7 added. Each occurrence
+includes its source line and Unicode character ranges. Each file has a SHA-256.
+The PyPI wheel supplies contiguous spans and leaves the example's `detector`
+field null. The checkout build also supplies the detector when available.
+
+The final command shows that both notices still schedule the drawing on
+December 9. The example compares counts of detected date strings. Passing the
+same file twice gives an empty `date_count_changes` list, as does moving a date
+to another event while preserving its count. Substitute your own UTF-8 files
+to review another pair of editions.
+[Example source](examples/bulletin_diff.py) · [Notice license](examples/bulletins/LICENSE)
+
+## Install from a checkout
+
+From the repository root with `uv` and `maturin` available:
 
 ```sh
 cd crates/anno-py
@@ -28,7 +52,12 @@ for e in ents:
 
 For repeated calls, reuse an extractor: `ex = anno_py.Extractor()`, then `ex.extract(text)`.
 
-Each entity also exposes optional `source`, `method`, and `model_version`
+In a checkout build, a contiguous entity has `e.segments == [(e.start, e.end)]`.
+For a discontinuous entity, `e.start` and `e.end` bound the whole mention,
+including any gaps. Get the exact source pieces with
+`[text[start:end] for start, end in e.segments]`.
+
+Entities from a checkout build also expose optional `source`, `method`, and `model_version`
 fields when its producing backend recorded provenance. `source` identifies the
 layer that produced that entity, which can differ across results from a stacked
 extractor. It does not identify the requested extractor configuration or prove
