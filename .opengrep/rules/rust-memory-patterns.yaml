@@ -1,115 +1,82 @@
-# OpenGrep rules for memory and resource management patterns
-# Catches common memory leaks, unnecessary clones, and resource management issues
-
+# Deliberate copies can use a rule-specific nosemgrep annotation with the
+# ownership or synchronization reason beside the binding.
 rules:
-  # ============================================================================
-  # Unnecessary Cloning
-  # ============================================================================
-  
   - id: unnecessary-clone-in-loop
     patterns:
-      - pattern: |
-          for $ITEM in $ITER {
-            let $CLONED = $VAR.clone();
-            // ... use $CLONED ...
-          }
-      - not:
-          - pattern-either:
-              - pattern: |
-                  // Clone needed for ownership
-              - pattern: |
-                  // Clone necessary for parallel processing
-              - pattern: |
-                  // API requirement
-              - pattern: |
-                  // Ownership transfer
-    message: "Cloning in loop. Consider cloning once before loop or using Arc/Rc for shared ownership. If clone is necessary (ownership transfer, API requirement, parallel processing), add a comment explaining why."
+      - pattern-inside: |
+          for $ITEM in $ITER { ... }
+      - pattern: let $CLONED = $VALUE.clone();
+      - pattern-not: let $CLONED = $ITEM.clone();
+      - pattern-not: let $CLONED = $CACHE.lock().unwrap().clone();
+    message: "Check whether this clone can be shared or moved outside the loop."
     languages: [rust]
     severity: INFO
     metadata:
       category: performance
     paths:
-      include:
-        - "**/eval/**"
-        - "**/backends/**"
+      include: ["**/eval/**", "**/backends/**"]
 
   - id: cache-clone-in-loop
     patterns:
-      - pattern: |
-          for $ITEM in $ITER {
-            let $CACHE = $CACHE_MUTEX.lock().unwrap().clone();
-            // ... use cache ...
-          }
-    message: "Cloning cache in loop. Consider cloning once before loop or using Arc for shared access."
+      - pattern-inside: |
+          for $ITEM in $ITER { ... }
+      - pattern: let $COPY = $CACHE.lock().unwrap().clone();
+    message: "This loop locks and clones the cache on each iteration. Consider sharing one snapshot if its contents may stay fixed."
     languages: [rust]
     severity: WARNING
     metadata:
       category: performance
     paths:
-      include:
-        - "**/eval/**"
+      include: ["**/eval/**"]
 
-  # ============================================================================
-  # Resource Management
-  # ============================================================================
-  
   - id: session-acquire-without-release
     patterns:
-      - pattern: |
+      - pattern-inside: |
           let $SESSION = $POOL.acquire()?;
-          // ... use session ...
-          // No explicit release or drop
-      - not:
-          - pattern: |
-              drop($SESSION);
-              // or RAII pattern
-    message: "Session acquired but not explicitly released. Ensure proper cleanup or use RAII pattern."
+          ...
+      - pattern-either:
+          - pattern: std::mem::forget($SESSION)
+          - pattern: core::mem::forget($SESSION)
+          - pattern: mem::forget($SESSION)
+    message: "Forgetting an acquired session suppresses its destructor. Let its guard leave scope or explicitly release it."
     languages: [rust]
     severity: WARNING
     metadata:
       category: resource-management
     paths:
-      include:
-        - "**/session_pool.rs"
-        - "**/backends/**"
+      include: ["**/session_pool.rs", "**/backends/**"]
 
   - id: arc-clone-unnecessary
-    patterns:
+    pattern-either:
       - pattern: |
-          let $ARC1 = Arc::new($DATA);
-          let $ARC2 = $ARC1.clone();
-          // ... use $ARC2 but could use $ARC1 ...
-      - not:
-          - pattern: |
-              // Arc clone needed for ownership transfer
-    message: "Unnecessary Arc clone. Consider using Arc::clone only when ownership transfer is needed."
+          let $FIRST = Arc::new($DATA);
+          let $SECOND = $FIRST.clone();
+          drop($FIRST);
+      - pattern: |
+          let $FIRST = Arc::new($DATA);
+          let $SECOND = Arc::clone(&$FIRST);
+          drop($FIRST);
+    message: "The original Arc is dropped immediately after this clone. Move it into the new binding instead."
     languages: [rust]
     severity: INFO
     metadata:
       category: performance
     paths:
-      include:
-        - "**/eval/**"
-        - "**/backends/**"
+      include: ["**/eval/**", "**/backends/**"]
 
-  # ============================================================================
-  # Large Data Structures
-  # ============================================================================
-  
   - id: large-vec-clone
     patterns:
-      - pattern: |
-          let $CLONED = $LARGE_VEC.clone();
-      - not:
-          - pattern: |
-              // Clone needed for ownership
-    message: "Cloning large Vec. Consider using Arc<Vec<T>> or Rc<Vec<T>> for shared ownership if appropriate."
+      - pattern-either:
+          - pattern-inside: |
+              fn $F(..., $VALUES: Vec<$T>, ...) { ... }
+          - pattern-inside: |
+              let $VALUES: Vec<$T> = $INIT;
+              ...
+      - pattern: let $COPY = $VALUES.clone();
+    message: "Cloning this Vec copies its elements. For large collections, consider borrowing or sharing the data."
     languages: [rust]
     severity: INFO
     metadata:
       category: performance
     paths:
-      include:
-        - "**/eval/**"
-        - "**/backends/**"
-
+      include: ["**/eval/**", "**/backends/**"]
