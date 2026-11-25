@@ -273,8 +273,22 @@ anno joint --python .venv/bin/python --checkpoint /models/gliner2.5-small-v1 \
 Omit `--text` to stream `{"doc_id":"…","text":"…"}` records on stdin. Each
 output preserves the result-local entity IDs, character offsets, directed
 edges, feasibility and any upstream derived-edge or rescued-mention flags.
-A result describes one document within the checkpoint context. Edges refer to
-mention IDs. Projecting mentions onto coreference tracks is a separate operation.
+For a long document, the worker scores overlapping word windows sized to fit
+the encoder with the schema prompt. `--window-words` sets a ceiling (default
+384) and `--overlap-words` sets the desired overlap (default up to 64).
+`scored_windows` records the actual half-open character ranges. Each candidate
+keeps its source position and label. For identical mention or typed edge
+candidates in overlapping windows, the higher logit wins. One upstream beam
+decode applies endpoint cardinality, symmetry, inverses and acyclicity across
+the complete candidate graph. Its default candidate budgets grow with the
+number of windows. Explicit schema constraints apply across the document.
+
+An edge can be selected only from a scored window or derived under schema
+rules from such an edge. Two endpoints that never share a window have no
+direct model score. Endpoints identify mentions by occurrence. A coreference
+resolver can subsequently link those mentions into tracks. With the Python
+provider installed, run `python crates/anno-cli/tests/test_gliner25_window_candidates.py`
+to exercise cross-window graph constraints without downloading a checkpoint.
 [Upstream JointIE schema and decoder](https://github.com/fastino-ai/GLiNER2/blob/main/tutorial/15-joint_ie.md)
 
 ### Neural: Fastino GLiNER2 (feature `gliner2-fastino`)

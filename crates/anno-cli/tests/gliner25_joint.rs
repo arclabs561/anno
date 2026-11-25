@@ -17,6 +17,7 @@ fn streamed_joint_graph_preserves_unicode_and_fails_the_invalid_row() {
         .arg(std::env::var_os("GLINER25_PYTHON").unwrap())
         .arg("--schema")
         .arg(schema.path())
+        .args(["--window-words", "7", "--overlap-words", "3"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -29,13 +30,39 @@ fn streamed_joint_graph_preserves_unicode_and_fails_the_invalid_row() {
         json!({"doc_id":"one", "text":"Éva works for Acme."})
     )
     .unwrap();
-    writeln!(input, "{}", json!({"doc_id":"two", "text":123})).unwrap();
+    let distant = format!("Éva. {}rain. Acme.", "rain ".repeat(16));
+    writeln!(input, "{}", json!({"doc_id":"far", "text":distant})).unwrap();
+    writeln!(input, "{}", json!({"doc_id":"invalid", "text":123})).unwrap();
     drop(input);
 
     let out = child.wait_with_output().unwrap();
     assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("document 2"));
-    let graph: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(String::from_utf8_lossy(&out.stderr).contains("document 3"));
+    let graphs: Vec<Value> = serde_json::Deserializer::from_slice(&out.stdout)
+        .into_iter()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(graphs.len(), 2);
+    let far = &graphs[1];
+    assert_eq!(far["doc_id"], "far");
+    assert_eq!(far["feasible"], true);
+    let far_entities = far["entities"].as_array().unwrap();
+    let first = far_entities.iter().find(|e| e["text"] == "Éva").unwrap();
+    let last = far_entities
+        .iter()
+        .find(|e| e["type"] == "organization" && e["text"] == "Acme")
+        .unwrap();
+    assert_eq!(
+        (last["start"].as_u64(), last["end"].as_u64()),
+        (Some(91), Some(95))
+    );
+    let windows = far["scored_windows"].as_array().unwrap();
+    assert!(windows.len() > 1);
+    assert!(!windows.iter().any(|w| w["start"].as_u64().unwrap()
+        <= first["start"].as_u64().unwrap()
+        && w["end"].as_u64().unwrap() >= last["end"].as_u64().unwrap()));
+    assert!(far["relations"].as_array().unwrap().is_empty());
+    let graph = &graphs[0];
     assert_eq!(graph["doc_id"], "one");
     assert_eq!(graph["feasible"], true);
     let entities = graph["entities"].as_array().unwrap();

@@ -18,17 +18,31 @@ pub struct JointArgs {
     /// Analyze one document. Otherwise read {doc_id,text} JSONL documents from stdin.
     #[arg(long)]
     text: Option<String>,
+    /// Maximum source words in a scoring window, subject to the encoder's subword budget.
+    #[arg(long, default_value_t = 384)]
+    window_words: usize,
+    /// Maximum overlap between adjacent windows. Defaults to a quarter-window, capped at 64.
+    #[arg(long)]
+    overlap_words: Option<usize>,
     /// Python executable with gliner2[local] installed.
     #[arg(long, default_value = "python3")]
     python: PathBuf,
 }
 
 pub fn run(args: JointArgs) -> Result<(), CliError> {
+    let overlap = args
+        .overlap_words
+        .unwrap_or((args.window_words / 4).min(64));
+    if args.window_words == 0 || overlap >= args.window_words {
+        return Err("--window-words must be positive and greater than --overlap-words".into());
+    }
     let mut worker = Command::new(args.python);
     worker
         .args(["-u", "-c", include_str!("joint.py")])
         .arg(args.checkpoint)
-        .arg(args.schema);
+        .arg(args.schema)
+        .arg(args.window_words.to_string())
+        .arg(overlap.to_string());
     if args.text.is_some() {
         worker.stdin(Stdio::piped());
     }
