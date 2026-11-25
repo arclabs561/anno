@@ -1334,6 +1334,7 @@ jobs:
           cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
           grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
           grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
+          grep -Fxq 'tests/fixtures/tplinker_plus_tags.json' /tmp/pkg.txt
       - name: Upload publish validation log
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
