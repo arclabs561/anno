@@ -2796,13 +2796,22 @@ fn check_dataset_usable(
         .len()
     } else {
         let loadable = LoadableDatasetId::try_from(ds)?;
-        if require_cached {
-            loader.load(loadable)?
+        let receipt = if require_cached {
+            loader.load_with_receipt(loadable)?
         } else {
-            loader.load_or_download(loadable)?
-        }
-        .sentences
-        .len()
+            loader.load_or_download_with_receipt(loadable)?
+        };
+        // A candidate check can warm the local cache before the evaluator loads it.
+        eprintln!(
+            "matrix-muxer: dataset precheck {}",
+            serde_json::json!({
+                "dataset": ds,
+                "dataset_source": receipt.dataset.data_source.to_string(),
+                "dataset_sha256": receipt.content_sha256,
+                "s3_fallback": receipt.s3_fallback,
+            })
+        );
+        receipt.dataset.sentences.len()
     };
     if count == 0 {
         return Err(anno::Error::InvalidInput(
