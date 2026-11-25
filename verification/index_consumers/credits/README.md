@@ -8,6 +8,7 @@ From the repository root, run the same replay used by the index verification sui
 
 ```sh
 python3 verification/index_consumers/credits/check_cases.py
+python3 verification/index_consumers/credits/check_search.py
 cargo test --locked -p anno --no-default-features --test membership_publication
 ```
 
@@ -20,6 +21,8 @@ The three fictional cases contain 13 source editions and 17 deliveries. Each ste
 | A byline and a ledger | If access to the supporting ledger is granted and revoked while its membership rows stay identical, does an already-open public search lose the credit? Can an old delivery restore it? |
 
 The consumer supplies the work, relationship and audience for each source row. The native CLI supplies grounded signals, track membership, qualified catalog bindings and checkpoints. The Rust regression pairs a fixed membership checkpoint with a separate checkpoint covering the publisher's credit decision. The Python reader uses trusted local fixtures and an in-memory cache. The queries cover exact catalog lookups and printed credits. [Rust regression](../../../crates/anno/tests/membership_publication.rs) · [Existing replay suite](../../../scripts/verification/check_index_replay.sh)
+
+A separate SQLite reader installs the ledger editions and reopens the database before each observation. It checks exact search, the count of credited works, autocomplete and the printed byline. Its negative control retains an obsolete autocomplete entry after revocation. Exact search and counts still pass in that faulty reader. Both readers run against a private local database with two simulated audiences. [SQLite search check](check_search.py)
 
 ## Provenance and reuse
 
