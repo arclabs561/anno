@@ -134,3 +134,26 @@ fn source_annotations_and_companions_cannot_be_replaced() {
         "Ada"
     );
 }
+
+#[test]
+fn malformed_brat_mention_reports_its_line_and_preserves_destination() {
+    let root = tempfile::tempdir().unwrap();
+    let annotation = root.path().join("people.ann");
+    let dest = root.path().join("reviewed.jsonl");
+    fs::write(&dest, b"reviewed corpus\n").unwrap();
+    for malformed in [
+        "T2\tPER",
+        "T2\tPER\tZoe",
+        "T2\tPER 8 11",
+        "T2\tPER wrong 11\tZoe",
+    ] {
+        fs::write(&annotation, format!("T1\tPER 0 3\tAda\n{malformed}\n")).unwrap();
+        let result = import_as("brat", &annotation, &dest, false);
+        assert!(!result.status.success(), "{malformed}");
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("line 2"),
+            "{malformed}"
+        );
+        assert_eq!(fs::read(&dest).unwrap(), b"reviewed corpus\n");
+    }
+}

@@ -34,6 +34,13 @@ pub mod singleton;
 pub mod validate;
 pub mod watch;
 
+pub(super) fn parse_similarity_threshold(raw: &str) -> Result<f64, String> {
+    raw.parse::<f64>()
+        .ok()
+        .filter(|value| (0.0..=1.0).contains(value))
+        .ok_or_else(|| format!("similarity threshold must be finite and within 0..=1: {raw}"))
+}
+
 // Heavy/optional commands.
 #[cfg(feature = "eval")]
 pub mod benchmark;

@@ -22,6 +22,7 @@
 //!
 //! Standard benchmarks include DocRED, TACRED, SciERC, and NYT-style corpora.
 
+use super::matching::maximum_cardinality_matching;
 use anno::RelationTriple;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -464,108 +465,76 @@ fn count_document(
     config: &RelationEvalConfig,
     by_label: &mut HashMap<String, (String, RelationTypeMetrics)>,
 ) {
-    let mut gold_matched_boundary = vec![false; gold.len()];
-    let mut gold_matched_strict = vec![false; gold.len()];
-    // Count gold per relation type
+    let mut groups: HashMap<String, LabelGroup<'_>> = HashMap::new();
     for g in gold {
-        let (display, counts) = by_label.entry(g.relation_type.to_lowercase()).or_default();
-        // Prefer the gold spelling. Resolve case variants deterministically across documents.
-        if counts.gold_count == 0 || g.relation_type < *display {
-            display.clone_from(&g.relation_type);
-        }
-        counts.gold_count += 1;
+        groups
+            .entry(g.relation_type.to_lowercase())
+            .or_default()
+            .gold
+            .push(g);
+    }
+    for p in pred {
+        groups
+            .entry(p.relation_type.to_lowercase())
+            .or_default()
+            .predicted
+            .push(p);
     }
 
-    // Count pred per relation type
-    for p in pred {
-        let (display, counts) = by_label.entry(p.relation_type.to_lowercase()).or_default();
-        if counts.gold_count == 0 && (counts.pred_count == 0 || p.relation_type < *display) {
-            display.clone_from(&p.relation_type);
+    for (label, group) in groups {
+        let (display, counts) = by_label.entry(label).or_default();
+        // Prefer the first gold spelling alphabetically across the corpus.
+        for g in &group.gold {
+            if counts.gold_count == 0 || g.relation_type < *display {
+                display.clone_from(&g.relation_type);
+            }
+            counts.gold_count += 1;
         }
-        counts.pred_count += 1;
+        for p in &group.predicted {
+            if counts.gold_count == 0 && (counts.pred_count == 0 || p.relation_type < *display) {
+                display.clone_from(&p.relation_type);
+            }
+            counts.pred_count += 1;
+        }
+        counts.strict_matches += group.match_count(config, |a, b| a == b);
+        counts.boundary_matches += group.match_count(config, |a, b| {
+            calculate_span_overlap(a, b) >= config.overlap_threshold
+        });
     }
+}
 
-    // Strict matching: exact entity spans + relation type
-    for p in pred {
-        for (gi, g) in gold.iter().enumerate() {
-            if gold_matched_strict[gi] {
-                continue;
-            }
+/// Only edges with the same relation label in the same document can match.
+#[derive(Default)]
+struct LabelGroup<'a> {
+    gold: Vec<&'a RelationGold>,
+    predicted: Vec<&'a RelationPrediction>,
+}
 
-            // Relation type must match (case-insensitive)
-            if p.relation_type.to_lowercase() != g.relation_type.to_lowercase() {
-                continue;
-            }
-
-            // Check entity type match if required
-            if config.require_entity_type_match
-                && (p.head_type != g.head_type || p.tail_type != g.tail_type)
-            {
-                continue;
-            }
-
-            // Exact span match (or reversed if undirected)
-            let forward_match = p.head_span == g.head_span && p.tail_span == g.tail_span;
-            let reverse_match = !config.directed_relations
-                && p.head_span == g.tail_span
-                && p.tail_span == g.head_span;
-
-            if forward_match || reverse_match {
-                gold_matched_strict[gi] = true;
-
-                let (_, counts) = by_label
-                    .get_mut(&g.relation_type.to_lowercase())
-                    .expect("counted gold label");
-                counts.strict_matches += 1;
-                break;
-            }
-        }
-    }
-
-    // Boundary matching: overlapping entity spans + relation type
-    for p in pred {
-        for (gi, g) in gold.iter().enumerate() {
-            if gold_matched_boundary[gi] {
-                continue;
-            }
-
-            // Relation type must match (case-insensitive)
-            if p.relation_type.to_lowercase() != g.relation_type.to_lowercase() {
-                continue;
-            }
-
-            if config.require_entity_type_match
-                && (p.head_type != g.head_type || p.tail_type != g.tail_type)
-            {
-                continue;
-            }
-
-            // Boundary match: overlapping spans
-            let head_overlap = calculate_span_overlap(p.head_span, g.head_span);
-            let tail_overlap = calculate_span_overlap(p.tail_span, g.tail_span);
-
-            let forward_match = head_overlap >= config.overlap_threshold
-                && tail_overlap >= config.overlap_threshold;
-
-            let reverse_match = if !config.directed_relations {
-                let rev_head_overlap = calculate_span_overlap(p.head_span, g.tail_span);
-                let rev_tail_overlap = calculate_span_overlap(p.tail_span, g.head_span);
-                rev_head_overlap >= config.overlap_threshold
-                    && rev_tail_overlap >= config.overlap_threshold
-            } else {
-                false
-            };
-
-            if forward_match || reverse_match {
-                gold_matched_boundary[gi] = true;
-
-                let (_, counts) = by_label
-                    .get_mut(&g.relation_type.to_lowercase())
-                    .expect("counted gold label");
-                counts.boundary_matches += 1;
-                break;
-            }
-        }
+impl LabelGroup<'_> {
+    fn match_count(
+        &self,
+        config: &RelationEvalConfig,
+        span_matches: impl Fn((usize, usize), (usize, usize)) -> bool,
+    ) -> usize {
+        // Keep each endpoint's span and type together when testing a reversed edge.
+        let matches = |(a, at): (_, &str), (b, bt): (_, &str)| {
+            (!config.require_entity_type_match || at == bt) && span_matches(a, b)
+        };
+        maximum_cardinality_matching(self.predicted.len(), self.gold.len(), |pi, gi| {
+            let p = self.predicted[pi];
+            let g = self.gold[gi];
+            let head = (p.head_span, p.head_type.as_str());
+            let tail = (p.tail_span, p.tail_type.as_str());
+            let gold_head = (g.head_span, g.head_type.as_str());
+            let gold_tail = (g.tail_span, g.tail_type.as_str());
+            (matches(head, gold_head) && matches(tail, gold_tail))
+                || (!config.directed_relations
+                    && matches(head, gold_tail)
+                    && matches(tail, gold_head))
+        })
+        .into_iter()
+        .flatten()
+        .count()
     }
 }
 
@@ -856,41 +825,64 @@ mod tests {
     }
 
     #[test]
-    fn test_undirected_relations() {
-        let gold = vec![RelationGold::new(
-            (0, 10),
+    fn undirected_matching_moves_each_endpoint_type_with_its_span() {
+        let gold = [RelationGold::new(
+            (0, 4),
             "PER",
-            "Alice",
-            (20, 25),
-            "PER",
-            "Bob",
-            "SIBLING",
+            "John",
+            (10, 12),
+            "ORG",
+            "GE",
+            "associated",
         )];
-        // Reversed head/tail
-        let pred = vec![RelationPrediction {
-            head_span: (20, 25),
-            head_type: "PER".to_string(),
-            tail_span: (0, 10),
-            tail_type: "PER".to_string(),
-            relation_type: "SIBLING".to_string(),
-            confidence: 0.9,
-        }];
-
-        // Directed: should fail
-        let config_directed = RelationEvalConfig {
-            directed_relations: true,
-            ..Default::default()
+        let mut reversed = RelationPrediction {
+            head_span: (10, 12),
+            head_type: "ORG".into(),
+            tail_span: (0, 4),
+            tail_type: "PER".into(),
+            relation_type: "associated".into(),
+            confidence: 1.0,
         };
-        let metrics = evaluate_relations(&gold, &pred, &config_directed);
-        assert!(metrics.strict_f1 < 0.001);
-
-        // Undirected: should succeed
-        let config_undirected = RelationEvalConfig {
-            directed_relations: false,
-            ..Default::default()
+        let score = |pred: &RelationPrediction, directed_relations| {
+            let metrics = evaluate_relations(
+                &gold,
+                std::slice::from_ref(pred),
+                &RelationEvalConfig {
+                    directed_relations,
+                    ..Default::default()
+                },
+            );
+            (metrics.strict_matches, metrics.boundary_matches)
         };
-        let metrics = evaluate_relations(&gold, &pred, &config_undirected);
-        assert!((metrics.strict_f1 - 1.0).abs() < 0.001);
+        assert_eq!(score(&reversed, false), (1, 1));
+        assert_eq!(score(&reversed, true), (0, 0));
+        std::mem::swap(&mut reversed.head_type, &mut reversed.tail_type);
+        assert_eq!(score(&reversed, false), (0, 0));
+    }
+
+    #[test]
+    fn relation_matches_are_maximal_in_every_input_order() {
+        let gold = |span| RelationGold::new(span, "PER", "Ada", (10, 12), "ORG", "GE", "works");
+        let prediction = |span| RelationPrediction {
+            head_span: span,
+            head_type: "PER".into(),
+            tail_span: (10, 12),
+            tail_type: "ORG".into(),
+            relation_type: "WORKS".into(),
+            confidence: 1.0,
+        };
+        // [1,4) can match either gold head. [0,2) can match only [0,4).
+        for heads in [[(0, 4), (1, 4)], [(1, 4), (0, 4)]] {
+            for guesses in [[(1, 4), (0, 2)], [(0, 2), (1, 4)]] {
+                let metrics = evaluate_relations(
+                    &heads.map(gold),
+                    &guesses.map(prediction),
+                    &Default::default(),
+                );
+                assert_eq!((metrics.strict_matches, metrics.boundary_matches), (1, 2));
+                assert_eq!(metrics.per_relation["works"].boundary_f1, 1.0);
+            }
+        }
     }
 
     #[test]

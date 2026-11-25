@@ -279,3 +279,74 @@ fn export_preflights_aliases_and_all_companions() {
     assert!(!run(dir, &out, "ntriples", false));
     assert!(!out.join("doc.nt").exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn missing_directory_source_fails_before_creating_any_export() {
+    let temp = tempfile::tempdir().unwrap();
+    let input = temp.path().join("sources");
+    let out = temp.path().join("out");
+    fs::create_dir(&input).unwrap();
+    fs::write(input.join("available.txt"), "Ada").unwrap();
+    std::os::unix::fs::symlink("absent", input.join("missing.txt")).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_anno"))
+        .arg("export")
+        .arg("--input")
+        .arg(input)
+        .arg("--output")
+        .arg(&out)
+        .args(["--model", "pattern", "--format", "jsonl"])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("missing.txt"));
+    assert!(!out.exists());
+}
+
+#[test]
+fn rdf_segment_coordinates_roundtrip_even_with_an_opaque_occurrence_iri() {
+    let temp = tempfile::tempdir().unwrap();
+    let input = temp.path().join("report.json");
+    let out = temp.path().join("out");
+    let rows = temp.path().join("rows.jsonl");
+    let mut entity = anno::Entity::new("Ada met Zoë", anno::EntityType::Person, 2, 13, 1.0);
+    entity.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![2..5, 10..13]));
+    let doc = anno::GroundedDocument::from_entity_signals("report", "🦊 Ada met Zoë", &[entity]);
+    fs::write(&input, serde_json::to_vec(&doc).unwrap()).unwrap();
+    let revision = "urn:document:version-2";
+    for format in [
+        "jsonld",
+        "ntriples",
+        #[cfg(feature = "graph")]
+        "graph-ntriples",
+    ] {
+        let (mention, _) = export(&input, &out, format, Some(revision));
+        let path = out.join(if format == "jsonld" {
+            "report.jsonld"
+        } else {
+            "report.nt"
+        });
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("sourceSegments"));
+        fs::write(&path, content.replace(&mention, "urn:opaque:mention")).unwrap();
+        let imported = Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args(["dataset", "import", "--format", format, "--input"])
+            .arg(path)
+            .arg("--output")
+            .arg(&rows)
+            .output()
+            .unwrap();
+        assert!(
+            imported.status.success(),
+            "{}",
+            String::from_utf8_lossy(&imported.stderr)
+        );
+        let row: serde_json::Value = serde_json::from_slice(&fs::read(&rows).unwrap()).unwrap();
+        assert_eq!(row["source"], revision);
+        assert_eq!(row["text"], "Ada Zoë");
+        assert_eq!(
+            row["segments"],
+            serde_json::json!([{"start":2,"end":5},{"start":10,"end":13}])
+        );
+    }
+}

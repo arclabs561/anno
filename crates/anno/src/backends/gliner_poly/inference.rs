@@ -329,11 +329,12 @@ impl GLiNERPoly {
             return Ok(vec![]);
         }
 
-        let text_words: Vec<&str> = if self.source_only_text {
-            crate::backends::inference::span::gliner_words(text)
-        } else {
-            text.split_whitespace().collect()
-        };
+        let source = SourceWords::new(text, self.source_only_text);
+        let text_words: Vec<_> = source
+            .words
+            .iter()
+            .map(|range| &text[range.clone()])
+            .collect();
         let num_text_words = text_words.len();
         if num_text_words == 0 {
             return Ok(vec![]);
@@ -435,7 +436,7 @@ impl GLiNERPoly {
             .map_err(|e| Error::Inference(format!("ONNX inference failed: {}", e)))?;
 
         // Decode output.
-        let entities = self.decode_output(&outputs, text, &text_words, entity_types, threshold)?;
+        let entities = self.decode_output(&outputs, &source, entity_types, threshold)?;
         drop(outputs);
         drop(session);
 
@@ -600,8 +601,7 @@ impl GLiNERPoly {
     fn decode_output(
         &self,
         outputs: &ort::session::SessionOutputs,
-        text: &str,
-        text_words: &[&str],
+        source: &SourceWords<'_>,
         entity_types: &[&str],
         threshold: f32,
     ) -> Result<Vec<Entity>> {
@@ -611,16 +611,19 @@ impl GLiNERPoly {
             .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output from poly-encoder model".to_string()))?;
 
-        let (_, data_slice) = output
+        let (shape, logits) = output
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Failed to extract output tensor: {}", e)))?;
-        let output_data: Vec<f32> = data_slice.to_vec();
+        Self::decode_logits(shape, logits, source, entity_types, threshold)
+    }
 
-        let shape: Vec<i64> = match output.dtype() {
-            ort::value::ValueType::Tensor { shape, .. } => shape.iter().copied().collect(),
-            _ => return Err(Error::Parse("Output is not a tensor".to_string())),
-        };
-
+    fn decode_logits(
+        shape: &[i64],
+        output_data: &[f32],
+        source: &SourceWords<'_>,
+        entity_types: &[&str],
+        threshold: f32,
+    ) -> Result<Vec<Entity>> {
         log::debug!(
             "[GLiNERPoly] Output shape: {:?}, data len: {}",
             shape,
@@ -635,7 +638,7 @@ impl GLiNERPoly {
             ));
         }
 
-        let num_words = text_words.len();
+        let num_words = source.words.len();
         let mut entities = Vec::with_capacity(32);
 
         // Span-level output: [batch, num_words, max_width, num_entity_types].
@@ -676,24 +679,11 @@ impl GLiNERPoly {
                             let score = 1.0 / (1.0 + (-logit).exp());
 
                             if score >= threshold {
-                                let (char_start, char_end) = Self::word_span_to_char_offsets(
-                                    text, text_words, word_idx, end_word,
-                                );
-
-                                if char_start == 0 && char_end == 0 && word_idx > 0 {
-                                    // Offset lookup failed; skip this span.
+                                let Some((span_text, char_start, char_end)) =
+                                    source.span(word_idx, end_word)
+                                else {
                                     continue;
-                                }
-
-                                let span_text: String = text
-                                    .chars()
-                                    .skip(char_start)
-                                    .take(char_end.saturating_sub(char_start))
-                                    .collect();
-
-                                if span_text.is_empty() {
-                                    continue;
-                                }
+                                };
 
                                 let entity_type_str =
                                     entity_types.get(class_idx).unwrap_or(&"OTHER");
@@ -741,7 +731,7 @@ impl GLiNERPoly {
                             let end_word = word_idx.saturating_sub(1);
                             let label = entity_types.get(class_idx).unwrap_or(&"OTHER");
                             if let Some(e) = Self::build_bio_entity(
-                                text, text_words, label, start_word, end_word, avg_score,
+                                source, label, start_word, end_word, avg_score,
                             ) {
                                 entities.push(e);
                             }
@@ -754,9 +744,9 @@ impl GLiNERPoly {
                     } else if let Some((start_word, avg_score)) = current_start.take() {
                         let end_word = word_idx.saturating_sub(1);
                         let label = entity_types.get(class_idx).unwrap_or(&"OTHER");
-                        if let Some(e) = Self::build_bio_entity(
-                            text, text_words, label, start_word, end_word, avg_score,
-                        ) {
+                        if let Some(e) =
+                            Self::build_bio_entity(source, label, start_word, end_word, avg_score)
+                        {
                             entities.push(e);
                         }
                     }
@@ -766,9 +756,9 @@ impl GLiNERPoly {
                 if let Some((start_word, avg_score)) = current_start.take() {
                     let end_word = out_num_words.min(num_words).saturating_sub(1);
                     let label = entity_types.get(class_idx).unwrap_or(&"OTHER");
-                    if let Some(e) = Self::build_bio_entity(
-                        text, text_words, label, start_word, end_word, avg_score,
-                    ) {
+                    if let Some(e) =
+                        Self::build_bio_entity(source, label, start_word, end_word, avg_score)
+                    {
                         entities.push(e);
                     }
                 }
@@ -814,29 +804,15 @@ impl GLiNERPoly {
     }
 
     /// Build a BIO-decoded entity if the span is valid, or return `None`.
-    #[allow(clippy::manual_map)] // clarity over brevity for offset validation
     fn build_bio_entity(
-        text: &str,
-        text_words: &[&str],
+        source: &SourceWords<'_>,
         entity_type_str: &str,
         start_word: usize,
         end_word: usize,
         score: f32,
     ) -> Option<Entity> {
-        let num_words = text_words.len();
-        if start_word > end_word || end_word >= num_words {
-            return None;
-        }
-
-        let raw_span = text_words[start_word..=end_word].join(" ");
-        let (start, end) = Self::word_span_to_char_offsets(text, text_words, start_word, end_word);
-
-        if start == 0 && end == 0 && start_word > 0 {
-            return None; // Offset lookup failed.
-        }
-
-        // Trim trailing punctuation that leaks from word-boundary tokenization.
-        let (span_text, trimmed_chars) = textprep::spans::clean_span_tail(&raw_span);
+        let (raw_span, start, end) = source.span(start_word, end_word)?;
+        let (span_text, trimmed_chars) = textprep::spans::clean_span_tail(raw_span);
         if span_text.is_empty() {
             return None;
         }
@@ -851,53 +827,89 @@ impl GLiNERPoly {
             score as f64,
         ))
     }
+}
 
-    /// Convert word indices to character offsets.
-    ///
-    /// Correctly handles Unicode text by converting byte offsets to character
-    /// offsets using the offset module.
-    pub(super) fn word_span_to_char_offsets(
-        text: &str,
-        words: &[&str],
-        start_word: usize,
-        end_word: usize,
-    ) -> (usize, usize) {
-        if words.is_empty()
-            || start_word >= words.len()
-            || end_word >= words.len()
-            || start_word > end_word
-        {
-            return (0, 0);
-        }
+// Both output layouts refer to word indices from the same source tokenizer.
+struct SourceWords<'a> {
+    text: &'a str,
+    words: Vec<std::ops::Range<usize>>,
+    offsets: crate::SpanConverter,
+}
 
-        let mut byte_pos = 0;
-        let mut start_byte = 0;
-        let mut end_byte = text.len();
-        let mut found_start = false;
-        let mut found_end = false;
-
-        for (idx, word) in words.iter().enumerate() {
-            if let Some(pos) = text.get(byte_pos..).and_then(|s| s.find(word)) {
-                let abs_pos = byte_pos + pos;
-
-                if idx == start_word {
-                    start_byte = abs_pos;
-                    found_start = true;
-                }
-                if idx == end_word {
-                    end_byte = abs_pos + word.len();
-                    found_end = true;
-                    break;
-                }
-
-                byte_pos = abs_pos + word.len();
-            }
-        }
-
-        if !found_start || !found_end {
-            (0, 0)
+impl<'a> SourceWords<'a> {
+    fn new(text: &'a str, source_only: bool) -> Self {
+        use std::sync::LazyLock;
+        static WHITESPACE_WORDS: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"\S+").expect("constant word regex"));
+        let words = if source_only {
+            crate::backends::inference::span::gliner_word_ranges(text).collect()
         } else {
-            crate::offset::bytes_to_chars(text, start_byte, end_byte)
+            WHITESPACE_WORDS
+                .find_iter(text)
+                .map(|word| word.range())
+                .collect()
+        };
+        Self {
+            text,
+            words,
+            offsets: crate::SpanConverter::new(text),
+        }
+    }
+
+    fn span(&self, first: usize, last: usize) -> Option<(&'a str, usize, usize)> {
+        let range = self.words.get(first..=last)?;
+        let start = range.first()?.start;
+        let end = range.last()?.end;
+        Some((
+            &self.text[start..end],
+            self.offsets.byte_to_char(start),
+            self.offsets.byte_to_char(end),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod word_span_tests {
+    use super::*;
+
+    #[test]
+    fn model_word_ranges_slice_original_text_and_count_scalars() {
+        let text = "🐟 New York City in 北京.";
+        let words = SourceWords::new(text, true);
+        assert_eq!(words.span(1, 3), Some(("New York City", 2, 15)));
+        assert_eq!(words.span(5, 5), Some(("北京", 19, 21)));
+        assert_eq!(words.span(4, 3), None);
+        assert_eq!(words.span(1, usize::MAX), None);
+        assert_eq!(SourceWords::new("", false).span(0, 0), None);
+    }
+
+    #[test]
+    fn both_logit_layouts_preserve_original_whitespace_and_offsets() {
+        for gap in [" ", "   ", "\t", "\n", "\u{a0}"] {
+            let name = format!("Zoë{gap}Smith");
+            let text = format!("🛶 {name}, left");
+            for source_only in [true, false] {
+                let words = SourceWords::new(&text, source_only);
+                let len = words.words.len();
+                let mut bio = vec![-10.0; 3 * len];
+                bio[1] = 10.0; // begin on Zoë
+                bio[len + 2] = 10.0; // continue through Smith
+                let mut spans = vec![-10.0; 2 * len];
+                spans[3] = 10.0; // start at word 1, width 2
+                for (shape, logits) in
+                    [([3, 1, len as i64, 1], bio), ([1, len as i64, 2, 1], spans)]
+                {
+                    let entities =
+                        GLiNERPoly::decode_logits(&shape, &logits, &words, &["person"], 0.5)
+                            .unwrap();
+                    assert_eq!(entities.len(), 1);
+                    assert_eq!(entities[0].text, name);
+                    assert_eq!(
+                        (entities[0].start(), entities[0].end()),
+                        (2, 2 + name.chars().count())
+                    );
+                }
+            }
         }
     }
 }

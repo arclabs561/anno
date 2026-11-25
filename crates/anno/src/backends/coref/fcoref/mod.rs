@@ -343,8 +343,14 @@ impl FCoref {
         // 1. Tokenize
         let encoding = encode_input(&self.tokenizer, text, self.max_doc_tokens)?;
 
-        let max_candidates =
-            ((encoding.len() as f32 * self.config.top_lambda).ceil() as usize).max(1);
+        let max_candidates = ((encoding
+            .get_attention_mask()
+            .iter()
+            .filter(|&&m| m != 0)
+            .count() as f32
+            * self.config.top_lambda)
+            .ceil() as usize)
+            .max(1);
         let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
 
         // 5. Map token indices to character offsets
@@ -435,6 +441,7 @@ impl FCoref {
         // Score mentions over all document hidden states.
         let mentions_result = scoring::score_mentions(
             &hidden,
+            encoding.get_attention_mask(),
             &self.scorer,
             self.config.max_span_length,
             max_candidates,

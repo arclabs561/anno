@@ -59,3 +59,41 @@ fn word_analysis_obeys_the_document_budget_across_segments() {
     assert_eq!(analysis.clusters.len(), 1);
     assert_eq!(analysis.clusters[0].spans, [(0, 3), (6, 9), (12, 15)]);
 }
+
+#[test]
+fn padding_cannot_displace_source_mentions() {
+    use std::{fs, path::Path};
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fcoref-marker");
+    let config = FCorefConfig {
+        max_span_length: 1,
+        top_lambda: 0.5,
+        ..Default::default()
+    };
+    let text = "x x x x x x";
+    let words: Vec<_> = text.match_indices('x').map(|(i, _)| (i, i + 1)).collect();
+    let analyze = |path: &Path| {
+        let model = FCoref::from_path_with_config(path.to_str().unwrap(), config.clone()).unwrap();
+        let mentions = model.analyze_words(text, &words).unwrap().mentions;
+        mentions
+            .into_iter()
+            .map(|m| (m.character_start, m.character_end, m.raw_mention_score))
+            .collect::<Vec<_>>()
+    };
+    let expected = analyze(&fixture);
+    assert_eq!(expected.len(), 3);
+    let padded = tempfile::tempdir().unwrap();
+    for name in ["encoder.onnx", "scorer_weights.safetensors"] {
+        fs::copy(fixture.join(name), padded.path().join(name)).unwrap();
+    }
+    let mut tokenizer: serde_json::Value =
+        serde_json::from_slice(&fs::read(fixture.join("tokenizer.json")).unwrap()).unwrap();
+    for direction in ["Left", "Right"] {
+        // The marker encoder gives token 3 a higher mention score than any source word.
+        tokenizer["padding"] = serde_json::json!({
+            "strategy": {"Fixed": 16}, "direction": direction, "pad_to_multiple_of": null,
+            "pad_id": 3, "pad_type_id": 0, "pad_token": "Zoë"
+        });
+        fs::write(padded.path().join("tokenizer.json"), tokenizer.to_string()).unwrap();
+        assert_eq!(analyze(padded.path()), expected, "{direction} padding");
+    }
+}
