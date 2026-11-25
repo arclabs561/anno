@@ -6,6 +6,8 @@ This repo's dataset loader supports a tiered cache:
 - optional S3 cache (`ANNO_S3_CACHE=1`, `ANNO_S3_BUCKET=...`) via **AWS CLI** (`aws s3 cp`)
 - fallback URL download (last resort)
 
+Publisher downloads and dataset URL health checks verify HTTPS with bundled roots by default. To use a managed network’s certificate authorities, point `SSL_CERT_FILE` at its PEM trust bundle. An unreadable or empty bundle fails the request.
+
 When S3 is enabled, the loader invokes the AWS CLI using its normal credential chain, including a local AWS profile or short-lived role credentials. The GitHub workflow exchanges a job OIDC token for an AWS role session. Both the AWS trust policy and the workflow event/ref guard must allow the request. The example below grants access to read a dataset prefix. Actual access depends on the deployed IAM and bucket policies.
 
 ## Recommended: AWS OIDC role (no secrets)

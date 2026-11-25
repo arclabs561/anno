@@ -2687,11 +2687,8 @@ impl DatasetLoader {
             "https://datasets-server.huggingface.co/splits?dataset={}",
             Self::url_encode_component(dataset)
         );
-        let response = ureq::get(&url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
+        let response = super::http::agent(std::time::Duration::from_secs(30))?
+            .get(&url)
             .call()
             .map_err(|e| Error::InvalidInput(format!("Failed to query HF splits: {}", e)))?;
 
@@ -2729,18 +2726,13 @@ impl DatasetLoader {
     fn download_hf_dataset_file_from_hub(&self, dataset: &str) -> Result<(String, String)> {
         // Example API: https://huggingface.co/api/datasets/coref-data/preco_raw
         let api_url = format!("https://huggingface.co/api/datasets/{}", dataset);
-        let response = ureq::get(&api_url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
-            .call()
-            .map_err(|e| {
-                Error::InvalidInput(format!(
-                    "Failed to query HuggingFace dataset metadata for {}: {}",
-                    dataset, e
-                ))
-            })?;
+        let agent = super::http::agent(std::time::Duration::from_secs(30))?;
+        let response = agent.get(&api_url).call().map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to query HuggingFace dataset metadata for {}: {}",
+                dataset, e
+            ))
+        })?;
 
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
@@ -2789,13 +2781,7 @@ impl DatasetLoader {
 
         // Best-effort: avoid downloading huge files if a max byte limit is configured.
         if let Some(limit) = Self::max_download_bytes() {
-            if let Ok(resp) = ureq::head(&file_url)
-                .config()
-                .timeout_global(Some(std::time::Duration::from_secs(30)))
-                .http_status_as_error(false)
-                .build()
-                .call()
-            {
+            if let Ok(resp) = agent.head(&file_url).call() {
                 if resp.status() == 200 {
                     if let Some(len) = resp
                         .headers()
@@ -3079,14 +3065,15 @@ impl DatasetLoader {
         const MAX_TIMEOUT_SECS: u64 = 120;
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            match agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
             {
@@ -3241,14 +3228,15 @@ impl DatasetLoader {
         const MAX_BYTES: usize = 50 * 1024 * 1024; // 50 MB limit
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            match agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
             {

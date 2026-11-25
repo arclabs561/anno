@@ -3335,14 +3335,16 @@ fn run_check_health(
     let (tx, rx) = mpsc::channel();
     let mut handles = Vec::new();
 
+    let agent = anno_eval::eval::http::agent(std::time::Duration::from_secs(timeout))
+        .map_err(|e| e.to_string())?;
     // Spawn worker threads
     for dataset_id in datasets_to_check {
         let tx = tx.clone();
         let url = dataset_id.download_url().to_string();
-        let timeout_secs = timeout;
+        let agent = agent.clone();
 
         let handle = thread::spawn(move || {
-            let result = check_single_url(dataset_id.name(), &url, timeout_secs);
+            let result = check_single_url(&agent, &url);
             tx.send((dataset_id, result)).ok();
         });
 
@@ -3479,7 +3481,7 @@ struct URLHealthResult {
 }
 
 #[cfg(feature = "eval")]
-fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResult {
+fn check_single_url(agent: &ureq::Agent, url: &str) -> URLHealthResult {
     if url.is_empty() {
         return URLHealthResult {
             status: "missing".to_string(),
@@ -3497,13 +3499,6 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
         };
     }
 
-    // Use ureq for simple HTTP checking (already a dependency). Error statuses
-    // come back as responses so a 405 can fall back to GET.
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-        .http_status_as_error(false)
-        .build()
-        .into();
     match agent.head(url).call() {
         Ok(response) => {
             let status = response.status().as_u16();

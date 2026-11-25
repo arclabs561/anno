@@ -287,6 +287,8 @@ mod fewrel;
 pub mod harness;
 pub mod history;
 mod history_clock;
+#[cfg(feature = "eval")]
+pub mod http;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
 mod litbank;
