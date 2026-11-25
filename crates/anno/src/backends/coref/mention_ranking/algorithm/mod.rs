@@ -149,6 +149,10 @@ impl MentionRankingCoref {
 
     /// Detect mentions using NER or heuristics.
     fn detect_mentions(&self, text: &str) -> Result<Vec<RankedMention>> {
+        Ok(Self::deduplicate_mentions(self.propose_mentions(text)?))
+    }
+
+    fn propose_mentions(&self, text: &str) -> Result<Vec<RankedMention>> {
         let mut mentions = Vec::new();
 
         // Use NER if available
@@ -708,6 +712,10 @@ impl MentionRankingCoref {
             }
         }
 
+        Ok(mentions)
+    }
+
+    fn deduplicate_mentions(mut mentions: Vec<RankedMention>) -> Vec<RankedMention> {
         // Deduplicate overlapping mentions (prefer longer/earlier)
         mentions.sort_by_key(|m| (m.start, std::cmp::Reverse(m.end)));
         let mut deduped = Vec::new();
@@ -720,7 +728,7 @@ impl MentionRankingCoref {
             }
         }
 
-        Ok(deduped)
+        deduped
     }
 
     /// Link mentions to antecedents and form clusters.
@@ -745,38 +753,8 @@ impl MentionRankingCoref {
         let mut mention_to_cluster: HashMap<usize, usize> = HashMap::new();
         let mut clusters: Vec<Vec<usize>> = Vec::new();
 
-        for (i, mention) in mentions.iter().enumerate() {
-            let mut best_antecedent: Option<usize> = None;
-            // Pronouns get a lower threshold: they rely on type-compat +
-            // gender/number agreement rather than string matching, so their
-            // total scores are inherently lower.
-            let effective_threshold = if mention.mention_type == MentionType::Pronominal {
-                self.config.link_threshold * 0.5
-            } else {
-                self.config.link_threshold
-            };
-            let mut best_score = effective_threshold;
-
-            // Type-specific antecedent limit
-            let max_antecedents = self.config.max_antecedents_for_type(mention.mention_type);
-
-            // Score against previous mentions with type-specific limit
-            for j in (0..i).rev().take(max_antecedents) {
-                let antecedent = &mentions[j];
-
-                // Also check character distance as a fallback
-                let distance = mention.start.saturating_sub(antecedent.end);
-                if distance > self.config.max_distance {
-                    break;
-                }
-
-                let score = self.score_pair(mention, antecedent, distance, Some(text));
-                if score > best_score {
-                    best_score = score;
-                    best_antecedent = Some(j);
-                }
-            }
-
+        for i in 0..mentions.len() {
+            let best_antecedent = self.best_left_antecedent(i, mentions, text, |_, _, _| {});
             if let Some(ant_idx) = best_antecedent {
                 // Link to antecedent's cluster
                 if let Some(&cluster_id) = mention_to_cluster.get(&ant_idx) {
@@ -808,6 +786,48 @@ impl MentionRankingCoref {
                 mentions: indices.into_iter().map(|i| mentions[i].clone()).collect(),
             })
             .collect()
+    }
+
+    fn best_left_antecedent(
+        &self,
+        i: usize,
+        mentions: &[RankedMention],
+        text: &str,
+        mut observe: impl FnMut(usize, f64, f64),
+    ) -> Option<usize> {
+        let mention = &mentions[i];
+        let mut best_antecedent: Option<usize> = None;
+        // Pronouns get a lower threshold: they rely on type-compat +
+        // gender/number agreement rather than string matching, so their
+        // total scores are inherently lower.
+        let effective_threshold = if mention.mention_type == MentionType::Pronominal {
+            self.config.link_threshold * 0.5
+        } else {
+            self.config.link_threshold
+        };
+        let mut best_score = effective_threshold;
+
+        // Type-specific antecedent limit
+        let max_antecedents = self.config.max_antecedents_for_type(mention.mention_type);
+
+        // Score against previous mentions with type-specific limit
+        for j in (0..i).rev().take(max_antecedents) {
+            let antecedent = &mentions[j];
+
+            // Also check character distance as a fallback
+            let distance = mention.start.saturating_sub(antecedent.end);
+            if distance > self.config.max_distance {
+                break;
+            }
+
+            let score = self.score_pair(mention, antecedent, distance, Some(text));
+            observe(j, score, effective_threshold);
+            if score > best_score {
+                best_score = score;
+                best_antecedent = Some(j);
+            }
+        }
+        best_antecedent
     }
 
     /// Easy-first clustering: process high-confidence decisions first.
@@ -1365,6 +1385,9 @@ impl CoreferenceResolver for MentionRankingCoref {
         "MentionRankingCoref"
     }
 }
+
+#[cfg(test)]
+mod gap_trace;
 
 #[cfg(test)]
 mod tests {

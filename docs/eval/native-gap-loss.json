@@ -1,0 +1,1029 @@
+{
+  "data_sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+  "revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "split": "gap-test.tsv",
+  "documents": 128,
+  "gold_pairs": 117,
+  "name_boundary_observations": {
+    "including_possessive_clitic": 10,
+    "multiword_only_subspans": 41,
+    "unproposed_after_open_paren": 2,
+    "unproposed_sentence_initial": 12
+  },
+  "stages": {
+    "cluster_emission": 44,
+    "linked": 6,
+    "proposal": 65,
+    "returned_separately": 2
+  },
+  "endpoint_status_pairs": {
+    "returned / not_proposed_no_overlap": 8,
+    "returned / not_proposed_only_subspans": 21,
+    "returned / not_proposed_other_overlap": 4,
+    "returned / returned": 8,
+    "returned / unlinked_no_earlier_candidate": 1,
+    "returned / unlinked_no_earlier_candidate_above_threshold": 20,
+    "unlinked_no_earlier_candidate / not_proposed_no_overlap": 1,
+    "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 3,
+    "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 5,
+    "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 20,
+    "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 6,
+    "unlinked_no_earlier_candidate_above_threshold / returned": 7,
+    "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 13
+  },
+  "direct_pair_when_retained": {
+    "at_or_below_threshold": 35,
+    "beyond_distance": 11,
+    "selected": 6
+  },
+  "rows": [
+    {
+      "id": "test-1768",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-96",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-1170",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-911",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1257",
+      "candidate": "B",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-1747",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1872",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-1784",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-1935",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-106",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1061",
+      "candidate": "A",
+      "first_loss_or_link": "returned_separately",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-79",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-1631",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1995",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1102",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-1474",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-988",
+      "candidate": "B",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-744",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-658",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-686",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-57",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-142",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1056",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1749",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-814",
+      "candidate": "B",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-1671",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-540",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-283",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-709",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-232",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-483",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1402",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-861",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-910",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-275",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1610",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1805",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-792",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1193",
+      "candidate": "B",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-1036",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1946",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-428",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-893",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1372",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_after_open_paren"
+    },
+    {
+      "id": "test-722",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1339",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-24",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-1839",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1137",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1556",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-274",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-119",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-907",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-449",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-1385",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1786",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-301",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1437",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-41",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1165",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-818",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-1064",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-906",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-770",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1238",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1492",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_after_open_paren"
+    },
+    {
+      "id": "test-1707",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-73",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1977",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-693",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1821",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1482",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1795",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1107",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1352",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1660",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1632",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-1820",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1080",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-15",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-177",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-1542",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1169",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1957",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-732",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-264",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1047",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-74",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-90",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1062",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-286",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-101",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1849",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-1497",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1101",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-841",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-905",
+      "candidate": "A",
+      "first_loss_or_link": "returned_separately",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-543",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-282",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-821",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-1336",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-7",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    },
+    {
+      "id": "test-58",
+      "candidate": "B",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-634",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-466",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-214",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1452",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-984",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1618",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-118",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-87",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "name",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-549",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_only_subspans",
+      "name_boundary_observation": "multiword_only_subspans"
+    },
+    {
+      "id": "test-1086",
+      "candidate": "A",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "at_or_below_threshold"
+    },
+    {
+      "id": "test-33",
+      "candidate": "A",
+      "first_loss_or_link": "linked",
+      "pronoun": "returned",
+      "name": "returned",
+      "later_endpoint": "pronoun",
+      "direct_pair": "selected"
+    },
+    {
+      "id": "test-1291",
+      "candidate": "A",
+      "first_loss_or_link": "proposal",
+      "pronoun": "returned",
+      "name": "not_proposed_no_overlap",
+      "name_boundary_observation": "unproposed_sentence_initial"
+    },
+    {
+      "id": "test-1594",
+      "candidate": "B",
+      "first_loss_or_link": "proposal",
+      "pronoun": "unlinked_no_earlier_candidate_above_threshold",
+      "name": "not_proposed_other_overlap",
+      "name_boundary_observation": "including_possessive_clitic"
+    },
+    {
+      "id": "test-1612",
+      "candidate": "B",
+      "first_loss_or_link": "cluster_emission",
+      "pronoun": "returned",
+      "name": "unlinked_no_earlier_candidate_above_threshold",
+      "later_endpoint": "pronoun",
+      "direct_pair": "beyond_distance"
+    }
+  ]
+}
