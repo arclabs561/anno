@@ -39,7 +39,8 @@ use std::sync::LazyLock;
 /// Output spans are flat. A date in an HTTP(S) path stays inside the URL span.
 /// Dates in the surrounding text have their own spans.
 ///
-////// # Example
+///
+/// # Example
 ///
 /// ```rust
 /// use anno::{RegexNER, Model};
