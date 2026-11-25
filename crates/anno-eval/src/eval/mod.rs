@@ -303,6 +303,7 @@ pub mod provenance;
 pub mod relation;
 pub mod report;
 pub mod sampling;
+mod scierc;
 pub mod shell_nouns;
 pub mod synthetic;
 pub mod synthetic_gen;

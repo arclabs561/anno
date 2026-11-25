@@ -145,6 +145,7 @@ enum DatasetParsePlan {
     TweetNer7,
     Tacred,
     DocredJson,
+    SciErcJson,
     GoogleReCorpus,
     FewRel,
     ChisiecJson,
@@ -504,6 +505,9 @@ impl LoadableDatasetId {
         // Hybrids / special cases first.
         if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
             return Some(DatasetParsePlan::Tacred);
+        }
+        if id == DatasetId::SciERC {
+            return Some(DatasetParsePlan::SciErcJson);
         }
         if id == DatasetId::SciERCNER {
             // The local NER projection uses sentence/ner arrays in CrossRE-style JSONL.
@@ -3511,6 +3515,7 @@ impl DatasetLoader {
         // token and can make downstream model evaluation exhaust memory.
         if id != DatasetId::PreCo
             && plan != DatasetParsePlan::Tacred
+            && plan != DatasetParsePlan::SciErcJson
             && self.is_hf_api_response(content)
         {
             return match plan {
@@ -3548,6 +3553,9 @@ impl DatasetLoader {
             }),
             DatasetParsePlan::DocredJson => self.parse_docred(content, id),
             DatasetParsePlan::FewRel => self.parse_fewrel(content),
+            DatasetParsePlan::SciErcJson => {
+                self.parse_crossre_sentences(super::scierc::sentences(content, true)?, id)
+            }
             DatasetParsePlan::GoogleReCorpus => self.parse_google_re_corpus(content, id),
             DatasetParsePlan::ChisiecJson => self.parse_chisiec(content, id),
             DatasetParsePlan::CadecHybrid => {
@@ -4771,20 +4779,21 @@ impl DatasetLoader {
     ///
     /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        self.parse_crossre_sentences(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+            id,
+        )
+    }
+
+    fn parse_crossre_sentences(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+        id: DatasetId,
+    ) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // CrossRE format: sentence array + ner array
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,
@@ -5810,6 +5819,9 @@ impl DatasetLoader {
                 .into_iter()
                 .map(|record| record.document())
                 .collect()),
+            DatasetId::SciERC => {
+                self.parse_crossre_relations(super::scierc::sentences(content, false)?)
+            }
             DatasetId::CrossREAI
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -5875,22 +5887,20 @@ impl DatasetLoader {
     ///
     /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
     fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
+        self.parse_crossre_relations(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+        )
+    }
+
+    fn parse_crossre_relations(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+    ) -> Result<Vec<RelationDocument>> {
         use super::relation::RelationGold;
-
         let mut documents = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // Get sentence tokens
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,

@@ -10,3 +10,4 @@ AnnoTimexContrast.cache	local	annotimexcontrast
 TACRED.cache	local	tacred,Tacred,t_a_c_r_e_d
 ReTACRED.cache	local	retacred,re_tacred,re_t_a_c_r_e_d
 SciERCNER.cache	local	sciercner,scierc_ner
+SciERC.cache	local	scierc,sci_erc

@@ -256,6 +256,10 @@ The June 3, 2024 issue yielded 53 anchors in 47 abstracts. A separate September 
 repeat comparisons. Use `--cases PATH` to inspect individual spans and look
 up the corresponding Federal Register document number.
 
+## Score a SciERC split
+
+Put an authorized `processed_data/json/{train,dev,test}.json` split from the authors’ processed archive at `$ANNO_CACHE_DIR/datasets/SciERC.cache`. Run `anno dataset eval --task relation --dataset SciERC --model heuristic`. The scorer evaluates each sentence separately, retains sentences with no gold relations, and resolves nested arguments using the release’s document-relative token indices. Flat NER keeps the leftmost non-overlapping mentions, preferring the longest at a shared start. The separate `SciERCNER.cache` input accepts an already normalized sentence-level NER projection. [SciERC release and annotation guidelines](https://nlp.cs.washington.edu/sciIE/)
+
 ## Score cross-document linkage on ECB+
 
 Run the cross-document example with the pinned ECB+ release in the dataset cache, or let the loader fetch it. Pass the published sentence-index CSV to restrict annotations to the recommended sentences. `ANNO_CDCR_MAX_DOCS=12` selects a sorted prefix for a bounded diagnostic. Omit the variable to score the full panel. CI runs independently authored fixtures without downloading the release.

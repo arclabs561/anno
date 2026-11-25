@@ -797,8 +797,9 @@ DATASETS = {
     
     "scierc": {
         "group": "scientific",
-        "hf_dataset": "allenai/scierc",
-        "output": "scierc.json",
+        "manual": True,
+        "url": "https://nlp.cs.washington.edu/sciIE/",
+        "output": "SciERC.cache",
         "description": "SciERC: Scientific entities and relations",
     },
     "sciie": {

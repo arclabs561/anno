@@ -334,6 +334,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         ],
         Task::DiscontinuousNER => &[DatasetId::CADEC, DatasetId::ShARe13, DatasetId::ShARe14],
         Task::RelationExtraction => &[
+            DatasetId::SciERC,
             DatasetId::CrossREAI,
             DatasetId::ReTACRED,
             DatasetId::TACRED,
