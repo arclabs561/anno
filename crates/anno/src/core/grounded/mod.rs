@@ -87,7 +87,9 @@
 //! - Groma: Grounded multimodal assistant
 
 pub mod html_source;
+pub mod source_map;
 use html_source::HtmlSource;
+pub use source_map::{SourceKind, SourceMap, SourceRun};
 
 mod corpus_state;
 pub use corpus_state::Corpus;
@@ -1509,6 +1511,8 @@ pub enum CorefRunReport {
 struct GroundedDocumentWire {
     #[serde(default)]
     html_source: Option<Box<HtmlSource>>,
+    #[serde(default)]
+    source_map: Option<Box<SourceMap>>,
     id: String,
     text: String,
     #[serde(default)]
@@ -1545,8 +1549,15 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         if let Some(source) = &wire.html_source {
             source.validate(&wire.text)?;
         }
+        if let Some(map) = &wire.source_map {
+            map.validate_analyzed(&wire.text)?;
+            if let Some(html) = &wire.html_source {
+                map.check_html_identity(html)?;
+            }
+        }
         let mut doc = Self {
             html_source: wire.html_source,
+            source_map: wire.source_map,
             id: wire.id,
             text: wire.text,
             coref_backend,
@@ -1642,6 +1653,8 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
 pub struct GroundedDocument {
     /// Original UTF-8 HTML coordinates of spans projected at extraction time.
     html_source: Option<Box<HtmlSource>>,
+    /// Byte provenance for the complete analyzed text.
+    source_map: Option<Box<SourceMap>>,
     /// Document identifier
     id: String,
     /// Raw text content
@@ -1689,6 +1702,7 @@ impl Serialize for GroundedDocument {
             }
         }
         let fields = 5
+            + usize::from(self.source_map.is_some())
             + usize::from(self.html_source.is_some())
             + usize::from(self.coref_backend.is_some())
             + usize::from(self.coref_run.is_some())
@@ -1696,6 +1710,9 @@ impl Serialize for GroundedDocument {
         let mut wire = serializer.serialize_struct("GroundedDocument", fields)?;
         if let Some(html) = &self.html_source {
             wire.serialize_field("html_source", html)?;
+        }
+        if let Some(map) = &self.source_map {
+            wire.serialize_field("source_map", map)?;
         }
         wire.serialize_field("id", &self.id)?;
         wire.serialize_field("text", &self.text)?;
@@ -1721,6 +1738,7 @@ impl GroundedDocument {
     pub fn new(id: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
             html_source: None,
+            source_map: None,
             id: id.into(),
             text: text.into(),
             coref_backend: None,
@@ -1741,6 +1759,9 @@ impl GroundedDocument {
     /// Attach HTML source projections after checking the rendered text identity and ranges.
     pub fn record_html_source(&mut self, source: HtmlSource) -> Result<(), String> {
         source.validate(&self.text)?;
+        if let Some(map) = self.source_map() {
+            map.check_html_identity(&source)?;
+        }
         self.html_source = Some(Box::new(source));
         Ok(())
     }

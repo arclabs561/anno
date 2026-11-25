@@ -144,7 +144,9 @@ pub use crate::core::{
     ValidationIssue,
 };
 
-pub use crate::core::grounded::{CorefAttemptFailure, CorefRunReport, SignalValidationError};
+pub use crate::core::grounded::{
+    CorefAttemptFailure, CorefRunReport, SignalValidationError, SourceKind, SourceMap, SourceRun,
+};
 pub use crate::core::types::{ByteOffset, CanonicalId, CharOffset};
 
 // Re-export commonly used types
