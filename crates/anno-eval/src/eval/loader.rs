@@ -407,6 +407,7 @@ impl LoadableDatasetId {
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
             DatasetId::CrossREAI
+            | DatasetId::CrossRELiterature
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -5781,6 +5782,7 @@ impl DatasetLoader {
                 self.parse_crossre_relations(super::scierc::sentences(content, false)?)
             }
             DatasetId::CrossREAI
+            | DatasetId::CrossRELiterature
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED

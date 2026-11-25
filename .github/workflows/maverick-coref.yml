@@ -1,0 +1,45 @@
+name: Maverick coreference verification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/maverick-coref.yml'
+      - 'crates/anno/src/backends/coref/maverick*'
+      - 'crates/anno/tests/fixtures/maverick-worker.sh'
+      - 'crates/anno/Cargo.toml'
+      - 'scripts/qa/maverick/**'
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cargo test --locked -p anno --no-default-features --lib backends::coref::maverick::tests
+
+  real-weights:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.14'
+      - name: Install pinned CPU runtime
+        run: |
+          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu 'torch==2.8.0+cpu'
+          python -m pip install -r scripts/qa/maverick/requirements-cpu-py312.txt
+          python -m pip check
+      - name: Verify checkpoint and encoder digests and run offline inference
+        run: python scripts/qa/maverick/verify.py "$RUNNER_TEMP"

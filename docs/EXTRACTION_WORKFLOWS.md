@@ -255,7 +255,14 @@ page content the model sees. For a fetched page, save the UTF-8 HTML you want to
 identify and pass that file to `--file`. Its digest and offsets refer to the
 saved bytes.
 
-The document's `html_source` records SHA-256 digests of the source file and
+Use `anno query source-span result.json START END --original page.html` to project
+a half-open character range in the analyzed text to the original file. This
+also works when `--clean` or `--normalize` changes the rendered text. The
+grounded `source_map` composes those steps. Preserve individual fragments
+when inline markup interrupts a mention.
+
+When the analyzed text still matches the mapped renderer output, the legacy
+`html_source` also records SHA-256 digests of the source file and
 rendered `text`. Match a signal's half-open character range to a `spans` entry's
 `rendered_chars`. Discontinuous mentions have a separate entry for each component.
 Each fragment identifies UTF-8 byte ranges in both the rendered text and the
@@ -265,5 +272,4 @@ complete character reference, such as `&#64;`. `whitespace_collapsed`,
 `synthetic`, and `unknown` identify an approximate origin, which can include
 an entire text run or tag. For a gap in the renderer map, `unmapped` has a rendered byte
 range and `null` source bytes. Check the source digest before using these byte ranges. Direct
-fragments can be compared byte for byte with the rendered text. The CLI
-rejects `--clean` and `--normalize` because those transformations can move offsets.
+fragments can be compared byte for byte with the rendered text.

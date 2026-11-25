@@ -336,6 +336,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         Task::RelationExtraction => &[
             DatasetId::SciERC,
             DatasetId::CrossREAI,
+            DatasetId::CrossRELiterature,
             DatasetId::ReTACRED,
             DatasetId::TACRED,
             DatasetId::NYTFB,
@@ -430,10 +431,14 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // Zero-shot NER backends (implement Model + ZeroShotNER)
         "gliner_onnx" | "GLiNEROnnx" => &[Task::NER],
         "gliner_candle" | "GLiNERCandle" => &[Task::NER],
-        "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
+        "gliner25" | "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
-        "gliner_relex" | "relex" => &[Task::NER], // local entity-logit export
+        #[cfg(feature = "onnx")]
+        "gliner_relex" | "relex" if anno::GLiNEROnnx::relex_joint_export_available() => {
+            &[Task::NER, Task::RelationExtraction]
+        }
+        "gliner_relex" | "relex" => &[Task::NER],
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
         // Multi-task backends (GLiNER multi-task implements multiple traits)
@@ -462,7 +467,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "tplinker" | "TPLinker" => &[Task::RelationExtraction],
 
         // Neural coreference backends (implement CorefBackend -- text-based)
-        "fcoref" | "f-coref" => &[Task::IntraDocCoref],
+        "fcoref" | "f-coref" | "maverick" => &[Task::IntraDocCoref],
 
         // These resolvers link mentions within one document at a time.
         "coref_resolver" | "CorefResolver" | "SimpleCorefResolver" | "DiscourseAwareResolver" => {
@@ -545,6 +550,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "gliner_candle",
         "gliner_multitask",
         "gliner2_fastino",
+        "gliner25",
         "gliner_pii",
         "gliner_relex",
         "w2ner",
@@ -558,6 +564,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "coref_resolver",
         "mention_ranking",
         "fcoref",
+        "maverick",
     ] {
         if backend_tasks(backend).contains(&task) {
             backends.push(backend);
@@ -622,6 +629,7 @@ impl TaskMapping {
             "gliner_onnx",
             "gliner_candle",
             "gliner_poly",
+            "gliner_relex",
             "gliner_multitask",
             "universal_ner",
             "w2ner",
@@ -688,12 +696,20 @@ mod tests {
     }
 
     #[test]
-    fn relex_entity_export_is_only_sampled_for_ner() {
+    fn relex_relation_capability_tracks_joint_export() {
+        #[cfg(feature = "onnx")]
+        let has_joint_export = anno::GLiNEROnnx::relex_joint_export_available();
+        #[cfg(not(feature = "onnx"))]
+        let has_joint_export = false;
         for alias in ["gliner_relex", "relex"] {
-            assert_eq!(backend_tasks(alias), &[Task::NER]);
+            assert!(backend_tasks(alias).contains(&Task::NER));
+            assert_eq!(
+                backend_tasks(alias).contains(&Task::RelationExtraction),
+                has_joint_export
+            );
         }
         let relation = get_task_backends(Task::RelationExtraction);
-        assert!(!relation.contains(&"gliner_relex"));
+        assert_eq!(relation.contains(&"gliner_relex"), has_joint_export);
         assert!(relation.contains(&"tplinker") && relation.contains(&"gliner_multitask"));
     }
 

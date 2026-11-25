@@ -1,6 +1,7 @@
 //! Extract command - Level 1 (Signal): Raw entity extraction
 
 mod html_source;
+mod input_map;
 use html_source::MappedHtml;
 
 use clap::Parser;
@@ -9,15 +10,13 @@ use std::time::Instant;
 
 use super::super::output::{color, log_info, print_annotated_signals, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
-use super::super::utils::get_input_text;
+use super::super::utils::{get_input_text, get_mapped_input_text};
 use anno::heuristics::{detect_quantifier_en, is_negated_en};
 use anno::{Confidence, Language};
 
 #[cfg(feature = "eval")]
 use crate::cli::ingest::CompositeResolver;
-use anno::backends::inference::{
-    extract_relation_triples_simple, RelationExtractionConfig, RelationExtractor,
-};
+use anno::backends::inference::{extract_relation_triples_simple, RelationExtractionConfig};
 use anno::core::grounded::{GroundedDocument, Location, Modality, Quantifier, Signal, SignalId};
 #[cfg(feature = "graph")]
 use anno::graph::{GraphDocument, GraphExportFormat};
@@ -37,6 +36,10 @@ pub struct ExtractArgs {
     /// Read input from file
     #[arg(short, long, value_name = "PATH")]
     pub file: Option<String>,
+
+    /// Earlier source map for externally prepared input (bare map or mapped document JSON).
+    #[arg(long, value_name = "PATH")]
+    pub input_source_map: Option<std::path::PathBuf>,
 
     /// Model backend to use
     #[arg(short, long, value_name = "MODEL")]
@@ -114,7 +117,7 @@ pub struct ExtractArgs {
     pub url: Option<String>,
 
     /// Render a UTF-8 HTML file with source byte fragments in grounded JSON
-    #[arg(long, requires = "file", conflicts_with_all = ["url", "text", "positional", "clean", "normalize"])]
+    #[arg(long, requires = "file", conflicts_with_all = ["url", "text", "positional"])]
     pub html_source_spans: bool,
 
     /// Clean and normalize text before extraction
@@ -162,16 +165,17 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     let model = args.model.unwrap_or_default();
     let format = if args.html_source_spans {
-        if args
-            .format
-            .is_some_and(|format| !matches!(format, OutputFormat::Grounded))
-            || (args.export.is_some() && args.export_format != "full")
-        {
+        if args.format.is_some_and(|format| {
+            !matches!(
+                format,
+                OutputFormat::Grounded | OutputFormat::Json | OutputFormat::Jsonl
+            )
+        }) {
             return Err(CliError::from(
-                "--html-source-spans requires grounded output and full exports",
+                "--html-source-spans requires grounded, JSON or JSONL output",
             ));
         }
-        OutputFormat::Grounded
+        args.format.unwrap_or(OutputFormat::Grounded)
     } else {
         args.format.unwrap_or_default()
     };
@@ -182,6 +186,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
+    let needs_source_map = matches!(
+        format,
+        OutputFormat::Grounded | OutputFormat::Json | OutputFormat::Jsonl
+    ) || args.export.is_some()
+        || args.input_source_map.is_some();
     let mapped_html = if args.html_source_spans {
         let path = args
             .file
@@ -191,8 +200,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     } else {
         None
     };
-    let (mut raw_text, source_url, declared_language) = if let Some(html) = &mapped_html {
-        (html.text.clone(), None, None)
+    let (mut raw_text, mut source_map, source_url, declared_language) = if let Some(html) =
+        &mapped_html
+    {
+        (html.text.clone(), Some(html.source_map()?), None, None)
     } else if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
@@ -214,7 +225,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 }
                 Language::from_code(primary)
             });
-            (resolved.text, Some(resolved.source_url), declared)
+            (
+                resolved.text,
+                needs_source_map.then_some(resolved.source_map),
+                Some(resolved.source_url),
+                declared,
+            )
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -224,15 +240,20 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 "URL resolution requires 'eval' feature. Enable with: cargo build --features eval",
             ));
         }
+    } else if needs_source_map {
+        let (text, map) = get_mapped_input_text(&args.text, args.file.as_deref(), &args.positional)
+            .map_err(CliError::from)?;
+        (text, Some(map), None::<String>, None::<Language>)
     } else {
-        (
-            get_input_text(&args.text, args.file.as_deref(), &args.positional)
-                .map_err(CliError::from)?,
-            None::<String>,
-            None::<Language>,
-        )
+        let text = get_input_text(&args.text, args.file.as_deref(), &args.positional)
+            .map_err(CliError::from)?;
+        (text, None, None, None)
     };
 
+    if let (Some(path), Some(ingest)) = (&args.input_source_map, &mut source_map) {
+        *ingest = input_map::compose(path, ingest, &raw_text, args.file.as_deref())
+            .map_err(CliError::from)?;
+    }
     // Preprocess text if requested
     let mut language = declared_language
         .filter(|_| args.detect_lang)
@@ -245,7 +266,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             detect_language: infer_language,
             chunk_size: None,
         };
-        let prepared = preprocessor.prepare(&raw_text);
+        let prepared =
+            if let Some(upstream) = source_map.as_mut().filter(|_| args.clean || args.normalize) {
+                let (prepared, step) = preprocessor
+                    .prepare_mapped(&raw_text)
+                    .map_err(CliError::from)?;
+                *upstream = step.compose(upstream).map_err(CliError::from)?;
+                prepared
+            } else {
+                preprocessor.prepare(&raw_text)
+            };
         if let Some(detected) = prepared
             .metadata
             .get("detected_language")
@@ -343,39 +373,47 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
         Ok((entities, backend.name()))
     };
+    let mut ran_joint = false;
+    let mut relation_provenance = None;
     let (mut entities, mut relation_triples, runtime_model) = if args.extract_relations {
-        let entity_schema: Vec<&str> = if let Some(ref custom_types) = extract_types {
-            custom_types.iter().map(|s| s.as_str()).collect()
+        let backend = model.create_model().map_err(CliError::from)?;
+        let entity_schema: Vec<&str> = extract_types.iter().flatten().map(String::as_str).collect();
+        if let Some(extractor) = backend.as_relation_extractor() {
+            let rel_schema: Vec<&str> = relation_types.iter().map(String::as_str).collect();
+            let (out, producer) = extractor
+                .extract_with_relation_provenance(
+                    &text,
+                    &entity_schema,
+                    &rel_schema,
+                    relation_threshold,
+                )
+                .map_err(|e| CliError::from(format!("Relation extraction failed: {e}")))?;
+            ran_joint = true;
+            relation_provenance = producer;
+            (out.entities, out.relations, backend.name())
         } else {
-            Vec::new()
-        };
-        let rel_schema: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
-
-        match model {
-            ModelBackend::Tplinker => {
-                let re = anno::backends::tplinker::TPLinker::new()
-                    .map_err(|e| CliError::from(format!("Failed to init tplinker: {}", e)))?;
-                let out = re
-                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
-                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations, anno::Model::name(&re))
-            }
             #[cfg(feature = "onnx")]
-            ModelBackend::GlinerMultitask => {
-                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
-                let re = GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
-                    .map_err(|e| {
-                        CliError::from(format!("Failed to init gliner_multitask: {}", e))
-                    })?;
-                let out = re
-                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
-                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations, anno::Model::name(&re))
+            if matches!(model, ModelBackend::GlinerRelex) {
+                return Err(CliError::from("GLiNER-Relex relations require the joint export. Run uv run scripts/export_gliner_relex_onnx.py --joint"));
             }
-            _ => {
-                let (entities, runtime) = standard_extraction()?;
-                (entities, Vec::new(), runtime)
+            let entities = match (extract_types.as_ref(), backend.as_zero_shot()) {
+                (Some(_), Some(extractor)) => extractor.extract_with_types(
+                    &text,
+                    &entity_schema,
+                    args.threshold.unwrap_or(0.5) as f32,
+                ),
+                _ => {
+                    if extract_types.is_some() && !args.quiet {
+                        eprintln!(
+                            "{} This backend ignores custom entity types.",
+                            color("33", "warning:")
+                        );
+                    }
+                    backend.extract_entities(&text, None)
+                }
             }
+            .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
+            (entities, Vec::new(), backend.name())
         }
     } else {
         let (entities, runtime) = standard_extraction()?;
@@ -383,11 +421,6 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     };
 
     let elapsed = start.elapsed();
-
-    // Apply confidence threshold if requested
-    if let Some(threshold) = args.threshold {
-        entities.retain(|e| e.confidence >= threshold);
-    }
 
     // Filter by labels/types if specified
     let mut type_filters: Vec<String> = Vec::new();
@@ -401,42 +434,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
     }
 
-    if !type_filters.is_empty() {
+    if args.threshold.is_some() || !type_filters.is_empty() {
         let normalized: std::collections::HashSet<String> = type_filters
             .iter()
             .map(|t| anno::EntityType::from_label(t).as_label().to_string())
             .collect();
-
-        // If relations were extracted jointly, we must keep relation indices consistent when
-        // filtering entities. Remap indices and drop relations that reference filtered entities.
-        if args.extract_relations && !relation_triples.is_empty() {
-            let mut old_to_new: Vec<Option<usize>> = vec![None; entities.len()];
-            let mut new_entities: Vec<anno::Entity> = Vec::new();
-            for (i, e) in entities.iter().enumerate() {
-                if normalized.contains(e.entity_type.as_label()) {
-                    old_to_new[i] = Some(new_entities.len());
-                    new_entities.push(e.clone());
-                }
-            }
-            let mut new_rel = Vec::new();
-            for r in &relation_triples {
-                if let (Some(h), Some(t)) = (
-                    old_to_new.get(r.head_idx).and_then(|x| *x),
-                    old_to_new.get(r.tail_idx).and_then(|x| *x),
-                ) {
-                    new_rel.push(anno::RelationTriple {
-                        head_idx: h,
-                        tail_idx: t,
-                        relation_type: r.relation_type.clone(),
-                        confidence: r.confidence,
-                    });
-                }
-            }
-            entities = new_entities;
-            relation_triples = new_rel;
-        } else {
-            entities.retain(|e| normalized.contains(e.entity_type.as_label()));
-        }
+        retain_endpoints(&mut entities, &mut relation_triples, |_, entity| {
+            args.threshold
+                .is_none_or(|threshold| entity.confidence >= threshold)
+                && (normalized.is_empty() || normalized.contains(entity.entity_type.as_label()))
+        });
     }
 
     // GLiNER UX: hint when zero entities returned without custom types
@@ -491,13 +498,17 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations were requested but we didn't run a joint extractor, do heuristic relation
     // detection over the final entity list.
-    if args.extract_relations && relation_triples.is_empty() {
+    if args.extract_relations && !ran_joint {
         let rel_strs: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
         let cfg = RelationExtractionConfig {
             threshold: Confidence::new(relation_threshold as f64),
             max_span_distance: args.relation_max_span_distance,
             extract_triggers: false,
         };
+        relation_provenance = Some(anno::Provenance::from_producer(
+            "relation-heuristic",
+            anno::ExtractionMethod::Heuristic,
+        ));
         relation_triples = extract_relation_triples_simple(&entities, &text, &rel_strs, &cfg);
     }
 
@@ -532,8 +543,39 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Build grounded document with validation using library method
     let mut doc = GroundedDocument::new("extract", &text);
-    let validation_errors = doc.add_signals_validated(signals);
-    if let Some(html) = mapped_html {
+    let validation_errors = doc.add_signals_validated_indexed(signals);
+    if !validation_errors.is_empty() {
+        let rejected: std::collections::HashSet<_> =
+            validation_errors.iter().map(|(i, _)| *i).collect();
+        retain_endpoints(&mut entities, &mut relation_triples, |i, _| {
+            !rejected.contains(&i)
+        });
+    }
+    for edge in &relation_triples {
+        let endpoint = |index: usize| {
+            entities
+                .get(index)
+                .zip(doc.signals().get(index))
+                .map(|(entity, signal)| (entity.clone(), signal.id))
+                .ok_or_else(|| {
+                    CliError::from(format!(
+                        "Relation endpoint {index} is outside the validated mention batch"
+                    ))
+                })
+        };
+        let (head, head_id) = endpoint(edge.head_idx)?;
+        let (tail, tail_id) = endpoint(edge.tail_idx)?;
+        let relation = anno::Relation::new(head, tail, edge.relation_type.clone(), edge.confidence);
+        doc.record_relation_by_signal_ids(relation, head_id, tail_id, relation_provenance.clone())
+            .map_err(|e| CliError::from(format!("Could not record grounded relation: {e}")))?;
+    }
+    if let Some(map) = source_map {
+        doc.record_source_map(map).map_err(CliError::from)?;
+    }
+    // The legacy HTML record describes the deformat renderer's own coordinate system.
+    if let Some(html) =
+        mapped_html.filter(|html| args.input_source_map.is_none() && html.text == doc.text())
+    {
         html.record(&mut doc)?;
     }
 
@@ -544,10 +586,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             color("33", "warning:"),
             validation_errors.len()
         );
-        for err in &validation_errors {
+        for (_, err) in &validation_errors {
             eprintln!("  - {}", err);
         }
     }
+
+    let offsets = std::cell::LazyCell::new(|| anno::offset::SpanConverter::new(&text));
 
     // Prepare relation JSON expansion (stable across output formats).
     let relations_out: Vec<serde_json::Value> = if args.extract_relations {
@@ -562,12 +606,14 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                         "type": head.entity_type.as_label(),
                         "start": head.start(),
                         "end": head.end(),
+                        "analyzed_byte_ranges": analyzed_byte_ranges(&doc.signals().get(r.head_idx)?.location, &offsets),
                     },
                     "tail": {
                         "text": tail.text,
                         "type": tail.entity_type.as_label(),
                         "start": tail.start(),
                         "end": tail.end(),
+                        "analyzed_byte_ranges": analyzed_byte_ranges(&doc.signals().get(r.tail_idx)?.location, &offsets),
                     },
                     "type": r.relation_type,
                     "confidence": r.confidence,
@@ -586,6 +632,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 entity_json(
                     &text,
                     &prefix,
+                    &offsets,
                     signal,
                     args.context_window,
                     args.include_sentence,
@@ -610,6 +657,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             );
             let output = serde_json::json!({
                 "provenance": provenance,
+                "source_map": doc.source_map(),
                 "entities": entities_out,
                 "relations": relations_out,
             });
@@ -631,7 +679,13 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 language,
                 source_url.as_deref(),
             );
-            println!("{}", serde_json::json!({ "provenance": provenance }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "provenance": provenance,
+                    "source_map": doc.source_map(),
+                })
+            );
             for obj in entities_out {
                 println!("{}", obj);
             }
@@ -770,6 +824,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
+                    "source_map": doc.source_map(),
                     "signals": signals
                 })
             }
@@ -784,6 +839,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                             "label": s.label(),
                             "start": start,
                             "end": end,
+                            "analyzed_byte_ranges": analyzed_byte_ranges(&s.location, &offsets),
                             "confidence": s.confidence
                         })
                     })
@@ -791,6 +847,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
+                    "source_map": doc.source_map(),
                     "signals": signals
                 })
             }
@@ -895,6 +952,33 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     Ok(())
 }
 
+/// Keep relation indices in the same coordinate system as the output entities.
+fn retain_endpoints(
+    entities: &mut Vec<anno::Entity>,
+    relations: &mut Vec<anno::RelationTriple>,
+    mut keep: impl FnMut(usize, &anno::Entity) -> bool,
+) {
+    let mut mapping = Vec::with_capacity(entities.len());
+    let mut next = 0;
+    entities.retain(|entity| {
+        let kept = keep(mapping.len(), entity);
+        mapping.push(kept.then_some(next));
+        next += usize::from(kept);
+        kept
+    });
+    relations.retain_mut(|relation| {
+        let (Some(Some(head)), Some(Some(tail))) = (
+            mapping.get(relation.head_idx),
+            mapping.get(relation.tail_idx),
+        ) else {
+            return false;
+        };
+        relation.head_idx = *head;
+        relation.tail_idx = *tail;
+        true
+    });
+}
+
 fn validate_confidence_threshold(flag: &str, value: Option<f64>) -> Result<(), CliError> {
     if let Some(value) = value {
         if !value.is_finite() || !(0.0..=1.0).contains(&value) {
@@ -930,6 +1014,15 @@ fn extract_with_custom_types(
         let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
 
         match backend {
+            #[cfg(feature = "gliner2-fastino")]
+            ModelBackend::Gliner25 => {
+                let model = anno::backends::gliner25::GLiNER25::from_env()
+                    .map_err(|e| CliError::from(e.to_string()))?;
+                return model
+                    .extract_with_types(text, &type_refs, threshold)
+                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map_err(|e| CliError::from(e.to_string()));
+            }
             ModelBackend::GlinerPoly => {
                 let model =
                     anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
@@ -965,15 +1058,13 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Nuner => {
-                use anno::ZeroShotNER;
-                let model =
-                    anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
-                        .map_err(|e| {
-                            CliError::from(format!("Failed to create NuNER model: {}", e))
-                        })?;
-                return model
+                let model = backend.create_model().map_err(CliError::from)?;
+                let ner = model
+                    .as_zero_shot()
+                    .ok_or_else(|| CliError::from("NuNER does not expose zero-shot extraction"))?;
+                return ner
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map(|entities| (entities, model.name()))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             _ => {}
@@ -1071,6 +1162,20 @@ fn compute_entity_id(
     format!("xxh3:{:016x}", hasher.digest())
 }
 
+/// Preserve the covered components of an occurrence in analyzed UTF-8 byte coordinates.
+fn analyzed_byte_ranges(
+    location: &Location,
+    offsets: &anno::offset::SpanConverter,
+) -> Vec<std::ops::Range<usize>> {
+    let bytes = |start, end| offsets.char_to_byte(start)..offsets.char_to_byte(end);
+    match location {
+        Location::Text { start, end } => std::iter::once(bytes(*start, *end)).collect(),
+        Location::Discontinuous { segments } => {
+            segments.iter().map(|&(a, b)| bytes(a, b)).collect()
+        }
+    }
+}
+
 /// Render one emitted signal for JSON and JSONL output.
 ///
 /// `Signal::from(&Entity)` preserves entity provenance, so taking it from the
@@ -1078,6 +1183,7 @@ fn compute_entity_id(
 fn entity_json(
     text: &str,
     prefix: &Xxh3Default,
+    offsets: &anno::offset::SpanConverter,
     signal: &Signal<Location>,
     context_window: Option<usize>,
     include_sentence: bool,
@@ -1089,6 +1195,7 @@ fn entity_json(
         "type": signal.label(),
         "start": start,
         "end": end,
+        "analyzed_byte_ranges": analyzed_byte_ranges(&signal.location, offsets),
         "confidence": signal.confidence,
         "negated": signal.negated,
         "quantifier": signal.quantifier.map(|q| format!("{:?}", q)),
@@ -1175,6 +1282,9 @@ fn build_provenance(
         "text_hash": format!("xxh3:{:016x}", xxh3_64(text.as_bytes())),
         "confidence_stats": confidence_stats,
     });
+    if let Some(checkpoint) = model.checkpoint_override() {
+        prov["checkpoint"] = checkpoint.to_string_lossy().as_ref().into();
+    }
     if let Some(url) = source_url {
         prov["source_url"] = url.into();
     }
@@ -1299,6 +1409,51 @@ fn propagate_quantifiers_across_lists(text: &str, signals: &mut [Signal]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flat_output_keeps_discontinuous_analyzed_byte_ranges() {
+        let offsets = anno::offset::SpanConverter::new("🦊É and 雨");
+        let location = Location::Discontinuous {
+            segments: vec![(1, 2), (7, 8)],
+        };
+        assert_eq!(
+            analyzed_byte_ranges(&location, &offsets),
+            vec![4..6, 11..14]
+        );
+    }
+
+    #[test]
+    fn relation_endpoints_survive_threshold_and_source_validation() {
+        let text = "A B C D";
+        let mut entities = vec![
+            anno::Entity::new("A", anno::EntityType::Person, 0, 1, 0.2),
+            anno::Entity::new("B", anno::EntityType::Person, 2, 3, 0.9),
+            anno::Entity::new("X", anno::EntityType::Person, 4, 5, 0.9),
+            anno::Entity::new("D", anno::EntityType::Person, 6, 7, 0.9),
+        ];
+        let edge = |head_idx, tail_idx| anno::RelationTriple {
+            head_idx,
+            tail_idx,
+            relation_type: "knows".into(),
+            confidence: Confidence::new(1.0),
+        };
+        let mut relations = vec![edge(1, 3), edge(0, 3), edge(2, 3)];
+        retain_endpoints(&mut entities, &mut relations, |_, entity| {
+            entity.confidence >= 0.5
+        });
+        let mut doc = GroundedDocument::new("test", text);
+        let rejected =
+            doc.add_signals_validated_indexed(entities.iter().map(Signal::from).collect());
+        assert_eq!(rejected.len(), 1);
+        assert_eq!(rejected[0].0, 1);
+        retain_endpoints(&mut entities, &mut relations, |i, _| i != rejected[0].0);
+        assert_eq!(relations.len(), 1);
+        let edge = &relations[0];
+        assert_eq!(entities[edge.head_idx].text, "B");
+        assert_eq!(entities[edge.tail_idx].text, "D");
+        assert_eq!(doc.signals()[edge.head_idx].surface, "B");
+        assert_eq!(doc.signals()[edge.tail_idx].surface, "D");
+    }
 
     #[test]
     fn test_propagate_quantifiers_basic() {

@@ -122,6 +122,9 @@ pub enum Commands {
     #[command(visible_alias = "x")]
     Extract(crate::cli::commands::ExtractArgs),
 
+    /// Extract a schema-constrained entity and relation graph with GLiNER2.5 JointIE
+    Joint(commands::joint::JointArgs),
+
     /// Generate HTML debug visualization
     #[command(visible_alias = "d")]
     Debug(commands::DebugArgs),
@@ -290,6 +293,9 @@ pub enum ModelBackend {
     /// GLiNER multi-task (NER + classification + structure)
     #[cfg(feature = "onnx")]
     GlinerMultitask,
+    /// GLiNER2.5 multilingual boundary NER (local FP32 export via GLINER25_MODEL_DIR)
+    #[cfg(feature = "gliner2-fastino")]
+    Gliner25,
     /// NuNER
     #[cfg(feature = "onnx")]
     Nuner,
@@ -312,7 +318,7 @@ pub enum ModelBackend {
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-pii", alias = "pii")]
     GlinerPii,
-    /// GLiNER-RelEx: zero-shot NER from a local ONNX entity export
+    /// GLiNER-RelEx: zero-shot NER and directed relations with a local joint export
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-relex", alias = "relex")]
     GlinerRelex,
@@ -331,8 +337,46 @@ pub enum ModelBackend {
 }
 
 impl ModelBackend {
+    /// Explicit checkpoint selector used by the NER backend, if configured.
+    pub(super) fn checkpoint_override(self) -> Option<std::ffi::OsString> {
+        let key: Option<&str> = match self {
+            #[cfg(feature = "onnx")]
+            Self::BertOnnx => Some("BERT_ONNX_MODEL_PATH"),
+            #[cfg(feature = "onnx")]
+            Self::Nuner => Some("NUNER_MODEL_PATH"),
+            #[cfg(feature = "onnx")]
+            Self::GlinerPoly => Some("GLINER_POLY_MODEL_PATH"),
+            #[cfg(feature = "gliner2-fastino")]
+            Self::Gliner25 => Some("GLINER25_MODEL_DIR"),
+            _ => None,
+        };
+        key.and_then(std::env::var_os)
+            .filter(|value| !value.is_empty())
+    }
+
     /// Create a model instance from this backend type.
     pub fn create_model(self) -> Result<Box<dyn anno::Model>, String> {
+        #[cfg(feature = "onnx")]
+        if let (Self::Nuner | Self::BertOnnx, Some(checkpoint)) = (self, self.checkpoint_override())
+        {
+            let model = checkpoint
+                .to_str()
+                .ok_or("NER checkpoint must be valid UTF-8")?;
+            match self {
+                Self::BertOnnx => {
+                    return anno::BertNEROnnx::new(model)
+                        .map(|m| Box::new(m) as Box<dyn anno::Model>)
+                        .map_err(|e| format!("BERT ONNX checkpoint {model}: {e}"))
+                }
+                Self::Nuner => {
+                    return anno::NuNER::from_pretrained(model)
+                        .map(|m| Box::new(m) as Box<dyn anno::Model>)
+                        .map_err(|e| format!("NuNER checkpoint {model}: {e}"))
+                }
+                _ => {}
+            }
+        }
+
         #[cfg(feature = "eval")]
         {
             use anno_eval::eval::backend_factory::BackendFactory;
@@ -356,6 +400,8 @@ impl ModelBackend {
                 Self::Gliner => "gliner_onnx",
                 #[cfg(feature = "onnx")]
                 Self::GlinerMultitask => "gliner_multitask",
+                #[cfg(feature = "gliner2-fastino")]
+                Self::Gliner25 => "gliner25",
                 #[cfg(feature = "onnx")]
                 Self::Nuner => "nuner",
                 #[cfg(feature = "onnx")]
@@ -412,6 +458,10 @@ impl ModelBackend {
                 Self::GlinerMultitask => anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER multi-task: {}\n  Tip: Use 'anno models info gliner_multitask' to check model status.", e)),
+                #[cfg(feature = "gliner2-fastino")]
+                Self::Gliner25 => anno::backends::gliner25::GLiNER25::from_env()
+                    .map(|model| Box::new(model) as Box<dyn anno::Model>)
+                    .map_err(|e| e.to_string()),
                 #[cfg(feature = "onnx")]
                 Self::Nuner => anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
@@ -496,7 +546,7 @@ impl ModelBackend {
                 #[cfg(feature = "onnx")]
                 Self::GlinerRelex => anno::GLiNEROnnx::new(anno::models::GLINER_RELEX)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                    .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Use --model gliner_multitask for multi-task NER+RE.")),
+                    .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Export trained relations with scripts/export_gliner_relex_onnx.py --joint.")),
                 #[cfg(feature = "onnx")]
                 Self::GlinerPoly => anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
                     .map(|model| Box::new(model) as Box<dyn anno::Model>)
@@ -583,6 +633,8 @@ impl ModelBackend {
             Self::GlinerMultitask => "gliner_multitask",
             #[cfg(feature = "onnx")]
             Self::Nuner => "nuner",
+            #[cfg(feature = "gliner2-fastino")]
+            Self::Gliner25 => "gliner25",
             #[cfg(feature = "onnx")]
             Self::W2ner => "w2ner",
             #[cfg(feature = "onnx")]

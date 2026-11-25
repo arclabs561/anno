@@ -4,6 +4,7 @@
 # dependencies = [
 #     "torch>=2.0.0",
 #     "gliner==0.2.30",
+#     "sentencepiece",
 #     "transformers>=4.30.0",
 #     "onnx>=1.14.0",
 #     "optimum[onnxruntime]>=1.16.0",
@@ -14,18 +15,20 @@
 Export NuNER Zero models to ONNX format.
 
 NuNER models come in two architectures:
-  - Transformers token classifier: standard BIO tagging
-  - GLiNER-based (e.g., numind/NuNER_Zero-4k): span classification
+  - Fixed-label token classifier: standard BIO tagging
+  - NuNER Zero family: label-conditioned word or span scoring
 
-This script uses the GLiNER checkpoint's native exporter to keep the prompt encoder and span scorer in one graph.
+GLiNER-based NuNER checkpoints use an inline label prompt and one encoder.
+The GLiNER library exports the matching token or span graph and its tokenizer.
 
 Usage:
-    uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k
-
+    uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero --output /tmp/nuner
+    NUNER_MODEL_PATH=/tmp/nuner anno extract --model nuner 'Ada lives in London.'
 """
 
 import argparse
 import os
+import tempfile
 from pathlib import Path
 
 
@@ -75,22 +78,65 @@ def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
     print(f"Verification passed: output shape {outputs.logits.shape}")
 
 
-def export_gliner_model(model_id: str, output_dir: Path, quantize: bool):
-    """Export the prompt-conditioned span graph and its training tokenizer."""
-    from gliner import GLiNER
+def check_export_assets(directory: Path):
+    if not all((directory / name).is_file() for name in ("model.onnx", "tokenizer.json")):
+        raise RuntimeError(f"NuNER export must contain model.onnx and tokenizer.json in {directory}")
 
-    model = GLiNER.from_pretrained(model_id)
-    model.export_to_onnx(save_dir=output_dir, quantize=quantize)
-    if not (output_dir / "model.onnx").is_file() or not (output_dir / "tokenizer.json").is_file():
-        raise RuntimeError(f"NuNER export must contain model.onnx and tokenizer.json in {output_dir}")
+
+def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_only: bool):
+    """Export the trained shared encoder, prompt tokenizer and width metadata."""
+    import json
+    from gliner import GLiNER
+    from huggingface_hub import hf_hub_download
+
+    config_file = Path(model_id) / "gliner_config.json"
+    if not config_file.is_file():
+        config_file = Path(hf_hub_download(model_id, filename="gliner_config.json"))
+    config = json.loads(config_file.read_text())
+    longformer = config.get("model_name") == "allenai/longformer-large-4096"
+    if verify_only and not longformer:
+        raise ValueError("--verify-only requires a NuNER Zero-4k checkpoint")
+    if longformer and quantize:
+        raise ValueError(
+            "Use the FP32 export for NuNER Zero-4k parity. Dynamic QUInt8 changed "
+            "a 0.5-threshold decision in the 4096-token fixture; "
+            "scripts/qa/check_nuner_4k_quantization.py can reproduce the comparison."
+        )
+
+    model = GLiNER.from_pretrained(model_id).eval()
+    if not longformer:
+        model.export_to_onnx(save_dir=output_dir, quantize=quantize)
+        check_export_assets(output_dir)
+        return
+
+    from nuner_longformer_onnx import export_windows, reference_cases, verify_logits
+
+    references = reference_cases(model)
+    if verify_only:
+        del model
+        check_export_assets(output_dir)
+        verify_logits(output_dir / "model.onnx", references)
+        return
+
+    # Stage the graph alongside its destination so a failed parity check never
+    # replaces the caller's working export with a runnable but incorrect graph.
+    with tempfile.TemporaryDirectory(dir=output_dir.parent) as directory:
+        stage = Path(directory)
+        with export_windows(model):
+            model.export_to_onnx(save_dir=stage)
+        del model
+        check_export_assets(stage)
+        verify_logits(stage / "model.onnx", references)
+        for artifact in sorted(stage.iterdir(), key=lambda p: p.name == "model.onnx"):
+            artifact.replace(output_dir / artifact.name)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Export NuNER Zero model to ONNX")
     parser.add_argument(
         "--model",
-        default="numind/NuNER_Zero-4k",
-        help="HuggingFace model ID (default: numind/NuNER_Zero-4k)",
+        default="numind/NuNER_Zero",
+        help="HuggingFace model ID (default: numind/NuNER_Zero)",
     )
     parser.add_argument(
         "--output",
@@ -101,6 +147,11 @@ def main():
         "--quantize",
         action="store_true",
         help="Also export quantized (INT8) version",
+    )
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Compare an existing Zero-4k graph to the source checkpoint",
     )
     args = parser.parse_args()
 
@@ -115,14 +166,29 @@ def main():
         )
         output_dir = cache_dir / "hub" / f"models--{safe_name}" / "onnx"
 
+    if args.verify_only and not (output_dir / "model.onnx").is_file():
+        parser.error("--verify-only requires an existing model.onnx in --output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    from nuner_4k_import import CHECKPOINT, REVISION
+
+    if model_id == CHECKPOINT:
+        from huggingface_hub import snapshot_download
+
+        model_id = snapshot_download(
+            CHECKPOINT,
+            revision=REVISION,
+            allow_patterns=["gliner_config.json", "pytorch_model.bin"],
+        )
+
     if is_gliner_model(model_id):
-        export_gliner_model(model_id, output_dir, args.quantize)
+        export_gliner_model(model_id, output_dir, args.quantize, args.verify_only)
     else:
+        if args.verify_only:
+            parser.error("--verify-only requires a NuNER Zero-4k checkpoint")
         export_token_classifier(model_id, output_dir, args.quantize)
 
-    print("Export complete.")
+    print("Verification complete." if args.verify_only else "Export complete.")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ use std::fs;
 
 use super::super::output::{color, print_signals};
 use super::super::parser::ModelBackend;
-use super::super::utils::{get_input_text, link_tracks_to_kb, resolve_coreference};
+use super::super::utils::{get_mapped_input_text, link_tracks_to_kb, resolve_coreference};
 
 #[cfg(feature = "eval")]
 use crate::cli::ingest::{CompositeResolver, UrlResolver};
@@ -111,21 +111,21 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
     // (Otherwise every report is doc_id="debug", which is annoying when comparing runs.)
     let doc_id = if let Some(url) = &args.url {
         url.clone()
-    } else if let Some(path) = &args.file {
+    } else if let Some(path) = args.file.as_ref().filter(|_| args.text.is_none()) {
         path.clone()
     } else {
         "debug".to_string()
     };
 
     // Resolve input: URL, file, text, or stdin
-    let mut raw_text = if let Some(url) = &args.url {
+    let (mut text, mut source_map) = if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
             let resolver = CompositeResolver::new();
             let resolved = resolver
                 .resolve(url)
                 .map_err(|e| format!("Failed to fetch URL {}: {}", url, e))?;
-            resolved.text
+            (resolved.text, resolved.source_map)
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -137,7 +137,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
             );
         }
     } else {
-        get_input_text(&args.text, args.file.as_deref(), &args.positional)?
+        get_mapped_input_text(&args.text, args.file.as_deref(), &args.positional)?
     };
 
     // Preprocess text if requested
@@ -148,14 +148,14 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
             detect_language: args.detect_lang,
             chunk_size: None,
         };
-        let prepared = preprocessor.prepare(&raw_text);
-        raw_text = prepared.text;
+        let (prepared, stage) = preprocessor.prepare_mapped(&text)?;
+        source_map = stage.compose(&source_map)?;
+        text = prepared.text;
         if args.verbose >= 1 && !prepared.metadata.is_empty() {
             eprintln!("Preprocessing metadata: {:?}", prepared.metadata);
         }
     }
 
-    let text = raw_text;
     let model = args.model.unwrap_or_default().create_model()?;
     let coref = args.coref.unwrap_or_default();
     let link_kb = args.link_kb.unwrap_or_default();
@@ -167,6 +167,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
     // Build grounded document with validated signals
     // Always use actual offsets from model - don't re-find text (which would always find first occurrence)
     let mut doc = GroundedDocument::new(doc_id, &text);
+    doc.record_source_map(source_map)?;
     let mut signal_ids: Vec<SignalId> = Vec::new();
 
     for e in &entities {
@@ -194,7 +195,8 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
-                    "signals": signals
+                    "signals": signals,
+                    "source_map": doc.source_map()
                 })
             }
             "minimal" => {
@@ -215,7 +217,8 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
-                    "signals": signals
+                    "signals": signals,
+                    "source_map": doc.source_map()
                 })
             }
             _ => {

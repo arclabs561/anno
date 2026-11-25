@@ -38,6 +38,7 @@ fn arb_signal() -> impl Strategy<Value = Signal<Location>> {
             location,
             surface,
             label: TypeLabel::from(label.as_str()),
+            mention_type: None,
             confidence: Confidence::new(confidence as f64),
             hierarchical: None,
             provenance: None,

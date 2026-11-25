@@ -1,0 +1,59 @@
+{
+  "source": {
+    "checkpoint": "knowledgator/gliner-relex-large-v1.0",
+    "checkpoint_sha256": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+    "packages": {
+      "gliner": "0.2.30",
+      "onnx": "1.23.2",
+      "onnxruntime": "1.32.0",
+      "torch": "2.15.0+cpu",
+      "transformers": "5.22.2"
+    },
+    "python": "3.12.14",
+    "revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290"
+  },
+  "generation": "a6c3b21239f5cb3b535f62cff0aa09712405380acad7fa989b5f3619f6ac004d",
+  "binary_sha256": "844b482d40da6fbf9263846e6d435de536d4077af2afb42fa1ef29c79d996960",
+  "native_ort": {
+    "version": "1.24.2",
+    "sha256": "7d5242d7bfbb8b0a2c6ae4d4883adac34c883129c8091f74f3e1bc9f740b1d62"
+  },
+  "reference_sha256": "c06844af9987cc4ca385f35e70f9c2ccdb7f1c3c88db2b99ec7a95b32751afb3",
+  "cases": [
+    {
+      "name": "work",
+      "mentions": 2,
+      "directed_edges": 2,
+      "max_mention_score_difference": 0.0,
+      "max_edge_score_difference": 3.039836883544922e-06
+    },
+    {
+      "name": "changed_schema",
+      "mentions": 2,
+      "directed_edges": 1,
+      "max_mention_score_difference": 0.0,
+      "max_edge_score_difference": 5.960464477539063e-08
+    },
+    {
+      "name": "repeated_name",
+      "mentions": 3,
+      "directed_edges": 2,
+      "max_mention_score_difference": 0.0,
+      "max_edge_score_difference": 5.960464477539063e-08
+    },
+    {
+      "name": "one_mention",
+      "mentions": 1,
+      "directed_edges": 0,
+      "max_mention_score_difference": 0.0,
+      "max_edge_score_difference": 0.0
+    },
+    {
+      "name": "empty",
+      "mentions": 0,
+      "directed_edges": 0,
+      "max_mention_score_difference": 0.0,
+      "max_edge_score_difference": 0.0
+    }
+  ]
+}

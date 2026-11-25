@@ -12,11 +12,54 @@ the email spans characters `8..23` and UTF-8 bytes `11..26`. Rust string slicing
 uses byte indices. Convert at that boundary using `anno::offset::SpanConverter`.
 Use `CharOffset` and `ByteOffset` when passing positions between Rust components.
 
-Keep the document ID, exact text revision and coordinate convention with saved
-annotations. When OCR cleanup, newline normalization, `--clean` or `--normalize`
-changes the input, the positions refer to the processed text. To highlight the
-original, keep the mapping back to that revision. Grounded JSON stores the text
-with its signals and tracks. [Runnable example](QUICKSTART.md#save-annotations-with-the-source-text)
+An occurrence belongs to the exact revision passed to the model. A grounded
+document can store its `source_map` from that analyzed text back to the
+original bytes. For example, whitespace cleanup turns `Maya   founded Acme`
+into `Maya founded Acme`. The analyzed character span `[13, 17)` for `Acme`
+projects to original bytes `[15, 19)`. Converting character indices to UTF-8
+indices alone would give the wrong result.
+
+Use `GroundedDocument::project_source_span` for a half-open analyzed character
+range, or run the same query on a saved document:
+
+```sh
+printf 'Maya   founded Acme' > original.txt
+anno extract --file original.txt --model pattern --clean --format grounded > doc.json
+anno query source-span doc.json 13 17 --original original.txt
+```
+
+The result gives ordered fragments. A direct fragment can be sliced precisely.
+A transformed fragment identifies its contributors. One normalized scalar
+can draw on disjoint original ranges, such as a letter and combining accent
+separated by HTML markup. Read `source_bytes` for a single origin and
+`source_ranges` for disjoint origins. Approximate and synthetic fragments can
+point to contributing text or markup. Unmapped fragments have no source byte range.
+For a discontinuous mention, project each component. Supply `--original` to
+verify the source digest before using the ranges. A missing map in an older
+document leaves the correspondence unknown. Older HTML-backed documents can
+still answer queries covered by their saved HTML projections.
+
+When text arrives already cleaned, use the earlier producer's map as input.
+Pass a bare `SourceMap` JSON file or a document containing `source_map`.
+Anno checks that the earlier analyzed edition matches the input and composes
+its own transformations onto that map:
+
+```sh
+anno extract --file prepared.txt --input-source-map previous.json --normalize \
+  --model pattern --format grounded > result.json
+```
+
+Without an earlier map, directly supplied plain text is the earliest edition
+Anno can identify. Normal extraction JSON and JSONL keep analyzed byte ranges
+on mentions and relation endpoints and store the map once per document.
+Grounded output also saves the analyzed text for arbitrary source-span queries.
+
+Deformat supplies renderer offsets. Textprep supplies whitespace and Unicode edit
+mappings. Both use the byte ranges and composition rules from `textprep::spanmap`.
+Anno selects the preparation settings, stores the composed map in the grounded
+document, and exposes the same types through its existing public imports. An input renderer
+that supplies only text can leave the original offsets unknown even when the
+original digest is available. [Extraction workflow](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
 
 ## Library and CLI features
 
@@ -47,14 +90,59 @@ first-seen order. The first populated KB ID in each group becomes its link.
 `to_entities()` gives every member the track ID and the shared KB link.
 
 Use `GroundedDocument::try_from_entities` to detect conflicting populated KB IDs,
-mention types, visual spans, and flat offsets that would change when reconstructed
-from discontinuous segments.
+zero mentions without a nonempty source span, visual spans, and flat offsets that would change when
+reconstructed from discontinuous segments. Each signal preserves its producer’s
+linguistic mention type across grouping and JSON. A name and a pronoun can share
+a track while retaining different mention types. Older documents omit
+`mention_type` and read as an unspecified form. An explicit `"unknown"` survives
+the round trip.
 Errors identify the original input indices. A populated link and a missing link
 in the same group are compatible. Both constructors use the same grouping and
 preserve the detection confidence and explicit custom entity categories. Entity
 types and grounded labels normally serialize as strings. A custom spelling or
 category that would be lost uses the tagged form, for example
 `{"Custom":{"name":"DISEASE","category":"Agent"}}`. Existing string labels remain readable.
+
+## Grounded relation evidence
+
+A mention-level relation keeps its original directed endpoints, predicate, trigger
+and extraction score. Call `record_relation` on the source document, or use
+`record_relation_by_signal_ids` when the producer selected known signals.
+Coincident signals with the same geometry, label and surface require the
+producer's IDs. Both calls accept provenance for the relation decision.
+
+Grounded JSON saves these observations in `relation_evidence.mentions`. The
+collection records the document ID and SHA-256 of its exact UTF-8 text.
+`project_recorded_relations` looks up the current track for each original
+signal, including after regrouping and reloading. An untracked signal still
+supplies a source highlight. Raw edits that invalidate an occurrence make
+projection and serialization fail. A file without `relation_evidence` reads
+with empty evidence collections.
+
+Use `record_concept_relation` for source annotations whose endpoints are
+concept IDs. A concept can have a supplied set of source signals, an explicitly
+empty set, or unspecified membership. Grounded JSON preserves these distinctions
+in `relation_evidence.concepts`. An endpoint projects onto a track only when the
+complete, nonempty member set exactly matches that track. A split or merge can
+change this projection. The concept edge persists without adding a mention pair
+or a score to a gold annotation.
+
+Given a DWIE annotation with its reconstructed article in `content`, these
+commands import and reopen the source concepts and their directed edges.
+
+```sh
+cargo run -p anno --no-default-features --example import_dwie_relations -- article.json > grounded.json
+anno query relations grounded.json
+```
+
+The example uses the supplied mention’s presence as a binary signal score of
+1.0 and labels it `mention`. DWIE's multi-label concept taxonomy and candidate
+link scores are outside this relation import. Concept-edge confidences are
+absent. Query output includes the source text digest, original endpoint
+observations, and current projected track IDs. On DWIE article `DW_1095032`,
+the import produces 37 source signals, 14 tracks and five source concept edges.
+The edge `(7, gpe0, 14)` survives reloading with an explicitly empty member set
+and no track for concept 14. [Original DWIE annotation](https://github.com/klimzaporojets/DWIE/blob/master/data/annos/DW_1095032.json)
 
 ## PII pattern limits
 

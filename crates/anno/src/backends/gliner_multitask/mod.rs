@@ -92,7 +92,10 @@ fn extract_relations_neural_or_heuristic(
     text: &str,
     relation_types: &[&str],
     threshold: f32,
-) -> Vec<crate::backends::inference::RelationTriple> {
+) -> (
+    Vec<crate::backends::inference::RelationTriple>,
+    crate::Provenance,
+) {
     use std::sync::OnceLock;
 
     // Try to load GLiREL once. If it fails, fall back to heuristics permanently.
@@ -122,7 +125,12 @@ fn extract_relations_neural_or_heuristic(
 
     if let Some(model) = glirel {
         match model.extract_relations(text, entities, relation_types, threshold) {
-            Ok(rels) => return rels,
+            Ok(rels) => {
+                return (
+                    rels,
+                    crate::Provenance::from_producer("glirel", crate::ExtractionMethod::Neural),
+                )
+            }
             Err(e) => {
                 log::warn!(
                     "[GLiNERMultitask] GLiREL inference failed ({}), falling back to heuristic",
@@ -133,7 +141,10 @@ fn extract_relations_neural_or_heuristic(
     }
 
     // Heuristic fallback
-    relations::extract_relations_heuristic(entities, text, relation_types, threshold)
+    (
+        relations::extract_relations_heuristic(entities, text, relation_types, threshold),
+        crate::Provenance::from_producer("relation-heuristic", crate::ExtractionMethod::Heuristic),
+    )
 }
 
 #[cfg(feature = "candle")]
@@ -442,16 +453,27 @@ impl RelationExtractor for GLiNERMultitaskOnnx {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<ExtractionWithRelations> {
+        self.extract_with_relation_provenance(text, types, relation_types, threshold)
+            .map(|(output, _)| output)
+    }
+
+    fn extract_with_relation_provenance(
+        &self,
+        text: &str,
+        types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
         let entities = self.extract_ner(text, types, threshold)?;
-
-        // Use GLiREL (neural) when available, fall back to heuristics
-        let relations =
+        let (relations, provenance) =
             extract_relations_neural_or_heuristic(&entities, text, relation_types, threshold);
-
-        Ok(ExtractionWithRelations {
-            entities,
-            relations,
-        })
+        Ok((
+            ExtractionWithRelations {
+                entities,
+                relations,
+            },
+            Some(provenance),
+        ))
     }
 }
 
@@ -475,6 +497,22 @@ impl RelationExtractor for GLiNERMultitaskCandle {
             entities,
             relations,
         })
+    }
+    fn extract_with_relation_provenance(
+        &self,
+        text: &str,
+        types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        let output = self.extract_with_relations(text, types, relation_types, threshold)?;
+        Ok((
+            output,
+            Some(crate::Provenance::from_producer(
+                "relation-heuristic",
+                crate::ExtractionMethod::Heuristic,
+            )),
+        ))
     }
 }
 

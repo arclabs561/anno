@@ -24,6 +24,8 @@ A hosted Linux replay ran the same FP32 model in 42 fresh containers, each with 
 
 For publication costs, hold source byte length and existing annotation density fixed across a fixture-only process, empty response, singleton response, invalid response and successful publication. The [density benchmark](https://github.com/arclabs561/anno/pull/262) exercises the memory cost of staging a successful batch on populated documents. Measure inference separately and preserve rollback if a later cluster is invalid.
 
+The [joint extraction decision](joint-extraction.md) examines how to anchor relation endpoints when gold concepts share a span set, a concept has no visible mention, or a later resolver changes membership.
+
 ## Decisions to revisit
 
 [Track association and uncertainty](track-association.md) connects the existing resolver scores to probabilistic record linkage, learned antecedents and competing track hypotheses. It describes how to evaluate a change to the scoring contract.

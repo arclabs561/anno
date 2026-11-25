@@ -1,0 +1,1629 @@
+{
+  "revision": "e507a27b89a85c1e9710a897ad0b3f5a9ad73dc4",
+  "books": {
+    "AHandfulOfDust": {
+      "quotes": 2337,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2302,
+          "speaker": 890,
+          "one_addressee": 994,
+          "both": 278,
+          "single_addressee": 1739,
+          "both_exact": 174,
+          "implicit": 1705,
+          "implicit_both": 157
+        },
+        "exclusion_only": {
+          "n": 2302,
+          "speaker": 889,
+          "one_addressee": 1004,
+          "both": 570,
+          "single_addressee": 1739,
+          "both_exact": 372,
+          "implicit": 1705,
+          "implicit_both": 344
+        },
+        "reciprocal_only": {
+          "n": 2302,
+          "speaker": 934,
+          "one_addressee": 994,
+          "both": 291,
+          "single_addressee": 1739,
+          "both_exact": 183,
+          "implicit": 1705,
+          "implicit_both": 169
+        },
+        "coupled_frozen": {
+          "n": 2302,
+          "speaker": 921,
+          "one_addressee": 986,
+          "both": 554,
+          "single_addressee": 1739,
+          "both_exact": 363,
+          "implicit": 1705,
+          "implicit_both": 356
+        },
+        "coupled_feedback": {
+          "n": 2302,
+          "speaker": 910,
+          "one_addressee": 996,
+          "both": 507,
+          "single_addressee": 1739,
+          "both_exact": 337,
+          "implicit": 1705,
+          "implicit_both": 332
+        }
+      }
+    },
+    "APassageToIndia": {
+      "quotes": 2123,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2066,
+          "speaker": 651,
+          "one_addressee": 1069,
+          "both": 249,
+          "single_addressee": 1009,
+          "both_exact": 81,
+          "implicit": 1294,
+          "implicit_both": 115
+        },
+        "exclusion_only": {
+          "n": 2066,
+          "speaker": 697,
+          "one_addressee": 987,
+          "both": 456,
+          "single_addressee": 1009,
+          "both_exact": 175,
+          "implicit": 1294,
+          "implicit_both": 227
+        },
+        "reciprocal_only": {
+          "n": 2066,
+          "speaker": 712,
+          "one_addressee": 1069,
+          "both": 280,
+          "single_addressee": 1009,
+          "both_exact": 88,
+          "implicit": 1294,
+          "implicit_both": 141
+        },
+        "coupled_frozen": {
+          "n": 2066,
+          "speaker": 711,
+          "one_addressee": 976,
+          "both": 462,
+          "single_addressee": 1009,
+          "both_exact": 169,
+          "implicit": 1294,
+          "implicit_both": 265
+        },
+        "coupled_feedback": {
+          "n": 2066,
+          "speaker": 688,
+          "one_addressee": 1032,
+          "both": 467,
+          "single_addressee": 1009,
+          "both_exact": 129,
+          "implicit": 1294,
+          "implicit_both": 284
+        }
+      }
+    },
+    "ARoomWithAView": {
+      "quotes": 1634,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1629,
+          "speaker": 358,
+          "one_addressee": 461,
+          "both": 82,
+          "single_addressee": 890,
+          "both_exact": 11,
+          "implicit": 904,
+          "implicit_both": 18
+        },
+        "exclusion_only": {
+          "n": 1629,
+          "speaker": 387,
+          "one_addressee": 471,
+          "both": 134,
+          "single_addressee": 890,
+          "both_exact": 22,
+          "implicit": 904,
+          "implicit_both": 33
+        },
+        "reciprocal_only": {
+          "n": 1629,
+          "speaker": 380,
+          "one_addressee": 461,
+          "both": 91,
+          "single_addressee": 890,
+          "both_exact": 12,
+          "implicit": 904,
+          "implicit_both": 23
+        },
+        "coupled_frozen": {
+          "n": 1629,
+          "speaker": 381,
+          "one_addressee": 470,
+          "both": 131,
+          "single_addressee": 890,
+          "both_exact": 15,
+          "implicit": 904,
+          "implicit_both": 40
+        },
+        "coupled_feedback": {
+          "n": 1629,
+          "speaker": 399,
+          "one_addressee": 466,
+          "both": 128,
+          "single_addressee": 890,
+          "both_exact": 24,
+          "implicit": 904,
+          "implicit_both": 40
+        }
+      }
+    },
+    "AlicesAdventuresInWonderland": {
+      "quotes": 697,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 642,
+          "speaker": 450,
+          "one_addressee": 436,
+          "both": 305,
+          "single_addressee": 216,
+          "both_exact": 97,
+          "implicit": 10,
+          "implicit_both": 1
+        },
+        "exclusion_only": {
+          "n": 642,
+          "speaker": 485,
+          "one_addressee": 473,
+          "both": 414,
+          "single_addressee": 216,
+          "both_exact": 115,
+          "implicit": 10,
+          "implicit_both": 1
+        },
+        "reciprocal_only": {
+          "n": 642,
+          "speaker": 449,
+          "one_addressee": 436,
+          "both": 303,
+          "single_addressee": 216,
+          "both_exact": 97,
+          "implicit": 10,
+          "implicit_both": 0
+        },
+        "coupled_frozen": {
+          "n": 642,
+          "speaker": 452,
+          "one_addressee": 467,
+          "both": 392,
+          "single_addressee": 216,
+          "both_exact": 112,
+          "implicit": 10,
+          "implicit_both": 0
+        },
+        "coupled_feedback": {
+          "n": 642,
+          "speaker": 433,
+          "one_addressee": 447,
+          "both": 371,
+          "single_addressee": 216,
+          "both_exact": 101,
+          "implicit": 10,
+          "implicit_both": 1
+        }
+      }
+    },
+    "AnneOfGreenGables": {
+      "quotes": 1196,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1166,
+          "speaker": 667,
+          "one_addressee": 863,
+          "both": 459,
+          "single_addressee": 947,
+          "both_exact": 378,
+          "implicit": 374,
+          "implicit_both": 110
+        },
+        "exclusion_only": {
+          "n": 1166,
+          "speaker": 786,
+          "one_addressee": 879,
+          "both": 685,
+          "single_addressee": 947,
+          "both_exact": 565,
+          "implicit": 374,
+          "implicit_both": 187
+        },
+        "reciprocal_only": {
+          "n": 1166,
+          "speaker": 734,
+          "one_addressee": 863,
+          "both": 510,
+          "single_addressee": 947,
+          "both_exact": 420,
+          "implicit": 374,
+          "implicit_both": 130
+        },
+        "coupled_frozen": {
+          "n": 1166,
+          "speaker": 774,
+          "one_addressee": 865,
+          "both": 666,
+          "single_addressee": 947,
+          "both_exact": 552,
+          "implicit": 374,
+          "implicit_both": 184
+        },
+        "coupled_feedback": {
+          "n": 1166,
+          "speaker": 786,
+          "one_addressee": 879,
+          "both": 698,
+          "single_addressee": 947,
+          "both_exact": 585,
+          "implicit": 374,
+          "implicit_both": 213
+        }
+      }
+    },
+    "DaisyMiller": {
+      "quotes": 550,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 547,
+          "speaker": 302,
+          "one_addressee": 333,
+          "both": 155,
+          "single_addressee": 307,
+          "both_exact": 84,
+          "implicit": 116,
+          "implicit_both": 16
+        },
+        "exclusion_only": {
+          "n": 547,
+          "speaker": 318,
+          "one_addressee": 341,
+          "both": 268,
+          "single_addressee": 307,
+          "both_exact": 149,
+          "implicit": 116,
+          "implicit_both": 33
+        },
+        "reciprocal_only": {
+          "n": 547,
+          "speaker": 300,
+          "one_addressee": 333,
+          "both": 155,
+          "single_addressee": 307,
+          "both_exact": 83,
+          "implicit": 116,
+          "implicit_both": 17
+        },
+        "coupled_frozen": {
+          "n": 547,
+          "speaker": 312,
+          "one_addressee": 340,
+          "both": 267,
+          "single_addressee": 307,
+          "both_exact": 150,
+          "implicit": 116,
+          "implicit_both": 50
+        },
+        "coupled_feedback": {
+          "n": 547,
+          "speaker": 316,
+          "one_addressee": 343,
+          "both": 262,
+          "single_addressee": 307,
+          "both_exact": 156,
+          "implicit": 116,
+          "implicit_both": 61
+        }
+      }
+    },
+    "Emma": {
+      "quotes": 1593,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1562,
+          "speaker": 730,
+          "one_addressee": 958,
+          "both": 456,
+          "single_addressee": 918,
+          "both_exact": 282,
+          "implicit": 860,
+          "implicit_both": 218
+        },
+        "exclusion_only": {
+          "n": 1562,
+          "speaker": 780,
+          "one_addressee": 887,
+          "both": 589,
+          "single_addressee": 918,
+          "both_exact": 371,
+          "implicit": 860,
+          "implicit_both": 281
+        },
+        "reciprocal_only": {
+          "n": 1562,
+          "speaker": 770,
+          "one_addressee": 958,
+          "both": 477,
+          "single_addressee": 918,
+          "both_exact": 294,
+          "implicit": 860,
+          "implicit_both": 235
+        },
+        "coupled_frozen": {
+          "n": 1562,
+          "speaker": 746,
+          "one_addressee": 893,
+          "both": 559,
+          "single_addressee": 918,
+          "both_exact": 348,
+          "implicit": 860,
+          "implicit_both": 279
+        },
+        "coupled_feedback": {
+          "n": 1562,
+          "speaker": 706,
+          "one_addressee": 911,
+          "both": 533,
+          "single_addressee": 918,
+          "both_exact": 330,
+          "implicit": 860,
+          "implicit_both": 250
+        }
+      }
+    },
+    "HardTimes": {
+      "quotes": 1616,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1554,
+          "speaker": 765,
+          "one_addressee": 940,
+          "both": 428,
+          "single_addressee": 889,
+          "both_exact": 217,
+          "implicit": 555,
+          "implicit_both": 97
+        },
+        "exclusion_only": {
+          "n": 1554,
+          "speaker": 839,
+          "one_addressee": 1010,
+          "both": 627,
+          "single_addressee": 889,
+          "both_exact": 326,
+          "implicit": 555,
+          "implicit_both": 153
+        },
+        "reciprocal_only": {
+          "n": 1554,
+          "speaker": 847,
+          "one_addressee": 940,
+          "both": 478,
+          "single_addressee": 889,
+          "both_exact": 261,
+          "implicit": 555,
+          "implicit_both": 138
+        },
+        "coupled_frozen": {
+          "n": 1554,
+          "speaker": 855,
+          "one_addressee": 1000,
+          "both": 636,
+          "single_addressee": 889,
+          "both_exact": 352,
+          "implicit": 555,
+          "implicit_both": 185
+        },
+        "coupled_feedback": {
+          "n": 1554,
+          "speaker": 862,
+          "one_addressee": 997,
+          "both": 651,
+          "single_addressee": 889,
+          "both_exact": 380,
+          "implicit": 555,
+          "implicit_both": 209
+        }
+      }
+    },
+    "HowardsEnd": {
+      "quotes": 2606,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2567,
+          "speaker": 1036,
+          "one_addressee": 1346,
+          "both": 329,
+          "single_addressee": 1538,
+          "both_exact": 155,
+          "implicit": 1586,
+          "implicit_both": 134
+        },
+        "exclusion_only": {
+          "n": 2567,
+          "speaker": 1027,
+          "one_addressee": 1145,
+          "both": 599,
+          "single_addressee": 1538,
+          "both_exact": 308,
+          "implicit": 1586,
+          "implicit_both": 276
+        },
+        "reciprocal_only": {
+          "n": 2567,
+          "speaker": 1088,
+          "one_addressee": 1346,
+          "both": 372,
+          "single_addressee": 1538,
+          "both_exact": 170,
+          "implicit": 1586,
+          "implicit_both": 164
+        },
+        "coupled_frozen": {
+          "n": 2567,
+          "speaker": 1089,
+          "one_addressee": 1151,
+          "both": 627,
+          "single_addressee": 1538,
+          "both_exact": 324,
+          "implicit": 1586,
+          "implicit_both": 342
+        },
+        "coupled_feedback": {
+          "n": 2567,
+          "speaker": 1003,
+          "one_addressee": 1242,
+          "both": 648,
+          "single_addressee": 1538,
+          "both_exact": 344,
+          "implicit": 1586,
+          "implicit_both": 378
+        }
+      }
+    },
+    "MansfieldPark": {
+      "quotes": 1157,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1141,
+          "speaker": 471,
+          "one_addressee": 681,
+          "both": 280,
+          "single_addressee": 520,
+          "both_exact": 109,
+          "implicit": 526,
+          "implicit_both": 91
+        },
+        "exclusion_only": {
+          "n": 1141,
+          "speaker": 519,
+          "one_addressee": 686,
+          "both": 379,
+          "single_addressee": 520,
+          "both_exact": 162,
+          "implicit": 526,
+          "implicit_both": 132
+        },
+        "reciprocal_only": {
+          "n": 1141,
+          "speaker": 517,
+          "one_addressee": 681,
+          "both": 299,
+          "single_addressee": 520,
+          "both_exact": 111,
+          "implicit": 526,
+          "implicit_both": 109
+        },
+        "coupled_frozen": {
+          "n": 1141,
+          "speaker": 502,
+          "one_addressee": 692,
+          "both": 362,
+          "single_addressee": 520,
+          "both_exact": 146,
+          "implicit": 526,
+          "implicit_both": 140
+        },
+        "coupled_feedback": {
+          "n": 1141,
+          "speaker": 503,
+          "one_addressee": 682,
+          "both": 368,
+          "single_addressee": 520,
+          "both_exact": 148,
+          "implicit": 526,
+          "implicit_both": 152
+        }
+      }
+    },
+    "NightAndDay": {
+      "quotes": 2091,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2043,
+          "speaker": 918,
+          "one_addressee": 1120,
+          "both": 391,
+          "single_addressee": 1540,
+          "both_exact": 248,
+          "implicit": 366,
+          "implicit_both": 36
+        },
+        "exclusion_only": {
+          "n": 2043,
+          "speaker": 987,
+          "one_addressee": 1099,
+          "both": 760,
+          "single_addressee": 1540,
+          "both_exact": 517,
+          "implicit": 366,
+          "implicit_both": 91
+        },
+        "reciprocal_only": {
+          "n": 2043,
+          "speaker": 959,
+          "one_addressee": 1120,
+          "both": 416,
+          "single_addressee": 1540,
+          "both_exact": 266,
+          "implicit": 366,
+          "implicit_both": 40
+        },
+        "coupled_frozen": {
+          "n": 2043,
+          "speaker": 959,
+          "one_addressee": 1071,
+          "both": 710,
+          "single_addressee": 1540,
+          "both_exact": 499,
+          "implicit": 366,
+          "implicit_both": 108
+        },
+        "coupled_feedback": {
+          "n": 2043,
+          "speaker": 894,
+          "one_addressee": 1063,
+          "both": 660,
+          "single_addressee": 1540,
+          "both_exact": 453,
+          "implicit": 366,
+          "implicit_both": 102
+        }
+      }
+    },
+    "NorthangerAbbey": {
+      "quotes": 842,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 840,
+          "speaker": 410,
+          "one_addressee": 500,
+          "both": 228,
+          "single_addressee": 506,
+          "both_exact": 121,
+          "implicit": 544,
+          "implicit_both": 133
+        },
+        "exclusion_only": {
+          "n": 840,
+          "speaker": 438,
+          "one_addressee": 462,
+          "both": 315,
+          "single_addressee": 506,
+          "both_exact": 176,
+          "implicit": 544,
+          "implicit_both": 176
+        },
+        "reciprocal_only": {
+          "n": 840,
+          "speaker": 424,
+          "one_addressee": 500,
+          "both": 235,
+          "single_addressee": 506,
+          "both_exact": 120,
+          "implicit": 544,
+          "implicit_both": 138
+        },
+        "coupled_frozen": {
+          "n": 840,
+          "speaker": 415,
+          "one_addressee": 471,
+          "both": 300,
+          "single_addressee": 506,
+          "both_exact": 166,
+          "implicit": 544,
+          "implicit_both": 183
+        },
+        "coupled_feedback": {
+          "n": 840,
+          "speaker": 385,
+          "one_addressee": 444,
+          "both": 278,
+          "single_addressee": 506,
+          "both_exact": 138,
+          "implicit": 544,
+          "implicit_both": 173
+        }
+      }
+    },
+    "OliverTwist": {
+      "quotes": 2598,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2548,
+          "speaker": 1587,
+          "one_addressee": 1731,
+          "both": 1014,
+          "single_addressee": 1068,
+          "both_exact": 418,
+          "implicit": 138,
+          "implicit_both": 29
+        },
+        "exclusion_only": {
+          "n": 2548,
+          "speaker": 1655,
+          "one_addressee": 1776,
+          "both": 1370,
+          "single_addressee": 1068,
+          "both_exact": 558,
+          "implicit": 138,
+          "implicit_both": 39
+        },
+        "reciprocal_only": {
+          "n": 2548,
+          "speaker": 1609,
+          "one_addressee": 1731,
+          "both": 1027,
+          "single_addressee": 1068,
+          "both_exact": 422,
+          "implicit": 138,
+          "implicit_both": 29
+        },
+        "coupled_frozen": {
+          "n": 2548,
+          "speaker": 1661,
+          "one_addressee": 1789,
+          "both": 1366,
+          "single_addressee": 1068,
+          "both_exact": 551,
+          "implicit": 138,
+          "implicit_both": 52
+        },
+        "coupled_feedback": {
+          "n": 2548,
+          "speaker": 1633,
+          "one_addressee": 1793,
+          "both": 1371,
+          "single_addressee": 1068,
+          "both_exact": 563,
+          "implicit": 138,
+          "implicit_both": 60
+        }
+      }
+    },
+    "Persuasion": {
+      "quotes": 488,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 487,
+          "speaker": 221,
+          "one_addressee": 257,
+          "both": 111,
+          "single_addressee": 271,
+          "both_exact": 50,
+          "implicit": 175,
+          "implicit_both": 22
+        },
+        "exclusion_only": {
+          "n": 487,
+          "speaker": 226,
+          "one_addressee": 243,
+          "both": 149,
+          "single_addressee": 271,
+          "both_exact": 68,
+          "implicit": 175,
+          "implicit_both": 34
+        },
+        "reciprocal_only": {
+          "n": 487,
+          "speaker": 221,
+          "one_addressee": 257,
+          "both": 111,
+          "single_addressee": 271,
+          "both_exact": 50,
+          "implicit": 175,
+          "implicit_both": 23
+        },
+        "coupled_frozen": {
+          "n": 487,
+          "speaker": 212,
+          "one_addressee": 235,
+          "both": 141,
+          "single_addressee": 271,
+          "both_exact": 64,
+          "implicit": 175,
+          "implicit_both": 37
+        },
+        "coupled_feedback": {
+          "n": 487,
+          "speaker": 192,
+          "one_addressee": 211,
+          "both": 111,
+          "single_addressee": 271,
+          "both_exact": 61,
+          "implicit": 175,
+          "implicit_both": 31
+        }
+      }
+    },
+    "PrideAndPrejudice": {
+      "quotes": 1270,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1249,
+          "speaker": 615,
+          "one_addressee": 712,
+          "both": 323,
+          "single_addressee": 698,
+          "both_exact": 148,
+          "implicit": 636,
+          "implicit_both": 133
+        },
+        "exclusion_only": {
+          "n": 1249,
+          "speaker": 618,
+          "one_addressee": 700,
+          "both": 412,
+          "single_addressee": 698,
+          "both_exact": 205,
+          "implicit": 636,
+          "implicit_both": 171
+        },
+        "reciprocal_only": {
+          "n": 1249,
+          "speaker": 622,
+          "one_addressee": 712,
+          "both": 325,
+          "single_addressee": 698,
+          "both_exact": 151,
+          "implicit": 636,
+          "implicit_both": 136
+        },
+        "coupled_frozen": {
+          "n": 1249,
+          "speaker": 613,
+          "one_addressee": 703,
+          "both": 404,
+          "single_addressee": 698,
+          "both_exact": 196,
+          "implicit": 636,
+          "implicit_both": 185
+        },
+        "coupled_feedback": {
+          "n": 1249,
+          "speaker": 561,
+          "one_addressee": 650,
+          "both": 347,
+          "single_addressee": 698,
+          "both_exact": 155,
+          "implicit": 636,
+          "implicit_both": 152
+        }
+      }
+    },
+    "SenseAndSensibility": {
+      "quotes": 1085,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1076,
+          "speaker": 513,
+          "one_addressee": 668,
+          "both": 315,
+          "single_addressee": 661,
+          "both_exact": 159,
+          "implicit": 465,
+          "implicit_both": 102
+        },
+        "exclusion_only": {
+          "n": 1076,
+          "speaker": 542,
+          "one_addressee": 639,
+          "both": 410,
+          "single_addressee": 661,
+          "both_exact": 213,
+          "implicit": 465,
+          "implicit_both": 132
+        },
+        "reciprocal_only": {
+          "n": 1076,
+          "speaker": 528,
+          "one_addressee": 668,
+          "both": 320,
+          "single_addressee": 661,
+          "both_exact": 161,
+          "implicit": 465,
+          "implicit_both": 103
+        },
+        "coupled_frozen": {
+          "n": 1076,
+          "speaker": 526,
+          "one_addressee": 631,
+          "both": 392,
+          "single_addressee": 661,
+          "both_exact": 205,
+          "implicit": 465,
+          "implicit_both": 134
+        },
+        "coupled_feedback": {
+          "n": 1076,
+          "speaker": 494,
+          "one_addressee": 613,
+          "both": 340,
+          "single_addressee": 661,
+          "both_exact": 163,
+          "implicit": 465,
+          "implicit_both": 97
+        }
+      }
+    },
+    "TheAgeOfInnocence": {
+      "quotes": 1393,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1361,
+          "speaker": 416,
+          "one_addressee": 499,
+          "both": 80,
+          "single_addressee": 1053,
+          "both_exact": 37,
+          "implicit": 576,
+          "implicit_both": 15
+        },
+        "exclusion_only": {
+          "n": 1361,
+          "speaker": 314,
+          "one_addressee": 483,
+          "both": 142,
+          "single_addressee": 1053,
+          "both_exact": 64,
+          "implicit": 576,
+          "implicit_both": 35
+        },
+        "reciprocal_only": {
+          "n": 1361,
+          "speaker": 416,
+          "one_addressee": 499,
+          "both": 81,
+          "single_addressee": 1053,
+          "both_exact": 37,
+          "implicit": 576,
+          "implicit_both": 16
+        },
+        "coupled_frozen": {
+          "n": 1361,
+          "speaker": 402,
+          "one_addressee": 352,
+          "both": 122,
+          "single_addressee": 1053,
+          "both_exact": 61,
+          "implicit": 576,
+          "implicit_both": 35
+        },
+        "coupled_feedback": {
+          "n": 1361,
+          "speaker": 322,
+          "one_addressee": 397,
+          "both": 103,
+          "single_addressee": 1053,
+          "both_exact": 44,
+          "implicit": 576,
+          "implicit_both": 28
+        }
+      }
+    },
+    "TheAwakening": {
+      "quotes": 584,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 578,
+          "speaker": 268,
+          "one_addressee": 306,
+          "both": 100,
+          "single_addressee": 514,
+          "both_exact": 82,
+          "implicit": 263,
+          "implicit_both": 25
+        },
+        "exclusion_only": {
+          "n": 578,
+          "speaker": 299,
+          "one_addressee": 263,
+          "both": 197,
+          "single_addressee": 514,
+          "both_exact": 170,
+          "implicit": 263,
+          "implicit_both": 72
+        },
+        "reciprocal_only": {
+          "n": 578,
+          "speaker": 286,
+          "one_addressee": 306,
+          "both": 112,
+          "single_addressee": 514,
+          "both_exact": 93,
+          "implicit": 263,
+          "implicit_both": 31
+        },
+        "coupled_frozen": {
+          "n": 578,
+          "speaker": 289,
+          "one_addressee": 281,
+          "both": 198,
+          "single_addressee": 514,
+          "both_exact": 173,
+          "implicit": 263,
+          "implicit_both": 79
+        },
+        "coupled_feedback": {
+          "n": 578,
+          "speaker": 282,
+          "one_addressee": 298,
+          "both": 199,
+          "single_addressee": 514,
+          "both_exact": 180,
+          "implicit": 263,
+          "implicit_both": 89
+        }
+      }
+    },
+    "TheGambler": {
+      "quotes": 767,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 762,
+          "speaker": 163,
+          "one_addressee": 267,
+          "both": 41,
+          "single_addressee": 474,
+          "both_exact": 0,
+          "implicit": 296,
+          "implicit_both": 2
+        },
+        "exclusion_only": {
+          "n": 762,
+          "speaker": 202,
+          "one_addressee": 255,
+          "both": 87,
+          "single_addressee": 474,
+          "both_exact": 3,
+          "implicit": 296,
+          "implicit_both": 14
+        },
+        "reciprocal_only": {
+          "n": 762,
+          "speaker": 203,
+          "one_addressee": 267,
+          "both": 55,
+          "single_addressee": 474,
+          "both_exact": 0,
+          "implicit": 296,
+          "implicit_both": 10
+        },
+        "coupled_frozen": {
+          "n": 762,
+          "speaker": 194,
+          "one_addressee": 244,
+          "both": 80,
+          "single_addressee": 474,
+          "both_exact": 2,
+          "implicit": 296,
+          "implicit_both": 15
+        },
+        "coupled_feedback": {
+          "n": 762,
+          "speaker": 228,
+          "one_addressee": 269,
+          "both": 102,
+          "single_addressee": 474,
+          "both_exact": 4,
+          "implicit": 296,
+          "implicit_both": 37
+        }
+      }
+    },
+    "TheInvisibleMan": {
+      "quotes": 904,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 853,
+          "speaker": 397,
+          "one_addressee": 360,
+          "both": 171,
+          "single_addressee": 693,
+          "both_exact": 121,
+          "implicit": 321,
+          "implicit_both": 27
+        },
+        "exclusion_only": {
+          "n": 853,
+          "speaker": 389,
+          "one_addressee": 421,
+          "both": 270,
+          "single_addressee": 693,
+          "both_exact": 188,
+          "implicit": 321,
+          "implicit_both": 39
+        },
+        "reciprocal_only": {
+          "n": 853,
+          "speaker": 398,
+          "one_addressee": 360,
+          "both": 171,
+          "single_addressee": 693,
+          "both_exact": 121,
+          "implicit": 321,
+          "implicit_both": 27
+        },
+        "coupled_frozen": {
+          "n": 853,
+          "speaker": 397,
+          "one_addressee": 393,
+          "both": 258,
+          "single_addressee": 693,
+          "both_exact": 181,
+          "implicit": 321,
+          "implicit_both": 46
+        },
+        "coupled_feedback": {
+          "n": 853,
+          "speaker": 403,
+          "one_addressee": 341,
+          "both": 227,
+          "single_addressee": 693,
+          "both_exact": 147,
+          "implicit": 321,
+          "implicit_both": 54
+        }
+      }
+    },
+    "TheManWhoWasThursday": {
+      "quotes": 799,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 797,
+          "speaker": 471,
+          "one_addressee": 560,
+          "both": 308,
+          "single_addressee": 291,
+          "both_exact": 103,
+          "implicit": 41,
+          "implicit_both": 5
+        },
+        "exclusion_only": {
+          "n": 797,
+          "speaker": 513,
+          "one_addressee": 605,
+          "both": 457,
+          "single_addressee": 291,
+          "both_exact": 168,
+          "implicit": 41,
+          "implicit_both": 9
+        },
+        "reciprocal_only": {
+          "n": 797,
+          "speaker": 477,
+          "one_addressee": 560,
+          "both": 315,
+          "single_addressee": 291,
+          "both_exact": 103,
+          "implicit": 41,
+          "implicit_both": 7
+        },
+        "coupled_frozen": {
+          "n": 797,
+          "speaker": 472,
+          "one_addressee": 574,
+          "both": 425,
+          "single_addressee": 291,
+          "both_exact": 155,
+          "implicit": 41,
+          "implicit_both": 14
+        },
+        "coupled_feedback": {
+          "n": 797,
+          "speaker": 457,
+          "one_addressee": 555,
+          "both": 400,
+          "single_addressee": 291,
+          "both_exact": 144,
+          "implicit": 41,
+          "implicit_both": 21
+        }
+      }
+    },
+    "TheMysteriousAffairAtStyles": {
+      "quotes": 1861,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1857,
+          "speaker": 267,
+          "one_addressee": 479,
+          "both": 90,
+          "single_addressee": 969,
+          "both_exact": 9,
+          "implicit": 1267,
+          "implicit_both": 52
+        },
+        "exclusion_only": {
+          "n": 1857,
+          "speaker": 383,
+          "one_addressee": 485,
+          "both": 167,
+          "single_addressee": 969,
+          "both_exact": 17,
+          "implicit": 1267,
+          "implicit_both": 98
+        },
+        "reciprocal_only": {
+          "n": 1857,
+          "speaker": 326,
+          "one_addressee": 479,
+          "both": 114,
+          "single_addressee": 969,
+          "both_exact": 14,
+          "implicit": 1267,
+          "implicit_both": 69
+        },
+        "coupled_frozen": {
+          "n": 1857,
+          "speaker": 321,
+          "one_addressee": 540,
+          "both": 165,
+          "single_addressee": 969,
+          "both_exact": 19,
+          "implicit": 1267,
+          "implicit_both": 100
+        },
+        "coupled_feedback": {
+          "n": 1857,
+          "speaker": 490,
+          "one_addressee": 639,
+          "both": 259,
+          "single_addressee": 969,
+          "both_exact": 69,
+          "implicit": 1267,
+          "implicit_both": 164
+        }
+      }
+    },
+    "ThePictureOfDorianGray": {
+      "quotes": 1171,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 1159,
+          "speaker": 331,
+          "one_addressee": 497,
+          "both": 94,
+          "single_addressee": 776,
+          "both_exact": 49,
+          "implicit": 583,
+          "implicit_both": 34
+        },
+        "exclusion_only": {
+          "n": 1159,
+          "speaker": 406,
+          "one_addressee": 476,
+          "both": 140,
+          "single_addressee": 776,
+          "both_exact": 79,
+          "implicit": 583,
+          "implicit_both": 56
+        },
+        "reciprocal_only": {
+          "n": 1159,
+          "speaker": 416,
+          "one_addressee": 497,
+          "both": 122,
+          "single_addressee": 776,
+          "both_exact": 61,
+          "implicit": 583,
+          "implicit_both": 50
+        },
+        "coupled_frozen": {
+          "n": 1159,
+          "speaker": 420,
+          "one_addressee": 527,
+          "both": 167,
+          "single_addressee": 776,
+          "both_exact": 88,
+          "implicit": 583,
+          "implicit_both": 72
+        },
+        "coupled_feedback": {
+          "n": 1159,
+          "speaker": 508,
+          "one_addressee": 591,
+          "both": 225,
+          "single_addressee": 776,
+          "both_exact": 91,
+          "implicit": 583,
+          "implicit_both": 109
+        }
+      }
+    },
+    "TheSignOfTheFour": {
+      "quotes": 640,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 638,
+          "speaker": 217,
+          "one_addressee": 348,
+          "both": 57,
+          "single_addressee": 277,
+          "both_exact": 6,
+          "implicit": 327,
+          "implicit_both": 13
+        },
+        "exclusion_only": {
+          "n": 638,
+          "speaker": 236,
+          "one_addressee": 328,
+          "both": 130,
+          "single_addressee": 277,
+          "both_exact": 27,
+          "implicit": 327,
+          "implicit_both": 41
+        },
+        "reciprocal_only": {
+          "n": 638,
+          "speaker": 237,
+          "one_addressee": 348,
+          "both": 75,
+          "single_addressee": 277,
+          "both_exact": 11,
+          "implicit": 327,
+          "implicit_both": 25
+        },
+        "coupled_frozen": {
+          "n": 638,
+          "speaker": 235,
+          "one_addressee": 302,
+          "both": 131,
+          "single_addressee": 277,
+          "both_exact": 29,
+          "implicit": 327,
+          "implicit_both": 55
+        },
+        "coupled_feedback": {
+          "n": 638,
+          "speaker": 246,
+          "one_addressee": 309,
+          "both": 155,
+          "single_addressee": 277,
+          "both_exact": 41,
+          "implicit": 327,
+          "implicit_both": 74
+        }
+      }
+    },
+    "TheSportOfTheGods": {
+      "quotes": 640,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 614,
+          "speaker": 123,
+          "one_addressee": 236,
+          "both": 47,
+          "single_addressee": 322,
+          "both_exact": 10,
+          "implicit": 347,
+          "implicit_both": 12
+        },
+        "exclusion_only": {
+          "n": 614,
+          "speaker": 158,
+          "one_addressee": 238,
+          "both": 87,
+          "single_addressee": 322,
+          "both_exact": 19,
+          "implicit": 347,
+          "implicit_both": 36
+        },
+        "reciprocal_only": {
+          "n": 614,
+          "speaker": 164,
+          "one_addressee": 236,
+          "both": 70,
+          "single_addressee": 322,
+          "both_exact": 20,
+          "implicit": 347,
+          "implicit_both": 27
+        },
+        "coupled_frozen": {
+          "n": 614,
+          "speaker": 166,
+          "one_addressee": 241,
+          "both": 94,
+          "single_addressee": 322,
+          "both_exact": 27,
+          "implicit": 347,
+          "implicit_both": 42
+        },
+        "coupled_feedback": {
+          "n": 614,
+          "speaker": 219,
+          "one_addressee": 290,
+          "both": 131,
+          "single_addressee": 322,
+          "both_exact": 59,
+          "implicit": 347,
+          "implicit_both": 79
+        }
+      }
+    },
+    "TheSunAlsoRises": {
+      "quotes": 2610,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 2581,
+          "speaker": 695,
+          "one_addressee": 901,
+          "both": 83,
+          "single_addressee": 1380,
+          "both_exact": 1,
+          "implicit": 1541,
+          "implicit_both": 20
+        },
+        "exclusion_only": {
+          "n": 2581,
+          "speaker": 702,
+          "one_addressee": 721,
+          "both": 245,
+          "single_addressee": 1380,
+          "both_exact": 8,
+          "implicit": 1541,
+          "implicit_both": 93
+        },
+        "reciprocal_only": {
+          "n": 2581,
+          "speaker": 718,
+          "one_addressee": 901,
+          "both": 96,
+          "single_addressee": 1380,
+          "both_exact": 1,
+          "implicit": 1541,
+          "implicit_both": 28
+        },
+        "coupled_frozen": {
+          "n": 2581,
+          "speaker": 696,
+          "one_addressee": 653,
+          "both": 240,
+          "single_addressee": 1380,
+          "both_exact": 8,
+          "implicit": 1541,
+          "implicit_both": 102
+        },
+        "coupled_feedback": {
+          "n": 2581,
+          "speaker": 527,
+          "one_addressee": 750,
+          "both": 234,
+          "single_addressee": 1380,
+          "both_exact": 21,
+          "implicit": 1541,
+          "implicit_both": 110
+        }
+      }
+    },
+    "WhereAngelsFearToTread": {
+      "quotes": 1000,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 997,
+          "speaker": 475,
+          "one_addressee": 542,
+          "both": 182,
+          "single_addressee": 776,
+          "both_exact": 118,
+          "implicit": 530,
+          "implicit_both": 84
+        },
+        "exclusion_only": {
+          "n": 997,
+          "speaker": 495,
+          "one_addressee": 511,
+          "both": 363,
+          "single_addressee": 776,
+          "both_exact": 264,
+          "implicit": 530,
+          "implicit_both": 175
+        },
+        "reciprocal_only": {
+          "n": 997,
+          "speaker": 494,
+          "one_addressee": 542,
+          "both": 196,
+          "single_addressee": 776,
+          "both_exact": 127,
+          "implicit": 530,
+          "implicit_both": 92
+        },
+        "coupled_frozen": {
+          "n": 997,
+          "speaker": 486,
+          "one_addressee": 496,
+          "both": 345,
+          "single_addressee": 776,
+          "both_exact": 242,
+          "implicit": 530,
+          "implicit_both": 177
+        },
+        "coupled_feedback": {
+          "n": 997,
+          "speaker": 410,
+          "one_addressee": 453,
+          "both": 266,
+          "single_addressee": 776,
+          "both_exact": 180,
+          "implicit": 530,
+          "implicit_both": 139
+        }
+      }
+    },
+    "WinnieThePooh": {
+      "quotes": 879,
+      "offset_mismatches": 0,
+      "arms": {
+        "pipeline": {
+          "n": 830,
+          "speaker": 484,
+          "one_addressee": 529,
+          "both": 279,
+          "single_addressee": 556,
+          "both_exact": 159,
+          "implicit": 263,
+          "implicit_both": 64
+        },
+        "exclusion_only": {
+          "n": 830,
+          "speaker": 492,
+          "one_addressee": 528,
+          "both": 404,
+          "single_addressee": 556,
+          "both_exact": 238,
+          "implicit": 263,
+          "implicit_both": 100
+        },
+        "reciprocal_only": {
+          "n": 830,
+          "speaker": 497,
+          "one_addressee": 529,
+          "both": 290,
+          "single_addressee": 556,
+          "both_exact": 165,
+          "implicit": 263,
+          "implicit_both": 70
+        },
+        "coupled_frozen": {
+          "n": 830,
+          "speaker": 504,
+          "one_addressee": 510,
+          "both": 400,
+          "single_addressee": 556,
+          "both_exact": 235,
+          "implicit": 263,
+          "implicit_both": 112
+        },
+        "coupled_feedback": {
+          "n": 830,
+          "speaker": 428,
+          "one_addressee": 489,
+          "both": 347,
+          "single_addressee": 556,
+          "both_exact": 197,
+          "implicit": 263,
+          "implicit_both": 90
+        }
+      }
+    }
+  },
+  "total": {
+    "pipeline": {
+      "n": 36446,
+      "speaker": 14891,
+      "one_addressee": 18593,
+      "both": 6935,
+      "single_addressee": 21798,
+      "both_exact": 3427,
+      "implicit": 16609,
+      "implicit_both": 1765
+    },
+    "exclusion_only": {
+      "n": 36446,
+      "speaker": 15782,
+      "one_addressee": 18116,
+      "both": 10826,
+      "single_addressee": 21798,
+      "both_exact": 5547,
+      "implicit": 16609,
+      "implicit_both": 3078
+    },
+    "reciprocal_only": {
+      "n": 36446,
+      "speaker": 15726,
+      "one_addressee": 18593,
+      "both": 7387,
+      "single_addressee": 21798,
+      "both_exact": 3642,
+      "implicit": 16609,
+      "implicit_both": 2047
+    },
+    "coupled_frozen": {
+      "n": 36446,
+      "speaker": 15711,
+      "one_addressee": 17853,
+      "both": 10594,
+      "single_addressee": 21798,
+      "both_exact": 5432,
+      "implicit": 16609,
+      "implicit_both": 3389
+    },
+    "coupled_feedback": {
+      "n": 36446,
+      "speaker": 15285,
+      "one_addressee": 18150,
+      "both": 10388,
+      "single_addressee": 21798,
+      "both_exact": 5244,
+      "implicit": 16609,
+      "implicit_both": 3529
+    }
+  },
+  "exclusion_minus_pipeline_joint_accuracy_book_bootstrap_95": [
+    0.08783681844241271,
+    0.12674114303402087
+  ]
+}

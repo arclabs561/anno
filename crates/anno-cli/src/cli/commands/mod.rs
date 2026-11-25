@@ -22,6 +22,7 @@ pub mod extract;
 pub mod history;
 pub mod import;
 pub mod info;
+pub mod joint;
 pub mod models;
 #[cfg(feature = "eval")]
 pub mod muxer;

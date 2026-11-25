@@ -81,6 +81,29 @@ pub(super) fn bytes_sha256(bytes: &[u8]) -> String {
 }
 
 impl HtmlSource {
+    /// Check a persisted renderer projection against both exact document editions.
+    pub fn verify(&self, original: &str, rendered: &str) -> Result<(), String> {
+        self.validate(rendered)?;
+        if original.len() != self.source_byte_length
+            || source_sha256(original) != self.source_sha256
+        {
+            return Err("original HTML differs from the saved source edition".into());
+        }
+        for fragment in self.spans.iter().flat_map(|span| &span.fragments) {
+            if let Some(range) = &fragment.source_bytes {
+                let source = original
+                    .get(range.clone())
+                    .ok_or("original HTML fragment splits a UTF-8 scalar")?;
+                if fragment.kind == HtmlFragmentKind::Direct
+                    && rendered.get(fragment.rendered_bytes.clone()) != Some(source)
+                {
+                    return Err("direct HTML fragment differs from its source bytes".into());
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn validate(&self, text: &str) -> Result<(), String> {
         if self.source_sha256.len() != 64
             || !self
@@ -132,5 +155,32 @@ impl HtmlSource {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_legacy_direct_fragment_against_original_even_when_digests_match() {
+        let original = "<b>A</b>B";
+        let mut saved = HtmlSource {
+            renderer: HtmlRenderer::DeformatStrip,
+            source_sha256: source_sha256(original),
+            source_byte_length: original.len(),
+            rendered_sha256: source_sha256("A"),
+            spans: vec![HtmlSpan {
+                rendered_chars: 0..1,
+                fragments: vec![HtmlFragment {
+                    kind: HtmlFragmentKind::Direct,
+                    rendered_bytes: 0..1,
+                    source_bytes: Some(3..4),
+                }],
+            }],
+        };
+        saved.verify(original, "A").unwrap();
+        saved.spans[0].fragments[0].source_bytes = Some(8..9);
+        assert!(saved.verify(original, "A").is_err());
     }
 }

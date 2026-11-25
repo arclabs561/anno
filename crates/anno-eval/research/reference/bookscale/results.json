@@ -1,0 +1,438 @@
+{
+  "source": "https://huggingface.co/datasets/sapienzanlp/bookcoref/resolve/2c2587aca956a4225712abdcf1af72b93f18a28f/bookcoref_annotations/full/test.jsonl",
+  "sha256": "c4d426a722d3901489bf7bfcb3554d734db29a689876fcff269719ec7288dc9a",
+  "capacities": {
+    "8": {
+      "books": {
+        "siddhartha_2500": {
+          "all": {
+            "new": 9,
+            "returning": 4924,
+            "retained": 4923,
+            "recency_at_1": 2903,
+            "recency_at_4": 4866,
+            "frequency_at_1": 2974,
+            "frequency_at_4": 4132
+          },
+          "gap_ge_128": {
+            "returning": 197,
+            "retained": 196,
+            "recency_at_1": 7,
+            "recency_at_4": 140,
+            "frequency_at_1": 24,
+            "frequency_at_4": 119
+          },
+          "gap_ge_1024": {
+            "returning": 45,
+            "retained": 44,
+            "recency_at_1": 0,
+            "recency_at_4": 7,
+            "frequency_at_1": 0,
+            "frequency_at_4": 21
+          },
+          "gap_ge_8192": {
+            "returning": 6,
+            "retained": 5,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 2
+          }
+        },
+        "pride_and_prejudice_1342": {
+          "all": {
+            "new": 38,
+            "returning": 16378,
+            "retained": 15735,
+            "recency_at_1": 6365,
+            "recency_at_4": 14601,
+            "frequency_at_1": 4617,
+            "frequency_at_4": 12193
+          },
+          "gap_ge_128": {
+            "returning": 1741,
+            "retained": 1099,
+            "recency_at_1": 1,
+            "recency_at_4": 312,
+            "frequency_at_1": 163,
+            "frequency_at_4": 648
+          },
+          "gap_ge_1024": {
+            "returning": 484,
+            "retained": 47,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 0,
+            "frequency_at_4": 10
+          },
+          "gap_ge_8192": {
+            "returning": 79,
+            "retained": 0,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 0
+          }
+        },
+        "animal_farm_0": {
+          "all": {
+            "new": 20,
+            "returning": 1685,
+            "retained": 1550,
+            "recency_at_1": 914,
+            "recency_at_4": 1406,
+            "frequency_at_1": 463,
+            "frequency_at_4": 1172
+          },
+          "gap_ge_128": {
+            "returning": 385,
+            "retained": 250,
+            "recency_at_1": 9,
+            "recency_at_4": 118,
+            "frequency_at_1": 53,
+            "frequency_at_4": 148
+          },
+          "gap_ge_1024": {
+            "returning": 125,
+            "retained": 22,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 1,
+            "frequency_at_4": 8
+          },
+          "gap_ge_8192": {
+            "returning": 5,
+            "retained": 0,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 0
+          }
+        }
+      },
+      "total": {
+        "all": {
+          "new": 67,
+          "returning": 22987,
+          "retained": 22208,
+          "recency_at_1": 10182,
+          "recency_at_4": 20873,
+          "frequency_at_1": 8054,
+          "frequency_at_4": 17497
+        },
+        "gap_ge_128": {
+          "returning": 2323,
+          "retained": 1545,
+          "recency_at_1": 17,
+          "recency_at_4": 570,
+          "frequency_at_1": 240,
+          "frequency_at_4": 915
+        },
+        "gap_ge_1024": {
+          "returning": 654,
+          "retained": 113,
+          "recency_at_1": 0,
+          "recency_at_4": 9,
+          "frequency_at_1": 1,
+          "frequency_at_4": 39
+        },
+        "gap_ge_8192": {
+          "returning": 90,
+          "retained": 5,
+          "recency_at_1": 0,
+          "recency_at_4": 0,
+          "frequency_at_1": 0,
+          "frequency_at_4": 2
+        }
+      }
+    },
+    "24": {
+      "books": {
+        "siddhartha_2500": {
+          "all": {
+            "new": 9,
+            "returning": 4924,
+            "retained": 4924,
+            "recency_at_1": 2903,
+            "recency_at_4": 4866,
+            "frequency_at_1": 2974,
+            "frequency_at_4": 4132
+          },
+          "gap_ge_128": {
+            "returning": 197,
+            "retained": 197,
+            "recency_at_1": 7,
+            "recency_at_4": 140,
+            "frequency_at_1": 24,
+            "frequency_at_4": 119
+          },
+          "gap_ge_1024": {
+            "returning": 45,
+            "retained": 45,
+            "recency_at_1": 0,
+            "recency_at_4": 7,
+            "frequency_at_1": 0,
+            "frequency_at_4": 21
+          },
+          "gap_ge_8192": {
+            "returning": 6,
+            "retained": 6,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 2
+          }
+        },
+        "pride_and_prejudice_1342": {
+          "all": {
+            "new": 38,
+            "returning": 16378,
+            "retained": 16339,
+            "recency_at_1": 6365,
+            "recency_at_4": 14601,
+            "frequency_at_1": 4440,
+            "frequency_at_4": 9444
+          },
+          "gap_ge_128": {
+            "returning": 1741,
+            "retained": 1702,
+            "recency_at_1": 1,
+            "recency_at_4": 312,
+            "frequency_at_1": 186,
+            "frequency_at_4": 625
+          },
+          "gap_ge_1024": {
+            "returning": 484,
+            "retained": 445,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 4,
+            "frequency_at_4": 77
+          },
+          "gap_ge_8192": {
+            "returning": 79,
+            "retained": 43,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 1
+          }
+        },
+        "animal_farm_0": {
+          "all": {
+            "new": 20,
+            "returning": 1685,
+            "retained": 1685,
+            "recency_at_1": 914,
+            "recency_at_4": 1406,
+            "frequency_at_1": 312,
+            "frequency_at_4": 932
+          },
+          "gap_ge_128": {
+            "returning": 385,
+            "retained": 385,
+            "recency_at_1": 9,
+            "recency_at_4": 118,
+            "frequency_at_1": 43,
+            "frequency_at_4": 149
+          },
+          "gap_ge_1024": {
+            "returning": 125,
+            "retained": 125,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 5,
+            "frequency_at_4": 23
+          },
+          "gap_ge_8192": {
+            "returning": 5,
+            "retained": 5,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 1
+          }
+        }
+      },
+      "total": {
+        "all": {
+          "new": 67,
+          "returning": 22987,
+          "retained": 22948,
+          "recency_at_1": 10182,
+          "recency_at_4": 20873,
+          "frequency_at_1": 7726,
+          "frequency_at_4": 14508
+        },
+        "gap_ge_128": {
+          "returning": 2323,
+          "retained": 2284,
+          "recency_at_1": 17,
+          "recency_at_4": 570,
+          "frequency_at_1": 253,
+          "frequency_at_4": 893
+        },
+        "gap_ge_1024": {
+          "returning": 654,
+          "retained": 615,
+          "recency_at_1": 0,
+          "recency_at_4": 9,
+          "frequency_at_1": 9,
+          "frequency_at_4": 121
+        },
+        "gap_ge_8192": {
+          "returning": 90,
+          "retained": 54,
+          "recency_at_1": 0,
+          "recency_at_4": 0,
+          "frequency_at_1": 0,
+          "frequency_at_4": 4
+        }
+      }
+    },
+    "64": {
+      "books": {
+        "siddhartha_2500": {
+          "all": {
+            "new": 9,
+            "returning": 4924,
+            "retained": 4924,
+            "recency_at_1": 2903,
+            "recency_at_4": 4866,
+            "frequency_at_1": 2974,
+            "frequency_at_4": 4132
+          },
+          "gap_ge_128": {
+            "returning": 197,
+            "retained": 197,
+            "recency_at_1": 7,
+            "recency_at_4": 140,
+            "frequency_at_1": 24,
+            "frequency_at_4": 119
+          },
+          "gap_ge_1024": {
+            "returning": 45,
+            "retained": 45,
+            "recency_at_1": 0,
+            "recency_at_4": 7,
+            "frequency_at_1": 0,
+            "frequency_at_4": 21
+          },
+          "gap_ge_8192": {
+            "returning": 6,
+            "retained": 6,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 2
+          }
+        },
+        "pride_and_prejudice_1342": {
+          "all": {
+            "new": 38,
+            "returning": 16378,
+            "retained": 16378,
+            "recency_at_1": 6365,
+            "recency_at_4": 14601,
+            "frequency_at_1": 4440,
+            "frequency_at_4": 9191
+          },
+          "gap_ge_128": {
+            "returning": 1741,
+            "retained": 1741,
+            "recency_at_1": 1,
+            "recency_at_4": 312,
+            "frequency_at_1": 186,
+            "frequency_at_4": 588
+          },
+          "gap_ge_1024": {
+            "returning": 484,
+            "retained": 484,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 4,
+            "frequency_at_4": 74
+          },
+          "gap_ge_8192": {
+            "returning": 79,
+            "retained": 79,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 2
+          }
+        },
+        "animal_farm_0": {
+          "all": {
+            "new": 20,
+            "returning": 1685,
+            "retained": 1685,
+            "recency_at_1": 914,
+            "recency_at_4": 1406,
+            "frequency_at_1": 312,
+            "frequency_at_4": 932
+          },
+          "gap_ge_128": {
+            "returning": 385,
+            "retained": 385,
+            "recency_at_1": 9,
+            "recency_at_4": 118,
+            "frequency_at_1": 43,
+            "frequency_at_4": 149
+          },
+          "gap_ge_1024": {
+            "returning": 125,
+            "retained": 125,
+            "recency_at_1": 0,
+            "recency_at_4": 1,
+            "frequency_at_1": 5,
+            "frequency_at_4": 23
+          },
+          "gap_ge_8192": {
+            "returning": 5,
+            "retained": 5,
+            "recency_at_1": 0,
+            "recency_at_4": 0,
+            "frequency_at_1": 0,
+            "frequency_at_4": 1
+          }
+        }
+      },
+      "total": {
+        "all": {
+          "new": 67,
+          "returning": 22987,
+          "retained": 22987,
+          "recency_at_1": 10182,
+          "recency_at_4": 20873,
+          "frequency_at_1": 7726,
+          "frequency_at_4": 14255
+        },
+        "gap_ge_128": {
+          "returning": 2323,
+          "retained": 2323,
+          "recency_at_1": 17,
+          "recency_at_4": 570,
+          "frequency_at_1": 253,
+          "frequency_at_4": 856
+        },
+        "gap_ge_1024": {
+          "returning": 654,
+          "retained": 654,
+          "recency_at_1": 0,
+          "recency_at_4": 9,
+          "frequency_at_1": 9,
+          "frequency_at_4": 118
+        },
+        "gap_ge_8192": {
+          "returning": 90,
+          "retained": 90,
+          "recency_at_1": 0,
+          "recency_at_4": 0,
+          "frequency_at_1": 0,
+          "frequency_at_4": 5
+        }
+      }
+    }
+  }
+}

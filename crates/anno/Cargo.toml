@@ -13,7 +13,12 @@ keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
   "/src/**/*.rs",
+  "/src/backends/coref/maverick_worker.py",
+  "/tests/fixtures/maverick-worker.sh",
+  "/tests/fixtures/tplinker_plus_tags.json",
   "/examples/fcoref_word_spans.rs",
+  "/examples/coref_gap_panel.rs",
+  "/examples/import_dwie_relations.rs",
   # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
   # whitelist shipped 0.10.0 without them, breaking those features on crates.io
   "/src/backends/hmm_params.json",
@@ -29,7 +34,7 @@ include = [
 name = "anno"
 
 [dependencies]
-textprep = { workspace = true }
+textprep = { workspace = true, features = ["source-map", "serde"] }
 schemars = { version = "1", features = ["derive"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -37,6 +42,7 @@ thiserror = { workspace = true }
 regex = { workspace = true }
 percent-encoding = "2.3"
 log = { workspace = true }
+parking_lot = "0.12"
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
 statrs = { version = "0.19.1", optional = true, default-features = false }
@@ -73,6 +79,9 @@ hf-hub = { workspace = true, optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokenizers = { version = "0.23", optional = true, default-features = false, features = ["unstable_wasm"] }
 
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["process"] }
 
 [dev-dependencies]
 deformat = { workspace = true }
@@ -203,4 +212,8 @@ required-features = ["onnx"]
 
 [[example]]
 name = "fcoref_resource_profile"
+required-features = ["onnx"]
+
+[[example]]
+name = "coref_gap_panel"
 required-features = ["onnx"]

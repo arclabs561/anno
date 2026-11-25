@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "gliner>=0.2.16",
+#     "gliner>=0.2.30,<0.3",
 #     "torch>=2.0.0",
 #     "onnx>=1.14.0",
 #     "onnxruntime>=1.16.0",
@@ -22,14 +22,46 @@ out-of-bounds). This script:
 
 Usage:
     uv run scripts/export_gliner_relex_onnx.py
+    uv run scripts/export_gliner_relex_onnx.py --joint
     uv run scripts/export_gliner_relex_onnx.py --model knowledgator/gliner-relex-large-v1.0
     uv run scripts/export_gliner_relex_onnx.py --output /path/to/relex-onnx/
 """
 
 import argparse
+import gc
+import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
+
+
+def artifact_digest(stage: Path) -> str:
+    """Hash the artifact names, lengths and contents in a joint generation."""
+    digest = hashlib.sha256()
+    for artifact in sorted(stage.iterdir()):
+        digest.update(artifact.name.encode() + b"\0")
+        digest.update(artifact.stat().st_size.to_bytes(8, "big"))
+        with artifact.open("rb") as stream:
+            while block := stream.read(1024 * 1024):
+                digest.update(block)
+    return digest.hexdigest()
+
+
+def publish_joint(stage: Path, out: Path) -> Path:
+    """Select a complete immutable graph and tokenizer as one atomic publication."""
+    generation = artifact_digest(stage)
+    dest = out / generation
+    try:
+        stage.rename(dest)
+    except OSError:
+        # A concurrent or earlier invocation may have the same files.
+        if not (dest / "joint-relex-v1").is_file():
+            raise
+    with tempfile.NamedTemporaryFile(dir=out, mode="w", delete=False) as pointer:
+        pointer.write(generation)
+    os.replace(pointer.name, out / "current")
+    return dest
 
 
 def main():
@@ -39,7 +71,9 @@ def main():
         default="knowledgator/gliner-relex-large-v1.0",
         help="HuggingFace model ID",
     )
+    parser.add_argument("--revision", default=None, help="Hugging Face checkpoint revision")
     parser.add_argument("--output", default=None, help="Output directory")
+    parser.add_argument("--joint", action="store_true", help="Export and verify the trained directed relation head")
     args = parser.parse_args()
 
     import torch
@@ -53,11 +87,40 @@ def main():
         safe_name = model_id.replace("/", "--")
         cache_dir = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
         out = cache_dir / "hub" / f"models--{safe_name}" / "onnx"
+    if args.joint:
+        out = out / "joint"
     out.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {model_id}...")
-    m = GLiNER.from_pretrained(model_id, load_tokenizer=True)
+    revision = args.revision
+    if args.joint and not Path(model_id).is_dir():
+        from huggingface_hub import snapshot_download
+
+        model_source = snapshot_download(model_id, revision=revision)
+        revision = Path(model_source).name
+        m = GLiNER.from_pretrained(model_source, load_tokenizer=True)
+    else:
+        m = GLiNER.from_pretrained(model_id, revision=revision, load_tokenizer=True)
     m.eval()
+
+    if args.joint:
+        from export_gliner_relex_joint import export_joint, source_identity, verify_joint
+
+        with tempfile.TemporaryDirectory(dir=out) as staging:
+            stage = Path(staging)
+            m.data_processor.transformer_tokenizer.save_pretrained(str(stage))
+            with (stage / "gliner_config.json").open("w") as stream:
+                json.dump(m.config.to_dict(), stream, indent=2, default=str)
+            references = export_joint(m, stage)
+            del m
+            gc.collect()
+            verify_joint(stage / "model.onnx", references)
+            (stage / "joint-relex-v1").write_text(
+                json.dumps(source_identity(model_id, revision), sort_keys=True) + "\n"
+            )
+            dest = publish_joint(stage, out)
+        print(f"Published verified joint export at {dest}")
+        return
 
     # Save tokenizer
     if hasattr(m, "data_processor") and hasattr(m.data_processor, "transformer_tokenizer"):

@@ -1,0 +1,9 @@
+[{
+  "title": "joint-baseline-curie",
+  "source_text": "Marie Curie was born in Warsaw. Curie later moved to Paris. She lived in France.",
+  "sents": [
+    ["Marie", "Curie", "was", "born", "in", "Warsaw", "."],
+    ["Curie", "later", "moved", "to", "Paris", "."],
+    ["She", "lived", "in", "France", "."]
+  ]
+}]

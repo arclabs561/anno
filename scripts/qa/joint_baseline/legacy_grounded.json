@@ -1,0 +1,100 @@
+{
+  "id": "extract",
+  "text": "Marie Curie was born in Warsaw. Curie later moved to Paris. She lived in France.",
+  "signals": [
+    {
+      "id": 0,
+      "location": {
+        "Text": {
+          "start": 0,
+          "end": 11
+        }
+      },
+      "surface": "Marie Curie",
+      "label": "PER",
+      "confidence": 0.75,
+      "hierarchical": null,
+      "provenance": {
+        "source": "heuristic",
+        "method": "Heuristic",
+        "pattern": "common_name",
+        "raw_confidence": 0.75
+      },
+      "modality": "Symbolic",
+      "normalized": null,
+      "negated": false,
+      "quantifier": null
+    },
+    {
+      "id": 1,
+      "location": {
+        "Text": {
+          "start": 24,
+          "end": 30
+        }
+      },
+      "surface": "Warsaw",
+      "label": "LOC",
+      "confidence": 0.7,
+      "hierarchical": null,
+      "provenance": {
+        "source": "heuristic",
+        "method": "Heuristic",
+        "pattern": "loc_context",
+        "raw_confidence": 0.7
+      },
+      "modality": "Symbolic",
+      "normalized": null,
+      "negated": false,
+      "quantifier": null
+    },
+    {
+      "id": 2,
+      "location": {
+        "Text": {
+          "start": 53,
+          "end": 58
+        }
+      },
+      "surface": "Paris",
+      "label": "LOC",
+      "confidence": 0.8,
+      "hierarchical": null,
+      "provenance": {
+        "source": "heuristic",
+        "method": "Heuristic",
+        "pattern": "known_location",
+        "raw_confidence": 0.8
+      },
+      "modality": "Symbolic",
+      "normalized": null,
+      "negated": false,
+      "quantifier": null
+    },
+    {
+      "id": 3,
+      "location": {
+        "Text": {
+          "start": 73,
+          "end": 79
+        }
+      },
+      "surface": "France",
+      "label": "LOC",
+      "confidence": 0.8,
+      "hierarchical": null,
+      "provenance": {
+        "source": "heuristic",
+        "method": "Heuristic",
+        "pattern": "known_location",
+        "raw_confidence": 0.8
+      },
+      "modality": "Symbolic",
+      "normalized": null,
+      "negated": false,
+      "quantifier": null
+    }
+  ],
+  "tracks": {},
+  "identities": {}
+}
