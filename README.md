@@ -14,12 +14,7 @@ Run the example with offline backends from the repository root.
 cargo run -p anno --no-default-features --example quickstart
 ```
 
-Run `cargo add anno` to install the current published release. This source tree targets the following dependency.
-
-```toml
-[dependencies]
-anno = "0.16"
-```
+Run `cargo add anno` in your application to use the published Rust library.
 
 ```rust,no_run
 fn main() -> anno::Result<()> {
@@ -105,6 +100,7 @@ limits it to available local models, patterns and heuristics.
 Anno supports Rust 1.91 and later.
 
 - [Quickstart and examples](docs/QUICKSTART.md)
+- [Compare two editions of a harbor bulletin with the published Python wheel](crates/anno-py/README.md#compare-dates-in-two-bulletins)
 - [Source text, offsets and provenance](docs/CONTRACT.md)
 - [Backends and feature flags](docs/BACKENDS.md)
 - [Fixtures, datasets and QA](docs/QA.md) and [evaluation sampling](docs/EVALUATION_SAMPLING.md)

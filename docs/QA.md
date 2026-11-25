@@ -11,6 +11,27 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Try a workflow as a new reader
+
+Start outside the checkout with a published package or a named build. Give a reader
+a question and the public docs. For the harbor bulletin, ask which deadline
+changed, whether the drawing moved, and what evidence an editor can keep.
+Let the reader find the command, then have them replace one notice with their
+own text. A second process or person should be able to reopen the result from
+the files they receive. [Python bulletin example](../crates/anno-py/README.md#compare-dates-in-two-bulletins)
+
+Record the artifact version and digest, first command attempted, help the
+reader needed, and what the recipient could verify. Measure installation and
+model setup separately from time spent doing the task. Mark simulated readers
+as agents. Keep private inputs and exact prompts local.
+
+For a language-sensitive variation, try the same December 4 to December 7
+amendment as `2026年12月4日` and `2026年12月7日`, or as `٤ ديسمبر ٢٠٢٦` and
+`٧ ديسمبر ٢٠٢٦`. Check the original sentences even if the change list is empty.
+Use a known contract failure to gate a patch once its expected behavior is
+agreed. Record newly uncovered language gaps with the input, backend and scope
+per the [seed retention guidance](#decide-what-to-keep).
+
 ## Run a check
 
 From the repository root, these checks use checked-in inputs. Cargo needs its dependencies installed or cached.
