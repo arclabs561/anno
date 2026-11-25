@@ -405,6 +405,7 @@ impl LoadableDatasetId {
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
             DatasetId::CrossREAI
+            | DatasetId::CrossRELiterature
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -5639,6 +5640,7 @@ impl DatasetLoader {
     ) -> Result<Vec<RelationDocument>> {
         match id {
             DatasetId::CrossREAI
+            | DatasetId::CrossRELiterature
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
