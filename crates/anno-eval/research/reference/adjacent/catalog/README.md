@@ -1,0 +1,9 @@
+# Cross-document event retrieval and reuse of verified catalog links
+
+Run `python evaluate.py` with Python 3. It downloads two revision-pinned inputs from Hugging Face. Local paths can be supplied with `--ecb` and `--zelda`. The latter consumes the first 500 JSONL documents in either case.
+
+**ECB+** uses every test event mention as a query against all event mentions in other test documents, with no gold topic restriction. Of 1,780 queries, 1,127 have an annotated cross-document counterpart. Top-1 hits among those were 457 for exact head lemma, 819 with sentence token Jaccard breaking lemma ties, and 814 with sentence plus co-occurring entity surface overlap breaking lemma ties. Ties use a fixed hash of mention ID. Entity locations and event spans are gold. Co-occurring entities approximate participants, and may be unrelated to the event. This is retrieval, without a predicted clustering or joint neural training.
+
+**ZELDA** uses the first 500 documents of the NAIST conversion's development split, supplied mention spans, and an oracle history of earlier verified page mappings in each document. Of 12,209 annotated mentions, only 1,958 had any previously seen target. Exact case-folded token sequences offered 2,012 links with 1,732 correct. Permitting any shared token offered 5,291 with 1,790 correct. That is 3,279 additional reviews for 58 net additional correct links. This is an audit of local reuse, with no external candidate dictionary or NIL detector. The sample is a fixed prefix of the conversion, not the original nine-domain ZELDA test suite.
+
+[ECB+ mirror](https://huggingface.co/datasets/ahmeshaf/ecb_plus_mentions/tree/a549d5c7c456400b0262891344300e2ca66ec58f) · [Original joint event and entity system](https://github.com/shanybar/event_entity_coref_ecb_plus) · [ZELDA conversion](https://huggingface.co/datasets/naist-nlp/zelda/tree/374abf1c2eb6d22264671ef6c357961ca92201d3)
