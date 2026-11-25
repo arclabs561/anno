@@ -198,6 +198,19 @@ impl W2NER {
         }
     }
 
+    /// Whether automatic evaluation can acquire this export. Cached and local
+    /// weights need no Hub token.
+    #[cfg(feature = "onnx")]
+    pub fn model_files_available(model: &str, has_hf_token: bool) -> bool {
+        use crate::backends::hf_loader;
+        let dir = std::path::Path::new(model);
+        if dir.exists() {
+            return dir.join("model.onnx").is_file() && dir.join("tokenizer.json").is_file();
+        }
+        (!hf_loader::no_downloads() && has_hf_token)
+            || hf_loader::cached_hub_onnx_files(model, false, false)
+    }
+
     /// Load W2NER model from path or HuggingFace.
     ///
     /// Reads `HF_TOKEN` from the process environment if set.

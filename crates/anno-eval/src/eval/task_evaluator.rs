@@ -1451,6 +1451,7 @@ impl TaskEvaluator {
                         "nuner"
                             | "gliner_onnx"
                             | "gliner"
+                            | "gliner_candle"
                             | "gliner_multitask"
                             | "gliner2_fastino"
                             | "gliner25"
@@ -2329,9 +2330,7 @@ impl TaskEvaluator {
         match backend_name.to_lowercase().as_str() {
             #[cfg(feature = "onnx")]
             "nuner" => {
-                use crate::DEFAULT_NUNER_MODEL;
-                use anno::backends::nuner::NuNER;
-                let nuner = NuNER::from_pretrained(DEFAULT_NUNER_MODEL)?;
+                let nuner = BackendFactory::load_nuner()?;
                 Ok(CachedBackend::NuNER(nuner))
             }
             #[cfg(not(feature = "onnx"))]
@@ -2385,9 +2384,7 @@ impl TaskEvaluator {
             )),
             #[cfg(feature = "candle")]
             "gliner_candle" => {
-                use crate::DEFAULT_GLINER_MODEL;
-                use anno::backends::gliner_candle::GLiNERCandle;
-                let gliner = GLiNERCandle::from_pretrained(DEFAULT_GLINER_MODEL)?;
+                let gliner = BackendFactory::load_gliner_candle()?;
                 Ok(CachedBackend::GLiNERCandle(gliner))
             }
             #[cfg(not(feature = "candle"))]
@@ -2424,9 +2421,7 @@ impl TaskEvaluator {
             "nuner" => {
                 #[cfg(feature = "onnx")]
                 {
-                    use crate::DEFAULT_NUNER_MODEL;
-                    use anno::backends::nuner::NuNER;
-                    let nuner = NuNER::from_pretrained(DEFAULT_NUNER_MODEL)?;
+                    let nuner = BackendFactory::load_nuner()?;
                     Ok(CachedBackendAny {
                         backend: Box::new(nuner),
                         construction_receipt: BackendConstructionReceipt::default(),
@@ -2514,9 +2509,7 @@ impl TaskEvaluator {
             "gliner_candle" => {
                 #[cfg(feature = "candle")]
                 {
-                    use crate::DEFAULT_GLINER_MODEL;
-                    use anno::backends::gliner_candle::GLiNERCandle;
-                    let gliner = GLiNERCandle::from_pretrained(DEFAULT_GLINER_MODEL)?;
+                    let gliner = BackendFactory::load_gliner_candle()?;
                     Ok(CachedBackendAny {
                         backend: Box::new(gliner),
                         construction_receipt: BackendConstructionReceipt::default(),

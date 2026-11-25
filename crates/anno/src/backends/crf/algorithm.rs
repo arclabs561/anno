@@ -190,7 +190,7 @@ impl CrfNER {
         m
     }
 
-    fn shipped_weights() -> Option<HashMap<String, f64>> {
+    pub(super) fn shipped_weights() -> Option<HashMap<String, f64>> {
         #[cfg(feature = "bundled-crf-weights")]
         {
             static ONCE: OnceLock<Option<HashMap<String, f64>>> = OnceLock::new();

@@ -212,6 +212,26 @@ fn local_model_dir(model_name: &str) -> Result<Option<&std::path::Path>> {
 
 #[cfg(feature = "onnx")]
 impl BertNEROnnx {
+    /// Check mandatory input files using the same directory precedence and Hub
+    /// graph variants as the default constructor. Hosted BERT requires config.json;
+    /// local exports support the built-in CoNLL label map when it is absent.
+    pub fn model_files_available(model_name: &str) -> bool {
+        use crate::backends::hf_loader;
+        if !hf_loader::no_downloads() {
+            return true;
+        }
+        let quantized = BertNERConfig::default().prefer_quantized;
+        match local_model_dir(model_name) {
+            Ok(Some(dir)) => {
+                dir.join("tokenizer.json").is_file()
+                    && (dir.join("model.onnx").is_file()
+                        || quantized && dir.join("model_quantized.onnx").is_file())
+            }
+            Ok(None) => hf_loader::hub_onnx_files_available(model_name, quantized, true),
+            Err(_) => false,
+        }
+    }
+
     /// Create a new BERT NER ONNX model with default config.
     ///
     /// # Arguments

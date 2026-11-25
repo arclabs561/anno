@@ -99,18 +99,11 @@ impl GLiNEROnnx {
     /// download policy. Offline this checks files in the active Hub revision.
     /// The constructor still validates the graph and tokenizer on use.
     pub fn hub_assets_available(model_name: &str) -> bool {
-        use crate::backends::hf_loader;
-        if !hf_loader::no_downloads() {
-            return true;
-        }
-        let repo = hf_hub::Cache::from_env().model(model_name.to_owned());
-        let present = |name: &str| repo.get(name).is_some_and(|p| p.is_file());
-        present("tokenizer.json")
-            && (hf_loader::FP32_ONNX_PATHS.iter().any(|path| present(path))
-                || (GLiNERConfig::default().prefer_quantized
-                    && hf_loader::QUANTIZED_ONNX_PATHS
-                        .iter()
-                        .any(|path| present(path))))
+        crate::backends::hf_loader::hub_onnx_files_available(
+            model_name,
+            GLiNERConfig::default().prefer_quantized,
+            false,
+        )
     }
 
     /// Create a new GLiNER model from HuggingFace with default config.

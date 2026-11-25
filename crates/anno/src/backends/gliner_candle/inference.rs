@@ -47,14 +47,10 @@ impl std::fmt::Debug for GLiNERCandle {
 /// but doesn't provide direct state dict -> safetensors conversion.
 #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<PathBuf> {
-    let cache_dir = pytorch_path
-        .parent()
-        .ok_or_else(|| Error::Retrieval("Invalid pytorch model path".to_string()))?;
-
-    let safetensors_path = cache_dir.join("model_converted.safetensors");
+    let safetensors_path = crate::backends::hf_loader::converted_pytorch_weights(pytorch_path);
 
     // Check if already converted
-    if safetensors_path.exists() {
+    if safetensors_path.is_file() {
         log::debug!("Using cached safetensors conversion");
         return Ok(safetensors_path);
     }
@@ -138,6 +134,24 @@ pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<Path
 
 #[cfg(feature = "candle")]
 impl GLiNERCandle {
+    #[cfg(not(target_arch = "wasm32"))]
+    const CONFIG_FILES: &[&str] = &["config.json", "gliner_config.json"];
+    #[cfg(not(target_arch = "wasm32"))]
+    const TOKENIZER_FILES: &[&str] = &["tokenizer.json"];
+    #[cfg(not(target_arch = "wasm32"))]
+    const NATIVE_WEIGHTS: &[&str] = &["model.safetensors", "gliner_model.safetensors"];
+
+    /// Check prerequisites for this Hub constructor without reading weights.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn hub_assets_available(model: &str) -> bool {
+        crate::backends::hf_loader::candle_files_available(
+            model,
+            Self::CONFIG_FILES,
+            Self::TOKENIZER_FILES,
+            Self::NATIVE_WEIGHTS,
+        )
+    }
+
     /// Load GLiNER from HuggingFace.
     ///
     /// Reads `HF_TOKEN` from the process environment if set.
@@ -156,7 +170,7 @@ impl GLiNERCandle {
         // knowledgator/modern-gliner-bi-large-v1.0 has safetensors available
         // Fall back to urchade models if needed
         let tokenizer_path =
-            crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"]).map_err(
+            crate::backends::hf_loader::download_model_file(&repo, Self::TOKENIZER_FILES).map_err(
                 |e| {
                     Error::Retrieval(format!(
                         "tokenizer.json not found. GLiNER Candle requires tokenizer.json. \
@@ -171,14 +185,14 @@ impl GLiNERCandle {
         // Workaround: Try to convert pytorch_model.bin to safetensors on-the-fly
         let weights_path = crate::backends::hf_loader::download_model_file(
             &repo,
-            &["model.safetensors", "gliner_model.safetensors"],
+            Self::NATIVE_WEIGHTS,
         )
             .or_else(|_| {
                 // Workaround: Try to convert pytorch_model.bin to safetensors
                 // Now that we have From<ApiError>, we can use ? directly
                 let pytorch_path = crate::backends::hf_loader::download_model_file(
                     &repo,
-                    &["pytorch_model.bin"],
+                    crate::backends::hf_loader::PYTORCH_WEIGHTS,
                 )?;
                 convert_pytorch_to_safetensors(&pytorch_path)
             })
@@ -191,16 +205,15 @@ impl GLiNERCandle {
                 e
             )))?;
         // GLiNER models use gliner_config.json instead of standard config.json
-        let config_path = crate::backends::hf_loader::download_model_file(
-            &repo,
-            &["config.json", "gliner_config.json"],
-        )
-        .map_err(|e| {
-            Error::Retrieval(format!(
-                "config (tried config.json and gliner_config.json): {}",
-                e
-            ))
-        })?;
+        let config_path =
+            crate::backends::hf_loader::download_model_file(&repo, Self::CONFIG_FILES).map_err(
+                |e| {
+                    Error::Retrieval(format!(
+                        "config (tried config.json and gliner_config.json): {}",
+                        e
+                    ))
+                },
+            )?;
 
         // Load tokenizer (only if tokenizer.json, not tokenizer_config.json)
         let tokenizer = if tokenizer_path.ends_with("tokenizer.json") {

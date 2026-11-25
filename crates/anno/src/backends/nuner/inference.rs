@@ -90,6 +90,28 @@ impl NuNER {
         })
     }
 
+    #[cfg(feature = "onnx")]
+    fn local_graph(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+        ["model.onnx", "model_quantized.onnx", "onnx/model.onnx"]
+            .into_iter()
+            .map(|name| dir.join(name))
+            .find(|path| path.is_file())
+    }
+
+    /// Check the file layout selected by `from_pretrained` without loading the graph.
+    #[cfg(feature = "onnx")]
+    #[must_use]
+    pub fn model_files_available(model: &str) -> bool {
+        if model == crate::models::NUNER_ZERO_4K {
+            return Self::local_4k_export_available();
+        }
+        let dir = std::path::Path::new(model);
+        if dir.is_dir() {
+            return Self::local_graph(dir).is_some() && dir.join("tokenizer.json").is_file();
+        }
+        crate::backends::hf_loader::hub_onnx_files_available(model, false, false)
+    }
+
     /// Whether the graph and tokenizer for the local 4k export are installed.
     #[cfg(feature = "onnx")]
     #[must_use]
@@ -126,13 +148,9 @@ impl NuNER {
             let config = tokenizer.with_file_name("gliner_config.json");
             (graph, tokenizer, Some(config).filter(|p| p.is_file()))
         } else if dir.is_dir() {
-            let graph = ["model.onnx", "model_quantized.onnx", "onnx/model.onnx"]
-                .into_iter()
-                .map(|f| dir.join(f))
-                .find(|p| p.is_file())
-                .ok_or_else(|| {
-                    Error::Retrieval(format!("Missing NuNER ONNX graph in {model_id}"))
-                })?;
+            let graph = Self::local_graph(dir).ok_or_else(|| {
+                Error::Retrieval(format!("Missing NuNER ONNX graph in {model_id}"))
+            })?;
             (
                 graph,
                 dir.join("tokenizer.json"),

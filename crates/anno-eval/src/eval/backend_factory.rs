@@ -348,9 +348,7 @@ impl BackendFactory {
             #[cfg(all(not(feature = "onnx"), feature = "candle"))]
             "gliner" => {
                 // Fallback alias: Candle implementation when ONNX isn't enabled.
-                use anno::backends::gliner_candle::GLiNERCandle;
-                use crate::DEFAULT_GLINER_CANDLE_MODEL;
-                GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
+                Self::load_gliner_candle()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -426,11 +424,7 @@ impl BackendFactory {
 
             #[cfg(feature = "onnx")]
             "nuner" | "nunerzero" => {
-                use crate::backends::nuner::NuNER;
-                use crate::DEFAULT_NUNER_MODEL;
-                let checkpoint = std::env::var("NUNER_MODEL_PATH")
-                    .unwrap_or_else(|_| DEFAULT_NUNER_MODEL.to_owned());
-                NuNER::from_pretrained(&checkpoint)
+                Self::load_nuner()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
@@ -556,9 +550,7 @@ impl BackendFactory {
 
             #[cfg(feature = "candle")]
             "gliner_candle" | "glinercandle" => {
-                use crate::backends::gliner_candle::GLiNERCandle;
-                use crate::DEFAULT_GLINER_CANDLE_MODEL;
-                GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
+                Self::load_gliner_candle()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -687,6 +679,89 @@ impl BackendFactory {
                     ""
                 }
             ))),
+        }
+    }
+
+    #[cfg(feature = "candle")]
+    pub(super) fn load_gliner_candle() -> anno::Result<anno::backends::gliner_candle::GLiNERCandle>
+    {
+        anno::backends::gliner_candle::GLiNERCandle::from_pretrained(
+            crate::DEFAULT_GLINER_CANDLE_MODEL,
+        )
+    }
+
+    #[cfg(feature = "onnx")]
+    pub(super) fn load_nuner() -> anno::Result<anno::NuNER> {
+        anno::NuNER::from_pretrained(&Self::nuner_checkpoint())
+    }
+
+    #[cfg(feature = "onnx")]
+    fn nuner_checkpoint() -> String {
+        std::env::var("NUNER_MODEL_PATH").unwrap_or_else(|_| crate::DEFAULT_NUNER_MODEL.to_owned())
+    }
+
+    /// Check model file prerequisites for automatic sampling. Built-ins and
+    /// composites with working local fallbacks remain available on an empty cache.
+    #[cfg(feature = "eval")]
+    pub(crate) fn automatic_files_available(name: &str, has_hf_token: bool) -> bool {
+        match name {
+            #[cfg(feature = "onnx")]
+            "bert_onnx" => anno::BertNEROnnx::model_files_available(anno::DEFAULT_BERT_ONNX_MODEL),
+            #[cfg(feature = "onnx")]
+            "deberta_v3" | "albert" => {
+                let key = if name == "albert" {
+                    "ALBERT_MODEL_PATH"
+                } else {
+                    "DEBERTA_MODEL_PATH"
+                };
+                std::env::var(key)
+                    .is_ok_and(|model| anno::BertNEROnnx::model_files_available(&model))
+            }
+            #[cfg(feature = "onnx")]
+            "nuner" => anno::NuNER::model_files_available(&Self::nuner_checkpoint()),
+            #[cfg(feature = "onnx")]
+            "gliner_multitask" => {
+                anno::backends::gliner_multitask::GLiNERMultitaskOnnx::hub_assets_available(
+                    anno::DEFAULT_GLINER_MULTITASK_MODEL,
+                )
+            }
+            #[cfg(feature = "onnx")]
+            "gliner" | "gliner_onnx" => {
+                anno::GLiNEROnnx::hub_assets_available(anno::DEFAULT_GLINER_MODEL)
+            }
+            #[cfg(feature = "onnx")]
+            "gliner_pii" => anno::GLiNEROnnx::hub_assets_available(anno::models::GLINER_PII),
+            #[cfg(feature = "onnx")]
+            "w2ner" => {
+                let model = std::env::var("W2NER_MODEL_PATH")
+                    .unwrap_or_else(|_| anno::DEFAULT_W2NER_MODEL.into());
+                anno::backends::w2ner::W2NER::model_files_available(&model, has_hf_token)
+            }
+            #[cfg(feature = "candle")]
+            "candle_ner" => {
+                anno::backends::candle::CandleNER::hub_assets_available(crate::DEFAULT_CANDLE_MODEL)
+            }
+            #[cfg(feature = "candle")]
+            "gliner_candle" => anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
+                crate::DEFAULT_GLINER_CANDLE_MODEL,
+            ),
+            #[cfg(all(feature = "candle", not(feature = "onnx")))]
+            "gliner" => anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
+                crate::DEFAULT_GLINER_CANDLE_MODEL,
+            ),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => std::env::var_os("GLINER25_MODEL_DIR").is_some_and(|dir| {
+                anno::backends::gliner25::GLiNER25::model_files_available(std::path::Path::new(
+                    &dir,
+                ))
+            }),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_fastino" => {
+                anno::backends::gliner2_fastino::GLiNER2Fastino::default_assets_available()
+            }
+            #[cfg(not(feature = "onnx"))]
+            "w2ner" => has_hf_token,
+            _ => true,
         }
     }
 

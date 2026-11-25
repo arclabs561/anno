@@ -92,6 +92,19 @@ mod tplinker {
         );
     }
 
+    #[test]
+    fn tplinker_rejects_logits_for_a_different_token_count() {
+        if !ort_ready("tplinker_rejects_logits_for_a_different_token_count") {
+            return;
+        }
+        // This authored model always emits the rows for "alice met bob".
+        let model = TPLinker::from_local(&data("tplinker_tokpos")).expect("load fixture");
+        let result = model.extract_with_relations("alice", &[], &[], 0.5);
+        assert!(
+            matches!(result, Err(anno::Error::Inference(message)) if message.contains("ent_logits"))
+        );
+    }
+
     /// Character-offset indexing, other side: with "a b" the char starts (0, 2) address the
     /// ([CLS], b) cell, so a logit there yields relations between a and b.
     #[test]
