@@ -32,8 +32,8 @@ include = [
 name = "anno"
 
 [dependencies]
-textprep = { workspace = true }
-unicode-normalization = { workspace = true }
+textprep = { workspace = true, features = ["source-map"] }
+textprep-source-map = { workspace = true, features = ["serde"] }
 schemars = { version = "1", features = ["derive"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

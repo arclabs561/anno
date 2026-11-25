@@ -30,7 +30,8 @@ bitflags = "2.13.1"
 
 # `textprep` is published on crates.io. For local development with sibling checkouts,
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
-textprep = "0.1"
+textprep = { version = "0.3.2", path = "../textprep" }
+textprep-source-map = { version = "0.1.0", path = "../textprep/crates/source-map" }
 
 ## Clustering / stratification
 #
@@ -62,7 +63,7 @@ safetensors = "0.8"
 half = "2"
 
 # Document-to-text extraction
-deformat = "0.17.1"
+deformat = { version = "0.17.2", path = "../deformat" }
 
 # Performance
 rayon = "1"

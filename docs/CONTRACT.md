@@ -54,10 +54,10 @@ Anno can identify. Normal extraction JSON and JSONL keep analyzed byte ranges
 on mentions and relation endpoints and store the map once per document.
 Grounded output also saves the analyzed text for arbitrary source-span queries.
 
-Each transformation owns the evidence for its step. Deformat supplies HTML
-renderer offsets. Anno's preprocessor supplies edit mappings for its whitespace
-and Unicode transformations. Anno composes them, stores the result with the
-grounded document, and projects the model's spans through it. An input renderer
+Deformat supplies renderer offsets. Textprep supplies whitespace and Unicode edit
+mappings. Both use the byte ranges and composition rules from `textprep-source-map`.
+Anno selects the preparation settings, stores the composed map in the grounded
+document, and exposes the same types through its existing public imports. An input renderer
 that supplies only text can leave the original offsets unknown even when the
 original digest is available. [Extraction workflow](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
 

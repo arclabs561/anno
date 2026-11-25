@@ -52,7 +52,7 @@ muxer = { version = "0.5", default-features = false, features = [
 # (default, best quality, pulls cssparser/selectors MPL-2.0 transitives)
 # vs extractor-html2text (no MPL deps, lower quality on boilerplate-heavy
 # pages).
-deformat = { workspace = true }
+deformat = { workspace = true, features = ["source-map"] }
 html2text = { version = "0.16", optional = true }
 encoding_rs = { version = "0.8", optional = true }
 mime = { version = "0.3", optional = true }

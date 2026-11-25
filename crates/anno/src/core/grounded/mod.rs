@@ -1552,7 +1552,7 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         if let Some(map) = &wire.source_map {
             map.validate_analyzed(&wire.text)?;
             if let Some(html) = &wire.html_source {
-                map.check_html_identity(html)?;
+                html.check_map_identity(map)?;
             }
         }
         let mut doc = Self {
@@ -1760,7 +1760,7 @@ impl GroundedDocument {
     pub fn record_html_source(&mut self, source: HtmlSource) -> Result<(), String> {
         source.validate(&self.text)?;
         if let Some(map) = self.source_map() {
-            map.check_html_identity(&source)?;
+            source.check_map_identity(map)?;
         }
         self.html_source = Some(Box::new(source));
         Ok(())
