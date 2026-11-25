@@ -99,6 +99,22 @@ For a change to a partially passing backend, add `--baseline-predictions old.jso
 
 The required Ubuntu CLI integration job runs against local fixtures, including public-source excerpts. The additional eval-feature job exercises the loopback HTTP cases. The Python QA job tests the harness itself with fixed inputs. A separate path-filtered benchmark fetches checksum-pinned WikiGold and records corpus scores. The full 457-date NASA replay is an explicit command. Fuzzing is available locally, and a maintainer can launch the bounded mutation job from a matching branch. [CI workflow](../.github/workflows/ci.yml) · [WikiGold benchmark](../.github/workflows/bench-extraction.yml) · [Fuzz target](../fuzz/README.md)
 
+The Python binding and Linux wheel jobs run the bulletin example from a
+temporary working directory. The weekly installed-package job exercises the
+pinned public PyPI wheel and records the filename and hash. The release
+workflow also verifies the submitted distribution hashes after publication.
+The real-weight FCoref job checks that a reader can reopen a caption at its
+original cue time after a Unicode edit. [Python wheel build](../.github/workflows/python-wheels.yml) · [Public wheel check](../.github/workflows/python-package-check.yml) · [Caption replay](../crates/anno/examples/caption_links/README.md)
+
+Maintainers can run the weekly checks immediately from the default branch.
+The journey report records the policies’ selections and the independent
+result for each of the three cases. [Policy comparison and local replay](EVALUATION_SAMPLING.md#compare-three-developer-journeys)
+
+```sh
+gh workflow run python-package-check.yml --ref main
+gh workflow run journey-sampling.yml --ref main
+```
+
 For live discovery, `just qa-random` balances catalog topics and publishers by default. For offline exact-span assertions, `just qa-domain-spans target/debug/anno` exercises a labeled panel. The live runner needs an eval-enabled CLI.
 
 ```sh
