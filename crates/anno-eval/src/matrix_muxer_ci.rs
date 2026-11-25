@@ -2792,49 +2792,56 @@ fn test_matrix_distribution_report() {
     }
 }
 
-/// Probe the same reader used by the selected task and retain acquisition/parse errors.
+/// Match the evaluator's generic input check and its task-specific gold reader.
 fn check_dataset_usable(
     loader: &DatasetLoader,
+    tasks: &[Task],
     ds: DatasetId,
     require_cached: bool,
 ) -> anno::Result<()> {
-    let count = if ds.is_relation_extraction() {
-        if require_cached {
+    fn require_examples(count: usize) -> anno::Result<()> {
+        if count == 0 {
+            return Err(anno::Error::InvalidInput(
+                "dataset contains no examples".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    let loadable = LoadableDatasetId::try_from(ds)?;
+    let receipt = if require_cached {
+        loader.load_with_receipt(loadable)?
+    } else {
+        loader.load_or_download_with_receipt(loadable)?
+    };
+    // A candidate check can warm the local cache before the evaluator loads it.
+    eprintln!(
+        "matrix-muxer: dataset precheck {}",
+        serde_json::json!({
+            "dataset": ds,
+            "dataset_source": receipt.dataset.data_source.to_string(),
+            "dataset_sha256": receipt.content_sha256,
+            "s3_fallback": receipt.s3_fallback,
+        })
+    );
+    require_examples(receipt.dataset.sentences.len())?;
+    drop(receipt);
+
+    if tasks.contains(&Task::RelationExtraction) {
+        let documents = if require_cached {
             loader.load_relation(ds)?
         } else {
             loader.load_or_download_relation(ds)?
-        }
-        .len()
-    } else if ds.is_coreference() {
-        if require_cached {
+        };
+        require_examples(documents.len())?;
+    }
+    if tasks.iter().any(Task::is_coref_family) && ds.is_coreference() {
+        let documents = if require_cached {
             loader.load_coref(ds)?
         } else {
             loader.load_or_download_coref(ds)?
-        }
-        .len()
-    } else {
-        let loadable = LoadableDatasetId::try_from(ds)?;
-        let receipt = if require_cached {
-            loader.load_with_receipt(loadable)?
-        } else {
-            loader.load_or_download_with_receipt(loadable)?
         };
-        // A candidate check can warm the local cache before the evaluator loads it.
-        eprintln!(
-            "matrix-muxer: dataset precheck {}",
-            serde_json::json!({
-                "dataset": ds,
-                "dataset_source": receipt.dataset.data_source.to_string(),
-                "dataset_sha256": receipt.content_sha256,
-                "s3_fallback": receipt.s3_fallback,
-            })
-        );
-        receipt.dataset.sentences.len()
-    };
-    if count == 0 {
-        return Err(anno::Error::InvalidInput(
-            "dataset contains no examples".into(),
-        ));
+        require_examples(documents.len())?;
     }
     Ok(())
 }
@@ -2981,6 +2988,69 @@ fn ner_smoke_uses_its_checked_in_conll_source() {
 }
 
 #[test]
+fn ner_precheck_on_multitask_inputs_only_requires_ner_annotations() {
+    let cache = tempfile::tempdir().unwrap();
+    let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+    // Authored examples use the two local NER representations accepted by the loader.
+    // Neither input supplies a supported document-level gold annotation.
+    for (dataset, document_task, input) in [
+        (
+            DatasetId::OntoNotes50,
+            Task::IntraDocCoref,
+            "Mira B-PER\nvisited O\nParis B-LOC\n. O\n",
+        ),
+        (
+            DatasetId::SciERCNER,
+            Task::RelationExtraction,
+            r#"{"sentence":["Two","models","interact","."],"ner":[[1,1,"Method"]],"relations":[]}"#,
+        ),
+    ] {
+        std::fs::write(cache.path().join(dataset.cache_filename()), input).unwrap();
+        assert!(check_dataset_usable(&loader, &[Task::NER], dataset, true).is_ok());
+        assert!(check_dataset_usable(&loader, &[document_task], dataset, true).is_err());
+        assert!(check_dataset_usable(&loader, &[Task::NER, document_task], dataset, true).is_err());
+    }
+}
+
+#[test]
+fn relation_precheck_applies_the_evaluators_cache_checksum() {
+    use crate::eval::loader::{CacheManifest, CacheManifestEntry};
+
+    let cache = tempfile::tempdir().unwrap();
+    let id = DatasetId::CrossREAI;
+    let data = r#"{"sentence":["Ada","wrote","code"],"ner":[[0,0,"PER"]],"relations":[]}"#;
+    let path = cache.path().join(id.cache_filename());
+    std::fs::write(&path, data).unwrap();
+    let initial = DatasetLoader::with_cache_dir(cache.path())
+        .unwrap()
+        .load_with_receipt(LoadableDatasetId::try_from(id).unwrap())
+        .unwrap();
+    let mut manifest = CacheManifest::new();
+    manifest.update_entry(CacheManifestEntry {
+        dataset_id: id.cache_filename().into(),
+        source_url: id.download_url().into(),
+        resolved_url: None,
+        sha256: initial.content_sha256,
+        file_size: data.len() as u64,
+        downloaded_at: "fixture".into(),
+        sentence_count: 1,
+        entity_count: 1,
+        anno_version: "fixture".into(),
+    });
+    manifest.save(cache.path()).unwrap();
+    let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+    let tasks = [Task::RelationExtraction];
+    check_dataset_usable(&loader, &tasks, id, true).unwrap();
+    std::fs::write(path, data.replace("Ada", "Ari")).unwrap();
+    assert_eq!(loader.load_relation(id).unwrap().len(), 1);
+    let error = check_dataset_usable(&loader, &tasks, id, true).unwrap_err();
+    assert_eq!(
+        dataset_rejection_message(error),
+        "dataset checksum mismatch"
+    );
+}
+
+#[test]
 fn dataset_rejections_expose_categories_without_urls_payloads_or_s3_stderr() {
     let cache = tempfile::tempdir().unwrap();
     let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
@@ -2990,7 +3060,7 @@ fn dataset_rejections_expose_categories_without_urls_payloads_or_s3_stderr() {
         r#"{"text":"stale"}"#,
     )
     .unwrap();
-    let error = check_dataset_usable(&loader, dataset, true).unwrap_err();
+    let error = check_dataset_usable(&loader, &[Task::Temporal], dataset, true).unwrap_err();
     assert_eq!(
         dataset_rejection_message(error),
         "TIMEX row lacks time_expressions"
@@ -3164,7 +3234,7 @@ fn choose_datasets_for_run(
             selection.backend_incompatible_count += 1;
             continue;
         }
-        match check_dataset_usable(loader, ds, require_cached) {
+        match check_dataset_usable(loader, tasks, ds, require_cached) {
             Ok(()) => {
                 if let Some(arms) = &mut common {
                     arms.retain(compatible);
@@ -3544,9 +3614,9 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 ));
                 continue;
             }
-            let mut usable = check_dataset_usable(&loader, ds, require_cached_for_run);
+            let mut usable = check_dataset_usable(&loader, &tasks, ds, require_cached_for_run);
             if usable.is_err() && require_cached_for_run && try_download_on_empty {
-                usable = check_dataset_usable(&loader, ds, false);
+                usable = check_dataset_usable(&loader, &tasks, ds, false);
             }
             if let Err(error) = usable {
                 rejected.push((ds, dataset_rejection_message(error)));
