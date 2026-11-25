@@ -4,6 +4,9 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, BufWriter, Write};
 
+#[path = "context/masked.rs"]
+mod masked;
+
 fn trigrams(name: &str) -> Vec<u64> {
     let chars: Vec<_> = [' ', ' ']
         .into_iter()
@@ -73,14 +76,23 @@ impl Index {
         }
     }
 
-    fn query(&self, name: &str, excluded: &str, out: &mut impl Write) -> io::Result<()> {
+    fn query(
+        &self,
+        name: &str,
+        excluded: &str,
+        mask: Option<&masked::Mask>,
+        out: &mut impl Write,
+    ) -> io::Result<()> {
+        let eligible = |owner: usize| {
+            self.ids[owner] != excluded && mask.is_none_or(|m| !m.excludes(owner))
+        };
         let mut candidates = HashSet::new();
         let mut display = Vec::new();
         let mut exact = Vec::new();
         if let Some(&a) = self.aliases.get(name) {
             candidates.insert(a);
             for &(owner, is_display) in &self.surfaces[a].owners {
-                if self.ids[owner] != excluded {
+                if eligible(owner) {
                     exact.push(self.ids[owner].as_str());
                     if is_display {
                         display.push(self.ids[owner].as_str());
@@ -96,7 +108,8 @@ impl Index {
             .iter()
             .filter_map(|g| {
                 let posting = self.postings.get(g)?;
-                (posting.len() <= 2048).then_some((posting.len(), *g, posting))
+                let length = mask.map_or(posting.len(), |m| m.frequency(*g, posting.len()));
+                (1..=2048).contains(&length).then_some((length, *g, posting))
             })
             .collect();
         rare.sort_unstable_by_key(|(length, gram, _)| (*length, *gram));
@@ -123,7 +136,7 @@ impl Index {
                 denominator: query.len() + surface.grams.len(),
             };
             for &(owner, _) in &surface.owners {
-                if self.ids[owner] != excluded {
+                if eligible(owner) {
                     let best = scores.entry(owner).or_insert(score);
                     if best.compare(score).is_lt()
                         || (best.compare(score).is_eq() && score.denominator < best.denominator)
@@ -172,6 +185,7 @@ impl Index {
 
 fn main() -> io::Result<()> {
     let mut index = Index::default();
+    let mut owner_surfaces = None;
     let mut out = BufWriter::new(io::stdout().lock());
     for line in io::stdin().lock().lines() {
         let line = line?;
@@ -181,10 +195,18 @@ fn main() -> io::Result<()> {
                 let id = fields.next().expect("catalog accession");
                 let display = fields.next().expect("normalized display name");
                 index.add(id, display, fields);
+                owner_surfaces = None;
             }
             Some("Q") => {
                 let excluded = fields.next().expect("excluded accession or empty");
-                index.query(fields.next().expect("query"), excluded, &mut out)?;
+                index.query(fields.next().expect("query"), excluded, None, &mut out)?;
+            }
+            Some("M") => {
+                let ids = fields.next().expect("masked accessions");
+                let owners = owner_surfaces
+                    .get_or_insert_with(|| masked::OwnerSurfaces::new(&index));
+                let mask = owners.without(&index, ids.split(','));
+                index.query(fields.next().expect("query"), "", Some(&mask), &mut out)?;
             }
             _ => panic!("unrecognized study row"),
         }

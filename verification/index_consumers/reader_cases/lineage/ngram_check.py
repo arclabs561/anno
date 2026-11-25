@@ -3,6 +3,7 @@
 
 import tempfile
 
+from context.check import check as check_affiliation_context
 from evaluate import Record
 from ngram_retrieval import Query, compiled_index, decision, lookup, outcome, release_queries
 
@@ -67,5 +68,7 @@ def check(binary):
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as directory:
-        check(compiled_index(directory))
+        binary = compiled_index(directory)
+        check(binary)
+        check_affiliation_context(binary)
     print("ROR candidate controls passed")

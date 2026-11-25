@@ -157,3 +157,57 @@ fn malformed_brat_mention_reports_its_line_and_preserves_destination() {
         assert_eq!(fs::read(&dest).unwrap(), b"reviewed corpus\n");
     }
 }
+
+#[test]
+fn checked_brat_uses_the_explicit_source_and_preserves_reviewed_output_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let ann = dir.path().join("mentions.ann");
+    let original = dir.path().join("reviewed.txt");
+    let dest = dir.path().join("out.jsonl");
+    fs::write(&original, "😀 Zoë and Li\r\nLi").unwrap();
+    fs::write(ann.with_extension("txt"), "some other edition").unwrap();
+    let checked = || {
+        Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args(["dataset", "import", "--format", "brat", "--input"])
+            .arg(&ann)
+            .arg("--source-text")
+            .arg(&original)
+            .arg("--output")
+            .arg(&dest)
+            .output()
+            .unwrap()
+    };
+    fs::write(
+        &ann,
+        "T1\tPER 2 5\tZoë\nT2\tPER 2 5;10 12\tZoë Li\nT3\tPER 10 12;14 16\tLi Li\nT4\tPER 14 16\t",
+    )
+    .unwrap();
+    let result = checked();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let receipt = fs::read_to_string(&dest).unwrap();
+    let surfaces: Vec<_> = receipt
+        .lines()
+        .map(|row| {
+            let row: serde_json::Value = serde_json::from_str(row).unwrap();
+            row["text"].as_str().unwrap().to_owned()
+        })
+        .collect();
+    assert_eq!(surfaces, ["Zoë", "Zoë Li", "Li\r\nLi", "Li"]);
+    for bad in [
+        "2 5\tZoe",
+        "14 17\tLi",
+        "2 2\t",
+        "2 2;6 6\t ",
+        "2 5;10 12\tLi Zoë",
+    ] {
+        fs::write(&ann, format!("T1\tPER 2 5\tZoë\nT2\tPER {bad}")).unwrap();
+        let result = checked();
+        assert!(!result.status.success(), "{bad:?}");
+        assert!(String::from_utf8_lossy(&result.stderr).contains("line 2: T2"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), receipt);
+    }
+}

@@ -26,6 +26,14 @@ python3 verification/index_consumers/reader_cases/catalog_pilots/native.py --ver
 python3 verification/index_consumers/congress/test_committee_pilot.py
 python3 verification/index_consumers/congress/test_cross_doc_partition.py
 python3 verification/index_consumers/congress/check_catalog_history.py
+bibliography=verification/index_consumers/reader_cases/bibliography
+python3 "$bibliography/test_reader.py" --anno "${CARGO_TARGET_DIR:-target}/debug/anno"
+python3 "$bibliography/test_challenge.py"
+python3 -m unittest verification.index_consumers.reader_cases.bibliography.test_publication \
+  verification.index_consumers.reader_cases.bibliography.test_open_page \
+  verification.index_consumers.reader_cases.bibliography.scoring.test_score \
+  verification.index_consumers.reader_cases.bibliography.sources.test_capture
+python3 -m verification.index_consumers.reader_cases.bibliography.scoring.replay
 python3 verification/index_consumers/check_editions.py --review-example
 python3 verification/index_consumers/credits/check_cases.py
 python3 verification/index_consumers/credits/check_search.py
