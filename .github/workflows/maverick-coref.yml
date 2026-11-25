@@ -41,7 +41,8 @@ jobs:
           python-version: '3.12.14'
       - name: Install pinned CPU runtime
         run: |
-          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu 'torch==2.8.0+cpu'
+          grep -Ex 'torch==[0-9.]+[+]cpu' scripts/qa/maverick/requirements-cpu-py312.txt > "$RUNNER_TEMP/torch-cpu.txt"
+          python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu -r "$RUNNER_TEMP/torch-cpu.txt"
           python -m pip install -r scripts/qa/maverick/requirements-cpu-py312.txt
           python -m pip check
       - name: Test local checkpoint preparation
