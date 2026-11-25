@@ -1,0 +1,18 @@
+{
+  "en": {
+    "rows": 195,
+    "unique": 193,
+    "unique_train_document_overlap": 0,
+    "exact_sequence_in_prior_32": 136,
+    "exact_sequence_in_prior_128": 166,
+    "exact_sequence_in_prior_all": 186
+  },
+  "cs": {
+    "rows": 500,
+    "unique": 500,
+    "unique_train_document_overlap": 0,
+    "exact_sequence_in_prior_32": 229,
+    "exact_sequence_in_prior_128": 292,
+    "exact_sequence_in_prior_all": 292
+  }
+}

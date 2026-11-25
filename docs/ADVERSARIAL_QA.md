@@ -44,6 +44,22 @@ For a historical or model-quality comparison, record which assertions distinguis
 
 The coordinator uses the agent host selected for the round. The repository’s Codex example dispatches a subagent with the oracle prompt. The local replay commands call the selected binary and need no LLM service or API key.
 
+### Challenge a reader's credit or citation answer
+
+Run either named synthetic history offline with cached Cargo dependencies. Each command feeds the same case to the Rust reader and a freshly reopened SQLite database populated through `anno query publication`. Each reader must answer every question against the separate key. [Case histories](../verification/index_consumers/reader_cases/fixtures/cases.json) · [Expected answers](../verification/index_consumers/reader_cases/fixtures/answer_key.json)
+
+```sh
+cargo build --locked --offline -p anno-cli --no-default-features --features extractor-readability --bin anno
+cargo build --locked --offline -p anno --no-default-features --example reader_answer
+just qa-replay reader_cases issuer-local-credit-citations
+just qa-replay reader_cases two-support-withdrawals
+python3 -m unittest discover -s scripts/qa -p test_replay_reader_cases.py -v
+```
+
+`issuer-local-credit-citations` asks which citations survive when two issuers use the same local ID, one withdraws a claim, and an excerpt's audience changes. `two-support-withdrawals` asks who still credits a person after each withdrawal. The mutation test drops one issuer from a completed SQLite answer while Rust still returns both. Set `ANNO_BIN` and `ANNO_READER_BIN` to select built executables from another revision. Exit 0 means both readers matched the key. Exit 1 identifies a completed answer mismatch with a digest of the affected reader and question IDs. A missing executable, incomplete response or process error exits 2. The receipt hashes the selected history, the key with its scorer, and the combination of both binaries, SQLite reader script, Python executable and SQLite version.
+
+For a new proposal, keep the case and an independently written key in the private round directory. Run `python3 verification/index_consumers/reader_cases/check.py --cases CASES.json --answer-key KEY.json --anno PATH_TO_ANNO --rust-reader PATH_TO_READER` locally. The named corpus accepts reviewed project examples. A named replay emits only its receipt and leaves the replay ledger untouched.
+
 
 ### Check the published report with an independent reader
 

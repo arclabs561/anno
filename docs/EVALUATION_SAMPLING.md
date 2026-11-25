@@ -30,7 +30,7 @@ anno sampler eligibility --task ner --require-cached |
 
 An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. Cached-only sampling normally requires local files. Trusted matrix CI sets both `ANNO_S3_CACHE=1` and `ANNO_MATRIX_STAGE_FROM_S3=1` to stage a missing, eligible input from the shared cache before scoring it locally. Each S3 staging attempt forbids publisher fallback. A separate `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1` pass can still try the publisher if the initial panel is empty. `ANNO_NO_DOWNLOADS=1` forces the sampler to use local dataset files, including when cached-only was unset or disabled. It suppresses both S3 staging and publisher fallback. `HF_HUB_OFFLINE=1` configures Hugging Face model access separately and permits explicitly enabled shared dataset reads. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time. The matrix first checks the evaluator's sentence input and its cache manifest. Relation extraction and coreference also check their document annotations when the scorer uses them. A NER run on a multi-task dataset can use the local sentence-format input on its own.
 
-The CI artifact `matrix-muxer-decisions` includes `matrix-dataset-pools.jsonl` for ordinary automatic dataset selection. Set `ANNO_MATRIX_DATASET_POOLS_FILE` to retain these records locally. Each row identifies the seed, strategy, task slice, cache requirement, S3 setting, and selection pass. `target_datasets` gives the requested panel size and `pool.selected_sources` identifies where each selected input was found at precheck. The evaluator can subsequently see a local hit for an input staged from S3. `pool.excluded` counts the first policy exclusion for each registered dataset outside the eligible pool. Inside the pool, `selected` lists datasets that passed a reader check, `load_rejections` counts the observed failure categories, and `backend_incompatible_count` counts candidates rejected by the estimate policy before loading. The sampler stops checking once it fills its requested panel. The availability of any unexamined candidates is unknown.
+The CI artifact `matrix-muxer-decisions` includes `matrix-dataset-pools.jsonl` for ordinary automatic dataset selection. Set `ANNO_MATRIX_DATASET_POOLS_FILE` to retain these records locally. Each row identifies the seed, strategy, task slice, cache requirement, S3 setting, and selection pass. `target_datasets` gives the requested panel size and `pool.selected_sources` identifies where each selected input was found at precheck. The evaluator can subsequently see a local hit for an input staged from S3. `pool.excluded` counts the first policy exclusion for each registered dataset outside the eligible pool. Inside the pool, `selected` lists datasets that passed a reader check, `load_rejections` counts the observed failure categories, and `backend_incompatible_count` counts candidates rejected by the estimate policy before loading. `rejection_examples` records the first three rejected dataset IDs and their sanitized reader reasons in probe order, including passes that fill their panel. The CI report also groups outcome rows from distinct dataset IDs that share a recorded input digest. The sampler stops checking once it fills its requested panel. The availability of any unexamined candidates is unknown.
 
 Read the initial and download-fallback passes separately. A precheck may populate the cache. Fixed-dataset runs, targeted history retries and runs that stopped before automatic dataset selection have no ordinary pool receipt. Use the decision and outcome log for the final panel and measured scores. To display the recorded pools next to the outcomes, run `python3 scripts/qa/check_matrix_outcomes.py --report --dataset-pools matrix-dataset-pools.jsonl muxer-decisions.jsonl`.
 
@@ -172,7 +172,11 @@ requires a completed sample with examples on each named task and an attempted
 worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
-policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
+policy still runs. With `ANNO_NO_DOWNLOADS=1`, the automatic sampler includes
+the Hub-backed GLiNER ONNX and GLiNER PII models when their active local Hub
+revision contains a supported graph and tokenizer. An explicit fixed GLiNER
+replay still attempts construction and records missing or invalid model assets.
+`ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
 test: it bypasses the policy and must not be used to evaluate it. Similarly,
 `ANNO_MUXER_FIXED_DATASETS` fixes the dataset panel when comparing policies.
 
@@ -551,3 +555,64 @@ out=$(mktemp -d)
 python3 scripts/qa/journey_pilot.py run \
   --anno target/debug/anno --state "$out/ledger.json" --output "$out/first" --run-id 1 --seed 41
 ```
+
+### Replay historical failures and held-out output mutations
+
+Should failure-rate sampling replace rotation? An offline comparison gave the same
+three policies one journey per round, with a fresh history for each panel. It used
+the weekly pilot's native Muxer selector and synthetic companion CLI probes.
+The historical binary accepted an incomplete BRAT import and mixed cross-document
+sources. The same commands rejected both inputs and preserved the previous outputs
+on the fixed revision. Each policy chose the BRAT journey on the first round and
+missed the other historical defect. The second round was clean.
+
+A peer froze two 12-round mutation schedules before seeing any policy picks.
+The primary schedule moved faults between journeys. The sensitivity schedule
+changed how often they returned. Each scheduled fault modified a real CLI response
+by dropping a Unicode span segment, removing a catalog posting, or replaying an
+earlier successful journal read after the head advanced. A fresh replay had to
+reproduce every detected failure. An unexpected failure, a surviving mutation or
+a mismatched signature invalidates the schedule run. The selector received only
+the result of its own previous picks. The offline experiment ran a separate census to score misses.
+
+| Panel | Slots per policy | Muxer hits / distinct | Rotation hits / distinct | Seeded random hits / distinct | Uniform expected hits / distinct |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Two historical revisions | 2 | 1 / 1 | 1 / 1 | 1 / 1 | 0.67 / 0.67 |
+| Primary mutation schedule | 12 | 3 / 2 | 2 / 2 | 3 / 3 | 3.33 / 2.21 |
+| Sensitivity mutation schedule | 12 | 0 / 0 | 3 / 2 | 1 / 1 | 2.67 / 1.96 |
+
+A hit counts a failed selected probe, including repeated failures. Distinct counts
+unique journey and assertion pairs. On the primary schedule, Muxer first found a
+fault in round seven, rotation in five and seeded random in three. Muxer visited all
+three journeys on the sensitivity schedule and missed all seven faulted rounds.
+These short, now-public schedules support retaining the fixed checks and a rotation
+baseline. The seed, three journeys and injected response faults limit generalization.
+Each slot costs one probe, with a second invocation to confirm a failure.
+The receipt includes elapsed probe times. Wall-clock budgets can differ.
+
+To replay with locked dependencies cached, run from the repository root. Use a
+separate Cargo target directory for each producer revision. The selector is built
+from the checkout containing the replay script. The output contains picks,
+per-journey signatures, timings and executable digests.
+
+```sh
+out=$(mktemp -d)
+git worktree add --detach "$out/before" 670886fbec8bd38c43acdf19906afba5677a94a5
+git worktree add --detach "$out/after" 332daed14a0f70dfea3fdaaea54ab9faf29ba3c3
+for rev in before after; do
+  (cd "$out/$rev" && CARGO_TARGET_DIR="$out/$rev-target" cargo build --offline --locked \
+    -p anno-cli --no-default-features --features 'eval extractor-readability' --bin anno)
+done
+cases=scripts/qa/fixtures/journey-policy
+python3 scripts/qa/journey_policy_panel.py --anno "$out/after-target/debug/anno" \
+  --historical "$out/before-target/debug/anno" --seed 20261125 \
+  --schedule "$cases/primary.json" 1a383311488ad0f3c19f1ea70a600766a1bdf6df44a978c83ab18b312bc4102c \
+  --schedule "$cases/sensitivity.json" 40f30aed9a1481f3a9739d7254145b2baf7ab92eba15e46f623ff3bd53f410e1 \
+  --out "$out/panel.json"
+git worktree remove "$out/before"
+git worktree remove "$out/after"
+```
+
+Both schedule files contain only project-authored journey names under the
+repository license. Future blinded trials need fresh independently authored
+schedules and commitments recorded before policy selection.

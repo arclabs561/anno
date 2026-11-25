@@ -1,0 +1,1161 @@
+{
+  "candidate_limit": 32,
+  "documents": {
+    "dev": 32,
+    "test": 32,
+    "test2": 26,
+    "train": 211
+  },
+  "results": {
+    "ordered": {
+      "dev": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 8,
+              "queries": 123,
+              "top1": 26
+            },
+            "comparison-sense": {
+              "joint_top1": 4,
+              "queries": 60,
+              "top1": 18
+            },
+            "comparison-time": {
+              "joint_top1": 11,
+              "queries": 45,
+              "top1": 14
+            },
+            "entity-associative": {
+              "joint_top1": 79,
+              "queries": 423,
+              "top1": 85
+            },
+            "entity-meronomy": {
+              "joint_top1": 3,
+              "queries": 53,
+              "top1": 17
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 9
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 4
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 3
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 10
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 3
+            }
+          },
+          "joint_top1": 105,
+          "oracle_pairs": 663,
+          "oracle_type": 426,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 166,
+          "top5": 472
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 20,
+              "queries": 123,
+              "top1": 41
+            },
+            "comparison-sense": {
+              "joint_top1": 5,
+              "queries": 60,
+              "top1": 29
+            },
+            "comparison-time": {
+              "joint_top1": 12,
+              "queries": 45,
+              "top1": 16
+            },
+            "entity-associative": {
+              "joint_top1": 69,
+              "queries": 423,
+              "top1": 81
+            },
+            "entity-meronomy": {
+              "joint_top1": 1,
+              "queries": 53,
+              "top1": 16
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 8
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 4
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 10
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 7
+            }
+          },
+          "joint_top1": 107,
+          "oracle_pairs": 663,
+          "oracle_type": 426,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 183,
+          "top5": 454
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 12,
+              "queries": 123,
+              "top1": 26
+            },
+            "comparison-sense": {
+              "joint_top1": 1,
+              "queries": 60,
+              "top1": 17
+            },
+            "comparison-time": {
+              "joint_top1": 2,
+              "queries": 45,
+              "top1": 4
+            },
+            "entity-associative": {
+              "joint_top1": 51,
+              "queries": 423,
+              "top1": 58
+            },
+            "entity-meronomy": {
+              "joint_top1": 4,
+              "queries": 53,
+              "top1": 13
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 7
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 3
+            },
+            "other": {
+              "queries": 5
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 7
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 3
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 3
+            }
+          },
+          "joint_top1": 70,
+          "oracle_pairs": 663,
+          "oracle_type": 426,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 118,
+          "top5": 423
+        }
+      },
+      "test": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 12,
+              "queries": 126,
+              "top1": 48
+            },
+            "comparison-sense": {
+              "joint_top1": 3,
+              "queries": 55,
+              "top1": 23
+            },
+            "comparison-time": {
+              "joint_top1": 11,
+              "queries": 50,
+              "top1": 12
+            },
+            "entity-associative": {
+              "joint_top1": 40,
+              "queries": 213,
+              "top1": 50
+            },
+            "entity-meronomy": {
+              "joint_top1": 3,
+              "queries": 46,
+              "top1": 18
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 3
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 4
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 9,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 9
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 3
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 4
+            }
+          },
+          "joint_top1": 69,
+          "oracle_pairs": 465,
+          "oracle_type": 210,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 147,
+          "top5": 343
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 16,
+              "queries": 126,
+              "top1": 55
+            },
+            "comparison-sense": {
+              "joint_top1": 4,
+              "queries": 55,
+              "top1": 29
+            },
+            "comparison-time": {
+              "joint_top1": 10,
+              "queries": 50,
+              "top1": 11
+            },
+            "entity-associative": {
+              "joint_top1": 32,
+              "queries": 213,
+              "top1": 43
+            },
+            "entity-meronomy": {
+              "joint_top1": 4,
+              "queries": 46,
+              "top1": 16
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 4
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 7
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 9,
+              "top1": 4
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 13
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 3
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 7
+            }
+          },
+          "joint_top1": 66,
+          "oracle_pairs": 465,
+          "oracle_type": 210,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 161,
+          "top5": 339
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 8,
+              "queries": 126,
+              "top1": 35
+            },
+            "comparison-sense": {
+              "joint_top1": 2,
+              "queries": 55,
+              "top1": 20
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 50,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 26,
+              "queries": 213,
+              "top1": 32
+            },
+            "entity-meronomy": {
+              "joint_top1": 3,
+              "queries": 46,
+              "top1": 12
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 4
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 2
+            },
+            "other": {
+              "queries": 9
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 6
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 2
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 3
+            }
+          },
+          "joint_top1": 40,
+          "oracle_pairs": 465,
+          "oracle_type": 210,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 99,
+          "top5": 291
+        }
+      },
+      "test2": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 3,
+              "queries": 44,
+              "top1": 21
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 23,
+              "queries": 229,
+              "top1": 26
+            },
+            "entity-meronomy": {
+              "joint_top1": 1,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 2
+            },
+            "other": {
+              "queries": 3
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 5
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 28,
+          "oracle_pairs": 300,
+          "oracle_type": 192,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 60,
+          "top5": 168
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 5,
+              "queries": 44,
+              "top1": 24
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 22,
+              "queries": 229,
+              "top1": 26
+            },
+            "entity-meronomy": {
+              "joint_top1": 1,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 1
+            },
+            "other": {
+              "queries": 3
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 7
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 29,
+          "oracle_pairs": 300,
+          "oracle_type": 192,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 64,
+          "top5": 169
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 2,
+              "queries": 44,
+              "top1": 13
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 3
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 24,
+              "queries": 229,
+              "top1": 27
+            },
+            "entity-meronomy": {
+              "joint_top1": 1,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 2
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 3,
+              "top1": 1
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 2
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 28,
+          "oracle_pairs": 300,
+          "oracle_type": 192,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 52,
+          "top5": 166
+        }
+      }
+    },
+    "symmetric": {
+      "dev": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 12,
+              "queries": 123,
+              "top1": 31
+            },
+            "comparison-sense": {
+              "joint_top1": 3,
+              "queries": 60,
+              "top1": 21
+            },
+            "comparison-time": {
+              "joint_top1": 12,
+              "queries": 45,
+              "top1": 15
+            },
+            "entity-associative": {
+              "joint_top1": 68,
+              "queries": 423,
+              "top1": 77
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 53,
+              "top1": 13
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 9
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 3
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 9
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 3
+            }
+          },
+          "joint_top1": 95,
+          "oracle_pairs": 663,
+          "oracle_type": 422,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 157,
+          "top5": 449
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 18,
+              "queries": 123,
+              "top1": 37
+            },
+            "comparison-sense": {
+              "joint_top1": 5,
+              "queries": 60,
+              "top1": 28
+            },
+            "comparison-time": {
+              "joint_top1": 12,
+              "queries": 45,
+              "top1": 15
+            },
+            "entity-associative": {
+              "joint_top1": 64,
+              "queries": 423,
+              "top1": 75
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 53,
+              "top1": 12
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 7
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 5
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 11
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 6
+            }
+          },
+          "joint_top1": 99,
+          "oracle_pairs": 663,
+          "oracle_type": 422,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 168,
+          "top5": 443
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 12,
+              "queries": 123,
+              "top1": 26
+            },
+            "comparison-sense": {
+              "joint_top1": 1,
+              "queries": 60,
+              "top1": 17
+            },
+            "comparison-time": {
+              "joint_top1": 2,
+              "queries": 45,
+              "top1": 4
+            },
+            "entity-associative": {
+              "joint_top1": 54,
+              "queries": 423,
+              "top1": 58
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 53,
+              "top1": 13
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 7
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 19,
+              "top1": 3
+            },
+            "other": {
+              "queries": 5
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 35,
+              "top1": 7
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 3
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 23,
+              "top1": 3
+            }
+          },
+          "joint_top1": 69,
+          "oracle_pairs": 663,
+          "oracle_type": 422,
+          "queries": 732,
+          "reachable": 663,
+          "top1": 118,
+          "top5": 423
+        }
+      },
+      "test": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 15,
+              "queries": 126,
+              "top1": 52
+            },
+            "comparison-sense": {
+              "joint_top1": 3,
+              "queries": 55,
+              "top1": 26
+            },
+            "comparison-time": {
+              "joint_top1": 11,
+              "queries": 50,
+              "top1": 12
+            },
+            "entity-associative": {
+              "joint_top1": 32,
+              "queries": 213,
+              "top1": 40
+            },
+            "entity-meronomy": {
+              "joint_top1": 3,
+              "queries": 46,
+              "top1": 16
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 4
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 4
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 9,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 9
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 4
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 4
+            }
+          },
+          "joint_top1": 64,
+          "oracle_pairs": 465,
+          "oracle_type": 207,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 144,
+          "top5": 332
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 17,
+              "queries": 126,
+              "top1": 57
+            },
+            "comparison-sense": {
+              "joint_top1": 4,
+              "queries": 55,
+              "top1": 30
+            },
+            "comparison-time": {
+              "joint_top1": 10,
+              "queries": 50,
+              "top1": 11
+            },
+            "entity-associative": {
+              "joint_top1": 31,
+              "queries": 213,
+              "top1": 42
+            },
+            "entity-meronomy": {
+              "joint_top1": 3,
+              "queries": 46,
+              "top1": 17
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 4
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 6
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 9,
+              "top1": 2
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 13
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 3
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 8
+            }
+          },
+          "joint_top1": 65,
+          "oracle_pairs": 465,
+          "oracle_type": 207,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 162,
+          "top5": 331
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 8,
+              "queries": 126,
+              "top1": 35
+            },
+            "comparison-sense": {
+              "joint_top1": 2,
+              "queries": 55,
+              "top1": 20
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 50,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 27,
+              "queries": 213,
+              "top1": 32
+            },
+            "entity-meronomy": {
+              "joint_top1": 1,
+              "queries": 46,
+              "top1": 12
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 30,
+              "top1": 4
+            },
+            "entity-resultative": {
+              "joint_top1": 0,
+              "queries": 27,
+              "top1": 2
+            },
+            "other": {
+              "queries": 9
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 46,
+              "top1": 6
+            },
+            "set-span-interval": {
+              "joint_top1": 0,
+              "queries": 20,
+              "top1": 2
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 18,
+              "top1": 3
+            }
+          },
+          "joint_top1": 39,
+          "oracle_pairs": 465,
+          "oracle_type": 207,
+          "queries": 558,
+          "reachable": 465,
+          "top1": 99,
+          "top5": 291
+        }
+      },
+      "test2": {
+        "joint": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 3,
+              "queries": 44,
+              "top1": 20
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 7
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 25,
+              "queries": 229,
+              "top1": 27
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 2
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 3,
+              "top1": 1
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 3
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 29,
+          "oracle_pairs": 300,
+          "oracle_type": 179,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 60,
+          "top5": 166
+        },
+        "pipeline": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 4,
+              "queries": 44,
+              "top1": 24
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 8
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 22,
+              "queries": 229,
+              "top1": 25
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 1
+            },
+            "other": {
+              "queries": 3
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 7
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 27,
+          "oracle_pairs": 300,
+          "oracle_type": 179,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 63,
+          "top5": 167
+        },
+        "recency": {
+          "by_gold_subtype": {
+            "comparison-relative": {
+              "joint_top1": 2,
+              "queries": 44,
+              "top1": 13
+            },
+            "comparison-sense": {
+              "joint_top1": 0,
+              "queries": 14,
+              "top1": 3
+            },
+            "comparison-time": {
+              "joint_top1": 1,
+              "queries": 23,
+              "top1": 1
+            },
+            "entity-associative": {
+              "joint_top1": 26,
+              "queries": 229,
+              "top1": 27
+            },
+            "entity-meronomy": {
+              "joint_top1": 0,
+              "queries": 38,
+              "top1": 4
+            },
+            "entity-property": {
+              "joint_top1": 0,
+              "queries": 11,
+              "top1": 2
+            },
+            "other": {
+              "joint_top1": 0,
+              "queries": 3,
+              "top1": 1
+            },
+            "set-member": {
+              "joint_top1": 0,
+              "queries": 29,
+              "top1": 2
+            },
+            "set-span-interval": {
+              "queries": 20
+            },
+            "set-subset": {
+              "joint_top1": 0,
+              "queries": 5,
+              "top1": 1
+            }
+          },
+          "joint_top1": 29,
+          "oracle_pairs": 300,
+          "oracle_type": 179,
+          "queries": 379,
+          "reachable": 300,
+          "top1": 52,
+          "top5": 166
+        }
+      }
+    }
+  },
+  "revision": "bfe271bcb554aaa924c697779f2735dc16151554",
+  "train_gold_anaphors": 4025
+}

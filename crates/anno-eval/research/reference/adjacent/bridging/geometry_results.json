@@ -1,0 +1,290 @@
+{
+  "revision": "bfe271bcb554aaa924c697779f2735dc16151554",
+  "numpy": "2.3.5",
+  "scipy": "1.17.0",
+  "dimension": 4,
+  "seeds": {
+    "7": {
+      "point": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 981,
+          "training_loss": 0.10145057430968357,
+          "termination": "CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 181,
+            "top5": 457
+          },
+          "test": {
+            "queries": 558,
+            "top1": 159,
+            "top5": 338
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 64,
+            "top5": 169
+          }
+        }
+      },
+      "symmetric_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 340,
+          "training_loss": 0.10425964069477123,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 163,
+            "top5": 428
+          },
+          "test": {
+            "queries": 558,
+            "top1": 149,
+            "top5": 322
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 60,
+            "top5": 163
+          }
+        }
+      },
+      "directional_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 385,
+          "training_loss": 0.10316879259826174,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 181,
+            "top5": 443
+          },
+          "test": {
+            "queries": 558,
+            "top1": 156,
+            "top5": 333
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 64,
+            "top5": 161
+          }
+        },
+        "swapped": {
+          "dev": {
+            "queries": 732,
+            "top1": 150,
+            "top5": 415
+          },
+          "test": {
+            "queries": 558,
+            "top1": 145,
+            "top5": 318
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 56,
+            "top5": 159
+          }
+        }
+      }
+    },
+    "11": {
+      "point": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 693,
+          "training_loss": 0.10145055712410708,
+          "termination": "CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 181,
+            "top5": 457
+          },
+          "test": {
+            "queries": 558,
+            "top1": 159,
+            "top5": 338
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 64,
+            "top5": 169
+          }
+        }
+      },
+      "symmetric_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 302,
+          "training_loss": 0.10426268316382932,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 163,
+            "top5": 428
+          },
+          "test": {
+            "queries": 558,
+            "top1": 149,
+            "top5": 322
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 60,
+            "top5": 163
+          }
+        }
+      },
+      "directional_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 632,
+          "training_loss": 0.10315733296326449,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 181,
+            "top5": 443
+          },
+          "test": {
+            "queries": 558,
+            "top1": 155,
+            "top5": 334
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 65,
+            "top5": 162
+          }
+        },
+        "swapped": {
+          "dev": {
+            "queries": 732,
+            "top1": 153,
+            "top5": 417
+          },
+          "test": {
+            "queries": 558,
+            "top1": 144,
+            "top5": 319
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 56,
+            "top5": 159
+          }
+        }
+      }
+    },
+    "23": {
+      "point": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 474,
+          "training_loss": 0.10145056694801358,
+          "termination": "CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 181,
+            "top5": 457
+          },
+          "test": {
+            "queries": 558,
+            "top1": 159,
+            "top5": 338
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 64,
+            "top5": 169
+          }
+        }
+      },
+      "symmetric_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 166,
+          "training_loss": 0.10426893283408392,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 162,
+            "top5": 429
+          },
+          "test": {
+            "queries": 558,
+            "top1": 150,
+            "top5": 321
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 59,
+            "top5": 163
+          }
+        }
+      },
+      "directional_box": {
+        "optimizer": {
+          "parameters": 86,
+          "iterations": 210,
+          "training_loss": 0.10317026540689198,
+          "termination": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+        },
+        "normal": {
+          "dev": {
+            "queries": 732,
+            "top1": 184,
+            "top5": 444
+          },
+          "test": {
+            "queries": 558,
+            "top1": 155,
+            "top5": 333
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 61,
+            "top5": 161
+          }
+        },
+        "swapped": {
+          "dev": {
+            "queries": 732,
+            "top1": 149,
+            "top5": 418
+          },
+          "test": {
+            "queries": 558,
+            "top1": 143,
+            "top5": 316
+          },
+          "test2": {
+            "queries": 379,
+            "top1": 55,
+            "top5": 159
+          }
+        }
+      }
+    }
+  }
+}

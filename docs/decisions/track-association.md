@@ -12,6 +12,8 @@ At the next level, the inter-document resolver measures the weakest comparison a
 
 Even calibrated pair probabilities leave a whole-track forecast undetermined. Consider three mentions A, B and C. In one distribution, exactly one uniformly chosen pair belongs together. In another, all three belong together with probability one-third and all three are separate otherwise. Every pair has match probability one-third under both distributions. The probability that all three belong together is zero in the first and one-third in the second. A model that supplies such a group forecast needs assumptions about complete assignments. [Bayesian entity resolution](https://proceedings.mlr.press/v33/steorts14.html) · [Decision theory for partitions](https://doi.org/10.1214/17-BA1073)
 
+The [reference-resolution evaluation suite](../../crates/anno-eval/research/reference/README.md) measures candidate reachability, visible pair errors, and incorrect or mixed clusters separately. Its frozen WikiCoref replay exercises the difference between a proposed link and accepting every member of the target track.
+
 ## Model choices and their type implications
 
 | Approach | What the model can supply | Implication for anno |

@@ -227,12 +227,16 @@ mod tests {
 
     #[test]
     fn entity_texts_matches_entities() {
-        let doc = annotate("Lynn Conway worked at IBM.").unwrap();
-        let texts = doc.entity_texts();
-        assert_eq!(texts.len(), doc.entities.len());
-        for (text, entity) in texts.iter().zip(&doc.entities) {
-            assert_eq!(*text, entity.text.as_str());
-        }
+        let doc = AnnotatedDoc::new(
+            "Lynn Conway worked at IBM.",
+            vec![
+                Entity::new("Lynn Conway", EntityType::Person, 0, 11, 1.0),
+                Entity::new("IBM", EntityType::Organization, 22, 25, 1.0),
+            ],
+            vec![],
+            vec![],
+        );
+        assert_eq!(doc.entity_texts(), ["Lynn Conway", "IBM"]);
     }
 
     #[test]
