@@ -150,13 +150,14 @@ mod tests {
         let lines = format!("{positive}\n{negative}\n");
         for (id, split) in [(DatasetId::ReTACRED, array), (DatasetId::TACRED, lines)] {
             assert!(id.requires_local_source() && id.excluded_from_shared_cache());
+            #[cfg(feature = "eval")]
             assert!(loader
                 .load_or_download_relation(id)
                 .unwrap_err()
                 .to_string()
                 .contains("authorized local source"));
             std::fs::write(cache.path().join(id.cache_filename()), split).unwrap();
-            let docs = loader.load_or_download_relation(id).unwrap();
+            let docs = loader.load_relation(id).unwrap();
             assert_eq!(docs.len(), 2);
             assert_eq!(docs[0].text, "Café Éclat hired 李 .");
             let [relation] = &docs[0].relations[..] else {
