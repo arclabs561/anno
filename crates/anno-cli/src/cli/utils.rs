@@ -63,12 +63,6 @@ pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> HtmlExtraction {
     }
 }
 
-/// Convenience: extract HTML and return only the text. Same backend
-/// routing as [`extract_html`].
-pub(crate) fn extract_html_to_text(html: &str, url: Option<&str>) -> String {
-    extract_html(html, url).text
-}
-
 /// Get input text from various sources (text arg, file, or stdin).
 ///
 /// Text is returned unchanged, apart from explicit HTML/PDF extraction for file
@@ -79,37 +73,142 @@ pub fn get_input_text(
     file: Option<&str>,
     positional: &[String],
 ) -> Result<String, String> {
-    // Check explicit text arg
-    if let Some(t) = text {
-        return Ok(t.clone());
+    resolve_input(text, file, positional).map(|input| input.text)
+}
+
+/// Resolve the same input while preserving its relationship to the bytes received.
+pub(crate) fn get_mapped_input_text(
+    text: &Option<String>,
+    file: Option<&str>,
+    positional: &[String],
+) -> Result<(String, anno::SourceMap), String> {
+    resolve_input(text, file, positional)?.into_mapped()
+}
+
+struct InputText {
+    text: String,
+    origin: InputOrigin,
+}
+
+enum InputOrigin {
+    Identity,
+    Html(String, deformat::Extractor),
+    #[cfg(feature = "pdf")]
+    Pdf(Vec<u8>),
+}
+
+impl InputText {
+    fn plain(text: String) -> Self {
+        Self {
+            text,
+            origin: InputOrigin::Identity,
+        }
     }
 
-    // Check file arg
-    if let Some(f) = file {
-        return read_input_file(f);
+    fn html(source: String) -> Self {
+        let rendered = extract_html(&source, None);
+        Self {
+            text: rendered.text,
+            origin: InputOrigin::Html(source, rendered.extractor),
+        }
     }
 
-    // Check positional args
+    fn into_mapped(self) -> Result<(String, anno::SourceMap), String> {
+        let map = match self.origin {
+            InputOrigin::Identity => anno::SourceMap::identity(&self.text),
+            InputOrigin::Html(source, extractor) => {
+                html_source_map(&source, &self.text, extractor)?
+            }
+            #[cfg(feature = "pdf")]
+            InputOrigin::Pdf(bytes) => anno::SourceMap::unmapped(&self.text, Some(&bytes)),
+        };
+        Ok((self.text, map))
+    }
+}
+
+/// Select provenance by the renderer that actually produced the output.
+pub(crate) fn html_source_map(
+    source: &str,
+    rendered: &str,
+    extractor: deformat::Extractor,
+) -> Result<anno::SourceMap, String> {
+    if extractor == deformat::Extractor::Strip {
+        let (text, map) = deformat::html::strip_to_text_with_spans(source);
+        if text == rendered {
+            return deformat_source_map(source, rendered, &map);
+        }
+    }
+    Ok(anno::SourceMap::unmapped(rendered, Some(source.as_bytes())))
+}
+
+pub(crate) fn deformat_source_map(
+    source: &str,
+    text: &str,
+    map: &deformat::html::SpanMap,
+) -> Result<anno::SourceMap, String> {
+    use anno::{SourceKind, SourceMap, SourceRun};
+    use deformat::html::SpanKind;
+    let mut runs = Vec::new();
+    let mut cursor = 0;
+    for span in map.iter() {
+        if cursor < span.output_start {
+            runs.push(SourceRun::new(
+                cursor..span.output_start,
+                None,
+                SourceKind::Unmapped,
+            ));
+        }
+        let kind = match span.kind {
+            SpanKind::Direct => SourceKind::Direct,
+            SpanKind::EntityDecoded => SourceKind::Transformed,
+            SpanKind::WhitespaceCollapsed => SourceKind::Approximate,
+            SpanKind::Synthetic => SourceKind::Synthetic,
+            _ => SourceKind::Approximate,
+        };
+        runs.push(SourceRun::new(
+            span.output_start..span.output_end,
+            Some(span.source_start..span.source_end),
+            kind,
+        ));
+        cursor = span.output_end;
+    }
+    if cursor < text.len() {
+        runs.push(SourceRun::new(
+            cursor..text.len(),
+            None,
+            SourceKind::Unmapped,
+        ));
+    }
+    SourceMap::new(source, text, runs)
+}
+
+fn resolve_input(
+    text: &Option<String>,
+    file: Option<&str>,
+    positional: &[String],
+) -> Result<InputText, String> {
+    if let Some(text) = text {
+        return Ok(InputText::plain(text.clone()));
+    }
+    if let Some(file) = file {
+        return resolve_input_file(file);
+    }
     if !positional.is_empty() {
-        return Ok(positional.join(" "));
+        return Ok(InputText::plain(positional.join(" ")));
     }
-
-    // Try stdin
     if !io::stdin().is_terminal() {
         let mut buf = String::new();
         io::stdin()
             .read_to_string(&mut buf)
             .map_err(|e| format_error("read stdin", &e.to_string()))?;
         if !buf.is_empty() {
-            // Auto-detect HTML in stdin and strip it, same as --file does
             if deformat::detect::is_html(&buf) {
                 eprintln!("note: detected HTML content on stdin, converting to text");
-                return Ok(extract_html_to_text(&buf, None));
+                return Ok(InputText::html(buf));
             }
-            return Ok(buf);
+            return Ok(InputText::plain(buf));
         }
     }
-
     Err("No input text provided. Use -t 'text' or -f file or pipe via stdin".to_string())
 }
 
@@ -142,24 +241,22 @@ pub(crate) fn validate_path_component<'a>(value: &'a str, kind: &str) -> Result<
 /// If the file looks like HTML (based on content sniffing or `.html`/`.htm` extension),
 /// automatically strips tags and extracts text -- same logic as `--url` uses.
 pub fn read_input_file(path: &str) -> Result<String, String> {
-    // --- PDF detection (before reading as UTF-8, since PDFs are binary) ---
-    let is_pdf_ext = path.ends_with(".pdf");
-    let is_pdf_magic = if !is_pdf_ext {
-        fs::read(path)
-            .ok()
-            .map(|bytes| bytes.starts_with(b"%PDF"))
-            .unwrap_or(false)
-    } else {
-        false
-    };
+    resolve_input_file(path).map(|input| input.text)
+}
 
-    if is_pdf_ext || is_pdf_magic {
+fn resolve_input_file(path: &str) -> Result<InputText, String> {
+    // Hash and render the same payload, including when the filename is replaced concurrently.
+    let bytes = fs::read(path).map_err(|e| format_error("read file", &format!("{path}: {e}")))?;
+    if path.ends_with(".pdf") || bytes.starts_with(b"%PDF") {
         #[cfg(feature = "pdf")]
         {
             eprintln!("note: extracting text from PDF '{}'", path);
-            let result = deformat::pdf::extract_file(std::path::Path::new(path))
+            let result = deformat::pdf::extract_bytes(&bytes)
                 .map_err(|e| format_error("extract PDF text", &format!("{}: {}", path, e)))?;
-            return Ok(result.text);
+            return Ok(InputText {
+                text: result.text,
+                origin: InputOrigin::Pdf(bytes),
+            });
         }
         #[cfg(not(feature = "pdf"))]
         {
@@ -171,8 +268,8 @@ pub fn read_input_file(path: &str) -> Result<String, String> {
         }
     }
 
-    let content = fs::read_to_string(path)
-        .map_err(|e| format_error("read file", &format!("{}: {}", path, e)))?;
+    let content = String::from_utf8(bytes)
+        .map_err(|e| format_error("read UTF-8 file", &format!("{path}: {e}")))?;
 
     // Detect HTML by extension or content
     if is_html_file(path, &content) {
@@ -180,9 +277,9 @@ pub fn read_input_file(path: &str) -> Result<String, String> {
             "note: detected HTML content in '{}', converting to text",
             path
         );
-        Ok(extract_html_to_text(&content, None))
+        Ok(InputText::html(content))
     } else {
-        Ok(content)
+        Ok(InputText::plain(content))
     }
 }
 
@@ -1069,6 +1166,27 @@ mod tests {
                 "footer content should be stripped, got: {}",
                 text
             );
+        }
+    }
+
+    #[test]
+    fn only_selected_strip_renderer_can_reuse_its_byte_map() {
+        let original = "<p>x&#64;y</p>";
+        let text = deformat::html::strip_to_text(original);
+        for extractor in [deformat::Extractor::Strip, deformat::Extractor::Readability] {
+            let map = html_source_map(original, &text, extractor).unwrap();
+            map.verify(original.as_bytes(), &text).unwrap();
+            let selected = map.project_chars(&text, 1..2).unwrap();
+            if extractor == deformat::Extractor::Strip {
+                assert_eq!(selected[0].kind, anno::SourceKind::Transformed);
+                assert_eq!(
+                    &original[selected[0].source_bytes.clone().unwrap()],
+                    "&#64;"
+                );
+            } else {
+                assert_eq!(selected[0].kind, anno::SourceKind::Unmapped);
+                assert!(selected[0].source_bytes.is_none());
+            }
         }
     }
 

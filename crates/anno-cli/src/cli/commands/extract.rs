@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use super::super::output::{color, log_info, print_annotated_signals, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
-use super::super::utils::get_input_text;
+use super::super::utils::{get_input_text, get_mapped_input_text};
 use anno::heuristics::{detect_quantifier_en, is_negated_en};
 use anno::{Confidence, Language};
 
@@ -112,7 +112,7 @@ pub struct ExtractArgs {
     pub url: Option<String>,
 
     /// Render a UTF-8 HTML file with source byte fragments in grounded JSON
-    #[arg(long, requires = "file", conflicts_with_all = ["url", "text", "positional", "clean", "normalize"])]
+    #[arg(long, requires = "file", conflicts_with_all = ["url", "text", "positional"])]
     pub html_source_spans: bool,
 
     /// Clean and normalize text before extraction
@@ -160,16 +160,17 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     let model = args.model.unwrap_or_default();
     let format = if args.html_source_spans {
-        if args
-            .format
-            .is_some_and(|format| !matches!(format, OutputFormat::Grounded))
-            || (args.export.is_some() && args.export_format != "full")
-        {
+        if args.format.is_some_and(|format| {
+            !matches!(
+                format,
+                OutputFormat::Grounded | OutputFormat::Json | OutputFormat::Jsonl
+            )
+        }) {
             return Err(CliError::from(
-                "--html-source-spans requires grounded output and full exports",
+                "--html-source-spans requires grounded, JSON or JSONL output",
             ));
         }
-        OutputFormat::Grounded
+        args.format.unwrap_or(OutputFormat::Grounded)
     } else {
         args.format.unwrap_or_default()
     };
@@ -180,6 +181,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
+    let needs_source_map = matches!(
+        format,
+        OutputFormat::Grounded | OutputFormat::Json | OutputFormat::Jsonl
+    ) || args.export.is_some();
     let mapped_html = if args.html_source_spans {
         let path = args
             .file
@@ -189,8 +194,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     } else {
         None
     };
-    let (mut raw_text, source_url, declared_language) = if let Some(html) = &mapped_html {
-        (html.text.clone(), None, None)
+    let (mut raw_text, mut source_map, source_url, declared_language) = if let Some(html) =
+        &mapped_html
+    {
+        (html.text.clone(), Some(html.source_map()?), None, None)
     } else if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
@@ -212,7 +219,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 }
                 Language::from_code(primary)
             });
-            (resolved.text, Some(resolved.source_url), declared)
+            (
+                resolved.text,
+                needs_source_map.then_some(resolved.source_map),
+                Some(resolved.source_url),
+                declared,
+            )
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -222,13 +234,14 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 "URL resolution requires 'eval' feature. Enable with: cargo build --features eval",
             ));
         }
+    } else if needs_source_map {
+        let (text, map) = get_mapped_input_text(&args.text, args.file.as_deref(), &args.positional)
+            .map_err(CliError::from)?;
+        (text, Some(map), None::<String>, None::<Language>)
     } else {
-        (
-            get_input_text(&args.text, args.file.as_deref(), &args.positional)
-                .map_err(CliError::from)?,
-            None::<String>,
-            None::<Language>,
-        )
+        let text = get_input_text(&args.text, args.file.as_deref(), &args.positional)
+            .map_err(CliError::from)?;
+        (text, None, None, None)
     };
 
     // Preprocess text if requested
@@ -243,7 +256,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             detect_language: infer_language,
             chunk_size: None,
         };
-        let prepared = preprocessor.prepare(&raw_text);
+        let prepared =
+            if let Some(upstream) = source_map.as_mut().filter(|_| args.clean || args.normalize) {
+                let (prepared, step) = preprocessor
+                    .prepare_mapped(&raw_text)
+                    .map_err(CliError::from)?;
+                *upstream = step.compose(upstream).map_err(CliError::from)?;
+                prepared
+            } else {
+                preprocessor.prepare(&raw_text)
+            };
         if let Some(detected) = prepared
             .metadata
             .get("detected_language")
@@ -530,7 +552,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         doc.record_relation_by_signal_ids(relation, head_id, tail_id, relation_provenance.clone())
             .map_err(|e| CliError::from(format!("Could not record grounded relation: {e}")))?;
     }
-    if let Some(html) = mapped_html {
+    if let Some(map) = source_map {
+        doc.record_source_map(map).map_err(CliError::from)?;
+    }
+    // The legacy HTML record describes the deformat renderer's own coordinate system.
+    if let Some(html) = mapped_html.filter(|html| html.text == doc.text()) {
         html.record(&mut doc)?;
     }
 
@@ -546,6 +572,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
     }
 
+    let offsets = std::cell::LazyCell::new(|| anno::offset::SpanConverter::new(&text));
+
     // Prepare relation JSON expansion (stable across output formats).
     let relations_out: Vec<serde_json::Value> = if args.extract_relations {
         relation_triples
@@ -559,12 +587,14 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                         "type": head.entity_type.as_label(),
                         "start": head.start(),
                         "end": head.end(),
+                        "analyzed_byte_ranges": analyzed_byte_ranges(&doc.signals().get(r.head_idx)?.location, &offsets),
                     },
                     "tail": {
                         "text": tail.text,
                         "type": tail.entity_type.as_label(),
                         "start": tail.start(),
                         "end": tail.end(),
+                        "analyzed_byte_ranges": analyzed_byte_ranges(&doc.signals().get(r.tail_idx)?.location, &offsets),
                     },
                     "type": r.relation_type,
                     "confidence": r.confidence,
@@ -583,6 +613,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 entity_json(
                     &text,
                     &prefix,
+                    &offsets,
                     signal,
                     args.context_window,
                     args.include_sentence,
@@ -606,6 +637,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             );
             let output = serde_json::json!({
                 "provenance": provenance,
+                "source_map": doc.source_map(),
                 "entities": entities_out,
                 "relations": relations_out,
             });
@@ -626,7 +658,13 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 language,
                 source_url.as_deref(),
             );
-            println!("{}", serde_json::json!({ "provenance": provenance }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "provenance": provenance,
+                    "source_map": doc.source_map(),
+                })
+            );
             for obj in entities_out {
                 println!("{}", obj);
             }
@@ -765,6 +803,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
+                    "source_map": doc.source_map(),
                     "signals": signals
                 })
             }
@@ -779,6 +818,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                             "label": s.label(),
                             "start": start,
                             "end": end,
+                            "analyzed_byte_ranges": analyzed_byte_ranges(&s.location, &offsets),
                             "confidence": s.confidence
                         })
                     })
@@ -786,6 +826,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 serde_json::json!({
                     "id": doc.id(),
                     "text": doc.text(),
+                    "source_map": doc.source_map(),
                     "signals": signals
                 })
             }
@@ -1094,6 +1135,20 @@ fn compute_entity_id(
     format!("xxh3:{:016x}", hasher.digest())
 }
 
+/// Preserve the covered components of an occurrence in analyzed UTF-8 byte coordinates.
+fn analyzed_byte_ranges(
+    location: &Location,
+    offsets: &anno::offset::SpanConverter,
+) -> Vec<std::ops::Range<usize>> {
+    let bytes = |start, end| offsets.char_to_byte(start)..offsets.char_to_byte(end);
+    match location {
+        Location::Text { start, end } => std::iter::once(bytes(*start, *end)).collect(),
+        Location::Discontinuous { segments } => {
+            segments.iter().map(|&(a, b)| bytes(a, b)).collect()
+        }
+    }
+}
+
 /// Render one emitted signal for JSON and JSONL output.
 ///
 /// `Signal::from(&Entity)` preserves entity provenance, so taking it from the
@@ -1101,6 +1156,7 @@ fn compute_entity_id(
 fn entity_json(
     text: &str,
     prefix: &Xxh3Default,
+    offsets: &anno::offset::SpanConverter,
     signal: &Signal<Location>,
     context_window: Option<usize>,
     include_sentence: bool,
@@ -1112,6 +1168,7 @@ fn entity_json(
         "type": signal.label(),
         "start": start,
         "end": end,
+        "analyzed_byte_ranges": analyzed_byte_ranges(&signal.location, offsets),
         "confidence": signal.confidence,
         "negated": signal.negated,
         "quantifier": signal.quantifier.map(|q| format!("{:?}", q)),
@@ -1323,6 +1380,18 @@ fn propagate_quantifiers_across_lists(text: &str, signals: &mut [Signal]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flat_output_keeps_discontinuous_analyzed_byte_ranges() {
+        let offsets = anno::offset::SpanConverter::new("🦊É and 雨");
+        let location = Location::Discontinuous {
+            segments: vec![(1, 2), (7, 8)],
+        };
+        assert_eq!(
+            analyzed_byte_ranges(&location, &offsets),
+            vec![4..6, 11..14]
+        );
+    }
 
     #[test]
     fn relation_endpoints_survive_threshold_and_source_validation() {

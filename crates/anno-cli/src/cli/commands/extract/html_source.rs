@@ -28,6 +28,12 @@ impl MappedHtml {
         Ok(Self { source, text, map })
     }
 
+    /// Source map for all rendered bytes, including regions without an extracted signal.
+    pub(super) fn source_map(&self) -> Result<anno::SourceMap, CliError> {
+        crate::cli::utils::deformat_source_map(&self.source, &self.text, &self.map)
+            .map_err(CliError::from)
+    }
+
     pub(super) fn record(self, doc: &mut GroundedDocument) -> Result<(), CliError> {
         // A map is valid only for the exact bytes emitted by its own renderer.
         if self.text != doc.text() {
