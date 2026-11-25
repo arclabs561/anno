@@ -14,6 +14,9 @@ The checkout supplies the `reader_answer` Rust example and `anno query publicati
 | Which record does this reference point to here? | `reference` | An explicit reference and any visible one-hop redirect at the selected content revision. |
 | Who received this credit for this work? | `credit` | Active assertions for the requested role. Select an issuer when the question asks what a particular publisher says. |
 | Why is this person in the result? | `evidence` | IDs of the visible assertions that support this role and qualified target. Independent support can survive a withdrawal. |
+| Can I cite what this issuer actually published? | `cited_credit` | One receipt per visible issuer and local assertion ID, with its currently permitted excerpt. Staff can reopen its exact source edition and range. |
+
+The [credit citation client](citation_client.py) uses the targets returned by its first query to ask two independent readers for the supporting publication passages. Both examples accept a caller-supplied question with `--ask`. The [fixture guide](fixtures/README.md) gives the wire format and invocation. Use the [finite support model](formal/README.md) to replay independent issuer withdrawals and present policy on historical editions.
 
 Source and issuer are separate selectors. One set of published minutes can report two issuers assigning a role to different people. Each work has exact content revisions. A trusted application supplies the viewer and applicable policy revision for the read, including when opening a historical content edition. These local examples receive that decision as an input. A public service must bind it to its authenticated request. Empty public results can represent absence, unresolved evidence, or withheld support. The raw input and intermediate databases contain the full evidence.
 
