@@ -167,6 +167,7 @@ REVIEW_ISSUES.md
 !CONTRIBUTING.md
 !SECURITY.md
 !docs/**/*.md
+!crates/anno-eval/research/reference/**/*.md
 !.agents/skills/**/SKILL.md
 
 # Reports directory (generated; do not track)

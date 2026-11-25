@@ -152,6 +152,8 @@ jobs:
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test QA panels, matrix outcomes, and CI scripts
         run: python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
+      - name: Test reference resolution on offline fixtures
+        run: uv run --python 3.12 --with numpy==2.3.5 --with scipy==1.17.0 bash crates/anno-eval/research/reference/check.sh
       - name: Test BERT trace artifact identity (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_compare_bert_onnx_traces.py
       - name: Test HuggingFace downloader regression (offline fixtures)
