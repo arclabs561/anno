@@ -80,7 +80,7 @@ def gliner_tokenizer(words):
     return tok
 
 
-def gliner_fixture(root, repo, words, logits, span_inputs, class_token_index=4):
+def gliner_fixture(root, repo, words, logits, span_inputs, class_token_index=4, max_width=12):
     snap = os.path.join(root, "hf_home", "hub", "models--bh7--" + repo)
     d = os.path.join(snap, "snapshots", "fixture")
     os.makedirs(os.path.join(d, "onnx"), exist_ok=True)
@@ -101,7 +101,7 @@ def gliner_fixture(root, repo, words, logits, span_inputs, class_token_index=4):
     onnx.save(const_model(inputs, logits), os.path.join(d, "onnx", "model.onnx"))
     gliner_tokenizer(words).save(os.path.join(d, "tokenizer.json"))
     with open(os.path.join(d, "gliner_config.json"), "w") as f:
-        json.dump({"class_token_index": class_token_index, "max_width": 12}, f)
+        json.dump({"class_token_index": class_token_index, "max_width": max_width}, f)
     print(repo, logits.shape)
 
 
@@ -119,6 +119,13 @@ def main(root):
     span[0, 1, 1, 0] = 3.0
     span[0, 1, 0, 0] = 1.0
     gliner_fixture(root, "gliner-span", words, span, span_inputs=True)
+
+    # NuNER Zero-4k's width-one head uses the three default entity labels.
+    zero_4k = np.full((1, 4, 1, 3), OFF, np.float32)
+    zero_4k[0, 1, 0, 0] = ON  # "John" is the only person.
+    gliner_fixture(root, "nuner-4k", words + ["organization", "location"], zero_4k,
+                   span_inputs=True, max_width=1)
+
 
     # GLiNER token-level model (span_mode "token_level", e.g. gliner-pii-edge): output
     # [1, num_words, num_classes, 3] with the last axis = (start, end, inside), as in

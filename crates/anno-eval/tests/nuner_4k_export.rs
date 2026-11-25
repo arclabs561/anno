@@ -20,7 +20,7 @@ fn prepared_4k_export_runs_offline_through_the_evaluation_factory() {
 
     let out = tmp.path().join("hub/models--numind--NuNER_Zero-4k/onnx");
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../anno/tests/bughunt7_data/hf_home/hub/models--bh7--gliner-span/snapshots/fixture");
+        .join("../anno/tests/bughunt7_data/hf_home/hub/models--bh7--nuner-4k/snapshots/fixture");
     fs::create_dir_all(&out).unwrap();
     fs::copy(fixture.join("onnx/model.onnx"), out.join("model.onnx")).unwrap();
     assert!(!listed());
@@ -30,6 +30,8 @@ fn prepared_4k_export_runs_offline_through_the_evaluation_factory() {
     let entities = model.extract_entities("Call John Smith now", None).unwrap();
     assert_eq!(entities.len(), 1);
     assert_eq!(entities[0].text, "John");
+    assert_eq!(entities[0].entity_type, anno::EntityType::Person);
+    assert_eq!((entities[0].start(), entities[0].end()), (5, 9));
 
     // An explicit directory takes precedence over prepared cache assets.
     std::env::set_var("NUNER_4K_MODEL_PATH", tmp.path().join("missing"));
