@@ -71,6 +71,7 @@ fn offline_matrix_selects_prepared_models_and_reports_explicit_failures() {
     // This integration executable has a single test and its own temporary Hub cache.
     env::set_var("HF_HOME", root.join("hf"));
     env::set_var("ANNO_NO_DOWNLOADS", "1");
+    env::remove_var("NUNER_MODEL_PATH");
     assert_eq!(
         anno::StackedNER::default().layer_names(),
         ["regex", "heuristic"]
@@ -150,6 +151,8 @@ fn offline_matrix_selects_prepared_models_and_reports_explicit_failures() {
         .all(|row| row["hard_junk"] == true && row["primary_f1"].is_null()));
     let bert = hub_snapshot(anno::DEFAULT_BERT_ONNX_MODEL);
     let nuner = hub_snapshot(anno::DEFAULT_NUNER_MODEL);
+    let nuner_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../anno/tests/bughunt7_data/hf_home/hub/models--bh7--nuner-4k/snapshots/fixture");
     let bert_fixture =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../anno/tests/bughunt7_data/bert_cjk");
     fs::copy(
@@ -163,11 +166,15 @@ fn offline_matrix_selects_prepared_models_and_reports_explicit_failures() {
     )
     .unwrap();
     fs::copy(
-        fixture.join("onnx/model.onnx"),
+        nuner_fixture.join("onnx/model.onnx"),
         nuner.join("model_quantized.onnx"),
     )
     .unwrap();
-    fs::copy(fixture.join("tokenizer.json"), nuner.join("tokenizer.json")).unwrap();
+    fs::copy(
+        nuner_fixture.join("tokenizer.json"),
+        nuner.join("tokenizer.json"),
+    )
+    .unwrap();
     assert_eq!(strict().len(), 1);
     fs::copy(bert_fixture.join("config.json"), bert.join("config.json")).unwrap();
     fs::rename(nuner.join("model_quantized.onnx"), nuner.join("model.onnx")).unwrap();
@@ -178,6 +185,26 @@ fn offline_matrix_selects_prepared_models_and_reports_explicit_failures() {
         assert_eq!(row["hard_junk"], false, "{row:?}");
         assert!(row["primary_f1"].is_number(), "{row:?}");
     }
+
+    // A configured Hub ID or local export takes precedence over the default snapshot.
+    let sample_nuner = || outcomes("--pin-backend", "heuristic,nuner");
+    let custom_id = "fixture/nuner-override";
+    env::set_var("NUNER_MODEL_PATH", custom_id);
+    assert_eq!(sample_nuner().len(), 1, "an empty override must skip NuNER");
+    let custom = hub_snapshot(custom_id);
+    fs::rename(nuner.join("model.onnx"), custom.join("onnx/model.onnx")).unwrap();
+    fs::rename(nuner.join("tokenizer.json"), custom.join("tokenizer.json")).unwrap();
+    for checkpoint in [Path::new(custom_id), custom.as_path()] {
+        env::set_var("NUNER_MODEL_PATH", checkpoint);
+        let rows = sample_nuner();
+        let row = rows
+            .iter()
+            .find(|r| r["backend"] == "nuner")
+            .expect("the override should be sampled");
+        assert_eq!(row["hard_junk"], false, "{row:?}");
+        assert!(row["primary_f1"].is_number(), "{row:?}");
+    }
+    env::remove_var("NUNER_MODEL_PATH");
 
     #[cfg(feature = "candle")]
     {

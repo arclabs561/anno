@@ -427,10 +427,7 @@ impl BackendFactory {
             #[cfg(feature = "onnx")]
             "nuner" | "nunerzero" => {
                 use crate::backends::nuner::NuNER;
-                use crate::DEFAULT_NUNER_MODEL;
-                let checkpoint = std::env::var("NUNER_MODEL_PATH")
-                    .unwrap_or_else(|_| DEFAULT_NUNER_MODEL.to_owned());
-                NuNER::from_pretrained(&checkpoint)
+                NuNER::from_pretrained(&Self::nuner_checkpoint())
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
@@ -690,6 +687,11 @@ impl BackendFactory {
         }
     }
 
+    #[cfg(feature = "onnx")]
+    fn nuner_checkpoint() -> String {
+        std::env::var("NUNER_MODEL_PATH").unwrap_or_else(|_| crate::DEFAULT_NUNER_MODEL.to_owned())
+    }
+
     /// Check model file prerequisites for automatic sampling. Built-ins and
     /// composites with working local fallbacks remain available on an empty cache.
     #[cfg(feature = "eval")]
@@ -708,7 +710,7 @@ impl BackendFactory {
                     .is_ok_and(|model| anno::BertNEROnnx::model_files_available(&model))
             }
             #[cfg(feature = "onnx")]
-            "nuner" => anno::NuNER::hub_assets_available(anno::DEFAULT_NUNER_MODEL),
+            "nuner" => anno::NuNER::model_files_available(&Self::nuner_checkpoint()),
             #[cfg(feature = "onnx")]
             "gliner_multitask" => {
                 anno::backends::gliner_multitask::GLiNERMultitaskOnnx::hub_assets_available(

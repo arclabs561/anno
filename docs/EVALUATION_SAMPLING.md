@@ -175,7 +175,8 @@ worst-first outcome.
 policy still runs. With `ANNO_NO_DOWNLOADS=1`, the automatic sampler includes
 Hub-backed models whose required files are present in the selected local
 revision. BERT requires a graph, tokenizer and label configuration on the Hub.
-Base NuNER accepts FP32 graph names, while GLiNER multi-task also requires
+Base NuNER uses the Hub ID or local export in `NUNER_MODEL_PATH` when set.
+Its Hub constructor accepts FP32 graph names. GLiNER multi-task also requires
 its configuration. Candle backends accept their supported tokenizer and weight
 variants. Fastino requires its pinned multi-graph export. A prepared W2NER
 export runs without a Hub token. Stacked, ensemble and TPLinker can execute their local
