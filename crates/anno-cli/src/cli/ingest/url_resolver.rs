@@ -49,6 +49,8 @@ fn http_agent(ca_file: Option<&Path>) -> Result<ureq::Agent, String> {
 pub struct ResolvedContent {
     /// The extracted text content
     pub text: String,
+    /// Grounding in the HTTP entity body before charset decoding or HTML extraction.
+    pub source_map: anno::SourceMap,
     /// Metadata about the source (title, content-type, etc.)
     pub metadata: HashMap<String, String>,
     /// The final URL after redirects
@@ -120,30 +122,35 @@ impl UrlResolver for HttpResolver {
             .as_ref()
             .and_then(|media| media.get_param(mime::CHARSET))
             .and_then(|charset| encoding_rs::Encoding::for_label(charset.as_str().as_bytes()));
+        // Keep ureq's optional charset feature disabled: the digest identifies
+        // the decompressed HTTP entity body before any text decoding.
         let mut body = response.into_body();
-        let content = if let Some(encoding) = encoding {
-            // decode honors a byte order mark before the HTTP charset.
-            body.read_to_vec()
-                .map(|bytes| encoding.decode(&bytes).0.into_owned())
-        } else if is_html {
-            body.read_to_vec()
-                .map(|bytes| deformat::detect::decode_bytes(&bytes, "utf-8").into_owned())
-        } else {
-            body.read_to_string()
-        }
-        .map_err(|e| {
+        let bytes = body.read_to_vec().map_err(|e| {
             format!(
-                "Failed to read response from {}: {}. \
-                 Response may be too large or corrupted.",
-                url, e
+                "Failed to read response from {url}: {e}. Response may be too large or corrupted."
             )
         })?;
+        let content = if let Some(encoding) = encoding {
+            // decode honors a byte order mark before the HTTP charset.
+            encoding.decode(&bytes).0.into_owned()
+        } else if is_html {
+            deformat::detect::decode_bytes(&bytes, "utf-8").into_owned()
+        } else if let Ok(text) = std::str::from_utf8(&bytes) {
+            text.to_owned()
+        } else {
+            // Preserve ureq's lossy text decoding for an unlabeled, malformed response.
+            ureq::Body::builder()
+                .mime_type(body.mime_type().unwrap_or(""))
+                .data(bytes.clone())
+                .read_to_string()
+                .map_err(|e| format!("Failed to decode response from {url}: {e}"))?
+        };
 
         let mut metadata = HashMap::new();
         metadata.insert("source".to_string(), "http".to_string());
 
         // Check if content looks like HTML
-        let text = if deformat::detect::is_html(&content) {
+        let (text, source_map) = if deformat::detect::is_html(&content) {
             metadata.insert("content-type".to_string(), "text/html".to_string());
             if self.read_declared_language {
                 if let Some(language) = deformat::html::extract_metadata(&content).language {
@@ -159,13 +166,23 @@ impl UrlResolver for HttpResolver {
             if result.fallback {
                 metadata.insert("fallback".to_string(), "true".to_string());
             }
-            result.text
+            let map = if content.as_bytes() == bytes {
+                crate::cli::utils::html_source_map(&content, &result.text, result.extractor)?
+            } else {
+                anno::SourceMap::unmapped(&result.text, Some(&bytes))
+            };
+            (result.text, map)
         } else {
             metadata.insert("content-type".to_string(), "text/plain".to_string());
-            content
+            let map = if content.as_bytes() == bytes {
+                anno::SourceMap::identity(&content)
+            } else {
+                anno::SourceMap::unmapped(&content, Some(&bytes))
+            };
+            (content, map)
         };
-
         Ok(ResolvedContent {
+            source_map,
             text,
             metadata,
             source_url,
@@ -247,38 +264,64 @@ mod tests {
         assert!(resolver.can_resolve("https://subdomain.example.com/path"));
     }
 
-    #[test]
-    fn http_resolver_decodes_shift_jis_html() {
+    fn resolve_body(content_type: &'static str, bytes: &[u8]) -> ResolvedContent {
         use std::io::{BufRead, BufReader, Write};
         use std::net::TcpListener;
 
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let bytes = bytes.to_vec();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            for line in BufReader::new(&stream).lines() {
+                if line.unwrap().is_empty() {
+                    break;
+                }
+            }
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\r\n",
+                bytes.len()
+            )
+            .unwrap();
+            stream.write_all(&bytes).unwrap();
+        });
+        let resolved = HttpResolver::new().resolve(&url).unwrap();
+        server.join().unwrap();
+        resolved
+    }
+
+    #[test]
+    fn http_plain_text_source_map_identifies_body_before_decoding() {
+        let original = " \t日本\r\n";
+        let plain = resolve_body("text/plain; charset=utf-8", original.as_bytes());
+        assert_eq!(plain.text, original);
+        assert_eq!(plain.source_map, anno::SourceMap::identity(original));
+
+        let original_bytes = b"\x93\xfa\x96\x7b"; // 日本 in Shift_JIS
+        let decoded = resolve_body("text/plain; charset=Shift_JIS", original_bytes);
+        assert_eq!(decoded.text, "日本");
+        assert_eq!(
+            decoded.source_map,
+            anno::SourceMap::unmapped(&decoded.text, Some(original_bytes))
+        );
+    }
+
+    #[test]
+    fn http_resolver_decodes_shift_jis_html() {
         for (content_type, meta) in [
             ("TeXt/HtMl", "Shift_JIS"),
             ("text/html; CHARSET=\"Shift_JIS\"", "utf-8"),
             ("application/xhtml+xml; charset=Shift_JIS", "utf-8"),
         ] {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            let url = format!("http://{}/", listener.local_addr().unwrap());
-            let server = std::thread::spawn(move || {
-                let (mut stream, _) = listener.accept().unwrap();
-                for line in BufReader::new(&stream).lines() {
-                    if line.unwrap().is_empty() {
-                        break;
-                    }
-                }
-                let mut html =
-                    format!("<html><head><meta charset='{meta}'></head><body><p>").into_bytes();
-                html.extend_from_slice(b"\x93\xfa\x96\x7b</p></body></html>"); // 日本 in Shift_JIS
-                write!(
-                    stream,
-                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\r\n",
-                    html.len()
-                )
-                .unwrap();
-                stream.write_all(&html).unwrap();
-            });
-            let resolved = HttpResolver::new().resolve(&url).unwrap();
-            server.join().unwrap();
+            let mut bytes =
+                format!("<html><head><meta charset='{meta}'></head><body><p>").into_bytes();
+            bytes.extend_from_slice(b"\x93\xfa\x96\x7b</p></body></html>"); // 日本 in Shift_JIS
+            let resolved = resolve_body(content_type, &bytes);
+            assert_eq!(
+                resolved.source_map,
+                anno::SourceMap::unmapped(&resolved.text, Some(&bytes))
+            );
             assert!(
                 resolved.text.contains("日本"),
                 "{content_type}: {}",
@@ -307,6 +350,7 @@ mod tests {
     fn resolved_content_struct() {
         let content = ResolvedContent {
             text: "Hello world".to_string(),
+            source_map: anno::SourceMap::identity("Hello world"),
             metadata: HashMap::new(),
             source_url: "https://example.com".to_string(),
         };
@@ -362,6 +406,7 @@ mod tests {
         metadata.insert("key".to_string(), "value".to_string());
         let content = ResolvedContent {
             text: "test".to_string(),
+            source_map: anno::SourceMap::identity("test"),
             metadata,
             source_url: "http://test.com".to_string(),
         };

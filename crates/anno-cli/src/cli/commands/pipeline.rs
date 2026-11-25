@@ -203,6 +203,8 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
             GroundedDocument::from_entity_signals(doc_id, text, &entities)
         };
 
+        doc.record_source_map(anno::SourceMap::identity(text))?;
+
         // Apply enhancements
         if args.coref {
             let signal_ids: Vec<SignalId> = doc.signals().iter().map(|signal| signal.id).collect();
