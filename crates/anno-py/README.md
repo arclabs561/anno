@@ -29,6 +29,13 @@ December 9. The example compares counts of detected date strings. Passing the
 same file twice gives an empty `date_count_changes` list, as does moving a date
 to another event while preserving its count. Substitute your own UTF-8 files
 to review another pair of editions.
+To hand the comparison to another reader, put both editions in one directory.
+Run the example from that directory with the two filenames and redirect stdout
+to `changed-dates.json`. Send all three files together. The reader can check
+each original file against its SHA-256 in `sources`, slice the decoded UTF-8 text
+at each reported range, and open both drawing lines. Preserve the original
+bytes when copying the notices, including line endings.
+
 [Example source](examples/bulletin_diff.py) · [Notice license](examples/bulletins/LICENSE)
 
 ## Install from a checkout

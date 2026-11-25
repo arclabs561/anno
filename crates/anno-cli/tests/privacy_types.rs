@@ -33,6 +33,42 @@ fn filter_selects_email_or_id_within_the_same_mailbox() {
 }
 
 #[test]
+fn support_handoff_preserves_context_and_redacts_an_edited_contact() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("ticket.txt");
+    let handoff = dir.path().join("handoff.txt");
+    // An editor corrects the address and status, then exports the same file again.
+    for (address, status) in [
+        ("mira@example.invalid", "Waiting for a reply"),
+        ("returns@example.invalid", "Assigned to returns"),
+    ] {
+        let context = format!("Ticket Q-104 • Café\r\n{status}\r\n");
+        let evidence = "Evidence: ref 123-45-6789; visit 2026-06-14.\r\n";
+        let ticket = format!("{context}Contact: {address}\r\n{evidence}");
+        let expected = format!("{context}Contact: [CONTACT_1]\r\n{evidence}");
+        std::fs::write(&source, &ticket).unwrap();
+        let run = Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args([
+                "privacy", "--model", "pattern", "--action", "redact", "--types", "CONTACT",
+                "--quiet", "--input",
+            ])
+            .arg(&source)
+            .arg("--output")
+            .arg(&handoff)
+            .env("ANNO_NO_DOWNLOADS", "1")
+            .output()
+            .unwrap();
+        assert!(
+            run.status.success(),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(std::fs::read_to_string(&handoff).unwrap(), expected);
+        assert_eq!(std::fs::read_to_string(&source).unwrap(), ticket);
+    }
+}
+
+#[test]
 fn unsupported_types_fail_before_writing_output() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("redacted.txt");

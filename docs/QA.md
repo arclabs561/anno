@@ -11,6 +11,27 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Try a workflow as a new reader
+
+Start outside the checkout with a published package or a named build. Give a reader
+a question and the public docs. For the harbor bulletin, ask which deadline
+changed, whether the drawing moved, and what evidence an editor can keep.
+Let the reader find the command, then have them replace one notice with their
+own text. A second process or person should be able to reopen the result from
+the files they receive. [Python bulletin example](../crates/anno-py/README.md#compare-dates-in-two-bulletins)
+
+Record the artifact version and digest, first command attempted, help the
+reader needed, and what the recipient could verify. Measure installation and
+model setup separately from time spent doing the task. Mark simulated readers
+as agents. Keep private inputs and exact prompts local.
+
+For a language-sensitive variation, try the same December 4 to December 7
+amendment as `2026年12月4日` and `2026年12月7日`, or as `٤ ديسمبر ٢٠٢٦` and
+`٧ ديسمبر ٢٠٢٦`. Check the original sentences even if the change list is empty.
+Use a known contract failure to gate a patch once its expected behavior is
+agreed. Record newly uncovered language gaps with the input, backend and scope
+per the [seed retention guidance](#decide-what-to-keep).
+
 ## Run a check
 
 From the repository root, these checks use checked-in inputs. Cargo needs its dependencies installed or cached.
@@ -77,6 +98,22 @@ For a change to a partially passing backend, add `--baseline-predictions old.jso
 ## What runs in GitHub Actions
 
 The required Ubuntu CLI integration job runs against local fixtures, including public-source excerpts. The additional eval-feature job exercises the loopback HTTP cases. The Python QA job tests the harness itself with fixed inputs. A separate path-filtered benchmark fetches checksum-pinned WikiGold and records corpus scores. The full 457-date NASA replay is an explicit command. Fuzzing is available locally, and a maintainer can launch the bounded mutation job from a matching branch. [CI workflow](../.github/workflows/ci.yml) · [WikiGold benchmark](../.github/workflows/bench-extraction.yml) · [Fuzz target](../fuzz/README.md)
+
+The Python binding and Linux wheel jobs run the bulletin example from a
+temporary working directory. The weekly installed-package job exercises the
+pinned public PyPI wheel and records the filename and hash. The release
+workflow also verifies the submitted distribution hashes after publication.
+The real-weight FCoref job checks that a reader can reopen a caption at its
+original cue time after a Unicode edit. [Python wheel build](../.github/workflows/python-wheels.yml) · [Public wheel check](../.github/workflows/python-package-check.yml) · [Caption replay](../crates/anno/examples/caption_links/README.md)
+
+Maintainers can run the weekly checks immediately from the default branch.
+The journey report records the policies’ selections and the independent
+result for each of the three cases. [Policy comparison and local replay](EVALUATION_SAMPLING.md#compare-three-developer-journeys)
+
+```sh
+gh workflow run python-package-check.yml --ref main
+gh workflow run journey-sampling.yml --ref main
+```
 
 For live discovery, `just qa-random` balances catalog topics and publishers by default. For offline exact-span assertions, `just qa-domain-spans target/debug/anno` exercises a labeled panel. The live runner needs an eval-enabled CLI.
 

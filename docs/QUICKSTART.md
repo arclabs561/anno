@@ -112,6 +112,15 @@ For a UTF-8 file, use `--input ./note.txt` in place of `--text`. The command
 prints the redacted text by default. Add `--output ./redacted.txt` to write it
 to a file.
 
+For a support handoff that keeps dates and case references visible, select
+`CONTACT` and write a separate copy. Edit the source ticket and rerun the
+command when the request changes. Review the resulting file before sharing it.
+
+```sh
+anno privacy --model pattern --action redact --types CONTACT \
+  --input ticket.txt --output handoff.txt
+```
+
 ## CLI: relation extraction
 
 Extract typed `(head, relation, tail)` triples with a `RelationCapable` backend:
