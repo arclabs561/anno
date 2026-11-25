@@ -117,69 +117,13 @@ impl InputText {
         let map = match self.origin {
             InputOrigin::Identity => anno::SourceMap::identity(&self.text),
             InputOrigin::Html(source, extractor) => {
-                html_source_map(&source, &self.text, extractor)?
+                deformat::mapped::html_source_map(&source, &self.text, extractor)?
             }
             #[cfg(feature = "pdf")]
             InputOrigin::Pdf(bytes) => anno::SourceMap::unmapped(&self.text, Some(&bytes)),
         };
         Ok((self.text, map))
     }
-}
-
-/// Select provenance by the renderer that actually produced the output.
-pub(crate) fn html_source_map(
-    source: &str,
-    rendered: &str,
-    extractor: deformat::Extractor,
-) -> Result<anno::SourceMap, String> {
-    if extractor == deformat::Extractor::Strip {
-        let (text, map) = deformat::html::strip_to_text_with_spans(source);
-        if text == rendered {
-            return deformat_source_map(source, rendered, &map);
-        }
-    }
-    Ok(anno::SourceMap::unmapped(rendered, Some(source.as_bytes())))
-}
-
-pub(crate) fn deformat_source_map(
-    source: &str,
-    text: &str,
-    map: &deformat::html::SpanMap,
-) -> Result<anno::SourceMap, String> {
-    use anno::{SourceKind, SourceMap, SourceRun};
-    use deformat::html::SpanKind;
-    let mut runs = Vec::new();
-    let mut cursor = 0;
-    for span in map.iter() {
-        if cursor < span.output_start {
-            runs.push(SourceRun::new(
-                cursor..span.output_start,
-                None,
-                SourceKind::Unmapped,
-            ));
-        }
-        let kind = match span.kind {
-            SpanKind::Direct => SourceKind::Direct,
-            SpanKind::EntityDecoded => SourceKind::Transformed,
-            SpanKind::WhitespaceCollapsed => SourceKind::Approximate,
-            SpanKind::Synthetic => SourceKind::Synthetic,
-            _ => SourceKind::Approximate,
-        };
-        runs.push(SourceRun::new(
-            span.output_start..span.output_end,
-            Some(span.source_start..span.source_end),
-            kind,
-        ));
-        cursor = span.output_end;
-    }
-    if cursor < text.len() {
-        runs.push(SourceRun::new(
-            cursor..text.len(),
-            None,
-            SourceKind::Unmapped,
-        ));
-    }
-    SourceMap::new(source, text, runs)
 }
 
 fn resolve_input(
@@ -1174,7 +1118,7 @@ mod tests {
         let original = "<p>x&#64;y</p>";
         let text = deformat::html::strip_to_text(original);
         for extractor in [deformat::Extractor::Strip, deformat::Extractor::Readability] {
-            let map = html_source_map(original, &text, extractor).unwrap();
+            let map = deformat::mapped::html_source_map(original, &text, extractor).unwrap();
             map.verify(original.as_bytes(), &text).unwrap();
             let selected = map.project_chars(&text, 1..2).unwrap();
             if extractor == deformat::Extractor::Strip {

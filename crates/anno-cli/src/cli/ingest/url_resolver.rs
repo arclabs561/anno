@@ -167,7 +167,7 @@ impl UrlResolver for HttpResolver {
                 metadata.insert("fallback".to_string(), "true".to_string());
             }
             let map = if content.as_bytes() == bytes {
-                crate::cli::utils::html_source_map(&content, &result.text, result.extractor)?
+                deformat::mapped::html_source_map(&content, &result.text, result.extractor)?
             } else {
                 anno::SourceMap::unmapped(&result.text, Some(&bytes))
             };

@@ -30,7 +30,8 @@ impl MappedHtml {
 
     /// Source map for all rendered bytes, including regions without an extracted signal.
     pub(super) fn source_map(&self) -> Result<anno::SourceMap, CliError> {
-        crate::cli::utils::deformat_source_map(&self.source, &self.text, &self.map)
+        self.map
+            .to_source_map(&self.source, &self.text)
             .map_err(CliError::from)
     }
 
