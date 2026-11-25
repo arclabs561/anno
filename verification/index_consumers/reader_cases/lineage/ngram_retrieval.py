@@ -55,8 +55,8 @@ def release_queries(before, after, decisions):
     return queries, stale
 
 
-def lookup(index, before, requests):
-    # Every query receives the same audit output. Only its name and excluded accession enter retrieval.
+def lookup(index, before, requests, *, catalog_masks=None):
+    # Q excludes a cited owner from scoring. M removes owners from the catalog before blocking.
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as data:
         for accession, row in before.items():
             if row.status == "active":
@@ -68,7 +68,11 @@ def lookup(index, before, requests):
                 ]
                 data.write("\t".join(fields) + "\n")
         for request in requests:
-            data.write("\t".join(["Q", request.excluded, key(request.name)]) + "\n")
+            if catalog_masks is None:
+                fields = ["Q", request.excluded, key(request.name)]
+            else:
+                fields = ["M", ",".join(sorted(catalog_masks[request.source])), key(request.name)]
+            data.write("\t".join(fields) + "\n")
         data.seek(0)
         with subprocess.Popen(
             [str(index)], stdin=data, stdout=subprocess.PIPE, text=True, encoding="utf-8"

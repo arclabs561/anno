@@ -39,6 +39,8 @@ Of 606 rows with at least one annotated ROR ID, every row had an available targe
 
 ROR registry data are CC0. S2AFF’s pinned repository carries Apache 2.0. Its affiliation file is fetched only on request and verified by SHA-256. The external ledger records row numbers and predictions, so source text stays in its original archive. The study contains no new human ratings of these queries. [ROR data license](https://ror.readme.io/docs/data-dump) · [S2AFF repository license](https://github.com/allenai/S2AFF/blob/ac8d6b58f42b253821c26fff8b013913317c5c72/LICENSE)
 
+The follow-up compares two orders of the same five candidates and tests what happens when every annotated owner is removed from the catalog before retrieval. On validation, city and country clues moved four annotated targets into first place and one out. [Affiliation shortlist study](../context/README.md)
+
 ## Reproduce
 
 The offline controls require Python 3.11 or newer and a Rust compiler; the native index uses the Rust standard library. The two evaluations accept the same cache directory as the exact-name study. From the parent `lineage` directory run
