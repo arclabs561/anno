@@ -69,15 +69,20 @@ impl Default for RegexNER {
 static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
-// A date-shaped part number can use the same nonbreaking hyphens as a printed
-// date. Require a date field or an explicit calendar phrase on the same line.
+// Date-shaped inventory numbers use the same typography. Require a field/value
+// boundary or a calendar phrase. Across a line break, require a standalone
+// heading so the last column label cannot bind to the first value of a TSV row.
 static DATE_ISO_PRINTED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"(?ix)\b(?:",
-        r"(?:date|deadline|expiry|expiration)(?:[\t\p{Zs}]*[:=][\t\p{Zs}]*|\t+|[\t\p{Zs}]+\()",
-        r"|(?:as[\t\p{Zs}]+of|dated|due[\t\p{Zs}]+on|effective[\t\p{Zs}]+(?:on|from)|",
-        r"(?:premier(?:e|ed)|scheduled|held|issued|published|released|expires?)[\t\p{Zs}]+on)[\t\p{Zs}]+",
-        r")([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b",
+        r"(?imx)(?:^\p{Zs}*(?:\p{L}+\p{Zs})?(?:date|deadline|expiry|expiration)",
+        r"\p{Zs}*[:=]?\p{Zs}*\r?\n\p{Zs}*",
+        r"|\b(?:date|deadline|expiry|expiration)(?:",
+        r"[\t\p{Zs}]*[:=,][\t\p{Zs}]*|\t+|[\t\p{Zs}]+\(",
+        r"|[\t\p{Zs}]+(?:is|was)[\t\p{Zs}]+)",
+        r"|\b(?:as[\t\p{Zs}]+of|dated|due[\t\p{Zs}]+on|effective[\t\p{Zs}]+(?:on|from)|",
+        r"scheduled[\t\p{Zs}]+(?:on|for)|",
+        r"(?:premier(?:e|ed)|held|issued|published|released|expires?)[\t\p{Zs}]+on)[\t\p{Zs}]+",
+        r#")[“‘«"']?([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b"#,
     ))
     .expect("valid regex")
 });
@@ -741,6 +746,38 @@ mod tests {
                 (start, start + value.chars().count())
             );
         }
+    }
+
+    #[test]
+    fn printed_date_fields_keep_the_value_in_its_source_context() {
+        let text = concat!(
+            "🧊 Révision date is “2044‑02‑29”. Delivery scheduled for 2043‑12‑17.\n",
+            "Expiry date:\r\n  2042‑09‑30\nRelease date, «2041‑10‑17».\n",
+            "Visit date\n2039‑02‑28\n",
+            "Date code is 2038‑05‑18. Lot number: 2031‑05‑04.\n",
+            "Date: pending. Barcode is 2032‑08‑03. Date:\n\n2036‑02‑29\n",
+            "Inventory code\tDate\n2036‑03‑18\tPending\n",
+            "The date was 2037‑06‑30.csv. The date was 2045‑02‑29.",
+        );
+        let dates: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| (e.start(), e.end(), e.text))
+            .collect();
+        let expected: Vec<_> = [
+            "2044‑02‑29",
+            "2043‑12‑17",
+            "2042‑09‑30",
+            "2041‑10‑17",
+            "2039‑02‑28",
+        ]
+        .into_iter()
+        .map(|value| {
+            let start = text[..text.find(value).unwrap()].chars().count();
+            (start, start + value.chars().count(), value.to_owned())
+        })
+        .collect();
+        assert_eq!(dates, expected);
     }
 
     #[test]
