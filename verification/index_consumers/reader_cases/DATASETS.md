@@ -2,6 +2,17 @@
 
 The ranks below prioritize questions the contributor-credit and ROR cases leave open. Fetch source data separately for an evaluation and record the source version, selected files and checksums alongside its results. The reader fixtures include a PLOS adaptation under CC BY and original fictional cases. [PLOS correction and terms](https://doi.org/10.1371/journal.pone.0337268)
 
+## Executed follow-ups
+
+| Reader decision | Source and evaluation |
+| --- | --- |
+| Show a reviewable cross-spelling suggestion with its source occurrence | [AjMC source-item and language holdouts and local JSON reader](candidates/README.md) · [Swiss GeoNames alias confirmation](confirmation/README.md) |
+| Return a shortlist or automatically assign an organization | [ROR release transitions and S2AFF labeled affiliations](lineage/retrieval/README.md) |
+| Distinguish an incomplete lookup from an entity outside the dated catalog | [NILK byte-window replay and cross-page NIL clustering](open_world/README.md) |
+| Open a former area code, preserve a billed artist spelling, or identify a documented role | [ONS succession and MusicBrainz billing, guest-vocal and work-credit pilots](catalog_pilots/README.md) |
+
+## Dataset selection and scope
+
 | Rank | Source | Reader question | What the label establishes |
 | --- | --- | --- | --- |
 | 1 | HIPE-2022 historical newspapers | Can a reader group separately observed mentions and abstain on an unlinked one? | A literal or metonymic mention has an annotated Wikidata referent or a NIL label under the task’s KB convention. |
@@ -21,7 +32,7 @@ Ask which documents support one QID and whether a NIL mention pollutes that answ
 
 In 2023 Cumberland (`E06000063`) replaced Allerdale, Carlisle and Copeland. Westmorland and Furness (`E06000064`) replaced Barrow-in-Furness, Eden and South Lakeland. Both ONS area pages explicitly identify the three former district codes. A lookup for former Carlisle should reach Cumberland. Returning both new authorities because both belong to the wider Cumbria reorganization overstates the source. A historical Carlisle record should keep its original code. Score each dated, directed source–target pair and its area type. [Cumberland](https://www.ons.gov.uk/explore-local-statistics/areas/E06000063-cumberland) · [Westmorland and Furness](https://www.ons.gov.uk/explore-local-statistics/areas/E06000064-westmorland-and-furness)
 
-Select the December 2025 Code History Database, extract the Geography History and related metadata, and retain the release date separately from the change’s effective date. Coverage begins on 1 January 2009 and concerns changes that received new codes. Keep an entire reorganization on one side of a holdout. A contemporary hierarchy lookup alone cannot establish succession. The product’s rights field points to ONS geography licenses. ONS specifies OGL v3.0 and the credit “Source: Office for National Statistics licensed under the Open Government Licence v.3.0” for ordinary lookups. Check the specific export before redistributing any material from the mixed database. The cited area pages were checked directly; the Access tables were not sampled. [December 2025 product](https://www.data.gov.uk/dataset/4ec2169f-1a72-4c2d-be60-a74174902593/code-history-database-december-2025-for-the-uk) · [Database scope](https://www.ons.gov.uk/methodology/geography/geographicalproducts/namescodesandlookups/codehistorydatabasechd) · [Product rights pointer](https://www.arcgis.com/sharing/rest/content/items/c59bd9b324644773b92d4f06d1f48dd7?f=pjson) · [ONS conditions by product](https://www.ons.gov.uk/methodology/geography/licences)
+The [ONS pilot](catalog_pilots/README.md) compares the December 2023 and December 2025 Code History Database CSV releases and retains the release date separately from the change’s effective date. Coverage begins on 1 January 2009 and concerns changes that received new codes. Keep an entire reorganization on one side of a holdout. A contemporary hierarchy lookup alone cannot establish succession. The product’s rights field points to ONS geography licenses. ONS specifies OGL v3.0 and the credit “Source: Office for National Statistics licensed under the Open Government Licence v.3.0” for ordinary lookups. The pilot credits the ONS tabular projection under OGL v3.0 and records the rights for the selected fields. [December 2025 product](https://www.data.gov.uk/dataset/4ec2169f-1a72-4c2d-be60-a74174902593/code-history-database-december-2025-for-the-uk) · [Database scope](https://www.ons.gov.uk/methodology/geography/geographicalproducts/namescodesandlookups/codehistorydatabasechd) · [Product rights pointer](https://www.arcgis.com/sharing/rest/content/items/c59bd9b324644773b92d4f06d1f48dd7?f=pjson) · [ONS conditions by product](https://www.ons.gov.uk/methodology/geography/licences)
 
 ## 3. NILK
 
@@ -31,9 +42,9 @@ Hide `wikidata_id`, `nil`, source hyperlink targets and newer aliases from the r
 
 ## 4. MusicBrainz
 
-The official credit guide uses release `0e97456e-9471-4869-bf43-10ea495f666a` as an example where inflection expresses a collaboration. Preserve ordered artist identifiers, credited spellings and join phrases on each release. For a lyricist or translator query, evaluate the relevant artist–work relationship and record its type and target. A billing string alone supplies insufficient evidence for that query. A missing relationship leaves the role unasserted. These examples were checked against the documentation; a live API request returned HTTP 503. [Credit model and examples](https://musicbrainz.org/doc/Artist_Credits) · [Role definitions](https://musicbrainz.org/doc/Artist_Relationship_Guide_for_Artists)
+The official credit guide uses release `0e97456e-9471-4869-bf43-10ea495f666a` as an example where inflection expresses a collaboration. Preserve ordered artist identifiers, credited spellings and join phrases on each release. For a lyricist or translator query, evaluate the relevant artist–work relationship and record its type and target. A billing string alone supplies insufficient evidence for that query. A missing relationship leaves the role unasserted. The [MusicBrainz pilot](catalog_pilots/README.md) verifies this release and three other records against dated API observations. [Credit model and examples](https://musicbrainz.org/doc/Artist_Credits) · [Role definitions](https://musicbrainz.org/doc/Artist_Relationship_Guide_for_Artists)
 
-Choose a dated core dump and checksum before building paired release/work examples. Keep connected release groups, reused recordings and near-identical credits together when splitting. Store evidence at release, recording or work scope as applicable. MusicBrainz publishes core artist credits and relationships under CC0. Its supplementary edit history, user annotations and ratings carry CC BY-NC-SA 3.0. A pair of core snapshots can demonstrate a changed credit, while the reason for the change needs independent evidence. [Data partitions, releases and licenses](https://musicbrainz.org/doc/MusicBrainz_Database)
+A study of changes across editions would also need dated snapshots of the same records. Keep connected release groups, reused recordings and near-identical credits together when splitting. Store evidence at release, recording or work scope as applicable. MusicBrainz publishes core artist credits and relationships under CC0. Its supplementary edit history, user annotations and ratings carry CC BY-NC-SA 3.0. A pair of core snapshots can demonstrate a changed credit, while the reason for the change needs independent evidence. [Data partitions, releases and licenses](https://musicbrainz.org/doc/MusicBrainz_Database)
 
 ## Interpreting missing links
 

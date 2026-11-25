@@ -2,6 +2,8 @@
 
 A repository that saves an affiliation can receive a new name, a retired identifier, or an explicit curator correction. This study asks whether a newly printed name retrieves its catalog record from the preceding edition and what a reader of the originally cited identifier can show after the next release. Inputs are 15 consecutive Research Organization Registry (ROR) releases, v2.2 through v2.16. The ZIP archives total 522,596,398 bytes and contain the CC0 registry. The factual issue manifest contains only release numbers, ROR IDs and public issue numbers. [Source and license](https://ror.readme.io/docs/data-dump) · [Release and curation process](https://ror.readme.io/docs/updates) · [Archive manifest with SHA-256 checksums](releases.csv)
 
+The [trigram retrieval study](retrieval/README.md) tests whether name similarity recovers more plausible candidates, what an automatic gate costs, and how the same rule handles independently annotated affiliation strings.
+
 ## Held-out results
 
 Six consecutive later releases supplied 781 queries with a changed active display name. Adding earlier aliases, labels and acronyms raised the number of correct unique links from 15 to 146. Another 14 correct targets appeared in ambiguous sets. That gives candidate recall of 160/781 and 146 correct answers among 177 unique answers. Most changed names still lacked their correct ID in the candidate set.
