@@ -68,6 +68,14 @@ fn offline_matrix_keeps_prepared_gliner_models_and_reports_explicit_failures() {
             .filter(|r: &Value| r["record_type"] == "outcome")
             .collect::<Vec<_>>()
     };
+    // This integration executable has a single test and its own temporary Hub cache.
+    env::set_var("HF_HOME", root.join("hf"));
+    env::set_var("ANNO_NO_DOWNLOADS", "1");
+    assert_eq!(
+        anno::StackedNER::default().layer_names(),
+        ["regex", "heuristic"]
+    );
+
     let automatic = || outcomes("--pin-backend", "heuristic,gliner_onnx,gliner_pii");
     let cold = automatic();
     assert_eq!(cold.len(), 1);
@@ -94,6 +102,24 @@ fn offline_matrix_keeps_prepared_gliner_models_and_reports_explicit_failures() {
     let gliner = warm.iter().find(|r| r["backend"] == "gliner_onnx").unwrap();
     assert_eq!(gliner["hard_junk"], false);
     assert!(gliner["primary_f1"].is_number());
+
+    // The public default stack must execute the prepared ML layer, too. Its
+    // fallback layers can recognize names even if model discovery regresses.
+    let report = anno::StackedNER::default()
+        .extract_entities_with_report(
+            "Call John Smith now",
+            None,
+            anno::StackedExtractionPolicy::Strict,
+        )
+        .unwrap();
+    assert!(
+        report.layer_outcomes().iter().any(|outcome| matches!(
+            outcome, anno::StackedLayerOutcome::Succeeded { layer, entity_count }
+                if layer == "GLiNER-ONNX" && *entity_count > 0
+        )),
+        "{:?}",
+        report.layer_outcomes()
+    );
 
     // When downloads are allowed, an empty Hub cache is a valid starting point.
     // This exercises the preflight alone without fetching weights.
