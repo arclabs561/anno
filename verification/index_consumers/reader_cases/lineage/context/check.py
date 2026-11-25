@@ -33,6 +33,13 @@ def check(binary):
     second = rerank("New York, Arcadia", [("a", 4, 5), ("b", 39, 50)], locations)
     assert decision(second) == ("b", "accepted")
     p = panel()
+    for invalid in ((ranks, [*ordered, ordered[0]]), ([*ranks, ranks[0]], ordered)):
+        try:
+            record(p, invalid, {"b"})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a duplicate option changed one arm's review budget")
     record(p, (ranks, ordered), {"b"})
     record(p, (ranks, ordered), {"a"})
     assert p["budget"]["1"]["gains"] == p["budget"]["1"]["losses"] == 1

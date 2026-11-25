@@ -128,7 +128,9 @@ def panel(available_target=True):
 
 def record(panel, rankings, ids):
     lists = [[a for a, _, _ in rank] for rank in rankings]
-    if len(lists[0]) > 5 or sorted(lists[0]) != sorted(set(lists[1])):
+    native_ids, location_ids = lists
+    if (len(native_ids) > 5 or len(native_ids) != len(set(native_ids))
+            or sorted(native_ids) != sorted(location_ids)):
         raise ValueError("reranking changed the native options or duplicated an accession")
     panel["order_changed"] += lists[0] != lists[1]
     panel["queries"] += 1

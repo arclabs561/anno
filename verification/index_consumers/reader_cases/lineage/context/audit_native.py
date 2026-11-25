@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import sys
 import tempfile
 
 from rerank import (
@@ -51,5 +52,5 @@ if __name__ == "__main__":
     p.add_argument("reference_binary", type=Path, help="compiled pre-experiment ngrams.rs")
     args = p.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
-        print(json.dumps(audit(args.cache, args.reference_binary.resolve(), compiled_index(tmp)),
-                         sort_keys=True, indent=2))
+        result = audit(args.cache, args.reference_binary.resolve(), compiled_index(tmp))
+        sys.stdout.buffer.write((json.dumps(result, sort_keys=True, indent=2) + "\n").encode("utf-8"))
