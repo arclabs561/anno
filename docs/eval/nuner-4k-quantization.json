@@ -1,0 +1,78 @@
+{
+  "fixture_checkpoint": "numind/NuNER_Zero-4k@7a7cd8d65af2572c297054dbaf8f25c0d46da55d",
+  "onnxruntime": "1.32.0",
+  "provider": "CPUExecutionProvider",
+  "threshold": 0.5,
+  "fp32": {
+    "bytes": 1519070824,
+    "sha256": "71f9281f3a0c12bce5949687b1c2d145dafc7870b3efa3407adf01465caab746"
+  },
+  "candidate": {
+    "bytes": 406709705,
+    "sha256": "f0c458b4c0ac41f0e098a66576aba8c5759b5b0e73a27aae438d84dd5b4f0924"
+  },
+  "cases": [
+    {
+      "input_tokens": 14,
+      "words": 6,
+      "labels": 2,
+      "retained_positive": 3,
+      "lost_positive": 0,
+      "new_positive": 0,
+      "first_changed_decisions": [],
+      "max_abs_logit_difference": 1.1016554832458496,
+      "max_abs_probability_difference": 0.08670161664485931
+    },
+    {
+      "input_tokens": 20,
+      "words": 6,
+      "labels": 3,
+      "retained_positive": 1,
+      "lost_positive": 0,
+      "new_positive": 0,
+      "first_changed_decisions": [],
+      "max_abs_logit_difference": 0.34872186183929443,
+      "max_abs_probability_difference": 0.05207224190235138
+    },
+    {
+      "input_tokens": 512,
+      "words": 504,
+      "labels": 2,
+      "retained_positive": 0,
+      "lost_positive": 0,
+      "new_positive": 0,
+      "first_changed_decisions": [],
+      "max_abs_logit_difference": 1.9389896392822266,
+      "max_abs_probability_difference": 0.045986928045749664
+    },
+    {
+      "input_tokens": 895,
+      "words": 666,
+      "labels": 2,
+      "retained_positive": 3,
+      "lost_positive": 0,
+      "new_positive": 0,
+      "first_changed_decisions": [],
+      "max_abs_logit_difference": 1.9572467803955078,
+      "max_abs_probability_difference": 0.10107548534870148
+    },
+    {
+      "input_tokens": 4096,
+      "words": 688,
+      "labels": 2,
+      "retained_positive": 0,
+      "lost_positive": 0,
+      "new_positive": 1,
+      "first_changed_decisions": [
+        {
+          "word_index": 686,
+          "label": "location",
+          "fp32_probability": 0.42456477880477905,
+          "candidate_probability": 0.518909752368927
+        }
+      ],
+      "max_abs_logit_difference": 1.3825345039367676,
+      "max_abs_probability_difference": 0.10843797028064728
+    }
+  ]
+}

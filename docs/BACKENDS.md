@@ -89,7 +89,7 @@ before applying their original storage strides. Anno's exporter gathers query,
 key and value windows by logical token position and verifies every FP32 logit
 against unmodified PyTorch before installing the graph. Inputs of 14, 20,
 512, 895 and 4096 tokens matched every threshold decision, with a maximum
-absolute logit difference of 0.000299 on CPU. INT8 is unverified. The source checkpoint revision is
+absolute logit difference of 0.000299 on CPU. The source checkpoint revision is
 `7a7cd8d65af2572c297054dbaf8f25c0d46da55d`.
 
 ```sh
@@ -97,6 +97,20 @@ uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k --output /tm
 NUNER_MODEL_PATH=/tmp/nuner-4k anno extract --model nuner \
     --extract-types person,location 'Marie Curie worked in Paris.'
 uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k --output /tmp/nuner-4k --verify-only
+```
+
+Dynamic unsigned INT8 reduced the graph from 1.52 GB to 407 MB with ONNX
+Runtime 1.32.0 on CPU. At threshold 0.5 it retained all seven positive FP32
+word-label decisions across the five fixtures and added one. On the 4096-token
+input, the score for “Paris” as a location went from 0.425 to 0.519. The largest
+absolute probability change was 0.108. The comparison measures agreement with
+FP32. These fixtures have no gold accuracy labels. The exporter currently
+releases FP32. [Per-case counts and artifact hashes](eval/nuner-4k-quantization.json)
+
+Run the comparison against a verified FP32 export.
+
+```sh
+uv run scripts/qa/check_nuner_4k_quantization.py /tmp/nuner-4k/model.onnx /tmp/nuner-4k-u8.onnx --quantize
 ```
 
 In the evaluation backend factory, select `nuner_4k` with
