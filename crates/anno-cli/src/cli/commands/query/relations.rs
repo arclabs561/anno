@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use anno::core::grounded::html_source::source_sha256;
-use anno::GroundedDocument;
 use clap::Args;
 use serde_json::json;
-use std::fs::File;
-use std::io::{self, BufReader};
-use std::path::{Path, PathBuf};
+use std::io;
+use std::path::PathBuf;
 
 #[derive(Args, Debug)]
 pub struct RelationsArgs {
@@ -14,14 +12,7 @@ pub struct RelationsArgs {
 }
 
 pub(super) fn run(args: RelationsArgs) -> Result<(), String> {
-    let path = args.input;
-    let doc: GroundedDocument = if path == Path::new("-") {
-        serde_json::from_reader(io::stdin().lock())
-    } else {
-        let file = File::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        serde_json::from_reader(BufReader::new(file))
-    }
-    .map_err(|e| format!("{}: {e}", path.display()))?;
+    let doc = super::read_grounded(&args.input)?;
     let mut mentions = Vec::new();
     for (stored, view) in doc
         .recorded_relations()
