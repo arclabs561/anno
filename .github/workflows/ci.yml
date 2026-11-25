@@ -322,6 +322,7 @@ jobs:
         env: *unit-model-cache
         run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
+        env: *unit-model-cache
         run: cargo test -p anno --doc --features discourse
   test-eval-trusted:
     name: Test (eval) (trusted branch)
