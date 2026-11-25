@@ -47,7 +47,7 @@ pub struct PipelineArgs {
     pub cross_doc: bool,
 
     /// Similarity threshold for cross-doc clustering
-    #[arg(long, default_value = "0.6")]
+    #[arg(long, default_value = "0.6", value_parser = super::parse_similarity_threshold)]
     pub threshold: f64,
 
     /// Require compatible known track types when comparing tracks across documents.
