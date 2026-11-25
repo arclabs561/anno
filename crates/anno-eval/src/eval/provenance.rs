@@ -165,6 +165,7 @@ pub(crate) fn policy_cohort_key(
         // Legacy coreference rows did not record whether the resolver received gold mentions.
         scorer: match task {
             Task::Temporal => "anno-timex-source-spans-v1",
+            Task::RelationExtraction => "anno-relation-document-micro-v1",
             Task::IntraDocCoref | Task::AbstractAnaphora if coref_use_gold_mentions && coref_predicted_mentions != crate::eval::task_evaluator::CorefPredictedMentions::BackendDefault => return None,
             Task::IntraDocCoref | Task::AbstractAnaphora if coref_use_gold_mentions => {
                 "anno-coref-gold-mentions-document-order-v1"

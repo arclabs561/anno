@@ -34,7 +34,7 @@ use super::discontinuous::{
     evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold, DiscontinuousNERMetrics,
 };
 use super::relation::{
-    evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics, RelationPrediction,
+    evaluate_relation_documents, RelationEvalConfig, RelationMetrics, RelationPrediction,
 };
 use super::visual::{
     evaluate_visual_ner, synthetic_visual_examples, VisualEvalConfig, VisualGold, VisualNERMetrics,
@@ -156,60 +156,51 @@ pub fn evaluate_relations_synthetic<M: RelationExtractor>(
     let examples = relations_dataset();
     let config = RelationEvalConfig::default();
 
-    let mut all_gold: Vec<RelationGold> = Vec::new();
-    let mut all_pred: Vec<RelationPrediction> = Vec::new();
-
+    let mut predictions_by_doc = Vec::with_capacity(examples.len());
     for example in &examples {
-        // Collect gold relations
-        all_gold.extend(example.relations.clone());
-
-        // Run model prediction
         let result = model.extract_with_relations(&example.text, labels, relations, threshold)?;
-
-        // Convert to predictions using entity indices
-        for rel in &result.relations {
-            if rel.head_idx < result.entities.len() && rel.tail_idx < result.entities.len() {
-                let head = &result.entities[rel.head_idx];
-                let tail = &result.entities[rel.tail_idx];
-                all_pred.push(RelationPrediction {
-                    head_span: (head.start(), head.end()),
-                    head_type: head.entity_type.as_label().to_string(),
-                    tail_span: (tail.start(), tail.end()),
-                    tail_type: tail.entity_type.as_label().to_string(),
-                    relation_type: rel.relation_type.clone(),
-                    confidence: rel.confidence.value() as f32,
-                });
-            }
-        }
+        let predicted: Vec<_> = result
+            .relations
+            .iter()
+            .filter_map(|rel| RelationPrediction::from_triple_with_entities(rel, &result.entities))
+            .collect();
+        predictions_by_doc.push(predicted);
     }
-
-    Ok(evaluate_relations(&all_gold, &all_pred, &config))
+    Ok(evaluate_relation_documents(
+        examples
+            .iter()
+            .zip(&predictions_by_doc)
+            .map(|(ex, pred)| (ex.relations.as_slice(), pred.as_slice())),
+        &config,
+    ))
 }
 
 /// Run relation extraction evaluation without a model (for testing metrics only).
 pub fn evaluate_relations_gold_vs_gold() -> RelationMetrics {
     let examples = relations_dataset();
-    let config = RelationEvalConfig::default();
-
-    let gold: Vec<RelationGold> = examples
+    let predictions_by_doc: Vec<Vec<_>> = examples
         .iter()
-        .flat_map(|ex| ex.relations.clone())
-        .collect();
-
-    // Perfect prediction = gold
-    let pred: Vec<RelationPrediction> = gold
-        .iter()
-        .map(|g| RelationPrediction {
-            head_span: g.head_span,
-            head_type: g.head_type.clone(),
-            tail_span: g.tail_span,
-            tail_type: g.tail_type.clone(),
-            relation_type: g.relation_type.clone(),
-            confidence: 1.0,
+        .map(|ex| {
+            ex.relations
+                .iter()
+                .map(|g| RelationPrediction {
+                    head_span: g.head_span,
+                    head_type: g.head_type.clone(),
+                    tail_span: g.tail_span,
+                    tail_type: g.tail_type.clone(),
+                    relation_type: g.relation_type.clone(),
+                    confidence: 1.0,
+                })
+                .collect()
         })
         .collect();
-
-    evaluate_relations(&gold, &pred, &config)
+    evaluate_relation_documents(
+        examples
+            .iter()
+            .zip(&predictions_by_doc)
+            .map(|(ex, pred)| (ex.relations.as_slice(), pred.as_slice())),
+        &RelationEvalConfig::default(),
+    )
 }
 
 // =============================================================================

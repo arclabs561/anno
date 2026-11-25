@@ -1049,7 +1049,7 @@ fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     }
 }
 
-/// Small, source-free counts that explain scores on the two structural tasks.
+/// Small, source-free counts that explain structural task scores.
 fn structural_counts(row: &TaskEvalResult) -> BTreeMap<&'static str, f64> {
     let keys: &[&'static str] = match row.task {
         Task::IntraDocCoref | Task::AbstractAnaphora => &[
@@ -1060,6 +1060,13 @@ fn structural_counts(row: &TaskEvalResult) -> BTreeMap<&'static str, f64> {
             "matched_coref_links",
             "predicted_coref_links",
             "gold_coref_links",
+        ],
+        Task::RelationExtraction => &[
+            "num_gold_relations",
+            "num_predicted_relations",
+            "strict_relation_matches",
+            "boundary_relation_matches",
+            "oracle_docs_used",
         ],
         Task::Temporal => &[
             "gold_spans",

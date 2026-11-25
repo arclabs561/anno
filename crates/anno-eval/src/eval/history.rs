@@ -174,6 +174,9 @@ pub struct EvalHistory {
     sqlite_path: Option<PathBuf>,
 }
 
+// Old journals may lack a policy cohort. Keep their observations separate from versioned scorers.
+type HistoryCohort = (String, String, Option<String>);
+
 impl EvalHistory {
     /// Create a new evaluation history manager.
     ///
@@ -1190,29 +1193,30 @@ impl EvalHistory {
         // For each cell, split observations by the median timestamp and compare means.
         let mut stmt = conn
             .prepare(
-                "SELECT backend, dataset, timestamp, f1 FROM eval_results \
+                "SELECT backend, dataset, timestamp, f1, policy_cohort_key FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
                  ORDER BY id",
             )
             .map_err(std::io::Error::other)?;
 
-        let mut cells: HashMap<(String, String), Vec<(String, f64)>> = HashMap::new();
+        let mut cells: HashMap<HistoryCohort, Vec<(String, f64)>> = HashMap::new();
         let rows = stmt
             .query_map([], |row| {
                 let b: String = row.get(0)?;
                 let d: String = row.get(1)?;
                 let ts: String = row.get(2)?;
                 let f1: f64 = row.get(3)?;
-                Ok((b, d, ts, f1))
+                let cohort: Option<String> = row.get(4)?;
+                Ok(((b, d, cohort), (ts, f1)))
             })
             .map_err(std::io::Error::other)?;
         for row in rows.flatten() {
-            let (b, d, ts, f1) = row;
-            cells.entry((b, d)).or_default().push((ts, f1));
+            let (cell, observation) = row;
+            cells.entry(cell).or_default().push(observation);
         }
 
         let mut alerts = Vec::new();
-        for ((backend, dataset), obs) in &mut cells {
+        for ((backend, dataset, _), obs) in &mut cells {
             obs.sort_by_cached_key(|row| history_time(&row.0));
             let n = obs.len() as u64;
             if n < min_observations {
@@ -1271,36 +1275,37 @@ impl EvalHistory {
         // Include evaluation size (n) so we can match comparable observations.
         let mut stmt = conn
             .prepare(
-                "SELECT backend, dataset, timestamp, f1, n FROM eval_results \
+                "SELECT backend, dataset, timestamp, f1, n, policy_cohort_key FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
                  ORDER BY id",
             )
             .map_err(std::io::Error::other)?;
 
-        // (backend, dataset) → [(timestamp, f1, n)]
-        type CellKey = (String, String);
         type CellRow = (String, f64, i64);
-        let mut cells: HashMap<CellKey, Vec<CellRow>> = HashMap::new();
+        let mut cells: HashMap<HistoryCohort, Vec<CellRow>> = HashMap::new();
         let rows = stmt
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, f64>(3)?,
-                    row.get::<_, i64>(4)?,
+                    (
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(5)?,
+                    ),
+                    (
+                        row.get::<_, String>(2)?,
+                        row.get::<_, f64>(3)?,
+                        row.get::<_, i64>(4)?,
+                    ),
                 ))
             })
             .map_err(std::io::Error::other)?;
         for row in rows.flatten() {
-            cells
-                .entry((row.0, row.1))
-                .or_default()
-                .push((row.2, row.3, row.4));
+            let (cell, observation) = row;
+            cells.entry(cell).or_default().push(observation);
         }
 
         let mut alerts = Vec::new();
-        for ((backend, dataset), obs) in &mut cells {
+        for ((backend, dataset, _), obs) in &mut cells {
             obs.sort_by_cached_key(|row| history_time(&row.0));
             if (obs.len() as u64) < min_total || obs.len() <= recent_n {
                 continue;
@@ -2310,6 +2315,40 @@ mod tests {
             }
             history.sqlite_path = None;
         }
+    }
+
+    #[test]
+    fn regression_windows_do_not_compare_old_and_new_relation_scorers() {
+        let dir = TempDir::new().unwrap();
+        let history = EvalHistory::new(dir.path().join("history.jsonl")).unwrap();
+        let current = super::super::provenance::policy_cohort_key(
+            super::super::task_mapping::Task::RelationExtraction,
+            super::super::loader::DatasetId::CrossREAI,
+            42,
+            Some(10),
+            true,
+            false,
+            Default::default(),
+        )
+        .unwrap();
+        assert!(current.contains("anno-relation-document-micro-v1"));
+        let old = current.replace(
+            "anno-relation-document-micro-v1",
+            "anno-eval-primary-score-v1",
+        );
+        for (i, score) in [0.91, 0.90, 0.89, 0.31, 0.30, 0.29].into_iter().enumerate() {
+            let mut entry = test_entry(i as u64, 10);
+            entry.task = "RelationExtraction".into();
+            entry.timestamp = format!("2026-11-20T00:00:0{i}Z");
+            entry.f1 = Some(score);
+            entry.policy_cohort_key = Some(if i < 3 { old.clone() } else { current.clone() });
+            history.append_entry(&entry).unwrap();
+        }
+        assert!(history.detect_regressions(6, 0.5).unwrap().is_empty());
+        assert!(history
+            .detect_regressions_recent(3, 0.8, 6)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

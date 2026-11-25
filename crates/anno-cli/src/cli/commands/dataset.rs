@@ -861,7 +861,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             let m = model.create_model()?;
                             use anno_eval::eval::loader::DatasetLoader;
                             use anno_eval::eval::relation::{
-                                evaluate_relations, RelationEvalConfig, RelationPrediction,
+                                evaluate_relation_documents, evaluate_relations,
+                                RelationEvalConfig, RelationPrediction,
                             };
 
                             let html_output_path: Option<PathBuf> = if html {
@@ -961,8 +962,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 _ => None,
                             };
 
-                            let mut all_gold = Vec::new();
-                            let mut all_pred = Vec::new();
                             let mut pred_by_doc: Vec<Vec<RelationPrediction>> =
                                 Vec::with_capacity(gold_docs.len());
                             let start_time = Instant::now();
@@ -982,7 +981,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                                 for (doc_idx, doc) in gold_docs.iter().enumerate() {
                                     let text = doc.text.as_str();
-                                    all_gold.extend(doc.relations.clone());
                                     let mut pred_this: Vec<RelationPrediction> = Vec::new();
 
                                     // Use RelationExtractor
@@ -1111,7 +1109,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                             relation_type: t.relation_type.clone(),
                                                             confidence: f32::from(t.confidence),
                                                         };
-                                                        all_pred.push(pred.clone());
                                                         pred_this.push(pred);
                                                     }
                                                 }
@@ -1124,7 +1121,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                             &result.entities,
                                                         )
                                                     {
-                                                        all_pred.push(pred.clone());
                                                         pred_this.push(pred);
                                                     }
                                                 }
@@ -1144,7 +1140,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                 text,
                                                 &relation_types_vec,
                                             );
-                                            all_pred.extend(fallback.iter().cloned());
                                             pred_this.extend(fallback);
                                         }
                                     }
@@ -1159,7 +1154,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                                 for doc in &gold_docs {
                                     let text = doc.text.as_str();
-                                    all_gold.extend(doc.relations.clone());
 
                                     // Extract entities using NER
                                     let entities =
@@ -1171,7 +1165,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                         text,
                                         &relation_types_vec,
                                     );
-                                    all_pred.extend(pred_this.iter().cloned());
                                     pred_by_doc.push(pred_this);
                                 }
                             }
@@ -1186,7 +1179,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 require_entity_type_match: false, // More lenient for evaluation
                                 directed_relations: true,
                             };
-                            let metrics = evaluate_relations(&all_gold, &all_pred, &config);
+                            let metrics = evaluate_relation_documents(
+                                gold_docs
+                                    .iter()
+                                    .zip(&pred_by_doc)
+                                    .map(|(doc, pred)| (doc.relations.as_slice(), pred.as_slice())),
+                                &config,
+                            );
 
                             // Output results (human-readable by default)
                             println!();
