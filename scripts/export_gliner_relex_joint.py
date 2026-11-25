@@ -5,6 +5,10 @@ Build the same ordered, off-diagonal pairs with tensor operations so the trace
 also works for documents with different numbers of mentions (including zero).
 """
 
+import hashlib
+import json
+import platform
+from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
@@ -109,19 +113,39 @@ def prepare(model, text, entities, relations, threshold):
     ), prediction
 
 
+REFERENCE_FILE = Path(__file__).resolve().parents[1] / "testdata/grounded/gliner_relex_reference.json"
+
+
+def source_identity(model_id, revision):
+    """Describe the weights and library versions used by the reference producer."""
+    from huggingface_hub import try_to_load_from_cache
+
+    root = Path(model_id)
+    if not root.is_dir():
+        cached = try_to_load_from_cache(model_id, "model.safetensors", revision=revision)
+        if not isinstance(cached, str):
+            raise ValueError(f"Cannot identify source checkpoint for {model_id} at {revision}")
+        root = Path(cached).parent
+        revision = root.name
+    checkpoint = root / "model.safetensors"
+    digest = hashlib.sha256()
+    with checkpoint.open("rb") as stream:
+        while block := stream.read(1024 * 1024):
+            digest.update(block)
+    return {
+        "checkpoint": str(model_id), "revision": revision,
+        "checkpoint_sha256": digest.hexdigest(),
+        "python": platform.python_version(),
+        "packages": {p: version(p) for p in ("torch", "gliner", "transformers", "onnx", "onnxruntime")},
+    }
+
+
 def export_joint(model, output: Path):
     model.eval()
     wrapper = JointRelex(model.model).eval()
-    cases = [
-        (
-            "Marie Curie worked at the University of Paris.",
-            ["person", "organization"],
-            ["works for", "founded"],
-            0.3,
-        ),
-        ("Ava founded Beta.", ["person", "company", "city"], ["founded"], 0.4),
-        ("Nothing happened.", ["organization"], ["owns"], 1.0),
-    ]
+    fixture = json.loads(REFERENCE_FILE.read_text())
+    cases = [(c["text"], c["entity_labels"], c["relation_labels"], c["threshold"])
+             for c in fixture["cases"]]
     with torch.inference_mode():
         prepared = [prepare(model, *case) for case in cases]
         sample = prepared[0][0]
@@ -150,7 +174,7 @@ def export_joint(model, output: Path):
             reference_output(model, wrapper, case, sample)
             for case, sample in zip(cases, prepared)
         ]
-    verify_joint(graph, references)
+    return references
 
 
 def reference_output(model, wrapper, case, prepared):

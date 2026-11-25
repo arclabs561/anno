@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import gc
 import hashlib
 import json
 import os
@@ -35,8 +36,8 @@ import tempfile
 from pathlib import Path
 
 
-def publish_joint(stage: Path, out: Path) -> Path:
-    """Select a complete immutable graph and tokenizer as one atomic publication."""
+def artifact_digest(stage: Path) -> str:
+    """Hash the artifact names, lengths and contents in a joint generation."""
     digest = hashlib.sha256()
     for artifact in sorted(stage.iterdir()):
         digest.update(artifact.name.encode() + b"\0")
@@ -44,7 +45,12 @@ def publish_joint(stage: Path, out: Path) -> Path:
         with artifact.open("rb") as stream:
             while block := stream.read(1024 * 1024):
                 digest.update(block)
-    generation = digest.hexdigest()
+    return digest.hexdigest()
+
+
+def publish_joint(stage: Path, out: Path) -> Path:
+    """Select a complete immutable graph and tokenizer as one atomic publication."""
+    generation = artifact_digest(stage)
     dest = out / generation
     try:
         stage.rename(dest)
@@ -86,19 +92,32 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {model_id}...")
-    m = GLiNER.from_pretrained(model_id, revision=args.revision, load_tokenizer=True)
+    revision = args.revision
+    if args.joint and not Path(model_id).is_dir():
+        from huggingface_hub import snapshot_download
+
+        model_source = snapshot_download(model_id, revision=revision)
+        revision = Path(model_source).name
+        m = GLiNER.from_pretrained(model_source, load_tokenizer=True)
+    else:
+        m = GLiNER.from_pretrained(model_id, revision=revision, load_tokenizer=True)
     m.eval()
 
     if args.joint:
-        from export_gliner_relex_joint import export_joint
+        from export_gliner_relex_joint import export_joint, source_identity, verify_joint
 
         with tempfile.TemporaryDirectory(dir=out) as staging:
             stage = Path(staging)
             m.data_processor.transformer_tokenizer.save_pretrained(str(stage))
             with (stage / "gliner_config.json").open("w") as stream:
                 json.dump(m.config.to_dict(), stream, indent=2, default=str)
-            export_joint(m, stage)
-            (stage / "joint-relex-v1").touch()
+            references = export_joint(m, stage)
+            del m
+            gc.collect()
+            verify_joint(stage / "model.onnx", references)
+            (stage / "joint-relex-v1").write_text(
+                json.dumps(source_identity(model_id, revision), sort_keys=True) + "\n"
+            )
             dest = publish_joint(stage, out)
         print(f"Published verified joint export at {dest}")
         return

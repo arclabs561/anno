@@ -1,0 +1,212 @@
+{
+  "checkpoint": "knowledgator/gliner-relex-large-v1.0",
+  "revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290",
+  "checkpoint_sha256": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+  "cases": [
+    {
+      "name": "work",
+      "text": "Marie Curie worked at the University of Paris.",
+      "entity_labels": [
+        "person",
+        "organization"
+      ],
+      "relation_labels": [
+        "works for",
+        "founded"
+      ],
+      "threshold": 0.3,
+      "entities": [
+        {
+          "start": 0,
+          "end": 11,
+          "text": "Marie Curie",
+          "type": "PER",
+          "confidence": 0.9984983205795288
+        },
+        {
+          "start": 26,
+          "end": 45,
+          "text": "University of Paris",
+          "type": "ORG",
+          "confidence": 0.9974706172943115
+        }
+      ],
+      "relations": [
+        {
+          "head": [
+            0,
+            11
+          ],
+          "tail": [
+            26,
+            45
+          ],
+          "type": "works for",
+          "confidence": 0.9904544949531555
+        },
+        {
+          "head": [
+            0,
+            11
+          ],
+          "tail": [
+            26,
+            45
+          ],
+          "type": "founded",
+          "confidence": 0.40521547198295593
+        }
+      ]
+    },
+    {
+      "name": "changed_schema",
+      "text": "Ava founded Beta.",
+      "entity_labels": [
+        "person",
+        "company",
+        "city"
+      ],
+      "relation_labels": [
+        "founded"
+      ],
+      "threshold": 0.4,
+      "entities": [
+        {
+          "start": 0,
+          "end": 3,
+          "text": "Ava",
+          "type": "PER",
+          "confidence": 0.9990406632423401
+        },
+        {
+          "start": 12,
+          "end": 16,
+          "text": "Beta",
+          "type": "ORG",
+          "confidence": 0.9980531930923462
+        }
+      ],
+      "relations": [
+        {
+          "head": [
+            0,
+            3
+          ],
+          "tail": [
+            12,
+            16
+          ],
+          "type": "founded",
+          "confidence": 0.9990050196647644
+        }
+      ]
+    },
+    {
+      "name": "repeated_name",
+      "text": "Élodie founded Élan. Pierre later bought Élan.",
+      "entity_labels": [
+        "person",
+        "organization"
+      ],
+      "relation_labels": [
+        "founded",
+        "bought"
+      ],
+      "threshold": 0.4,
+      "entities": [
+        {
+          "start": 0,
+          "end": 6,
+          "text": "Élodie",
+          "type": "PER",
+          "confidence": 0.9998170733451843
+        },
+        {
+          "start": 15,
+          "end": 19,
+          "text": "Élan",
+          "type": "ORG",
+          "confidence": 0.99915611743927
+        },
+        {
+          "start": 21,
+          "end": 27,
+          "text": "Pierre",
+          "type": "PER",
+          "confidence": 0.9997784495353699
+        }
+      ],
+      "relations": [
+        {
+          "head": [
+            0,
+            6
+          ],
+          "tail": [
+            15,
+            19
+          ],
+          "type": "founded",
+          "confidence": 0.9978132247924805
+        },
+        {
+          "head": [
+            21,
+            27
+          ],
+          "tail": [
+            15,
+            19
+          ],
+          "type": "bought",
+          "confidence": 0.9968835711479187
+        }
+      ]
+    },
+    {
+      "name": "one_mention",
+      "text": "Marie Curie.",
+      "entity_labels": [
+        "person",
+        "organization"
+      ],
+      "relation_labels": [
+        "works for"
+      ],
+      "threshold": 0.5,
+      "entities": [
+        {
+          "start": 0,
+          "end": 11,
+          "text": "Marie Curie",
+          "type": "PER",
+          "confidence": 0.9838558435440063
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "empty",
+      "text": "Nothing happened.",
+      "entity_labels": [
+        "organization"
+      ],
+      "relation_labels": [
+        "owns"
+      ],
+      "threshold": 1.0,
+      "entities": [],
+      "relations": []
+    }
+  ],
+  "reference_runtime": {
+    "python": "3.12.14",
+    "packages": {
+      "torch": "2.15.0+cpu",
+      "gliner": "0.2.30",
+      "transformers": "5.22.2",
+      "onnx": "1.23.2",
+      "onnxruntime": "1.32.0"
+    }
+  }
+}
