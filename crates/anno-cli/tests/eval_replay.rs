@@ -283,14 +283,19 @@ fn replay_score_uses_only_covered_characters_for_segmented_mentions() {
     let prediction_file = dir.path().join("prediction.json");
     let gold_file = dir.path().join("gold.jsonl");
     let text = "😀A B C"; // A, B, C begin at scalar indices 1, 3, 5.
-    let mut doc = json_output(&[
-        "extract", "--model", "pattern", "--text", SOURCE, "--format", "grounded",
-    ]);
-    doc["text"] = json!(text);
-    doc["signals"][0]["location"] = json!({"Discontinuous":{"segments":[[1,2],[5,6]]}});
-    doc["signals"][0]["surface"] = json!("A C");
-    doc["signals"][0]["label"] = json!("PER");
-    std::fs::write(&prediction_file, doc.to_string()).unwrap();
+    let mut doc = anno::GroundedDocument::new("extract", text);
+    doc.record_source_map(anno::SourceMap::identity(text))
+        .unwrap();
+    doc.add_signal(anno::Signal::new(
+        0,
+        anno::Location::Discontinuous {
+            segments: vec![(1, 2), (5, 6)],
+        },
+        "A C",
+        "PER",
+        1.0,
+    ));
+    std::fs::write(&prediction_file, serde_json::to_vec(&doc).unwrap()).unwrap();
     let score = |entity: Value| {
         let gold = json!({"id":"extract","text":text,"entities":[entity]});
         std::fs::write(&gold_file, gold.to_string()).unwrap();
