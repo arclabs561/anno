@@ -740,6 +740,12 @@ impl BackendFactory {
                 crate::DEFAULT_GLINER_CANDLE_MODEL,
             ),
             #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => std::env::var_os("GLINER25_MODEL_DIR").is_some_and(|dir| {
+                anno::backends::gliner25::GLiNER25::model_files_available(std::path::Path::new(
+                    &dir,
+                ))
+            }),
+            #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" => {
                 anno::backends::gliner2_fastino::GLiNER2Fastino::default_assets_available()
             }

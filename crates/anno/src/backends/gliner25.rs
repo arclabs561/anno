@@ -30,6 +30,35 @@ struct Manifest {
     max_position_embeddings: usize,
 }
 
+impl Manifest {
+    fn load(dir: &Path) -> Result<(std::path::PathBuf, Self)> {
+        let dir = if dir.join("fp32_25").is_dir() {
+            dir.join("fp32_25")
+        } else {
+            dir.to_owned()
+        };
+        let m: Manifest =
+            serde_json::from_slice(&std::fs::read(dir.join("boundary_manifest.json"))?)
+                .map_err(|e| Error::ModelInit(format!("invalid GLiNER2.5 manifest: {e}")))?;
+        if m.architecture != "boundary"
+            || m.token_pooling != "first"
+            || m.overlap_policy != "flat"
+            || m.hidden_size == 0
+            || m.pool_size == 0
+            || m.max_position_embeddings == 0
+            || m.length_buckets.is_empty()
+            || m.length_buckets.contains(&0)
+        {
+            return Err(Error::ModelInit("unsupported GLiNER2.5 manifest: expected a first-token boundary export with flat overlap and positive dimensions".into()));
+        }
+        Ok((dir, m))
+    }
+}
+
+fn boundary_head_filename(bucket: usize) -> String {
+    format!("boundary_head_L{bucket}_fp32.onnx")
+}
+
 /// CPU FP32 GLiNER2.5 entity extractor for the Fastino multilingual boundary model.
 pub struct GLiNER25 {
     directory: std::path::PathBuf,
@@ -76,27 +105,22 @@ impl GLiNER25 {
         Self::from_local(Path::new(&dir))
     }
 
+    /// Check the required files for automatic evaluation without opening ONNX sessions.
+    /// ONNX Runtime validates the graph contents and any external tensor data at load time.
+    pub fn model_files_available(dir: &Path) -> bool {
+        Manifest::load(dir).is_ok_and(|(dir, manifest)| {
+            dir.join("tokenizer.json").is_file()
+                && dir.join("encoder_fp32.onnx").is_file()
+                && manifest
+                    .length_buckets
+                    .iter()
+                    .all(|&bucket| dir.join(boundary_head_filename(bucket)).is_file())
+        })
+    }
+
     /// Loads a directory containing the FP32 graph fragments and tokenizer.
     pub fn from_local(dir: &Path) -> Result<Self> {
-        let dir = if dir.join("fp32_25").is_dir() {
-            dir.join("fp32_25")
-        } else {
-            dir.to_owned()
-        };
-        let m: Manifest =
-            serde_json::from_slice(&std::fs::read(dir.join("boundary_manifest.json"))?)
-                .map_err(|e| Error::ModelInit(format!("invalid GLiNER2.5 manifest: {e}")))?;
-        if m.architecture != "boundary"
-            || m.token_pooling != "first"
-            || m.overlap_policy != "flat"
-            || m.hidden_size == 0
-            || m.pool_size == 0
-            || m.max_position_embeddings == 0
-            || m.length_buckets.is_empty()
-            || m.length_buckets.contains(&0)
-        {
-            return Err(Error::ModelInit("unsupported GLiNER2.5 manifest: expected a first-token boundary export with flat overlap and positive dimensions".into()));
-        }
+        let (dir, m) = Manifest::load(dir)?;
         // Each head owns its own ORT session. A machine-sized thread pool
         // per bucket can exhaust the process thread budget before inference.
         let load = |name: &str| {
@@ -111,7 +135,7 @@ impl GLiNER25 {
         let heads = m
             .length_buckets
             .iter()
-            .map(|&n| Ok((n, load(&format!("boundary_head_L{n}_fp32.onnx"))?)))
+            .map(|&n| Ok((n, load(&boundary_head_filename(n))?)))
             .collect::<Result<_>>()?;
         Ok(Self {
             directory: dir,
@@ -368,6 +392,39 @@ mod tests {
                 .collect::<Vec<_>>(),
             [(0, 2), (2, 4)]
         );
+    }
+
+    #[test]
+    fn selection_requires_every_manifest_bucket_in_the_selected_layout() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path();
+        let manifest = br#"{"architecture":"boundary","token_pooling":"first","overlap_policy":"flat","hidden_size":4,"pool_size":1,"max_position_embeddings":256,"length_buckets":[32,64],"enable_abstention":false}"#;
+        assert!(!GLiNER25::model_files_available(dir));
+        std::fs::write(dir.join("boundary_manifest.json"), manifest).unwrap();
+        for filename in [
+            "tokenizer.json",
+            "encoder_fp32.onnx",
+            "boundary_head_L32_fp32.onnx",
+        ] {
+            std::fs::write(dir.join(filename), []).unwrap();
+        }
+        assert!(!GLiNER25::model_files_available(dir));
+        std::fs::write(dir.join("boundary_head_L64_fp32.onnx"), []).unwrap();
+        // Presence is sufficient here: weights may be inline and validation belongs to ORT.
+        assert!(GLiNER25::model_files_available(dir));
+
+        let preferred = dir.join("fp32_25");
+        std::fs::create_dir(&preferred).unwrap();
+        assert!(!GLiNER25::model_files_available(dir));
+        for file in std::fs::read_dir(dir).unwrap() {
+            let file = file.unwrap();
+            if file.path().is_file() {
+                std::fs::copy(file.path(), preferred.join(file.file_name())).unwrap();
+            }
+        }
+        assert!(GLiNER25::model_files_available(dir));
+        std::fs::write(preferred.join("boundary_manifest.json"), b"{}").unwrap();
+        assert!(!GLiNER25::model_files_available(dir));
     }
 
     #[test]
