@@ -1,0 +1,48 @@
+name: Benepar English parse replay
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/benepar-replay.yml'
+      - 'scripts/parse_benepar.py'
+      - 'scripts/parse_benepar.py.lock'
+      - 'testdata/constituency/benepar_en3.json'
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    # The locked macOS ARM wheel runs on CPU without installing CUDA libraries.
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Fetch the published English parser
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --silent --show-error --location --retry 2 --output model.zip \
+            https://github.com/nikitakit/self-attentive-parser/releases/download/models/benepar_en3.zip
+          echo 'de97297ec17b92f7a40ef2e23fd1b4b8baed02eb8bee3d09b25ac6166ae17996  model.zip' | shasum -a 256 --check
+          unzip -q model.zip
+      - name: Compare the local model's predictions with the reviewed parse
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+          OMP_NUM_THREADS: '1'
+        run: |
+          uv run --locked --python 3.12 scripts/parse_benepar.py \
+            --model "$RUNNER_TEMP/benepar_en3" --text 'Mira builds small robots. She smiles.' > "$RUNNER_TEMP/parse.json"
+          python3 - "$RUNNER_TEMP/parse.json" testdata/constituency/benepar_en3.json <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          actual, expected = (json.loads(Path(path).read_text()) for path in sys.argv[1:])
+          if actual != expected:
+              raise SystemExit("Parser tokens, spans or constituents differ from the reference")
+          PY

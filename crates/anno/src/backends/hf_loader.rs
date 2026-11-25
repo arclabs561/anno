@@ -384,13 +384,16 @@ mod tests {
 /// Marked `#[non_exhaustive]` to permit additional execution-provider
 /// preferences in future versions without breaking struct-literal callers.
 /// Construct via `OnnxSessionConfig::default()` and override the fields you
-/// care about with `..Default::default()`.
+/// care about before constructing the session.
 #[cfg(feature = "onnx")]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OnnxSessionConfig {
     /// ONNX graph optimization level (1-3, default 3).
     pub optimization_level: u8,
+    /// Prefix for an ONNX Runtime execution profile. Call `Session::end_profiling`
+    /// after inference to obtain the file containing node-to-provider assignments.
+    pub profile_prefix: Option<std::path::PathBuf>,
     /// Number of intra-op threads (0 = auto/default).
     pub num_threads: usize,
     /// Whether to use CPU execution provider explicitly.
@@ -446,6 +449,7 @@ impl Default for OnnxSessionConfig {
     fn default() -> Self {
         Self {
             optimization_level: 3,
+            profile_prefix: None,
             num_threads: 0,
             use_cpu_provider: true,
             prefer_coreml: false,
@@ -511,6 +515,12 @@ fn create_onnx_session_with_requested_provider(
         .map_err(|e| Error::Retrieval(format!("ONNX session builder: {}", e)))?
         .with_optimization_level(opt_level)
         .map_err(|e| Error::Retrieval(format!("ONNX optimization level: {}", e)))?;
+
+    if let Some(prefix) = &config.profile_prefix {
+        builder = builder
+            .with_profiling(prefix)
+            .map_err(|e| Error::Retrieval(format!("ONNX profiling: {e}")))?;
+    }
 
     // Build execution-provider list in priority order. A caller that requests
     // an accelerator needs an explicit error if it cannot register: ort's

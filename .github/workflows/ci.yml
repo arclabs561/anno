@@ -1051,6 +1051,14 @@ jobs:
         run: cargo install --locked cargo-deny --version 0.19.0
       - name: Check dependencies
         run: cargo deny check
+      - name: Check default CLI and evaluator timestamp dependencies
+        run: |
+          graph=(cargo tree --locked --target all --edges normal,build -p anno-cli -p anno-eval)
+          "${graph[@]}" --prefix none > "$RUNNER_TEMP/anno-default-dependencies"
+          if grep -q '^chrono v' "$RUNNER_TEMP/anno-default-dependencies"; then
+            "${graph[@]}" --invert chrono
+            exit 1
+          fi
   # Fast unused dependency detection
   unused-deps:
     name: Unused Dependencies

@@ -582,8 +582,9 @@ A peer froze two 12-round mutation schedules before seeing any policy picks.
 The primary schedule moved faults between journeys. The sensitivity schedule
 changed how often they returned. Each scheduled fault modified a real CLI response
 by dropping a Unicode span segment, removing a catalog posting, or replaying an
-earlier successful journal read after the head advanced. A fresh replay had to
-reproduce every detected failure. An unexpected failure, a surviving mutation or
+earlier successful journal read after the head advanced. The probe checks that
+the same document is readable at the new head and that a stale pin gives the
+head-change diagnostic. A fresh replay had to reproduce every detected failure. An unexpected failure, a surviving mutation or
 a mismatched signature invalidates the schedule run. The selector received only
 the result of its own previous picks. The offline experiment ran a separate census to score misses.
 

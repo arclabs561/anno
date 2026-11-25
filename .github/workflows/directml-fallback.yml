@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/directml-fallback.yml"
       - "crates/anno/examples/onnx_directml_fallback.rs"
+      - "crates/anno/examples/onnx_bert_provider_probe.rs"
       - "crates/anno/src/backends/hf_loader.rs"
       - "crates/anno/tests/bughunt7_data/bert_cjk/model.onnx"
       - "crates/anno/Cargo.toml"
@@ -44,11 +45,14 @@ jobs:
           $modelHash = (Get-FileHash 'crates/anno/tests/bughunt7_data/bert_cjk/model.onnx' -Algorithm SHA256).Hash
           $receipt = Join-Path $dir 'receipt.json'
           $PSNativeCommandUseErrorActionPreference = $false
+          cargo test --locked -p anno --no-default-features --features onnx-directml,ort/load-dynamic --example onnx_bert_provider_probe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $result = cargo run --locked -p anno --no-default-features --features onnx-directml,ort/load-dynamic --example onnx_directml_fallback
           $exitCode = $LASTEXITCODE
           $evidence = @{
             sha = $env:GITHUB_SHA
             runner_image = $env:ImageVersion
+            video_controllers = @(Get-CimInstance Win32_VideoController | Select-Object Name, AdapterCompatibility, DriverVersion)
             wheel_url = $url
             wheel_sha256 = $wheelHash
             runtime_dll_sha256 = (Get-FileHash $env:ORT_DYLIB_PATH -Algorithm SHA256).Hash
