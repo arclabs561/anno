@@ -62,3 +62,15 @@ All twelve default false links involve the two records printed as “Robert Mene
 The last row is a post-hoc, retrospective reader experiment. It trusts differently labeled chamber sections of the same dated roster as evidence that two tracks need separate review. Exactly one native group triggered the rule. Two people can serve in the same chamber, and a namesake can coincide with a transfer. In that combined case, splitting every historical member by chamber can introduce a new error. [Scoring and policy controls](test_cross_doc_partition.py)
 
 Resolving the entire accumulated corpus after each dated cut in forward and reverse arrival order yielded the same final memberships as bulk. Final numeric IDs differed from bulk on 1,785 and 1,798 occurrences, respectively. The median default run in five fresh optimized processes took 1.821 s on the shared four-CPU Xeon container. This duration includes pipe I/O, checked track construction, resolving and reading back identities. It excludes reconstruction of the dated views and gold scoring. The experiment appends distinct dated documents; it does not model source replacement, a catalog authority, or a latency guarantee. The input licenses and acquisition receipts are above.
+
+## Check predecessor suggestions across roster corrections
+
+With the locally reconstructed `roster.jsonl` and CLI from the replay above, run the read-only lookup against each immediately preceding edition.
+
+```sh
+python3 verification/index_consumers/congress/predecessor_lookup.py "$scratch/roster.jsonl" --anno target/release/anno
+```
+
+Each named update is queried twice, using the defaults and then `--limit 5 --minimum-score 0`. An independent word-Jaccard oracle checks the returned track handles, source revisions, text digests, surfaces, scores, withheld ties and truncation. Track IDs are renumbered at each cut. The CLI receives printed names and source coordinates. Catalog IDs stay in the evaluator for edition reconstruction and outcome scoring.
+
+Across 80 pinned publications, the default showed the correct prior record for 26 of 32 renamed entries and offered a suggestion for 3 of 173 entries absent from the previous roster. The wider rule covered 32 of 32 renames and offered 242 candidate cards across 100 of those 173 absent entries. Together with 36 updates to existing records with unchanged or previously missing names, this covers 241 named queries. The source's catalog continuity supplies the reference labels. [Directory data license](https://github.com/unitedstates/congress-legislators/blob/82b1eaccd2cad9e4172059507f5129fc513962af/LICENSE)

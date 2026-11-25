@@ -20,15 +20,18 @@ pub struct MembershipArgs {
     neighbors: Vec<String>,
 }
 
-fn read(path: &Path) -> Result<IndexSnapshot, String> {
-    let edition: MembershipEdition = if path == Path::new("-") {
+pub(super) fn read_edition(path: &Path) -> Result<MembershipEdition, String> {
+    if path == Path::new("-") {
         serde_json::from_reader(io::stdin().lock())
     } else {
         let f = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
         serde_json::from_reader(BufReader::new(f))
     }
-    .map_err(|e| format!("{}: {e}", path.display()))?;
-    edition.snapshot().map_err(|e| e.to_string())
+    .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn read(path: &Path) -> Result<IndexSnapshot, String> {
+    read_edition(path)?.snapshot().map_err(|e| e.to_string())
 }
 
 pub(super) fn run(args: MembershipArgs) -> Result<(), String> {
