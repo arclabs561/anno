@@ -143,6 +143,23 @@ esac
         let reads = fs::read_to_string(calls).unwrap();
         if staging == "1" && offline != "ANNO_NO_DOWNLOADS" {
             let remote_dataset = if task == "ner" { "WikiGold" } else { "GAP" };
+            if task == "ner" {
+                let rejected = &pool["pool"]["load_rejections"];
+                let total: u64 = rejected
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .map(|v| v.as_u64().unwrap())
+                    .sum();
+                let examples = pool["pool"]["rejection_examples"].as_array().unwrap();
+                assert!(total > 0);
+                assert_eq!(examples.len(), total.min(3) as usize);
+                for example in examples {
+                    let dataset = example["dataset"].as_str().unwrap();
+                    assert!(reads.contains(&format!("/datasets/{dataset}.cache -")));
+                    assert_eq!(example["reason"], "S3 cache error");
+                }
+            }
             assert_eq!(pool["pool"]["selected_sources"][remote_dataset], "S3Cache");
             assert!(reads.contains(&format!(
                 "s3 cp s3://fixture/datasets/{remote_dataset}.cache -"
