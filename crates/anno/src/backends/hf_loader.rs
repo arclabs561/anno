@@ -121,7 +121,7 @@ fn cached_model_file(
         let path = cache.pointer_path(revision).join(filename);
         return path.is_file().then_some(path);
     }
-    cache.get(filename)
+    cache.get(filename).filter(|path| path.is_file())
 }
 
 /// Recover repository type and revision from hf-hub's public URL contract.
@@ -266,6 +266,8 @@ mod tests {
         std::fs::create_dir_all(root.join("refs/refs/pr")).unwrap();
         std::fs::create_dir_all(root.join("snapshots/pinned")).unwrap();
         std::fs::write(root.join("refs/refs/pr/7"), "pinned").unwrap();
+        // A directory at an earlier candidate cannot shadow a usable graph.
+        std::fs::create_dir_all(root.join("snapshots/pinned/onnx/model_quantized.onnx")).unwrap();
         let model = root.join("snapshots/pinned/model.onnx");
         std::fs::write(&model, b"cached model fixture").unwrap();
         assert_eq!(download_onnx_model(&repo, true).unwrap(), (model, false));
