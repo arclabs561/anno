@@ -74,13 +74,13 @@ static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
 // A serial field can contain a perfectly valid ISO substring. Limit its scope to
-// the field's value token, so a sibling
-// date field or a date-bearing filename elsewhere still reaches the ISO matcher.
+// the field's value token, so a sibling date field or a date-bearing filename
+// elsewhere still reaches the ISO matcher.
 static IDENTIFIER_VALUES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"(?ix)\b(?:ids?|identifiers?|skus?|serials?|",
+        r"(?ix)\b(?:ids?|identifiers?|numbers?|skus?|serials?|",
         r"(?:serial|lot|batch|accession|catalog(?:ue)?|inventory|part|booking|badge)",
-        r"[\t\p{Zs}]+(?:numbers?|no\.?|codes?|ids?|identifiers?|keys?))",
+        r"[\t\p{Zs}]+(?:no\.?|codes?|keys?))",
         r#"(?:["'”’]?[\t\p{Zs}]*[:=][\t\p{Zs}]*|[\t\p{Zs}]+(?:is|was)[\t\p{Zs}]+)"#,
         r#"["'“‘«]?[\p{L}\p{N}_.‑-]+"#,
     ))
@@ -99,7 +99,10 @@ static DATE_ISO_PRINTED: LazyLock<Regex> = LazyLock::new(|| {
         r"|[\t\p{Zs}]+(?:is|was)[\t\p{Zs}]+)",
         r"|\b(?:as[\t\p{Zs}]+of|dated|due[\t\p{Zs}]+on|effective[\t\p{Zs}]+(?:on|from)|",
         r"scheduled[\t\p{Zs}]+(?:on|for)|",
-        r"(?:premier(?:e|ed)|held|issued|published|released|expires?)[\t\p{Zs}]+on)[\t\p{Zs}]+",
+        r"(?:premier(?:e|ed)|held|issued|published|released|expires?|expired|",
+        r"began|ended|started|finished|occurred|opened|closed|arrived|departed|",
+        r"launched|concluded|took[\t\p{Zs}]+place|curtain[\t\p{Zs}]+rose)",
+        r"[\t\p{Zs}]+on)[\t\p{Zs}]+",
         r#")[“‘«"']?([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b"#,
     ))
     .expect("valid regex")
@@ -110,7 +113,10 @@ static DATE_ISO_PRINTED: LazyLock<Regex> = LazyLock::new(|| {
 static PRINTED_VALIDITY_PERIOD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?ix)\b(?:valid|effective|open|closed|available|unavailable|",
-        r"(?:in|out[\t\p{Zs}]+of)[\t\p{Zs}]+service|in[\t\p{Zs}]+effect)",
+        r"(?:in|out[\t\p{Zs}]+of)[\t\p{Zs}]+service|in[\t\p{Zs}]+(?:effect|force)|",
+        r"lasted|took[\t\p{Zs}]+place|",
+        r"(?:exhibition|festival|session|campaign|season|conference|tournament|workshop|",
+        r"programme?|trial|restoration|construction|rehearsals?)[\t\p{Zs}]+(?:runs|ran))",
         r"[\t\p{Zs}]+from[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})",
         r"[\t\p{Zs}]+(?:to|through|until)[\t\p{Zs}]+([0-9]{4}[-‑][0-9]{2}[-‑][0-9]{2})\b",
     ))
@@ -865,6 +871,25 @@ mod tests {
             .map(|e| e.text)
             .collect();
         assert_eq!(dates, ["2028-01-21", "2026-12-11", "2025-04-08"]);
+    }
+
+    #[test]
+    fn calendar_event_predicates_do_not_extend_to_identifier_ranges() {
+        let source = concat!(
+            "The conference ran from 2050‑01‑06 until 2050‑01‑09. ",
+            "Conference badge numbers ran from 2040‑01‑08 to 2040‑02‑05. ",
+            "The tour began on 2042‑03‑01. Tracking number: 2042-03-02. ",
+            "The date code: 2030-08-13. The firmware relied on 2037‑08‑15.",
+        );
+        let dates: Vec<_> = extract(source)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(
+            dates,
+            ["2050‑01‑06", "2050‑01‑09", "2042‑03‑01", "2030-08-13"]
+        );
     }
 
     #[test]
