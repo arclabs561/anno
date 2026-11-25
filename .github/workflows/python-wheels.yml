@@ -48,7 +48,9 @@ jobs:
         if: matrix.platform.runner == 'ubuntu-latest'
         run: |
           python3 -m venv /tmp/smoke
-          /tmp/smoke/bin/pip install --quiet pytest crates/anno-py/dist/*.whl
+          /tmp/smoke/bin/pip install --quiet pytest
+          /tmp/smoke/bin/pip install --no-index --no-deps crates/anno-py/dist/*.whl
+          sha256sum crates/anno-py/dist/*.whl >> "$GITHUB_STEP_SUMMARY"
           /tmp/smoke/bin/pytest crates/anno-py/tests -q
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -94,3 +96,12 @@ jobs:
           # A version tag pushed after a dispatch-publish triggers a second
           # run over the same artifacts; treat re-uploads as a no-op.
           skip-existing: true
+
+  # PyPI can accept a skipped upload; verify that every filename serves our bytes.
+  verify-published:
+    needs: publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/python-package-check.yml
+    with:
+      verify_release: true

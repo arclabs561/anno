@@ -1,0 +1,44 @@
+name: Installed Python package
+
+on:
+  schedule:
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      verify_release:
+        description: Compare every distribution submitted by the calling release workflow
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bulletin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Download distributions submitted for publication
+        if: inputs.verify_release
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/submitted
+      - name: Install the public wheel and replay the bulletin
+        shell: bash
+        env:
+          VERIFY_RELEASE: ${{ inputs.verify_release || false }}
+        run: |
+          args=()
+          if [[ "$VERIFY_RELEASE" == "true" ]]; then args+=(--release-dir "$RUNNER_TEMP/submitted"); fi
+          python3 crates/anno-py/tests/verify_pypi.py "${args[@]}" --receipt "$RUNNER_TEMP/bulletin.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bulletin-pypi-receipt
+          path: ${{ runner.temp }}/bulletin.json
+          retention-days: 14
