@@ -11,11 +11,11 @@
       "steps": [
         {"revision": 1, "put": [
           {"id": "selected-name", "kind": "printed", "issuer": "plos-one", "source": "authors", "start": 0, "end": 14, "target": "plos:julian-fuermetz"},
-          {"id": "page-data-tn", "kind": "credit", "issuer": "plos-one", "source": "authors", "role": "Data curation", "target": "plos:timur-nuritidinow"},
+          {"id": "page-data-tn", "kind": "credit", "issuer": "plos-one", "source": "authors", "role": "Data curation", "target": "plos:timur-nuritidinow", "excerpt": {"start": 15, "end": 48}},
           {"id": "page-vis-hh", "kind": "credit", "issuer": "plos-one", "source": "authors", "role": "Visualization", "target": "plos:holger-hoefling"}
         ]},
         {"revision": 2, "put": [
-          {"id": "notice-data-tn", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Data curation", "target": "plos:timur-nuritidinow"},
+          {"id": "notice-data-tn", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Data curation", "target": "plos:timur-nuritidinow", "excerpt": {"start": 0, "end": 47}},
           {"id": "notice-data-am", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Data curation", "target": "plos:arne-mueller"},
           {"id": "notice-vis-am", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Visualization", "target": "plos:arne-mueller"},
           {"id": "notice-vis-hh", "kind": "credit", "issuer": "plos-one", "source": "notice", "role": "Visualization", "target": "plos:holger-hoefling"}
@@ -30,7 +30,8 @@
         {"id": "page-visualization", "kind": "credit", "role": "Visualization", "source": "authors", "at": 2, "policy": 1, "audience": "public"},
         {"id": "notice-visualization", "kind": "credit", "role": "Visualization", "source": "notice", "at": 2, "policy": 1, "audience": "public"},
         {"id": "support-new-role", "kind": "evidence", "role": "Data curation", "target": "plos:arne-mueller", "at": 2, "policy": 1, "audience": "public"},
-        {"id": "both-surfaces-support-role", "kind": "evidence", "role": "Data curation", "target": "plos:timur-nuritidinow", "at": 2, "policy": 1, "audience": "public"}
+        {"id": "both-surfaces-support-role", "kind": "evidence", "role": "Data curation", "target": "plos:timur-nuritidinow", "at": 2, "policy": 1, "audience": "public"},
+        {"id": "open-two-curation-sources", "at": 2, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "Data curation", "target": "plos:timur-nuritidinow"}
       ]
     },
     {
@@ -163,6 +164,35 @@
         {"id": "supplied-record", "kind": "reference", "at": 1, "policy": 1, "audience": "public"},
         {"id": "no-documentary-credit", "kind": "credit", "role": "writing", "at": 1, "policy": 1, "audience": "public"},
         {"id": "no-evidence-for-candidate", "kind": "evidence", "role": "writing", "target": "people:editor", "at": 1, "policy": 1, "audience": "public"}
+      ]
+    },
+    {
+      "id": "issuer-local-credit-citations", "work": "plate-atlas-6",
+      "sources": [
+        {"id": "minutes", "edition": "folio-2", "text": "Éli engraved the plate. Mara verified the proof."}
+      ],
+      "steps": [
+        {"revision": 1, "put": [{"issuer": "press", "id": "7", "kind": "credit", "source": "minutes", "role": "engraving", "target": "people:12", "excerpt": {"start": 0, "end": 23}}, {"issuer": "guild", "id": "7", "kind": "credit", "source": "minutes", "role": "engraving", "target": "people:12", "excerpt": {"start": 4, "end": 22}}]},
+        {"revision": 2, "withdraw": [{"issuer": "press", "id": "7"}]},
+        {"revision": 3, "put": [{"issuer": "guild", "id": "7", "kind": "credit", "source": "minutes", "role": "engraving", "target": "people:91"}]},
+        {"revision": 4, "put": [{"issuer": "guild", "id": "7", "kind": "credit", "source": "minutes", "role": "engraving", "target": "people:91", "excerpt": {"start": 24, "end": 48}}]}
+      ],
+      "policies": [
+        {"revision": 1, "hidden": []},
+        {"revision": 2, "hidden": [], "hidden_excerpts": [{"issuer": "guild", "id": "7"}]},
+        {"revision": 3, "hidden": [{"issuer": "guild", "id": "7"}]}
+      ],
+      "queries": [
+        {"id": "both-citations", "at": 1, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "press-local-evidence", "at": 1, "policy": 1, "audience": "public", "kind": "evidence", "role": "engraving", "target": "people:12", "issuer": "press"},
+        {"id": "after-press-withdrawal", "at": 2, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "old-credits-under-quote-restriction", "at": 1, "policy": 2, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "old-credits-under-claim-restriction", "at": 1, "policy": 3, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "old-credits-staff-proofs", "at": 1, "policy": 2, "audience": "staff", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "old-target-after-correction", "at": 3, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "replacement-without-approved-quote", "at": 3, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:91"},
+        {"id": "withheld-claim-after-withdrawal", "at": 2, "policy": 3, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:12"},
+        {"id": "guild-after-new-approval", "at": 4, "policy": 1, "audience": "public", "kind": "cited_credit", "role": "engraving", "target": "people:91"}
       ]
     }
   ]
