@@ -359,6 +359,8 @@ Keep live-web sampling outcomes separate from labeled dataset F1. A broken feed 
 
 ## Interpreting receipts
 
+Benchmark JSON records the observed generic loader tier in `provenance.dataset.data_source`, the input digest in `content_sha256`, and a reason in `s3_fallback` when the publisher supplied an input after an S3 miss or exclusion. The digest identifies the loader input before sampling. Document-oriented scorers may also use companion files. Matrix outcomes project these fields as `dataset_source`, `dataset_sha256`, and `s3_fallback`, alongside the observed split and evaluator revision when available. Leave absent historical fields unknown when comparing runs. Dataset discovery and backend selection alone do not establish a cache hit.
+
 A low F1 is an observed quality result, not automatically a code regression.
 Dataset subset variation, model availability, and changed candidate panels can
 also change it. Record the actual candidates and datasets in the decision log;

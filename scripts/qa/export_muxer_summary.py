@@ -51,7 +51,8 @@ def summarize(journal, decisions, revision):
             and type(score) in (int, float) and 0 <= score <= 1
             and isinstance(row.get("git_commit"), str) and len(row["git_commit"]) >= 7
             and revision.startswith(row["git_commit"]) and meta["success"] is True
-            and prov["observation_id"] == key and prov["schema_version"] == 1
+            and prov["observation_id"] == key
+            and type(prov["schema_version"]) is int and prov["schema_version"] in (1, 2)
             and prov["backend"]["effective"] == row["backend"]
             and prov["runtime"]["scheduling"]["strategy"] == "sequential"
             and prov["runtime"]["seed"] == row["seed"] and prov["runtime"]["cached_only"] is True

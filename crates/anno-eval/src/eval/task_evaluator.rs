@@ -17,7 +17,7 @@
 use crate::eval::backend_factory::artifact_receipt_from_paths;
 use crate::eval::backend_factory::{BackendConstructionReceipt, BackendFactory};
 use crate::eval::backend_name::BackendName;
-use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
+use crate::eval::loader::{DatasetId, DatasetLoadReceipt, DatasetLoader, LoadedDataset};
 #[cfg(feature = "eval-profiling")]
 use crate::eval::profiling;
 use crate::eval::provenance::{
@@ -886,6 +886,8 @@ impl TaskEvaluator {
             dataset: DatasetRunProvenance {
                 source_url: input.dataset.source_url.clone(),
                 data_source: input.dataset.data_source.to_string(),
+                content_sha256: None,
+                s3_fallback: None,
                 split: input.dataset.metadata.split.clone(),
                 version: input.dataset.metadata.version.clone(),
                 language: input.dataset.metadata.language.clone(),
@@ -1052,7 +1054,7 @@ impl TaskEvaluator {
         let mut tasks_evaluated = Vec::new();
         let mut datasets_used = Vec::new();
         let mut backends_tested: Vec<String> = Vec::new();
-        let mut dataset_cache: HashMap<DatasetId, LoadedDataset> = HashMap::new();
+        let mut dataset_cache: HashMap<DatasetId, DatasetLoadReceipt> = HashMap::new();
         let mut sampled_cache: HashMap<(Task, DatasetId), (LoadedDataset, usize)> = HashMap::new();
 
         // Determine which tasks to evaluate
@@ -1173,23 +1175,12 @@ impl TaskEvaluator {
 
                 // Load dataset once per dataset id and reuse across backends.
                 if !dataset_cache.contains_key(dataset) {
-                    let loaded: Result<LoadedDataset> = {
-                        #[cfg(feature = "eval")]
-                        {
-                            let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
-                                .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
-                            if config.require_cached {
-                                self.loader.load(loadable)
-                            } else {
-                                self.loader.load_or_download(loadable)
-                            }
-                        }
-                        #[cfg(not(feature = "eval"))]
-                        {
-                            let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
-                                .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
-                            self.loader.load(loadable)
-                        }
+                    let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
+                        .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
+                    let loaded = if config.require_cached {
+                        self.loader.load_with_receipt(loadable)
+                    } else {
+                        self.loader.load_or_download_with_receipt(loadable)
                     };
                     match loaded {
                         Ok(d) => {
@@ -1233,7 +1224,8 @@ impl TaskEvaluator {
                     }
                 }
 
-                let dataset_data = dataset_cache.get(dataset).expect("cache populated");
+                let receipt = dataset_cache.get(dataset).expect("cache populated");
+                let dataset_data = &receipt.dataset;
 
                 if dataset_data.sentences.is_empty() {
                     for backend_name in &backends {
@@ -1286,14 +1278,17 @@ impl TaskEvaluator {
                     if !backends_tested.contains(backend_name) {
                         backends_tested.push(backend_name.clone());
                     }
-                    results.push(self.evaluate_backend_on_loaded(
+                    let mut result = self.evaluate_backend_on_loaded(
                         *task,
                         *dataset,
                         backend_name,
                         sampled_data,
                         *sentences_to_use,
                         &config,
-                    ));
+                    );
+                    result.provenance.dataset.content_sha256 = Some(receipt.content_sha256.clone());
+                    result.provenance.dataset.s3_fallback = receipt.s3_fallback;
+                    results.push(result);
                 }
             }
         }
@@ -4657,7 +4652,7 @@ mod tests {
         });
         let viewer = serde_json::json!({"features":[], "rows":[{"row_idx":0,"row":row}], "num_rows_total":1});
         for source in [row.to_string(), viewer.to_string()] {
-            std::fs::write(cache.path().join(id.cache_filename()), source).unwrap();
+            std::fs::write(cache.path().join(id.cache_filename()), &source).unwrap();
             let report = evaluator
                 .evaluate_all(TaskEvalConfig {
                     datasets: vec![id],
@@ -4679,6 +4674,12 @@ mod tests {
                     .gold_item_count,
                 1
             );
+            assert_eq!(cell.provenance.dataset.data_source, "local cache");
+            assert_eq!(
+                cell.provenance.dataset.content_sha256,
+                Some(anno::core::grounded::html_source::source_sha256(&source))
+            );
+            assert!(cell.provenance.dataset.s3_fallback.is_none());
             assert_eq!(cell.provenance.dataset.source_url, id.cache_filename());
             assert!(cell
                 .provenance
@@ -4713,6 +4714,8 @@ mod tests {
             .unwrap()
             .contains("without gold subject/object character spans"));
         assert_eq!(row.num_examples, 0);
+        assert!(row.provenance.dataset.content_sha256.is_none());
+        assert!(row.provenance.dataset.s3_fallback.is_none());
     }
 
     #[cfg(feature = "eval-parallel")]
