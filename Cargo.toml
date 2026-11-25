@@ -30,8 +30,7 @@ bitflags = "2.13.1"
 
 # `textprep` is published on crates.io. For local development with sibling checkouts,
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
-textprep = { version = "0.3.2", git = "https://github.com/arclabs561/textprep", rev = "6beb88a6b48ecb8ef30984b137473da6a2af2b92" }
-textprep-source-map = { version = "0.1.0", git = "https://github.com/arclabs561/textprep", rev = "6beb88a6b48ecb8ef30984b137473da6a2af2b92" }
+textprep = { version = "0.3.2", git = "https://github.com/arclabs561/textprep", rev = "9318d6286cb035c7bb9deb73980e091f9779c5a8" }
 
 ## Clustering / stratification
 #
@@ -63,7 +62,7 @@ safetensors = "0.8"
 half = "2"
 
 # Document-to-text extraction
-deformat = { version = "0.17.2", git = "https://github.com/arclabs561/deformat", rev = "63206bb2514687c4404a726799a4f425cda38943" }
+deformat = { version = "0.17.2", git = "https://github.com/arclabs561/deformat", rev = "d1daa090d24b460289fb3aa5bb2ad2218b6684f8" }
 
 # Performance
 rayon = "1"

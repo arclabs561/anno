@@ -2,8 +2,8 @@
 use super::html_source::{HtmlFragmentKind, HtmlSource};
 use super::GroundedDocument;
 use std::ops::Range;
-use textprep_source_map::checked_char_range;
-pub use textprep_source_map::{SourceKind, SourceMap, SourceRun};
+use textprep::spanmap::checked_char_range;
+pub use textprep::spanmap::{SourceKind, SourceMap, SourceRun};
 
 impl HtmlSource {
     pub(super) fn check_map_identity(&self, map: &SourceMap) -> Result<(), String> {

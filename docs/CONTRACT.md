@@ -55,7 +55,7 @@ on mentions and relation endpoints and store the map once per document.
 Grounded output also saves the analyzed text for arbitrary source-span queries.
 
 Deformat supplies renderer offsets. Textprep supplies whitespace and Unicode edit
-mappings. Both use the byte ranges and composition rules from `textprep-source-map`.
+mappings. Both use the byte ranges and composition rules from `textprep::spanmap`.
 Anno selects the preparation settings, stores the composed map in the grounded
 document, and exposes the same types through its existing public imports. An input renderer
 that supplies only text can leave the original offsets unknown even when the

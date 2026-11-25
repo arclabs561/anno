@@ -110,7 +110,6 @@ dependencies = [
  "tempfile",
  "text-splitter",
  "textprep",
- "textprep-source-map",
  "thiserror 2.0.18",
  "tokenizers",
  "ureq",
@@ -1049,13 +1048,13 @@ checksum = "7eed2c4702fa172d1ce21078faa7c5203e69f5394d48cc436d25928394a867a2"
 [[package]]
 name = "deformat"
 version = "0.17.2"
-source = "git+https://github.com/arclabs561/deformat?rev=63206bb2514687c4404a726799a4f425cda38943#63206bb2514687c4404a726799a4f425cda38943"
+source = "git+https://github.com/arclabs561/deformat?rev=d1daa090d24b460289fb3aa5bb2ad2218b6684f8#d1daa090d24b460289fb3aa5bb2ad2218b6684f8"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
  "memchr",
  "pdf_oxide",
- "textprep-source-map",
+ "textprep",
 ]
 
 [[package]]
@@ -4659,22 +4658,14 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.3.2"
-source = "git+https://github.com/arclabs561/textprep?rev=6beb88a6b48ecb8ef30984b137473da6a2af2b92#6beb88a6b48ecb8ef30984b137473da6a2af2b92"
+source = "git+https://github.com/arclabs561/textprep?rev=9318d6286cb035c7bb9deb73980e091f9779c5a8#9318d6286cb035c7bb9deb73980e091f9779c5a8"
 dependencies = [
  "aho-corasick",
- "stop-words",
- "textprep-source-map",
- "unicode-normalization",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "textprep-source-map"
-version = "0.1.0"
-source = "git+https://github.com/arclabs561/textprep?rev=6beb88a6b48ecb8ef30984b137473da6a2af2b92#6beb88a6b48ecb8ef30984b137473da6a2af2b92"
-dependencies = [
  "hmac-sha256",
  "serde",
+ "stop-words",
+ "unicode-normalization",
+ "unicode-segmentation",
 ]
 
 [[package]]
