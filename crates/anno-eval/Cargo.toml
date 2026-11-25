@@ -58,6 +58,10 @@ path = "examples/muxer_decision_loop.rs"
 required-features = ["eval"]
 
 [[example]]
+name = "wikigold_cache_probe"
+required-features = ["eval"]
+
+[[example]]
 name = "cache_warm"
 path = "examples/cache_warm.rs"
 required-features = ["eval"]
