@@ -47,13 +47,15 @@ joint minus one-way typed edge F1.
 ## Reproduce
 
 Use NumPy 2.3.5 and scikit-learn 1.8.0. The original archive is about 695 MB
-and includes unused ELMo features. Extract only its JSON files.
+and includes unused ELMo features. Keep downloaded data in a temporary directory and extract only the JSON files after the checksum passes.
 
 ```sh
-curl -fL https://nlp.cs.washington.edu/sciIE/data/sciERC_processed.tar.gz -o sciERC_processed.tar.gz
-echo 'bce752fb7ebe4acf570937d76ffb27c239cfc907e477a69075dc7082d0e72e9b  sciERC_processed.tar.gz' | sha256sum -c -
-tar xzf sciERC_processed.tar.gz processed_data/json
-OPENBLAS_NUM_THREADS=1 python run.py processed_data/json
+set -e
+corpus_dir=$(mktemp -d)
+curl -fL https://nlp.cs.washington.edu/sciIE/data/sciERC_processed.tar.gz -o "$corpus_dir/sciERC_processed.tar.gz"
+(cd "$corpus_dir" && echo 'bce752fb7ebe4acf570937d76ffb27c239cfc907e477a69075dc7082d0e72e9b  sciERC_processed.tar.gz' | sha256sum -c -)
+tar -xzf "$corpus_dir/sciERC_processed.tar.gz" -C "$corpus_dir" processed_data/json
+OPENBLAS_NUM_THREADS=1 python run.py "$corpus_dir/processed_data/json"
 ```
 
 [Original dataset](https://nlp.cs.washington.edu/sciIE/) · [SciERC paper](https://aclanthology.org/D18-1360/)

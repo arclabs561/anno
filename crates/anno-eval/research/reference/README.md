@@ -22,7 +22,7 @@ crates/anno-eval/research/reference/check.sh
 
 Start with the denominator. A gold-span experiment can isolate bad ranking even when a detector would never propose the target. A correct proposal under a verified catalog history measures reuse of a known link. A hit under predicted history also reflects earlier assignment errors. Compare systems with the same document split, evidence available at decision time, candidate budget and output type. [Related systems and limitations](adjacent/related_systems.md)
 
-The historical replays originated at commit `b5854bbe8dffbdc11e67bb2d62f2cd9f6f706816` in `arclabs561/box-coref` (`experiments/` and `tests/test_entity_memory_replay.py`). Its project manifest declares MIT OR Apache-2.0. The port includes first-party scripts, aggregate measurements and methodological notes. Corpus texts, annotations, model weights and encoded features are fetched separately under the upstream terms referenced by each protocol. [Source revision](https://github.com/arclabs561/box-coref/tree/b5854bbe8dffbdc11e67bb2d62f2cd9f6f706816)
+The historical replays originated at commit `b5854bbe8dffbdc11e67bb2d62f2cd9f6f706816` in `arclabs561/box-coref` (`experiments/` and `tests/test_entity_memory_replay.py`). Its project manifest declares MIT OR Apache-2.0. The port includes first-party scripts, aggregate measurements and methodological notes. Keep downloaded texts, annotations, weights and encoded features outside the checkout. Check the original dataset and model terms before using or sharing those inputs. A pinned mirror identifies a version and does not grant redistribution rights. [Source revision](https://github.com/arclabs561/box-coref/tree/b5854bbe8dffbdc11e67bb2d62f2cd9f6f706816)
 
 ## Migration verification
 
