@@ -7,14 +7,20 @@ jobs:
   verify:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     permissions:
+      contents: read
       id-token: write
     env:
       BUCKET: ${{ vars.ANNO_S3_BUCKET || 'arc-anno-data' }}
       # Same release as scripts/qa/prepare_matrix_wikigold.sh.
       WIKIGOLD_SHA256: c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the dataset verification tools
+        run: cargo build --locked -p anno-eval --features eval --example wikigold_cache_probe --example cache_inventory
       - name: Assume the cache role with read-only access to the verification inputs
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -26,6 +32,8 @@ jobs:
                "Condition":{"StringEquals":{"s3:prefix":"datasets/"}}},
               {"Effect":"Allow","Action":"s3:GetObject","Resource":[
                 "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache",
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache.latest.json",
+                "arn:aws:s3:::${{ env.BUCKET }}/datasets/WikiGold.cache.manifest.json",
                 "arn:aws:s3:::${{ env.BUCKET }}/datasets/by-sha256/${{ env.WIKIGOLD_SHA256 }}/WikiGold.cache"]}
             ]}
       - name: Count current objects and verify the pinned WikiGold bytes
@@ -40,6 +48,8 @@ jobs:
           count=$(jq 'length' "$work/keys.json")
           echo "Current objects under datasets/: $count" | tee -a "$GITHUB_STEP_SUMMARY"
 
+          target/debug/examples/cache_inventory "$work/keys.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
           snapshot="datasets/by-sha256/$WIKIGOLD_SHA256/WikiGold.cache"
           legacy="datasets/WikiGold.cache"
           for key in "$snapshot" "$legacy"; do
@@ -52,8 +62,33 @@ jobs:
                 exit 1
               }
               echo "Verified $key (SHA-256 $WIKIGOLD_SHA256)." | tee -a "$GITHUB_STEP_SUMMARY"
+              target/debug/examples/cache_inventory "$work/keys.json" "$key" "$work/sample" | tee -a "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
           done
           echo 'Neither pinned WikiGold object path was present. No checksum verified.' | tee -a "$GITHUB_STEP_SUMMARY"
           exit 1
+      - name: Load WikiGold from its registered upstream with S3 disabled
+        env:
+          ANNO_S3_CACHE: "0"
+          ANNO_CACHE_DIR: ${{ runner.temp }}/wikigold-upstream
+        run: target/debug/examples/wikigold_cache_probe > "$RUNNER_TEMP/wikigold-upstream.json"
+      - name: Compare cold S3 and warm local loader results with upstream
+        env:
+          ANNO_S3_CACHE: "1"
+          ANNO_S3_BUCKET: ${{ env.BUCKET }}
+          ANNO_CACHE_DIR: ${{ runner.temp }}/wikigold-cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe=target/debug/examples/wikigold_cache_probe
+          "$probe" > "$RUNNER_TEMP/wikigold-cold.json"
+          "$probe" > "$RUNNER_TEMP/wikigold-warm.json"
+          results=("$RUNNER_TEMP"/wikigold-{upstream,cold,warm}.json)
+          jq -cs '.' "${results[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          jq -es --arg sha "$WIKIGOLD_SHA256" '
+            map(.source) == ["OriginalUrl", "S3Cache", "LocalCache"]
+            and all(.[]; .dataset.sha256 == $sha and .heuristic_score.expected > 0)
+            and (map(.dataset) | unique | length == 1)
+            and (map(.heuristic_score) | unique | length == 1)
+          ' "${results[@]}" >/dev/null

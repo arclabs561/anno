@@ -1229,6 +1229,45 @@ impl std::fmt::Display for DataSource {
     }
 }
 
+/// Whether a pinned load may fetch the publisher's artifact on a cache miss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublisherFallback {
+    /// Try the publisher if a matching cache object cannot be retrieved.
+    Allow,
+    /// Use only the local cache and the configured S3 cache.
+    Forbid,
+}
+
+/// Why the configured S3 route did not supply a dataset subsequently fetched from its publisher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum S3FallbackReason {
+    /// The requested cache object was missing.
+    NotFound,
+    /// S3 denied the object read.
+    AccessDenied,
+    /// The object content disagreed with its cache pointer.
+    ChecksumMismatch,
+    /// The registry excludes this dataset from shared reads.
+    Excluded,
+    /// Other I/O, tool, or data-format failure.
+    Unavailable,
+}
+
+#[cfg(feature = "eval")]
+type S3ReadResult<T> = std::result::Result<T, (S3FallbackReason, Error)>;
+
+/// Result of a generic dataset load, with the identity of the payload actually parsed.
+#[derive(Debug)]
+pub struct DatasetLoadReceipt {
+    /// The loaded dataset and its actual source.
+    pub dataset: LoadedDataset,
+    /// SHA-256 of the exact parser input; a byte identity independent of release metadata.
+    pub content_sha256: String,
+    /// Set when a publisher load followed an unsuccessful configured S3 lookup.
+    pub s3_fallback: Option<S3FallbackReason>,
+}
+
 /// A loaded dataset with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedDataset {
@@ -1666,10 +1705,19 @@ impl DatasetLoader {
     ///
     /// Returns an error if the dataset is not cached.
     pub fn load(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
+        Ok(self.load_with_receipt(id)?.dataset)
+    }
+
+    /// Load from the local cache and identify the bytes given to the generic parser.
+    pub fn load_with_receipt(&self, id: LoadableDatasetId) -> Result<DatasetLoadReceipt> {
         let dataset_id = id.0;
         if let Some(fixture) = dataset_id.checkout_fixture() {
             let content = self.read_checkout_fixture(dataset_id, &fixture)?;
-            return self.parse_content_impl(&content, dataset_id);
+            return Ok(DatasetLoadReceipt {
+                dataset: self.parse_content_impl(&content, dataset_id)?,
+                content_sha256: fixture.digest.to_string(),
+                s3_fallback: None,
+            });
         }
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
@@ -1697,64 +1745,172 @@ impl DatasetLoader {
             )));
         }
         dataset.data_source = DataSource::LocalCache;
+        let content_sha256 = self.compute_sha256(&parse_content);
         if let Ok(manifest) = self.manifest.read() {
             if let Some(entry) = manifest.get(dataset_id.cache_filename()) {
-                if self.compute_sha256(&content) != entry.sha256 {
+                let stored_hash = if matches!(parse_content, std::borrow::Cow::Owned(_)) {
+                    self.compute_sha256(&content)
+                } else {
+                    content_sha256.clone()
+                };
+                if stored_hash != entry.sha256 {
                     return Err(Error::InvalidInput("Cached dataset checksum differs from its manifest; refresh the dataset cache".into()));
                 }
                 Self::apply_manifest_provenance(&mut dataset, entry);
             }
         }
         if matches!(parse_content, std::borrow::Cow::Owned(_)) {
-            dataset.metadata.version =
-                Some(format!("sha256:{}", self.compute_sha256(&parse_content)));
+            dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
         }
         // The matrix stages the verified WikiGold release without a cache manifest.
         // Only identify these public bytes; other bare WikiGold caches may be local fixtures.
         if dataset_id == DatasetId::WikiGold && dataset.metadata.version.is_none() {
             const RELEASE_SHA256: &str =
                 "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
-            if self.compute_sha256(&content) == RELEASE_SHA256 {
+            if content_sha256 == RELEASE_SHA256 {
                 dataset.metadata.version = Some(format!("sha256:{RELEASE_SHA256}"));
             }
         }
-        Ok(dataset)
+        Ok(DatasetLoadReceipt {
+            dataset,
+            content_sha256,
+            s3_fallback: None,
+        })
     }
 
     /// Load or download a dataset.
     ///
     /// Tries cache first, then S3 (if enabled), then downloads from URL.
-    #[cfg(feature = "eval")]
     pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
-        let dataset_id = id.0;
-        // 1. Check local cache first
-        if self.is_cached(id) {
-            return self.load(id);
+        Ok(self.load_or_download_with_receipt(id)?.dataset)
+    }
+
+    /// Use the ordinary cache and download policy, reporting the exact generic parser input.
+    pub fn load_or_download_with_receipt(
+        &self,
+        id: LoadableDatasetId,
+    ) -> Result<DatasetLoadReceipt> {
+        self.load_with_policy(id, None, PublisherFallback::Allow)
+    }
+
+    /// Require a particular SHA-256 of the generic parser input. Local bytes have priority.
+    /// On a cold cache, try the exact S3 snapshot and then the legacy object. Reject a
+    /// digest mismatch before publishing newly fetched bytes. A different local version
+    /// is preserved and reported as a mismatch; use a separate cache for a second version.
+    pub fn load_or_download_pinned(
+        &self,
+        id: LoadableDatasetId,
+        expected_sha256: &str,
+        publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        if expected_sha256.len() != 64 || !expected_sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(Error::InvalidInput(
+                "Expected a 64-digit SHA-256 digest".into(),
+            ));
         }
+        self.load_with_policy(id, Some(&expected_sha256.to_ascii_lowercase()), publisher)
+    }
 
-        // 2. Try S3 cache if enabled
-        if let Some(ref bucket) = self.s3_bucket {
-            if let Ok((content, manifest_entry)) = self.download_from_s3(bucket, dataset_id) {
-                Self::enforce_max_download_bytes(content.len(), "S3")?;
-                let expected_checksum = manifest_entry.as_ref().map(|entry| entry.sha256.as_str());
-                let mut dataset =
-                    self.validate_and_cache_content(id, &content, expected_checksum)?;
-                dataset.data_source = DataSource::S3Cache;
-
-                // Best-effort: if S3 provides a manifest entry, record it locally.
-                if let Some(entry) = manifest_entry {
-                    Self::apply_manifest_provenance(&mut dataset, &entry);
-                    let _ = self.update_manifest(entry);
-                }
-                return Ok(dataset);
+    fn verify_digest(actual: &str, expected: Option<&str>) -> Result<()> {
+        if let Some(expected) = expected {
+            if actual != expected {
+                return Err(Error::InvalidInput(format!(
+                    "Dataset checksum mismatch: expected {expected}, got {actual}"
+                )));
             }
         }
+        Ok(())
+    }
 
-        // 3. Download from original URL
-        let (content, resolved_url) = self.download_with_resolved_url(dataset_id)?;
+    #[cfg(feature = "eval")]
+    fn load_with_policy(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        self.load_with_fetchers(
+            id,
+            pin,
+            publisher,
+            |bucket| self.download_from_s3(bucket, id.0, pin),
+            || self.download_with_resolved_url(id.0),
+        )
+    }
+
+    #[cfg(feature = "eval")]
+    fn load_with_fetchers(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        publisher: PublisherFallback,
+        fetch_s3: impl FnOnce(&str) -> S3ReadResult<(String, Option<CacheManifestEntry>)>,
+        fetch_original: impl FnOnce() -> Result<(String, String)>,
+    ) -> Result<DatasetLoadReceipt> {
+        let dataset_id = id.0;
+        if self.is_cached(id) || (pin.is_some() && self.cache_path(id).exists()) {
+            let receipt = self.load_with_receipt(id)?;
+            Self::verify_digest(&receipt.content_sha256, pin)?;
+            return Ok(receipt);
+        }
+
+        let mut s3_fallback = None;
+        if let Some(ref bucket) = self.s3_bucket {
+            match fetch_s3(bucket) {
+                Ok((content, entry)) => {
+                    Self::enforce_max_download_bytes(content.len(), "S3")?;
+                    let content_sha256 = self.compute_sha256(&content);
+                    Self::verify_digest(&content_sha256, pin)?;
+                    // The movable sidecar describes the latest release, not necessarily
+                    // the caller's pinned snapshot. Attach only metadata for these bytes.
+                    let entry = entry.filter(|e| pin.is_none_or(|p| p == e.sha256));
+                    let mut dataset = self.validate_and_cache_content(
+                        id,
+                        &content,
+                        entry.as_ref().map(|e| e.sha256.as_str()),
+                    )?;
+                    dataset.data_source = DataSource::S3Cache;
+                    if let Some(entry) = entry {
+                        Self::apply_manifest_provenance(&mut dataset, &entry);
+                        let _ = self.update_manifest(entry);
+                    } else if let Ok(mut manifest) = self.manifest.write() {
+                        // A restored payload can outlive a deleted canonical file's manifest.
+                        // Preserve matching provenance and remove details for a different artifact.
+                        let key = dataset_id.cache_filename();
+                        if manifest.get(key).is_some_and(|old| {
+                            old.sha256 != content_sha256
+                                || old.source_url != dataset_id.download_url()
+                        }) {
+                            manifest.entries.remove(key);
+                            manifest.save(&self.cache_dir)?;
+                        }
+                    }
+                    return Ok(DatasetLoadReceipt {
+                        dataset,
+                        content_sha256,
+                        s3_fallback: None,
+                    });
+                }
+                Err((reason, error)) => {
+                    if publisher == PublisherFallback::Forbid {
+                        return Err(error);
+                    }
+                    s3_fallback = Some(reason);
+                }
+            }
+        }
+        if publisher == PublisherFallback::Forbid {
+            return Err(Error::InvalidInput(
+                "No matching local dataset; S3 is disabled and publisher fallback is forbidden"
+                    .into(),
+            ));
+        }
+
+        let (content, resolved_url) = fetch_original()?;
         Self::enforce_max_download_bytes(content.len(), &resolved_url)?;
         let file_size = content.len() as u64;
         let sha256 = self.compute_sha256(&content);
+        Self::verify_digest(&sha256, pin)?;
 
         // 4. Validate before replacing the canonical cache.
         let mut dataset = self.validate_and_cache_content(id, &content, None)?;
@@ -1771,45 +1927,41 @@ impl DatasetLoader {
             dataset_id: dataset_id.cache_filename().to_string(),
             source_url: dataset_id.download_url().to_string(),
             resolved_url: Some(resolved_url.clone()),
-            sha256,
+            sha256: sha256.clone(),
             file_size,
             downloaded_at: super::timestamp::now(),
             sentence_count: dataset.sentences.len(),
             entity_count: dataset.entity_count(),
             anno_version: env!("CARGO_PKG_VERSION").to_string(),
         };
-        let _ = self.update_manifest(entry); // Best effort
+        let _ = self.update_manifest(entry.clone()); // Best effort
 
-        // 6. Optionally upload to S3 for future use (best effort)
         if let Some(bucket) = self
             .s3_bucket
             .as_ref()
             .filter(|_| dataset_id.approved_for_shared_publication())
         {
-            let entry = CacheManifestEntry {
-                dataset_id: dataset_id.cache_filename().to_string(),
-                source_url: dataset_id.download_url().to_string(),
-                resolved_url: Some(resolved_url),
-                sha256: self.compute_sha256(&content),
-                file_size: content.len() as u64,
-                downloaded_at: super::timestamp::now(),
-                sentence_count: dataset.sentences.len(),
-                entity_count: dataset.entity_count(),
-                anno_version: env!("CARGO_PKG_VERSION").to_string(),
-            };
             let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
         }
 
-        Ok(dataset)
+        Ok(DatasetLoadReceipt {
+            dataset,
+            content_sha256: sha256,
+            s3_fallback,
+        })
     }
 
-    /// Load-or-download shim when `eval` is disabled.
-    ///
-    /// This method will load from cache if present, otherwise return a helpful error.
     #[cfg(not(feature = "eval"))]
-    pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
-        if self.is_cached(id) {
-            return self.load(id);
+    fn load_with_policy(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        _publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        if self.is_cached(id) || (pin.is_some() && self.cache_path(id).exists()) {
+            let receipt = self.load_with_receipt(id)?;
+            Self::verify_digest(&receipt.content_sha256, pin)?;
+            return Ok(receipt);
         }
 
         Err(Error::InvalidInput(
@@ -1844,94 +1996,63 @@ impl DatasetLoader {
         &self,
         bucket: &str,
         id: DatasetId,
-    ) -> Result<(String, Option<CacheManifestEntry>)> {
-        use std::process::Command;
-
-        Self::check_shared_cache_source(id)?;
-
-        // Prefer a content-addressed snapshot if the pointer exists; fall back to the legacy key.
-        let pointer_key = format!("datasets/{}.latest.json", id.cache_filename());
-        let pointer_uri = format!("s3://{}/{}", bucket, pointer_key);
-
-        let mut content: Option<String> = None;
-        let mut pointer_sha256: Option<String> = None;
-
-        // Attempt: pointer -> by-sha256 snapshot
-        let pointer = Command::new("aws")
-            .args(["s3", "cp", &pointer_uri, "-"])
-            .output()
-            .ok()
-            .and_then(|o| {
-                if !o.status.success() {
-                    // Pointer missing or unreadable; fall back to legacy key.
-                    return None;
-                }
-                String::from_utf8(o.stdout).ok()
-            })
-            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
-
-        if let Some(pointer) = pointer {
-            if let Some(sha) = pointer.get("sha256").and_then(|v| v.as_str()) {
-                pointer_sha256 = Some(sha.to_string());
-                let by_sha_key = format!("datasets/by-sha256/{}/{}", sha, id.cache_filename());
-                let by_sha_uri = format!("s3://{}/{}", bucket, by_sha_key);
-                let output = Command::new("aws")
-                    .args(["s3", "cp", &by_sha_uri, "-"])
-                    .output()
-                    .ok();
-
-                if let Some(output) = output {
-                    if output.status.success() {
-                        content = String::from_utf8(output.stdout).ok();
-                    }
-                }
-            }
-        }
-
-        // Fall back: legacy key (mutable)
-        if content.is_none() {
-            let s3_key = format!("datasets/{}", id.cache_filename());
-            let s3_uri = format!("s3://{}/{}", bucket, s3_key);
-
-            // Use aws s3 cp to download to stdout
-            let output = Command::new("aws")
-                .args(["s3", "cp", &s3_uri, "-"])
+        pin: Option<&str>,
+    ) -> S3ReadResult<(String, Option<CacheManifestEntry>)> {
+        Self::check_shared_cache_source(id).map_err(|error| (S3FallbackReason::Excluded, error))?;
+        let object = format!("datasets/{}", id.cache_filename());
+        let read = |key: &str| {
+            let output = std::process::Command::new("aws")
+                .args(["s3", "cp", &format!("s3://{bucket}/{key}"), "-"])
                 .output()
-                .map_err(|e| Error::InvalidInput(format!("Failed to run aws s3 cp: {}", e)))?;
-
-            if output.status.success() {
-                content = Some(String::from_utf8(output.stdout).map_err(|e| {
-                    Error::InvalidInput(format!("S3 content not valid UTF-8: {}", e))
-                })?);
-            } else {
-                return Err(Error::InvalidInput(format!(
-                    "S3 download failed: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                )));
-            }
-        }
-
-        let Some(content) = content else {
-            return Err(Error::InvalidInput("S3 download failed".to_string()));
-        };
-
-        if let Some(expected) = pointer_sha256 {
-            if self.compute_sha256(&content) != expected {
-                return Err(Error::InvalidInput(
-                    "S3 dataset checksum differs from its pointer".into(),
+                .map_err(|e| {
+                    (
+                        S3FallbackReason::Unavailable,
+                        Error::InvalidInput(format!("Failed to run aws s3 cp: {e}")),
+                    )
+                })?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let reason = if stderr.contains("(403)") || stderr.contains("(AccessDenied)") {
+                    S3FallbackReason::AccessDenied
+                } else if stderr.contains("(404)") || stderr.contains("(NoSuchKey)") {
+                    S3FallbackReason::NotFound
+                } else {
+                    S3FallbackReason::Unavailable
+                };
+                return Err((
+                    reason,
+                    Error::InvalidInput(format!("S3 download failed: {stderr}")),
                 ));
             }
-        }
+            String::from_utf8(output.stdout).map_err(|e| {
+                (
+                    S3FallbackReason::Unavailable,
+                    Error::InvalidInput(format!("S3 content not valid UTF-8: {e}")),
+                )
+            })
+        };
 
-        // An old annotation-only mirror cannot supply the corresponding source text.
-        if id == DatasetId::LitBank && !content.trim_start().starts_with('{') {
-            return Err(Error::InvalidInput(
-                "LitBank mirror lacks the source text".into(),
+        // In pinned mode the mutable latest pointer cannot choose a different artifact.
+        let digest = match pin {
+            Some(pin) => Some(pin.to_owned()),
+            None => read(&format!("{object}.latest.json"))
+                .ok()
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .and_then(|v| v.get("sha256")?.as_str().map(str::to_owned)),
+        };
+        let content = match &digest {
+            Some(sha) => read(&format!("datasets/by-sha256/{sha}/{}", id.cache_filename()))
+                .or_else(|_| read(&object))?,
+            None => read(&object)?,
+        };
+        // A caller's pin is checked by load_with_policy before any cache write.
+        if pin.is_none() && digest.is_some_and(|sha| self.compute_sha256(&content) != sha) {
+            return Err((
+                S3FallbackReason::ChecksumMismatch,
+                Error::InvalidInput("S3 dataset checksum differs from its pointer".into()),
             ));
         }
-        // Best-effort: attempt to fetch per-dataset manifest entry.
         let manifest = self.download_manifest_entry_from_s3(bucket, id).ok();
-
         Ok((content, manifest))
     }
 
@@ -7608,6 +7729,138 @@ mod tests {
     }
 
     #[test]
+    fn pinned_local_receipt_verifies_parser_input_without_claiming_release() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let input = "Ada B-PER\nleft O\n\n";
+        fs::write(loader.cache_path(id), input).unwrap();
+        let digest = loader.compute_sha256(input);
+        let receipt = loader
+            .load_or_download_pinned(id, &digest.to_uppercase(), PublisherFallback::Forbid)
+            .unwrap();
+        assert_eq!(receipt.content_sha256, digest);
+        assert_eq!(receipt.dataset.data_source, DataSource::LocalCache);
+        assert_eq!(receipt.s3_fallback, None);
+        assert_eq!(receipt.dataset.metadata.version, None);
+        for wrong in ["bad", &"0".repeat(64)] {
+            assert!(loader
+                .load_or_download_pinned(id, wrong, PublisherFallback::Allow)
+                .is_err());
+            assert_eq!(fs::read_to_string(loader.cache_path(id)).unwrap(), input);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn pinned_load_checks_each_route_before_writing_and_identifies_publisher_fallback() {
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let text = "Ada B-PER\nleft O\n\n";
+        // A still-parseable older snapshot and a truncated, still-parseable payload.
+        for wrong in ["Bea B-PER\nleft O\n\n", "Ada B-PER\n"] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            loader.s3_bucket = Some("fixture".into());
+            let pin = loader.compute_sha256(text);
+            let err = loader
+                .load_with_fetchers(
+                    id,
+                    Some(&pin),
+                    PublisherFallback::Allow,
+                    |_| Ok((wrong.into(), None)),
+                    || panic!("a present S3 object failed integrity verification"),
+                )
+                .unwrap_err();
+            assert!(err.to_string().contains("checksum mismatch"));
+            assert!(!loader.cache_path(id).exists());
+            for reason in [S3FallbackReason::NotFound, S3FallbackReason::AccessDenied] {
+                let failure = |_: &str| Err((reason, Error::InvalidInput("read failed".into())));
+                let res = loader.load_with_fetchers(
+                    id,
+                    Some(&pin),
+                    PublisherFallback::Forbid,
+                    failure,
+                    || panic!("publisher fallback was forbidden"),
+                );
+                assert!(res.is_err());
+                assert!(!loader.cache_path(id).exists());
+                let res = loader.load_with_fetchers(
+                    id,
+                    Some(&pin),
+                    PublisherFallback::Allow,
+                    |_| Err((reason, Error::InvalidInput("read failed".into()))),
+                    || Ok((wrong.into(), "https://example.test/test.conll".into())),
+                );
+                assert!(res.unwrap_err().to_string().contains("checksum mismatch"));
+                assert!(!loader.cache_path(id).exists());
+            }
+        }
+        for reason in [
+            S3FallbackReason::AccessDenied,
+            S3FallbackReason::ChecksumMismatch,
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            loader.s3_bucket = Some("fixture".into());
+            let pin = loader.compute_sha256(text);
+            let receipt = loader
+                .load_with_fetchers(
+                    id,
+                    None,
+                    PublisherFallback::Allow,
+                    |_| Err((reason, Error::InvalidInput("read failed".into()))),
+                    || Ok((text.into(), "https://example.test/test.conll".into())),
+                )
+                .unwrap();
+            assert_eq!(receipt.s3_fallback, Some(reason));
+            assert_eq!(receipt.dataset.data_source, DataSource::OriginalUrl);
+            assert_eq!(receipt.content_sha256, pin);
+            let cached = loader
+                .load_or_download_pinned(id, &pin, PublisherFallback::Forbid)
+                .unwrap();
+            assert_eq!(cached.dataset.data_source, DataSource::LocalCache);
+            assert_eq!(cached.s3_fallback, None);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn pinned_snapshot_ignores_newer_metadata_after_payload_eviction() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        loader.s3_bucket = None;
+        let newer = "Bea B-PER\nleft O\n\n";
+        let older = "Ada B-PER\nleft O\n\n";
+        loader
+            .load_with_fetchers(
+                id,
+                None,
+                PublisherFallback::Allow,
+                |_| unreachable!(),
+                || Ok((newer.into(), "https://example.test/dev.conll".into())),
+            )
+            .unwrap();
+        let sidecar = loader.cached_manifest_entries().pop().unwrap();
+        fs::remove_file(loader.cache_path(id)).unwrap();
+        loader.s3_bucket = Some("fixture".into());
+        let pin = loader.compute_sha256(older);
+        let receipt = loader
+            .load_with_fetchers(
+                id,
+                Some(&pin),
+                PublisherFallback::Forbid,
+                |_| Ok((older.into(), Some(sidecar))),
+                || unreachable!(),
+            )
+            .unwrap();
+        assert_eq!(receipt.dataset.data_source, DataSource::S3Cache);
+        assert_eq!(receipt.dataset.metadata.split, None);
+        let reopened = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        assert_eq!(reopened.load_with_receipt(id).unwrap().content_sha256, pin);
+    }
+
+    #[test]
     fn cached_dataset_retains_provenance_and_rejects_modified_content() {
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
@@ -10819,8 +11072,9 @@ CEO,O
                 DatasetId::CUAD,
             ] {
                 assert!(loader
-                    .download_from_s3("unused", id)
+                    .download_from_s3("unused", id, None)
                     .unwrap_err()
+                    .1
                     .to_string()
                     .contains("excluded"));
                 assert!(loader

@@ -22,6 +22,12 @@ def load_enrichment():
 def update_registry(content: str, s3_matches: dict, hf_additions: dict) -> tuple[str, int]:
     """Update registry content with enrichment data."""
     
+    # Old enrichment exports could give the same file to unrelated datasets
+    # on the strength of a shared substring. Preserve untagged manual mappings.
+    s3_matches = {
+        variant: match for variant, match in s3_matches.items()
+        if match.get("match_type", "exact") == "exact"
+    }
     s3_bucket = os.environ.get("ANNO_S3_BUCKET", "").removeprefix("s3://").rstrip("/")
     if s3_matches and not s3_bucket:
         raise ValueError("Set ANNO_S3_BUCKET to your dataset cache bucket")
