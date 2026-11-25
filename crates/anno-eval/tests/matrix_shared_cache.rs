@@ -1,11 +1,38 @@
 #![cfg(all(feature = "eval", unix))]
 
 use serde_json::Value;
-use std::{env, fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
+use std::{
+    env, fs,
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    os::unix::fs::PermissionsExt,
+    path::Path,
+    process::Command,
+    thread,
+};
 
 #[test]
 fn shared_cache_staging_is_opt_in_read_only_and_usable_by_task_readers() {
     let root = tempfile::tempdir().unwrap();
+    // The fake AWS command is the only remote source in this fixture. Refuse HTTP
+    // requests promptly so unexpected model or dataset downloads fail the assertion.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let http = format!("http://{address}");
+    let observed_requests = thread::spawn(move || {
+        let mut count = 0;
+        loop {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut first = [0_u8];
+            if matches!(stream.read(&mut first), Ok(1)) && first == [0] {
+                return count;
+            }
+            count += 1;
+            let _ = stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        }
+    });
     let aws = root.path().join("aws");
     fs::write(
         &aws,
@@ -63,8 +90,26 @@ esac
                 cmd.env_remove(key);
             }
         }
+        for key in [
+            "http_proxy",
+            "https_proxy",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "all_proxy",
+        ] {
+            cmd.env(key, &http);
+        }
+        for key in ["NO_PROXY", "no_proxy"] {
+            cmd.env(key, "127.0.0.1,localhost");
+        }
         if !offline.is_empty() {
             cmd.env(offline, "1");
+        }
+        if name == "coreference" {
+            // The GAP fixture supplies its mentions. This exercises its reader and
+            // resolver without introducing a pretrained mention detector into the S3 case.
+            cmd.env("ANNO_COREF_GOLD", "1");
         }
         if name == "offline" {
             cmd.env("ANNO_MATRIX_REQUIRE_CACHED", "0");
@@ -75,6 +120,8 @@ esac
             .env_remove("GITHUB_ACTIONS") // Exercise the ordinary local default in CI as well.
             .current_dir(&cache)
             .env("PATH", &path)
+            .env("HF_HOME", root.path().join("hf"))
+            .env("HF_ENDPOINT", &http)
             .env("CALLS", &calls)
             .env("GAP_INPUT", &gap)
             .env("ANNO_CACHE_DIR", &cache)
@@ -139,6 +186,11 @@ esac
         assert!(rows
             .iter()
             .all(|r| r["cost_units"] == 1 && r["hard_junk"] == false));
+        if name == "coreference" {
+            assert_eq!(rows[0]["coref_gold"], true);
+            assert_eq!(rows[0]["backend"], "coref_resolver");
+            assert!(rows[0]["primary_f1"].is_number());
+        }
         let reads = fs::read_to_string(calls).unwrap();
         if staging == "1" && offline != "ANNO_NO_DOWNLOADS" {
             let remote_dataset = if task == "ner" { "WikiGold" } else { "GAP" };
@@ -173,4 +225,14 @@ esac
             assert!(reads.is_empty(), "{name}: {reads}");
         }
     }
+    // A NUL byte cannot start an HTTP request and marks the end of the observation.
+    TcpStream::connect(address)
+        .unwrap()
+        .write_all(&[0])
+        .unwrap();
+    assert_eq!(
+        observed_requests.join().unwrap(),
+        0,
+        "unexpected HTTP requests"
+    );
 }
