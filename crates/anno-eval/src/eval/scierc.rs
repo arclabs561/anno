@@ -109,7 +109,7 @@ mod tests {
         let id = DatasetId::SciERC;
         let input = authored_abstract().to_string();
         std::fs::write(cache.path().join(id.cache_filename()), &input).unwrap();
-        let docs = loader.load_or_download_relation(id).unwrap();
+        let docs = loader.load_relation(id).unwrap();
         assert_eq!(docs.len(), 2);
         assert!(docs[0].relations.is_empty());
         assert_eq!(docs[1].text, "Éma lens works .");
