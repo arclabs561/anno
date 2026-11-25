@@ -29,9 +29,11 @@ def main():
         "TRANSFORMERS_CACHE": str(hub),
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
+        "TORCH_FORCE_WEIGHTS_ONLY_LOAD": "1",
         "OMP_NUM_THREADS": "1",
         "OPENBLAS_NUM_THREADS": "1",
     }
+    subprocess.run([sys.executable, Path(__file__).with_name("test_real_tokenizer.py")], env=env, check=True)
     subprocess.run(
         ["cargo", "test", "--locked", "-p", "anno", "--no-default-features", "--lib",
          "backends::coref::maverick::tests", "--", "--include-ignored", "--test-threads=1"],
