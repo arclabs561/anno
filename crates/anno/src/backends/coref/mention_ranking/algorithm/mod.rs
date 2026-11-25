@@ -124,7 +124,7 @@ impl MentionRankingCoref {
     /// Add source-detected pronominal mentions to existing entity proposals in document order.
     ///
     /// Exact span matches retain their original entity, including its type and confidence.
-    /// New proposals have a neutral mention type. The configured pronoun detector uses
+    /// New proposals have a neutral entity label and a pronominal mention type. The detector uses
     /// English by default and can also admit non-referential words such as complementizers.
     pub fn supplement_with_pronouns(&self, text: &str, entities: &mut Vec<Entity>) -> Result<()> {
         let mut seen: HashSet<_> = entities.iter().map(|e| (e.start(), e.end())).collect();
@@ -132,13 +132,15 @@ impl MentionRankingCoref {
             if mention.mention_type == MentionType::Pronominal
                 && seen.insert((mention.start, mention.end))
             {
-                entities.push(Entity::new(
+                let mut proposal = Entity::new(
                     &mention.text,
                     crate::EntityType::custom("mention", crate::EntityCategory::Misc),
                     mention.start,
                     mention.end,
                     1.0,
-                ));
+                );
+                proposal.mention_type = Some(mention.mention_type);
+                entities.push(proposal);
             }
         }
         entities.sort_by_key(|e| (e.start(), e.end()));
@@ -157,7 +159,7 @@ impl MentionRankingCoref {
                     start: entity.start(),
                     end: entity.end(),
                     text: entity.text.clone(),
-                    mention_type: MentionType::Proper,
+                    mention_type: entity.mention_type.unwrap_or(MentionType::Proper),
                     gender: None,
                     number: None,
                     animacy: animacy_from_entity_type(&entity.entity_type),
@@ -1281,13 +1283,15 @@ impl CoreferenceResolver for MentionRankingCoref {
         let mut mentions: Vec<RankedMention> = entities
             .iter()
             .map(|e| {
-                let mention_type = if e.text.chars().all(|c| c.is_lowercase()) {
-                    MentionType::Pronominal
-                } else if e.text.chars().next().is_some_and(|c| c.is_uppercase()) {
-                    MentionType::Proper
-                } else {
-                    MentionType::Nominal
-                };
+                let mention_type = e.mention_type.unwrap_or_else(|| {
+                    if e.text.chars().all(|c| c.is_lowercase()) {
+                        MentionType::Pronominal
+                    } else if e.text.chars().next().is_some_and(|c| c.is_uppercase()) {
+                        MentionType::Proper
+                    } else {
+                        MentionType::Nominal
+                    }
+                });
 
                 let gender = self.guess_gender(&e.text);
                 // Infer number from pronoun or surface form
@@ -1398,7 +1402,9 @@ mod tests {
             ),
             ("him", 9, 12)
         );
+        assert_eq!(entities[0].mention_type, Some(MentionType::Pronominal));
         assert_eq!(entities[1].entity_type, crate::EntityType::Person);
+        assert_eq!(entities[1].mention_type, None);
     }
 
     #[test]

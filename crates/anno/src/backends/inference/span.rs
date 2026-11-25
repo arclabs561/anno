@@ -10,6 +10,16 @@ use crate::SpanCandidate;
 // Span Scoring (GLiNER-style Span Heads)
 // =============================================================================
 
+/// Match GLiNER's WhitespaceTokenSplitter so that the trained span grid sees
+/// punctuation as separate words and retains internal hyphens.
+#[cfg(feature = "onnx")]
+pub(crate) fn gliner_words(text: &str) -> Vec<&str> {
+    static WORDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S").expect("constant word regex")
+    });
+    WORDS.find_iter(text).map(|word| word.as_str()).collect()
+}
+
 /// A word-level span candidate scored by a GLiNER-style span head.
 ///
 /// Word indices are inclusive: `start_word..=end_word`.

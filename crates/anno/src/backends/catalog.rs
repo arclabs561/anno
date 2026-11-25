@@ -293,6 +293,15 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &[crate::models::GLINER_POLY],
     },
     BackendInfo {
+        name: "gliner25",
+        feature: Some("gliner2-fastino"),
+        status: BackendStatus::WIP,
+        zero_shot: true,
+        gpu_support: false,
+        description: "GLiNER2.5 boundary NER using local FP32 ONNX graphs (GLINER25_MODEL_DIR)",
+        recommended_models: &["jugaadsrl/gliner2.5-multi-v1-onnx"],
+    },
+    BackendInfo {
         name: "gliner2_fastino",
         feature: Some("gliner2-fastino"),
         status: BackendStatus::WIP,
@@ -333,7 +342,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "GLiNER-RelEx: zero-shot NER from the local entity-logit ONNX export",
+        description: "GLiNER-RelEx: zero-shot NER and trained directed relations with a local joint export",
         recommended_models: &[crate::models::GLINER_RELEX],
     },
 ];

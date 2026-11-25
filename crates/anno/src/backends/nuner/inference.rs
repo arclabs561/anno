@@ -13,7 +13,9 @@ impl NuNER {
             model_id: "numind/NuNER_Zero".to_string(),
             threshold: 0.5,
             #[cfg(feature = "onnx")]
-            requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
+            requires_span_tensors: false,
+            #[cfg(feature = "onnx")]
+            span_width: 1,
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -43,7 +45,9 @@ impl NuNER {
             model_id: "numind/NuNER_Zero-4k".to_string(),
             threshold: 0.5,
             #[cfg(feature = "onnx")]
-            requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
+            requires_span_tensors: false,
+            #[cfg(feature = "onnx")]
+            span_width: 1,
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -60,7 +64,7 @@ impl NuNER {
         }
     }
 
-    /// Load NuNER model from HuggingFace.
+    /// Load a NuNER ONNX export from a local directory or the Hugging Face Hub.
     ///
     /// Reads `HF_TOKEN` from the process environment if set. Auto-detects the 4k
     /// variant from the model ID (looks for "4k" case-insensitively) and sets
@@ -68,32 +72,68 @@ impl NuNER {
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "deepanwa/NuNerZero_onnx",
-    ///   "numind/NuNER_Zero-4k")
+    ///   "onnx-community/NuNER_Zero-span") or a local export directory
     ///
     /// # Example
     /// ```rust,ignore
-    /// let ner = NuNER::from_pretrained("numind/NuNER_Zero-4k")?;
+    /// let ner = NuNER::from_pretrained("onnx-community/NuNER_Zero-span")?;
     /// ```
     #[cfg(feature = "onnx")]
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
-
-        let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
-        let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
-
+        let dir = std::path::Path::new(model_id);
+        let (model_path, tokenizer_path, config_path) = if dir.is_dir() {
+            let graph = ["model.onnx", "model_quantized.onnx", "onnx/model.onnx"]
+                .into_iter()
+                .map(|f| dir.join(f))
+                .find(|p| p.is_file())
+                .ok_or_else(|| {
+                    Error::Retrieval(format!("Missing NuNER ONNX graph in {model_id}"))
+                })?;
+            (
+                graph,
+                dir.join("tokenizer.json"),
+                Some(dir.join("gliner_config.json")).filter(|p| p.is_file()),
+            )
+        } else {
+            let api = hf_loader::hf_api()?;
+            let repo = api.model(model_id.to_string());
+            (
+                hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?,
+                hf_loader::download_model_file(&repo, &["tokenizer.json"])?,
+                hf_loader::download_model_file(&repo, &["gliner_config.json"]).ok(),
+            )
+        };
+        let metadata: serde_json::Value = match config_path {
+            Some(path) => serde_json::from_slice(
+                &std::fs::read(&path)
+                    .map_err(|e| Error::Retrieval(format!("Read {}: {e}", path.display())))?,
+            )
+            .map_err(|e| Error::Parse(format!("Invalid NuNER config: {e}")))?,
+            None => serde_json::Value::Null,
+        };
+        let span_width: usize =
+            serde_json::from_value(metadata.get("max_width").cloned().unwrap_or(1.into()))
+                .map_err(|e| Error::Parse(format!("Invalid NuNER max_width: {e}")))?;
+        if span_width == 0 {
+            return Err(Error::Parse("NuNER max_width must be positive".into()));
+        }
         let session =
             hf_loader::create_onnx_session(&model_path, hf_loader::OnnxSessionConfig::default())?;
         let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
 
-        let is_4k = model_id.to_lowercase().contains("4k");
+        let is_4k = model_id.to_lowercase().contains("4k")
+            || metadata["model_name"].as_str() == Some("allenai/longformer-large-4096");
 
         Ok(Self {
             model_id: model_id.to_string(),
             threshold: 0.5,
-            requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
+            requires_span_tensors: session
+                .inputs()
+                .iter()
+                .any(|input| input.name() == "span_idx"),
+            span_width,
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -214,7 +254,7 @@ impl NuNER {
             .ok_or_else(|| Error::Retrieval("Tokenizer not loaded.".to_string()))?;
 
         // Split text into words
-        let text_words: Vec<&str> = text.split_whitespace().collect();
+        let text_words = crate::backends::inference::span::gliner_words(text);
         if text_words.is_empty() {
             return Ok(vec![]);
         }
@@ -255,46 +295,25 @@ impl NuNER {
             Ok((input_ids_t, attention_mask_t, words_mask_t, text_lengths_t))
         };
 
-        // Some NuNER ONNX exports require span tensors (span_idx/span_mask), others are token-only.
-        // We default to token-only, and flip to span tensors on the first "missing input" error.
-        use std::sync::atomic::Ordering;
-        let mut needs_span_tensors = self.requires_span_tensors.load(Ordering::Relaxed);
-
-        // Use blocking lock for thread-safe parallel access
         let mut session_guard = session.lock().unwrap_or_else(|e| e.into_inner());
+        let outputs = if self.requires_span_tensors {
+            let (input_ids_t, attention_mask_t, words_mask_t, text_lengths_t) =
+                make_token_tensors()?;
+            let (span_idx, span_mask) = Self::make_span_tensors(text_words.len(), self.span_width)?;
+            let num_spans = span_mask.len();
+            use ndarray::Array2;
+            use ndarray::Array3;
+            let span_idx_array = Array3::from_shape_vec((1, num_spans, 2), span_idx)
+                .map_err(|e| Error::Parse(format!("Span idx array error: {}", e)))?;
+            let span_mask_array = Array2::from_shape_vec((1, num_spans), span_mask)
+                .map_err(|e| Error::Parse(format!("Span mask array error: {}", e)))?;
 
-        let outputs = loop {
-            if needs_span_tensors {
-                let (input_ids_t, attention_mask_t, words_mask_t, text_lengths_t) =
-                    make_token_tensors()?;
-                // Generate span tensors similar to GLiNER
-                // Use checked_mul to prevent overflow (same as gliner_multitask/onnx.rs)
-                let num_spans = match text_words.len().checked_mul(MAX_SPAN_WIDTH) {
-                    Some(v) => v,
-                    None => {
-                        return Err(Error::InvalidInput(format!(
-                            "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
-                            text_words.len(),
-                            MAX_SPAN_WIDTH
-                        )));
-                    }
-                };
-                let (span_idx, span_mask) = NuNER::make_span_tensors(text_words.len());
+            let span_idx_t = crate::backends::ort_compat::tensor_from_ndarray(span_idx_array)
+                .map_err(|e| Error::Parse(format!("Span idx tensor error: {}", e)))?;
+            let span_mask_t = crate::backends::ort_compat::tensor_from_ndarray(span_mask_array)
+                .map_err(|e| Error::Parse(format!("Span mask tensor error: {}", e)))?;
 
-                use ndarray::Array2;
-                use ndarray::Array3;
-                let span_idx_array = Array3::from_shape_vec((1, num_spans, 2), span_idx)
-                    .map_err(|e| Error::Parse(format!("Span idx array error: {}", e)))?;
-                let span_mask_array = Array2::from_shape_vec((1, num_spans), span_mask)
-                    .map_err(|e| Error::Parse(format!("Span mask array error: {}", e)))?;
-
-                let span_idx_t =
-                    crate::backends::ort_compat::tensor_from_ndarray(span_idx_array)
-                        .map_err(|e| Error::Parse(format!("Span idx tensor error: {}", e)))?;
-                let span_mask_t = crate::backends::ort_compat::tensor_from_ndarray(span_mask_array)
-                    .map_err(|e| Error::Parse(format!("Span mask tensor error: {}", e)))?;
-
-                break session_guard
+            session_guard
                     .run(ort::inputs![
                         "input_ids" => input_ids_t.into_dyn(),
                         "attention_mask" => attention_mask_t.into_dyn(),
@@ -314,47 +333,22 @@ impl NuNER {
                              Try a different NuNER export (e.g., deepanwa/NuNerZero_onnx) or re-export with dynamic axes.",
                             e,
                             self.model_id,
-                            self.requires_span_tensors.load(Ordering::Relaxed)
+                            self.requires_span_tensors
                         ))
-                    })?;
-            } else {
-                let (input_ids_t, attention_mask_t, words_mask_t, text_lengths_t) =
-                    make_token_tensors()?;
-                // Token mode - only 4 inputs
-                let res = session_guard.run(ort::inputs![
+                    })?
+        } else {
+            let (input_ids_t, attention_mask_t, words_mask_t, text_lengths_t) =
+                make_token_tensors()?;
+            session_guard
+                .run(ort::inputs![
                     "input_ids" => input_ids_t.into_dyn(),
                     "attention_mask" => attention_mask_t.into_dyn(),
                     "words_mask" => words_mask_t.into_dyn(),
                     "text_lengths" => text_lengths_t.into_dyn(),
-                ]);
-
-                match res {
-                    Ok(o) => break o,
-                    Err(e) => {
-                        let msg = format!("{e}");
-                        let looks_like_missing_span = msg.contains("Missing Input: span_mask")
-                            || msg.contains("Missing Input: span_idx")
-                            || msg.contains("span_mask")
-                            || msg.contains("span_idx");
-                        if looks_like_missing_span {
-                            // Memoize and retry once in span mode (same request).
-                            self.requires_span_tensors.store(true, Ordering::Relaxed);
-                            needs_span_tensors = true;
-                            continue;
-                        }
-                        return Err(Error::Parse(format!(
-                            "ONNX inference failed: {}\n\n\
-                             NuNER model: {}\n\
-                             requires_span_tensors={}\n\
-                             input_ids=(1,{seq_len}) attention_mask=(1,{seq_len}) words_mask=(1,{seq_len}) text_lengths=(1,1)\n\n\
-                             Hint: If this looks like an input-name mismatch, your ONNX export may expect span tensors or different input names.",
-                            e,
-                            self.model_id,
-                            self.requires_span_tensors.load(Ordering::Relaxed),
-                        )));
-                    }
-                }
-            }
+                ])
+                .map_err(|e| {
+                    Error::Inference(format!("NuNER inference ({}): {e}", self.model_id))
+                })?
         };
 
         // Decode span-level output to entities
@@ -370,88 +364,29 @@ impl NuNER {
     /// Matches Python GLiNER's prepare_span_idx function:
     /// `span_idx = [(i, i + j) for i in range(num_tokens) for j in range(max_width)]`
     ///
-    /// With MAX_SPAN_WIDTH=1, generates single-word spans only: (0,0), (1,1), etc.
-    /// Span indices use INCLUSIVE end positions (matching Python GLiNER).
-    ///
-    /// Returns: (span_idx, span_mask)
-    /// - span_idx: [num_spans, 2] - (start, end) word indices (both 0-indexed, inclusive)
-    /// - span_mask: [num_spans] - boolean mask indicating valid spans
     #[cfg(feature = "onnx")]
-    pub(crate) fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        // Use checked_mul to prevent overflow (same as gliner_multitask/onnx.rs)
-        let num_spans = match num_words.checked_mul(MAX_SPAN_WIDTH) {
-            Some(v) => v,
-            None => {
-                // Overflow - return empty tensors (shouldn't happen in practice)
-                log::warn!(
-                    "Span count overflow: {} words * {} MAX_SPAN_WIDTH, returning empty tensors",
-                    num_words,
-                    MAX_SPAN_WIDTH
-                );
-                return (Vec::new(), Vec::new());
-            }
-        };
-        // Check for overflow in num_spans * 2
-        let span_idx_len = match num_spans.checked_mul(2) {
-            Some(v) => v,
-            None => {
-                log::warn!(
-                    "Span idx length overflow: {} spans * 2, returning empty tensors",
-                    num_spans
-                );
-                return (Vec::new(), Vec::new());
-            }
-        };
-        let mut span_idx: Vec<i64> = vec![0; span_idx_len];
-        let mut span_mask: Vec<bool> = vec![false; num_spans];
-
-        for start in 0..num_words {
-            let remaining_width = num_words - start;
-            let actual_max_width = MAX_SPAN_WIDTH.min(remaining_width);
-
-            for width in 0..actual_max_width {
-                // Check for overflow in dim calculation
-                let dim = match start.checked_mul(MAX_SPAN_WIDTH) {
-                    Some(v) => match v.checked_add(width) {
-                        Some(d) => d,
-                        None => {
-                            log::warn!(
-                                "Dim calculation overflow: {} * {} + {}, skipping span",
-                                start,
-                                MAX_SPAN_WIDTH,
-                                width
-                            );
-                            continue;
-                        }
-                    },
-                    None => {
-                        log::warn!(
-                            "Dim calculation overflow: {} * {}, skipping span",
-                            start,
-                            MAX_SPAN_WIDTH
-                        );
-                        continue;
-                    }
-                };
-                // Check bounds before array access (dim * 2 could overflow or exceed span_idx_len)
-                if let Some(dim2) = dim.checked_mul(2) {
-                    if dim2 + 1 < span_idx_len && dim < num_spans {
-                        span_idx[dim2] = start as i64; // start offset (0-indexed, inclusive)
-                        span_idx[dim2 + 1] = (start + width) as i64; // end offset (0-indexed, INCLUSIVE per Python GLiNER)
-                        span_mask[dim] = true;
-                    } else {
-                        log::warn!(
-                            "Span idx access out of bounds: dim={}, dim*2={}, span_idx_len={}, num_spans={}, skipping",
-                            dim, dim2, span_idx_len, num_spans
-                        );
-                    }
+    fn make_span_tensors(words: usize, width: usize) -> Result<(Vec<i64>, Vec<bool>)> {
+        let size = words
+            .checked_mul(width)
+            .ok_or_else(|| Error::InvalidInput("NuNER span grid overflow".into()))?;
+        let mut indices = Vec::with_capacity(
+            size.checked_mul(2)
+                .ok_or_else(|| Error::InvalidInput("NuNER span index overflow".into()))?,
+        );
+        let mut mask = Vec::with_capacity(size);
+        for start in 0..words {
+            for offset in 0..width {
+                let end = start + offset;
+                let valid = end < words;
+                indices.extend(if valid {
+                    [start as i64, end as i64]
                 } else {
-                    log::warn!("Dim * 2 overflow: dim={}, skipping span", dim);
-                }
+                    [0, 0]
+                });
+                mask.push(valid);
             }
         }
-
-        (span_idx, span_mask)
+        Ok((indices, mask))
     }
 
     /// Encode prompt for token mode (no span tensors).
@@ -468,16 +403,19 @@ impl NuNER {
         let mut word_mask: Vec<i64> = Vec::with_capacity(128);
 
         // [START]
-        input_ids.push(TOKEN_START as i64);
+        let special = tokenizer
+            .encode("", true)
+            .map_err(|e| Error::Parse(format!("Tokenizer error: {e}")))?;
+        input_ids.push(special.get_ids().first().copied().unwrap_or(TOKEN_START) as i64);
         word_mask.push(0);
 
         // <<ENT>> type1 <<ENT>> type2 ...
         for entity_type in entity_types {
-            input_ids.push(TOKEN_ENT as i64);
+            input_ids.push(tokenizer.token_to_id("<<ENT>>").unwrap_or(TOKEN_ENT) as i64);
             word_mask.push(0);
 
             let encoding = tokenizer
-                .encode(entity_type.to_string(), false)
+                .encode(entity_type.to_lowercase(), false)
                 .map_err(|e| Error::Parse(format!("Tokenizer error: {}", e)))?;
             for token_id in encoding.get_ids() {
                 input_ids.push(*token_id as i64);
@@ -486,7 +424,7 @@ impl NuNER {
         }
 
         // <<SEP>>
-        input_ids.push(TOKEN_SEP as i64);
+        input_ids.push(tokenizer.token_to_id("<<SEP>>").unwrap_or(TOKEN_SEP) as i64);
         word_mask.push(0);
 
         // Text words (word_mask starts from 1)
@@ -504,7 +442,7 @@ impl NuNER {
         }
 
         // [END]
-        input_ids.push(TOKEN_END as i64);
+        input_ids.push(special.get_ids().last().copied().unwrap_or(TOKEN_END) as i64);
         word_mask.push(0);
 
         let seq_len = input_ids.len();
@@ -793,6 +731,41 @@ impl NuNER {
 
         // Word positions are byte offsets; `Entity` requires character offsets.
         let span_converter = crate::offset::SpanConverter::new(text);
+
+        if max_width != self.span_width || num_classes != entity_types.len() {
+            return Err(Error::Inference(format!(
+                "NuNER output {shape:?} disagrees with configured width {} and {} requested labels",
+                self.span_width,
+                entity_types.len()
+            )));
+        }
+        if max_width > 1 {
+            use crate::backends::chunking::{deduplicate_overlapping, OverlapStrategy};
+            let spans = crate::backends::inference::decode_span_logits_4d(
+                &[1, num_words, max_width, num_classes],
+                &output_data,
+                text_words.len(),
+                num_classes,
+                threshold,
+            );
+            let mut entities = spans
+                .into_iter()
+                .filter_map(|span| {
+                    self.create_entity(
+                        text,
+                        &span_converter,
+                        &word_positions,
+                        span.start_word,
+                        span.end_word + 1,
+                        span.class_idx,
+                        span.score,
+                        entity_types,
+                    )
+                })
+                .collect();
+            deduplicate_overlapping(&mut entities, OverlapStrategy::KeepHighestConfidence);
+            return Ok(entities);
+        }
 
         let mut entities = Vec::with_capacity(16);
         let mut current_entity: Option<(usize, usize, usize, f32)> = None; // (start_word, end_word, type_idx, score)

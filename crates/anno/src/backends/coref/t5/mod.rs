@@ -12,8 +12,8 @@
 //! The model learns to assign cluster IDs to mentions, enabling coreference
 //! without explicit pairwise classification.
 //!
-//! **Status**: `T5Coref` loads ONNX artifacts, but `resolve()` currently uses a lightweight
-//! heuristic fallback (it does not yet run a full encoder/decoder loop).
+//! `resolve` tries the encoder and greedy decoder, then uses a heuristic on empty
+//! output or inference failure. Use `resolve_neural` to evaluate the model alone.
 //!
 //! # Architecture
 //!
@@ -61,8 +61,7 @@
 //! ```rust,ignore
 //! use anno::backends::coref::t5::{T5Coref, T5CorefConfig};
 //!
-//! let coref = T5Coref::from_path("path/to/t5_coref_onnx", T5CorefConfig::default())?
-//!     .with_heuristic_fallback();
+//! let coref = T5Coref::from_path("path/to/t5_coref_onnx", T5CorefConfig::default())?;
 //!
 //! let text = "Sophie Wilson designed the ARM processor. She changed computing.";
 //! let clusters = coref.resolve(text)?;
@@ -135,8 +134,8 @@ impl Default for T5CorefConfig {
 ///
 /// # Note
 ///
-/// Currently uses a simplified rule-based fallback. Full seq2seq inference
-/// is planned for a future release when encoder-decoder ONNX support matures.
+/// `resolve` can use a rule-based fallback. `resolve_neural` returns the
+/// encoder-decoder output directly.
 pub struct T5Coref {
     /// Encoder ONNX session.
     encoder: std::sync::Mutex<Session>,
@@ -271,6 +270,17 @@ impl T5Coref {
                 self.resolve_simple(text)
             }
         }
+    }
+
+    /// Resolve with the ONNX model, retaining empty predictions and propagating
+    /// inference and grounding errors. Use when measuring model-only quality.
+    pub fn resolve_neural(&self, text: &str) -> Result<Vec<CorefCluster>> {
+        if text.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.resolve_t5(text).map_err(|error| match error {
+            T5ResolutionFailure::Alignment(error) | T5ResolutionFailure::Inference(error) => error,
+        })
     }
 
     // -------------------------------------------------------------------------

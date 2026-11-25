@@ -39,14 +39,14 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 | `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `gliner2_fastino` | Fastino GLiNER2, eight-graph ONNX pipeline | Yes | experimental | `jugaadsrl/gliner2-multi-v1-onnx` at `4241d7c66b648e618c89c150bf4cf418d2f83159` |
-| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
+| `nuner` | Label-conditioned word or span scoring | Yes | stable | `deepanwa/NuNerZero_onnx` (export of `numind/NuNER_Zero`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
-| `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- (no public pre-trained weights; runs a heuristic fallback unless you supply a checkpoint to `export_tplinker_onnx.py`) |
+| `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | Local three-head checkpoint; runtime uses a heuristic when no ONNX graph is present |
 | `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | WIP | `knowledgator/gliner-bi-large-v1.0` (also: `gliner-bi-small-v1.0`, `modern-gliner-bi-large-v1.0`, `modern-gliner-bi-base-v1.0`; the `gliner-poly-*-v1.0` repos are model cards only with no weights) |
 | `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
-| `gliner_relex` | GLiNER-RelEx NER from a local entity-logit export | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
+| `gliner_relex` | Span NER and directed pair scoring from a local joint export | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
 
@@ -56,6 +56,53 @@ resolves to `anno::GLiNEROnnx`; under `--features candle` only (no
 want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
 or `gliner_candle` explicitly to force one backend and fail at
 construction time if its feature isn't enabled.
+
+#### Selecting NER checkpoints
+
+`anno extract --model bert-onnx` accepts `BERT_ONNX_MODEL_PATH` as a local
+ONNX export directory or a Hub model ID. For fixed CoNLL labels, available
+exports include `protectai/bert-large-NER-onnx` and
+`onnx-community/modernbert-ner-conll2003-ONNX`. For a reproducible run,
+pass a downloaded revision's directory. JSON and JSONL extraction provenance
+records the explicit path or Hub ID in `checkpoint`; file contents can
+change independently of that selector. The loader reads `tokenizer.json`
+and the BIO label mapping in `config.json`.
+
+`anno extract --model nuner` accepts `NUNER_MODEL_PATH` with either input
+form, including when `--extract-types` supplies the labels. NuNER Zero
+merges adjacent width-one predictions of the same type. The export
+`onnx-community/NuNER_Zero-span` uses a trained 12-word span head and
+scores multiword candidates directly. Include `gliner_config.json` with
+local exports so the loader constructs the trained grid width.
+
+```sh
+NUNER_MODEL_PATH=onnx-community/NuNER_Zero-span anno extract --model nuner \
+    --extract-types person,location 'Marie Curie worked in Paris.'
+BERT_ONNX_MODEL_PATH=onnx-community/modernbert-ner-conll2003-ONNX \
+    anno extract --model bert-onnx 'Marie Curie worked in Paris.'
+```
+
+The NuNER Zero-4k source checkpoint uses Longformer. The GLiNER 0.2.30
+export ran inference but disagreed with PyTorch: on “Marie Curie worked in
+Paris.” PyTorch scored “Paris” as a location at 0.968, while ONNX scored
+it at 0.137. The exporter rejects this conversion. The pinned PyTorch
+adapter emits half-open character offsets and merges adjacent same-label
+words according to the checkpoint convention. Merged predictions omit
+confidence because the checkpoint only scores individual words.
+
+```sh
+uv run scripts/nuner_4k_import.py letter.txt person location > mentions.jsonl
+anno dataset import --format jsonl --input mentions.jsonl --source-text letter.txt --output imported.jsonl
+```
+
+For a compact two-encoder alternative, run the following with the `onnx` feature:
+
+```sh
+uv run scripts/export_gliner_poly_onnx.py --model knowledgator/gliner-bi-edge-v2.0 \
+    --strategy manual --output /tmp/gliner-bi-edge
+GLINER_POLY_MODEL_PATH=/tmp/gliner-bi-edge anno extract --model gliner-poly \
+    --extract-types person,location 'Marie Curie worked in Paris.'
+```
 
 #### Span-width exports (`max_width`)
 
@@ -179,6 +226,42 @@ Results cover the fixed probe input,
 not general model quality or throughput. These are diagnostic options, not
 changes to the library's provider defaults.
 
+### Fastino GLiNER2.5
+
+With the `gliner2-fastino` feature, `anno extract --model gliner25` loads the
+local FP32 multilingual boundary export from `GLINER25_MODEL_DIR`. The
+directory may contain `fp32_25/` or be that directory. Keep ONNX external
+data files beside their graphs. The [reference export](https://huggingface.co/jugaadsrl/gliner2.5-multi-v1-onnx/tree/3de2c11f55853b7919f985a59bfc8df27b5ec991/fp32_25)
+uses first-token pooling, per-label abstention, and flat weighted interval
+selection. The schema prompt and text share the 512-token encoder window.
+Oversized inputs return an error.
+
+```bash
+GLINER25_MODEL_DIR=/models/gliner25 anno extract --model gliner25 \
+  --text 'Éva works for Acme.' --extract-types person,organization
+```
+
+For a typed relation graph, `anno joint` uses the upstream Python
+`gliner2[local]==2.2.0` runtime with a local PyTorch boundary checkpoint.
+The schema uses the upstream JointSchema JSON format, including relation
+endpoint types, optional cardinality limits, symmetry, inverses and acyclicity.
+
+```json
+{"entities":["person","organization"],"relations":{"works_for":{"head":"person","tail":"organization"}}}
+```
+
+```bash
+anno joint --python .venv/bin/python --checkpoint /models/gliner2.5-small-v1 \
+  --schema schema.json --text 'Éva works for Acme.'
+```
+
+Omit `--text` to stream `{"doc_id":"…","text":"…"}` records on stdin. Each
+output preserves the result-local entity IDs, character offsets, directed
+edges, feasibility and any upstream derived-edge or rescued-mention flags.
+A result describes one document within the checkpoint context. Edges refer to
+mention IDs. Projecting mentions onto coreference tracks is a separate operation.
+[Upstream JointIE schema and decoder](https://github.com/fastino-ai/GLiNER2/blob/main/tutorial/15-joint_ie.md)
+
 ### Neural: Fastino GLiNER2 (feature `gliner2-fastino`)
 
 `GLiNER2Fastino` is available behind the `gliner2-fastino` feature. Its
@@ -197,7 +280,7 @@ the Candle backend on an accelerator. The ONNX export runs the attention operati
 a LoRA adapter, this route requires an ONNX export with the adapter merged.
 [Dependency review](https://github.com/arclabs561/anno/pull/168)
 
-GLiNER2.5 Multi is an opt-in Python import path. Fastino's boundary decoder
+The optional GLiNER2.5 Multi Python importer uses Fastino's boundary decoder. It
 extracts caller-supplied labels from one UTF-8 document and writes character
 spans for `anno dataset import --format jsonl`. The example defaults to a
 confidence threshold of 0.50 and accepts `--threshold`.
@@ -341,6 +424,14 @@ MB to multi-GB, pull in CUDA-toolkit deps even on CPU-only hosts, and
 slow startup. Pre-converting once means the production runtime ships
 only `ort` plus the model artifact.
 
+#### Maverick coreference
+
+`anno pipeline --model heuristic --coref --maverick-model CHECKPOINT --format json "Ada arrived. She spoke."` selects Maverick for within-document coreference. `CHECKPOINT` accepts an upstream model ID or the original `weights.ckpt` file. Anno invokes a persistent CPU Python worker. Set `MAVERICK_PYTHON` to its Python executable. The evaluator selects backend `maverick` with `MAVERICK_MODEL_PATH` set to the same checkpoint. The verified CPU environment used Python 3.12, `maverick-coref==1.0.7`, `torch==2.8.0+cpu`, `pytorch-lightning==2.5.0` and `transformers==4.48.3`. The [OntoNotes checkpoint](https://huggingface.co/sapienzanlp/maverick-mes-ontonotes/tree/087a90f0380ec1f20ed19732b657f53fd3542c81) used for verification has `weights.ckpt` SHA-256 `b42053ce171ea904d10d92de5458dce2e8189ef1050e1705e7fced50d2479c1f`. The checkpoint also requires its pretrained encoder and tokenizer in the Hugging Face cache for offline use. The separately installed [upstream package](https://github.com/SapienzaNLP/maverick-coref#license) licenses its software and data under CC BY-NC-SA 4.0. Check the model card for the chosen checkpoint.
+
+The Rust `MaverickCoref::resolve_mentions` API accepts half-open Unicode character spans for clustering-only runs. The worker uses English spaCy tokenization and a sentencizer, sends word-tokenized sentences to the model, and maps its inclusive token predictions back to source character ranges. A supplied span that splits a token raises an error. The pipeline publishes multi-mention tracks. Callers can request singleton predictions through the Rust constructor when using singleton-trained LitBank or PreCo weights.
+
+For T5, `T5Coref::resolve_neural` preserves the ONNX model’s empty predictions and inference errors for evaluation; `resolve` retains its legacy heuristic fallback. [Grenander et al.’s incremental seq2seq method](https://arxiv.org/abs/2510.14504) uses compressed entity histories. An Anno-compatible trained checkpoint and decoding contract for that method have not been verified.
+
 #### Architecture-specific gotchas
 
 A few backends need more than a stock `optimum-cli export onnx`:
@@ -354,7 +445,14 @@ A few backends need more than a stock `optimum-cli export onnx`:
   to write `model.onnx`, `gliner_config.json` and `tokenizer.json` to
   `$HF_HOME/hub/models--knowledgator--gliner-relex-large-v1.0/onnx/`
   (`HF_HOME` defaults to `~/.cache/huggingface`). The sampler offers this
-  model for NER when these files are present.
+  model for NER when these files are present. Pass `--joint` to export the
+  trained relation head alongside the span encoder in the `onnx/joint/`
+  directory. The exporter compares directed edges and scores with upstream
+  Python on multiple texts and schemas before publishing the graph.
+  The CPU parity run used checkpoint revision
+  `4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290`; pass it with `--revision` to reproduce the export.
+  Use `anno extract --model gliner-relex --extract-relations --extract-types "person,organization" --relation-types "works for,founded" --text "Marie Curie worked at the University of Paris."`.
+  Entity-only exports retain their existing NER interface.
 - **GLiNER bi-encoder** (`gliner_poly`): produces **two** ONNX graphs --
   a text encoder and a separate label encoder for the BGE
   sentence-transformer label embeddings.
@@ -363,10 +461,13 @@ A few backends need more than a stock `optimum-cli export onnx`:
   as ONNX and the mention-ranking scorer as safetensors.
 - **W2NER**: the simplified export removes the LSTM head and substitutes
   attention pooling. The runtime expects this simplified form.
-- **TPLinker**: no public HF distribution of trained weights; the
-  script requires a `--checkpoint` argument and otherwise exports with
-  random weights (heuristic-mode fallback covers users who don't have
-  a checkpoint).
+- The TPLinker authors publish model states for their implementations. Anno’s
+  exporter checks the tensor names and shapes of its handshaking kernel and
+  three trained heads. The selected dataset must use the checkpoint’s relation
+  ordering. TPLinkerPlus uses a single classifier and its own tag-to-index
+  mapping, so loading its weights requires a different decoder and exporter.
+  [Author checkpoints](https://github.com/131250208/TPlinker-joint-extraction#super-parameters)
+  · [TPLinkerPlus implementation](https://github.com/131250208/TPlinker-joint-extraction/blob/master/tplinker_plus/tplinker_plus.py)
 
 #### Model-card-only repos
 
@@ -406,11 +507,11 @@ manually for that one backend.
 | `gliner` / `gliner_onnx` | yes | (auto-export on first load if no ONNX cached) | hf-hub cache | `--` |
 | `gliner_multitask` | yes | `--` | hf-hub cache | `--` |
 | `gliner2_fastino` | yes | `--` | hf-hub cache | `--` |
-| `bert_onnx` | yes | `--` | hf-hub cache | `--` |
+| `bert_onnx` | yes | `--` | hf-hub cache | `BERT_ONNX_MODEL_PATH` (CLI) |
 | `gliner_candle` / `candle_ner` | yes | `--` | hf-hub cache | `--` |
 | `gliner_pii` | yes | `--` | hf-hub cache | `--` |
-| `gliner_relex` | local ONNX entity export required | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
-| `nuner` | yes (script needed only for unsupported variants) | `export_nuner_to_onnx.py` (delegates to `export_gliner_poly_onnx.py` for GLiNER-based variants) | hf-hub cache | `--` |
+| `gliner_relex` | local ONNX export; relations require `--joint` | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
+| `nuner` | yes (script needed only for unsupported variants) | `export_nuner_to_onnx.py` (uses GLiNER’s shared-encoder exporter for NuNER Zero variants) | hf-hub cache | `NUNER_MODEL_PATH` (CLI) |
 | `gliner_poly` | no | `export_gliner_poly_onnx.py` | `~/.cache/anno/models/gliner-poly/` | (cache probe) |
 | `glirel` | no | `export_glirel_onnx.py` | `~/.cache/anno/models/glirel/` | (cache probe) |
 | `deberta_v3` | no | `export_deberta_ner_to_onnx.py` | `~/.cache/huggingface/hub/models--deberta-v3-ner/onnx/` | `DEBERTA_MODEL_PATH` |
@@ -483,13 +584,13 @@ Some models only distribute PyTorch weights. Export scripts in `scripts/` conver
 | Script | Target model | Notes |
 |--------|-------------|-------|
 | `export_gliner_poly_onnx.py` | GLiNER bi-encoder (v1/v2) | Dual strategy: library export, then manual fallback. Produces `model.onnx` + `label_encoder.onnx` |
-| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Delegates GLiNER variants to `export_gliner_poly_onnx.py` |
+| `export_nuner_to_onnx.py` | NuNER Zero / Zero-span | Exports fixed-label token classifiers through Optimum and NuNER Zero variants through GLiNER |
 | `export_deberta_ner_to_onnx.py` | DeBERTa-v3 NER | Standard token classifier export |
 | `export_biomedical_ner_to_onnx.py` | d4data/biomedical-ner-all | Uses Optimum; optional INT8 quantization |
 | `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |
 | `export_tplinker_onnx.py` | TPLinker | Joint entity-relation extraction |
 | `export_glirel_onnx.py` | GLiREL | Relation extraction; falls back to PyTorch weights if ONNX export fails |
-| `export_gliner_relex_onnx.py` | GLiNER-RelEx | Exports entity logits for native NER. The native relation evaluator requires a relation extractor such as `gliner_multitask` or `tplinker` |
+| `export_gliner_relex_onnx.py` | GLiNER-RelEx | Exports entity logits or a trained joint graph with `--joint` |
 | `export_fcoref.py` | f-coref | Splits encoder (ONNX) from scorer heads (safetensors) |
 
 GLiNER ONNX backends (`gliner_onnx`) auto-export on first load if no ONNX file is cached. The auto-export calls `export_gliner_poly_onnx.py` via `uv run` or `python3`.

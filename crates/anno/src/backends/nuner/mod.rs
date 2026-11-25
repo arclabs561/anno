@@ -1,55 +1,15 @@
 //! NuNER - Token-based zero-shot NER from NuMind.
 //!
-//! NuNER is a family of zero-shot NER models built on the GLiNER architecture
-//! with a token classifier design (vs span classifier). Key advantages:
+//! The Zero and Zero-4k checkpoints score each prompted type at each word;
+//! adjacent words with the same accepted type form an entity. Zero-span
+//! scores each type on a grid of contiguous word spans. The exported
+//! `gliner_config.json` records the width of that grid.
 //!
-//! - **Arbitrary-length entities**: No hard limit on entity span length
-//! - **Efficient training**: Trained on NuNER v2.0 dataset (Pile + C4)
-//! - **MIT Licensed**: Open weights from NuMind
-//!
-//! # Architecture
-//!
-//! NuNER uses the same bi-encoder architecture as GLiNER but with token classification:
-//!
-//! ```text
-//! Input: "James Bond works at MI6"
-//!        Labels: ["person", "organization"]
-//!
-//!        ┌──────────────────────┐
-//!        │   Shared Encoder     │
-//!        │  (DeBERTa/BERT)      │
-//!        └──────────────────────┘
-//!               │         │
-//!        ┌──────┴──┐   ┌──┴─────┐
-//!        │  Token  │   │ Label  │
-//!        │  Embeds │   │ Embeds │
-//!        └─────────┘   └────────┘
-//!               │         │
-//!        ┌──────┴─────────┴──────┐
-//!        │   Token Classification │  (BIO tags per token)
-//!        └───────────────────────┘
-//!               │
-//!               ▼
-//!        B-PER I-PER  O    O   B-ORG
-//!        James Bond works at  MI6
-//! ```
-//!
-//! # Differences from GLiNER (Span Mode)
-//!
-//! | Aspect | GLiNER (Span) | NuNER (Token) |
-//! |--------|---------------|---------------|
-//! | Output | Span classification | Token classification (BIO) |
-//! | Entity length | Limited by span window (12) | Arbitrary |
-//! | ONNX inputs | 6 tensors (incl span_idx) | 4 tensors (no span tensors) |
-//! | Decoding | Span scores → entities | BIO tags → entities |
-//!
-//! # Model Variants
-//!
-//! | Model | Context | Notes |
-//! |-------|---------|-------|
-//! | `numind/NuNER_Zero` | 512 | General zero-shot |
-//! | `numind/NuNER_Zero-4k` | 4096 | Long context variant |
-//! | `deepanwa/NuNerZero_onnx` | 512 | Pre-converted ONNX |
+//! | Upstream checkpoint | Encoder | Span width |
+//! |---|---|---|
+//! | `numind/NuNER_Zero` | DeBERTa-v3-large | 1 |
+//! | `numind/NuNER_Zero-4k` | Longformer-large-4096 | 1 |
+//! | `numind/NuNER_Zero-span` | DeBERTa-v3-large | 12 |
 //!
 //! # Usage
 //!
@@ -88,22 +48,15 @@ const TOKEN_ENT: u32 = 128002;
 #[cfg(feature = "onnx")]
 const TOKEN_SEP: u32 = 128003;
 
-/// Maximum span width for span-based inference.
-/// NuNER uses max_width=1 (single-word spans only) per its gliner_config.json.
-/// This matches the Python GLiNER implementation's prepare_span_idx function.
-#[cfg(feature = "onnx")]
-const MAX_SPAN_WIDTH: usize = 1;
-
 /// NuNER Zero-shot NER model.
 ///
-/// Token-based variant of GLiNER that uses BIO tagging instead of span classification.
-/// This enables arbitrary-length entity extraction without the span window limitation.
+/// Runs label-conditioned word or span scoring from a NuNER Zero ONNX export.
 ///
 /// # Model Variants
 ///
-/// - `NuNER::new()` / `NuNER::from_pretrained("numind/NuNER_Zero")` -- 512-token context,
+/// - `NuNER::new()` / `NuNER::from_pretrained("deepanwa/NuNerZero_onnx")` -- 512-token context,
 ///   chunks at ~2000 chars.
-/// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero-4k")` -- 4096-token
+/// - `NuNER::new_4k()` / `NuNER::from_pretrained("/path/to/exported-4k")` -- 4096-token
 ///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.
 ///
 /// `from_pretrained` auto-detects the 4k variant from the model ID and sets the chunk
@@ -112,7 +65,7 @@ const MAX_SPAN_WIDTH: usize = 1;
 /// # Feature Requirements
 ///
 /// Requires the `onnx` feature for actual inference. Without it, configuration
-/// methods work but extraction returns empty results.
+/// methods work and inference returns a feature-unavailable error.
 ///
 /// # Example
 ///
@@ -133,7 +86,9 @@ pub struct NuNER {
     threshold: f64,
     /// Whether model requires span tensors (detected on load)
     #[cfg(feature = "onnx")]
-    requires_span_tensors: std::sync::atomic::AtomicBool,
+    requires_span_tensors: bool,
+    #[cfg(feature = "onnx")]
+    span_width: usize,
     /// Default entity labels for Model trait
     default_labels: Vec<String>,
     /// Max input chars before chunking. 512-token models use ~2000,

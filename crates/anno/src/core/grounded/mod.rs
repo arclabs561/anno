@@ -106,6 +106,9 @@ pub use kb_assignment::{
 mod projection;
 pub use projection::EntityProjectionError;
 
+mod relation;
+pub use relation::{GroundedRelation, RelationEndpoint, RelationProjectionError};
+
 use super::confidence::Confidence;
 #[cfg(test)]
 use super::entity::EntityType;
@@ -349,6 +352,9 @@ pub struct Signal<L = Location> {
     ///
     /// Stored as a `TypeLabel` to support both core taxonomy types and domain-specific labels.
     pub label: super::types::TypeLabel,
+    /// Linguistic form supplied by the producer, such as a name or pronoun.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mention_type: Option<super::types::MentionType>,
     /// Detection confidence in [0, 1]
     pub confidence: Confidence,
     /// Hierarchical confidence if available (linkage/type/boundary)
@@ -429,6 +435,7 @@ impl<L> Signal<L> {
             location,
             surface,
             label,
+            mention_type: None,
             confidence,
             hierarchical: None,
             provenance: None,
@@ -714,7 +721,7 @@ impl std::error::Error for SignalValidationError {}
 
 /// Convert an [`Entity`] to a [`Signal<Location>`].
 ///
-/// Preserves text segments, normalization, provenance and hierarchical confidence.
+/// Preserves text segments, linguistic mention type, normalization, provenance and hierarchical confidence.
 impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
         let mut signal = Signal::with_score(
@@ -729,6 +736,7 @@ impl From<&Entity> for Signal<Location> {
             e.entity_type.clone().into(),
             e.confidence,
         );
+        signal.mention_type = e.mention_type;
         signal.normalized = e.normalized.clone();
         signal.provenance = e.provenance.clone();
         signal.hierarchical = e.hierarchical_confidence;
@@ -2130,7 +2138,7 @@ impl GroundedDocument {
     ///
     /// The track ID becomes the entity's document-local canonical ID, including for
     /// singleton tracks. Each member of a linked track receives the same KB ID.
-    /// Mention type is absent. Each entity retains its signal’s label and category.
+    /// Each entity retains its signal’s label, category, and optional linguistic mention type.
     #[must_use]
     pub fn to_entities(&self) -> Vec<Entity> {
         self.signals
@@ -2148,6 +2156,7 @@ impl GroundedDocument {
                         end,
                         signal.confidence,
                     );
+                    entity.mention_type = signal.mention_type;
                     entity.normalized = signal.normalized.clone();
                     entity.provenance = signal.provenance.clone();
                     entity.kb_id = identity.and_then(|i| i.kb_id.clone());
@@ -2166,7 +2175,7 @@ impl GroundedDocument {
 
     /// Create a document with detection signals from extracted entities.
     ///
-    /// This preserves entity locations, normalized values, provenance, and hierarchical
+    /// This preserves entity locations, mention types, normalized values, provenance, and hierarchical
     /// confidence without creating tracks or identities. Use this when a later pipeline stage
     /// owns coreference and linking decisions.
     #[must_use]
@@ -2611,12 +2620,25 @@ impl GroundedDocument {
         &mut self,
         signals: Vec<Signal<Location>>,
     ) -> Vec<SignalValidationError> {
+        self.add_signals_validated_indexed(signals)
+            .into_iter()
+            .map(|(_, error)| error)
+            .collect()
+    }
+
+    /// Add valid signals in input order and identify rejected input positions.
+    /// Use the positions to remap outputs such as relation endpoints, whose
+    /// indices address the input batch before document signal IDs are assigned.
+    pub fn add_signals_validated_indexed(
+        &mut self,
+        signals: Vec<Signal<Location>>,
+    ) -> Vec<(usize, SignalValidationError)> {
         let offsets =
             (signals.len() > 1).then(|| crate::offset::build_char_to_byte_map(&self.text));
         let mut errors = Vec::new();
-        for signal in signals {
+        for (index, signal) in signals.into_iter().enumerate() {
             if let Some(error) = signal.validate_with_offsets(&self.text, offsets.as_deref()) {
-                errors.push(error);
+                errors.push((index, error));
             } else {
                 self.add_signal(signal);
             }

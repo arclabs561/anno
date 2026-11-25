@@ -46,6 +46,37 @@ Open the printed output directory. Read `panel-summary.md` for per-cell outcomes
 
 To challenge a result in your current session, give a reviewer the contract and an input cleared for that reviewer. Freeze the expected answer before showing the candidate output. Use `just qa-oracle --help` for harness, headless Codex and direct OpenRouter dispatch. When another person or session needs context, `just qa-round "$OUT" "Does punctuation change organization boundaries?"` renders a brief from the saved receipt. [Adversarial QA](ADVERSARIAL_QA.md) · [Domain fixtures and source terms](DOMAIN_QA.md)
 
+## Score document-level relations
+
+The [document-level relation scorer](../crates/anno-eval/examples/docred/score.py) reads two DocRED-format arrays with the same documents and sentence tokens. Each endpoint indexes a document-local vertex containing one or more mention spans. For raw-text extraction, pass model-produced vertices and relations with `--endpoints predicted`. For a classifier given the gold vertices, use `--endpoints supplied`. The scorer checks the complete supplied inventory. Both modes score directed edges and preserve the original document boundary.
+
+```sh
+python3 crates/anno-eval/examples/docred/score.py dev.json predictions.json --endpoints predicted
+```
+
+This diagnostic requires exact endpoint mention sets. Types are ignored by default. Pass `--require-entity-type` to also require each endpoint's entity type, using its first mention as in the upstream JEREX loader. Vertex order is immaterial for uniquely identifiable sets. Two distinct Re-DocRED vertices in “Cambodia–Vietnam Friendship Monument” share a mention set. Predicted mode reports the number of ambiguous edges, a lower bound using unambiguous matches, and an upper bound allowing each ambiguous edge its own matching endpoint assignment. Supplied mode preserves ambiguous vertices by their original IDs. Scoring the revised development gold against itself yielded 17,284 matched edges in 500 documents with supplied vertices and 17,266 confirmed plus 18 ambiguous with independently aligned vertices. [Re-DocRED development annotations](https://github.com/tonytan48/Re-DocRED/blob/main/data/dev_revised.json)
+
+For DWIE, use one directory of gold documents and one of predictions, with exact article `content` in both. The adapter verifies each half-open character range against its mention text. Its ordinary scores cover relations between anchored concepts. It separately counts relations involving concepts with no mentions. With supplied concept IDs it also scores the full inventory. The DWIE authors’ official scorer offers additional entity-centric and graded metrics. [Corpus and scorer](https://github.com/klimzaporojets/DWIE)
+
+```sh
+python3 crates/anno-eval/examples/docred/score_dwie.py gold/ predicted/ --endpoints predicted
+```
+
+The native mention-span evaluator reports strict and boundary scores separately for documents with predicted endpoints and those scored by heuristics over gold endpoints. The JSON metric `gold_label_prompt_docs` counts documents whose extractor received the reference entity and relation label vocabulary. Predicted spans in these documents are still conditioned on knowing which labels appear.
+
+### Run the JEREX joint checkpoint
+
+The [CPU inference adapter](../crates/anno-eval/examples/docred/predict_jerex.py) runs the upstream joint model on a local DocRED array. It drops gold vertices and labels before inference. The [JEREX prediction reader](../crates/anno-eval/examples/docred/score_jerex.py) accepts the upstream joint writer's `predictions.json`. The upstream writer omits document IDs, so the reader requires the original document order, verifies every source token, and converts sentence-local gold offsets onto JEREX's document token axis. The CPU adapter adds a title to each prediction, which permits disambiguation when two documents have identical token sequences. Pass `--require-entity-type` to include the endpoint classifications in the relation score.
+
+The verified replay used the [JEREX checkout](https://github.com/lavis-nlp/jerex/tree/85851dfcbb485d9bfa2bf662b8073e826c760d7f), the five files from the [authors’ joint checkpoint directory](https://lavis.cs.hs-rm.de/storage/jerex/public/models/docred_joint/joint_multi_instance/), and the [authors’ end-to-end test split](https://lavis.cs.hs-rm.de/storage/jerex/public/datasets/docred_joint/test_joint.json). The checkpoint SHA-256 is `55bf677bcdfa66973a4e22859051327dd63bfd7a249e5b3e34cd08b95681d4c2`. Use Python 3.12 with torch 2.8 CPU, transformers 4.48.3, scikit-learn 1.3.2, NumPy 1.26.4, hydra-core, tqdm and Jinja2. Set `PYTHONPATH` to the upstream checkout.
+
+```sh
+python3 crates/anno-eval/examples/docred/predict_jerex.py ./joint_multi_instance ./documents.json ./predictions.json
+python3 crates/anno-eval/examples/docred/score_jerex.py ./documents.json ./predictions.json
+```
+
+On “Jeff Prosserman”, the first document of the authors’ 700-document split, this CPU replay recovered all 31 mention clusters, assigned 30 correct entity types, and matched seven of nine gold relations from 14 predictions. The upstream scorer also returned 60.87% micro-F1 on this document.
+
 ## Score a LitBank book or cohort
 
 The registry selector `LitBank` downloads one pinned *Bleak House* excerpt. Its score describes one book. The upstream collection has 100 excerpts. For a cohort, record the upstream revision and the selected filenames, then call `CorefLoader::load_litbank_from_path` once per `coref/brat/*_brat.ann`. Keep each same-stem `.txt` beside its annotations. The loader returns the exact source and document-local gold chains, including singletons. Report the number of books, mentions and gold links with the result. [LitBank corpus and license](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8)

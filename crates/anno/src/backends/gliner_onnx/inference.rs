@@ -17,6 +17,28 @@ impl RelexEntityExport {
     fn find(cache: &hf_hub::Cache, prefer_quantized: bool) -> Option<Self> {
         let repo = hf_hub::Repo::model(crate::models::GLINER_RELEX.into());
         let exported = cache.path().join(repo.folder_name()).join("onnx");
+        let installed = exported.join("joint");
+        let joint = std::fs::read_to_string(installed.join("current"))
+            .ok()
+            .filter(|generation| {
+                generation.len() == 64 && generation.bytes().all(|b| b.is_ascii_hexdigit())
+            })
+            .map_or_else(
+                || installed.clone(),
+                |generation| installed.join(generation),
+            );
+        if joint.join("joint-relex-v1").is_file()
+            && ["model.onnx", "gliner_config.json", "tokenizer.json"]
+                .iter()
+                .all(|name| joint.join(name).is_file())
+        {
+            return Some(Self {
+                graph: joint.join("model.onnx"),
+                quantized: false,
+                config: joint.join("gliner_config.json"),
+                tokenizer: joint.join("tokenizer.json"),
+            });
+        }
         // The standalone exporter keeps the three files together. Also support
         // existing HF snapshots with a graph at the root or under onnx/.
         let snapshot = cache
@@ -60,6 +82,17 @@ impl GLiNEROnnx {
             GLiNERConfig::default().prefer_quantized,
         )
         .is_some()
+    }
+
+    /// Whether the selected export was validated by the joint Relex exporter.
+    pub fn relex_joint_export_available() -> bool {
+        RelexEntityExport::find(&hf_hub::Cache::from_env(), true)
+            .is_some_and(|export| export.graph.with_file_name("joint-relex-v1").is_file())
+    }
+
+    /// Whether the loaded graph can score directed relations.
+    pub fn supports_relex_relations(&self) -> bool {
+        self.joint_relex
     }
 
     /// Create a new GLiNER model from HuggingFace with default config.
@@ -263,7 +296,21 @@ impl GLiNEROnnx {
                 (None, None, None, None)
             };
 
+        let joint_relex = model_name == crate::models::GLINER_RELEX
+            && session
+                .inputs()
+                .iter()
+                .any(|input| input.name() == "relation_positions")
+            && ["logits", "pair_slots", "relation_scores"]
+                .iter()
+                .all(|name| {
+                    session
+                        .outputs()
+                        .iter()
+                        .any(|output| output.name() == *name)
+                });
         Ok(Self {
+            joint_relex,
             session: Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             model_name: model_name.to_string(),
@@ -665,6 +712,11 @@ impl GLiNEROnnx {
             return Ok(vec![]);
         }
 
+        if self.joint_relex {
+            return Ok(self
+                .extract_joint(text, entity_types, &[], threshold)?
+                .entities);
+        }
         // Split text into words (this implementation uses whitespace splitting)
         let text_words: Vec<&str> = text.split_whitespace().collect();
         let num_text_words = text_words.len();
@@ -955,7 +1007,7 @@ impl GLiNEROnnx {
     ///
     /// Shape: [num_words * max_width, 2] for span_idx
     /// Shape: [num_words * max_width] for span_mask
-    fn make_span_tensors(&self, num_words: usize) -> (Vec<i64>, Vec<bool>) {
+    pub(super) fn make_span_tensors(&self, num_words: usize) -> (Vec<i64>, Vec<bool>) {
         // Use checked_mul to prevent overflow (same pattern as gliner_multitask/onnx.rs)
         let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH).unwrap_or_else(|| {
             log::warn!(
@@ -1228,7 +1280,7 @@ impl GLiNEROnnx {
     }
 
     /// Map entity type string to EntityType enum.
-    fn map_entity_type(type_str: &str) -> EntityType {
+    pub(super) fn map_entity_type(type_str: &str) -> EntityType {
         match type_str.to_lowercase().as_str() {
             "person" | "per" => EntityType::Person,
             "organization" | "org" | "company" => EntityType::Organization,
@@ -1742,5 +1794,27 @@ mod relex_export_tests {
         let files = RelexEntityExport::find(&cache, false).unwrap();
         assert_eq!(files.graph, standalone.join("model.onnx"));
         assert!(!files.quantized);
+
+        let installed = standalone.join("joint");
+        let digest = "a".repeat(64);
+        let joint = installed.join(&digest);
+        fs::create_dir_all(&joint).unwrap();
+        for name in [
+            "model.onnx",
+            "gliner_config.json",
+            "tokenizer.json",
+            "joint-relex-v1",
+        ] {
+            fs::write(joint.join(name), []).unwrap();
+        }
+        // Staged generations do not take precedence until fully published.
+        assert_eq!(
+            RelexEntityExport::find(&cache, true).unwrap().graph,
+            standalone.join("model_quantized.onnx")
+        );
+        fs::write(installed.join("current"), digest).unwrap();
+        let files = RelexEntityExport::find(&cache, true).unwrap();
+        assert_eq!(files.graph, joint.join("model.onnx"));
+        assert_eq!(files.tokenizer, joint.join("tokenizer.json"));
     }
 }

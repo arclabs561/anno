@@ -47,6 +47,9 @@ pub enum BackendName {
     /// Fastino GLiNER2 zero-shot NER via a pinned ONNX snapshot.
     #[cfg(feature = "gliner2-fastino")]
     GLiNER2Fastino,
+    /// GLiNER2.5 boundary NER from a local FP32 export.
+    #[cfg(feature = "gliner2-fastino")]
+    GLiNER25,
     /// GLiNER with polynomial attention via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERPoly,
@@ -102,6 +105,8 @@ impl BackendName {
             BackendName::GLiNERMultitask => "gliner_multitask",
             #[cfg(feature = "gliner2-fastino")]
             BackendName::GLiNER2Fastino => "gliner2_fastino",
+            #[cfg(feature = "gliner2-fastino")]
+            BackendName::GLiNER25 => "gliner25",
             #[cfg(feature = "onnx")]
             BackendName::GLiNERPoly => "gliner_poly",
             #[cfg(feature = "onnx")]
@@ -142,6 +147,8 @@ impl BackendName {
             "w2ner" => Some(BackendName::W2NER),
             #[cfg(feature = "onnx")]
             "gliner_multitask" | "gliner_multitask_onnx" => Some(BackendName::GLiNERMultitask),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => Some(BackendName::GLiNER25),
             #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
                 Some(BackendName::GLiNER2Fastino)

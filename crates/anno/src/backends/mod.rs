@@ -354,6 +354,9 @@ pub mod gliner_multitask;
 #[cfg(feature = "gliner2-fastino")]
 pub mod gliner2_fastino;
 
+#[cfg(feature = "gliner2-fastino")]
+pub mod gliner25;
+
 // French heuristic NER backend — org suffixes, addresses, dates, intl IBANs.
 #[cfg(feature = "heuristic-fr")]
 pub mod heuristic_fr;
@@ -434,7 +437,7 @@ pub use onnx::BertNERConfig;
 pub use crate::CoreferenceResolver;
 
 // Unified coref backend trait
-pub use coref::resolve::CorefBackend;
+pub use coref::{CorefBackend, MaverickCoref};
 
 // Classical HMM NER (zero deps)
 pub use hmm::{HmmConfig, HmmNER};

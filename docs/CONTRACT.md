@@ -47,14 +47,26 @@ first-seen order. The first populated KB ID in each group becomes its link.
 `to_entities()` gives every member the track ID and the shared KB link.
 
 Use `GroundedDocument::try_from_entities` to detect conflicting populated KB IDs,
-mention types, visual spans, and flat offsets that would change when reconstructed
-from discontinuous segments.
+zero mentions without a nonempty source span, visual spans, and flat offsets that would change when
+reconstructed from discontinuous segments. Each signal preserves its producer’s
+linguistic mention type across grouping and JSON. A name and a pronoun can share
+a track while retaining different mention types. Older documents omit
+`mention_type` and read as an unspecified form. An explicit `"unknown"` survives
+the round trip.
 Errors identify the original input indices. A populated link and a missing link
 in the same group are compatible. Both constructors use the same grouping and
 preserve the detection confidence and explicit custom entity categories. Entity
 types and grounded labels normally serialize as strings. A custom spelling or
 category that would be lost uses the tagged form, for example
 `{"Custom":{"name":"DISEASE","category":"Agent"}}`. Existing string labels remain readable.
+
+A directed `Relation` keeps its supporting mentions, predicate, trigger and score.
+`GroundedDocument::project_relation` checks both mentions against source signals
+and exposes each signal’s current track when assigned. Coincident signals with the
+same coverage, surface and type are ambiguous. Producers that kept their signal
+IDs can use `project_relation_by_signal_ids` to select the intended endpoints.
+Both calls take optional provenance for the relation decision. Project again after
+regrouping to get the current track assignments.
 
 ## PII pattern limits
 

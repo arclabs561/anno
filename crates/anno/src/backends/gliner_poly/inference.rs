@@ -330,13 +330,7 @@ impl GLiNERPoly {
         }
 
         let text_words: Vec<&str> = if self.source_only_text {
-            // GLiNER's Python WhitespaceTokenSplitter groups hyphenated words and
-            // emits punctuation separately (Python regex: \w+(?:[-_]\w+)*|\S).
-            static WORDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-                regex::Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S")
-                    .expect("constant word regex")
-            });
-            WORDS.find_iter(text).map(|word| word.as_str()).collect()
+            crate::backends::inference::span::gliner_words(text)
         } else {
             text.split_whitespace().collect()
         };

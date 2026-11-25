@@ -147,6 +147,8 @@ enum CachedBackend {
     GLiNERMultitaskOnnx(anno::backends::gliner_multitask::GLiNERMultitaskOnnx),
     #[cfg(feature = "gliner2-fastino")]
     GLiNER2Fastino(anno::backends::gliner2_fastino::GLiNER2Fastino),
+    #[cfg(feature = "gliner2-fastino")]
+    GLiNER25(anno::backends::gliner25::GLiNER25),
     #[cfg(feature = "candle")]
     GLiNERCandle(anno::backends::gliner_candle::GLiNERCandle),
     #[cfg(feature = "onnx")]
@@ -1026,6 +1028,7 @@ impl TaskEvaluator {
                 | "gliner_onnx"
                 | "gliner"
                 | "gliner2_fastino"
+                | "gliner25"
                 | "gliner_candle"
                 | "gliner_poly"
                 | "universal_ner"
@@ -1435,6 +1438,7 @@ impl TaskEvaluator {
                             | "gliner"
                             | "gliner_multitask"
                             | "gliner2_fastino"
+                            | "gliner25"
                             | "gliner_poly"
                             | "universal_ner"
                     );
@@ -1655,6 +1659,7 @@ impl TaskEvaluator {
                 | "gliner_candle"
                 | "gliner_multitask"
                 | "gliner2_fastino"
+                | "gliner25"
                 | "gliner_poly"
                 | "universal_ner"
         );
@@ -2214,6 +2219,7 @@ impl TaskEvaluator {
                             | "gliner_candle"
                             | "gliner_multitask"
                             | "gliner2_fastino"
+                            | "gliner25"
                             | "gliner_poly"
                             | "universal_ner"
                     ) =>
@@ -2282,6 +2288,8 @@ impl TaskEvaluator {
             CachedBackend::GLiNEROnnx(model) => Self::gliner_onnx_construction_receipt(model),
             #[cfg(feature = "gliner2-fastino")]
             CachedBackend::GLiNER2Fastino(model) => Self::fastino_construction_receipt(model),
+            #[cfg(feature = "gliner2-fastino")]
+            CachedBackend::GLiNER25(model) => super::backend_factory::gliner25_receipt(model),
             _ => BackendConstructionReceipt::default(),
         }
     }
@@ -2333,6 +2341,10 @@ impl TaskEvaluator {
             #[cfg(not(feature = "onnx"))]
             "gliner_multitask" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER multi-task requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => Ok(CachedBackend::GLiNER25(
+                anno::backends::gliner25::GLiNER25::from_env()?,
             )),
             #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" => {
@@ -2446,6 +2458,15 @@ impl TaskEvaluator {
                     ))
                 }
             }
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => {
+                let model = anno::backends::gliner25::GLiNER25::from_env()?;
+                let construction_receipt = super::backend_factory::gliner25_receipt(&model);
+                Ok(CachedBackendAny {
+                    backend: Box::new(model),
+                    construction_receipt,
+                })
+            }
             "gliner2_fastino" => {
                 #[cfg(feature = "gliner2-fastino")]
                 {
@@ -2554,6 +2575,8 @@ impl TaskEvaluator {
                 let result = gliner_multitask.extract(text, &schema)?;
                 Ok(result.entities)
             }
+            #[cfg(feature = "gliner2-fastino")]
+            CachedBackend::GLiNER25(model) => model.extract_with_types(text, &label_strs, 0.5),
             #[cfg(feature = "gliner2-fastino")]
             CachedBackend::GLiNER2Fastino(gliner) => {
                 gliner.extract_with_types(text, &label_strs, 0.5)
@@ -2665,6 +2688,13 @@ impl TaskEvaluator {
                     ))
                 }
             }
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner25" => cached
+                .downcast_ref::<anno::backends::gliner25::GLiNER25>()
+                .ok_or_else(|| {
+                    crate::Error::InvalidInput("expected cached GLiNER2.5 backend".into())
+                })?
+                .extract_with_types(text, &label_strs, 0.5),
             "gliner2_fastino" => {
                 #[cfg(feature = "gliner2-fastino")]
                 {
@@ -2882,11 +2912,11 @@ impl TaskEvaluator {
         }
         let resolver = if let Some(custom) = &config.custom_coref_resolver {
             Resolver::Entities(custom.clone())
-        } else if name == "fcoref" {
+        } else if matches!(name, "fcoref" | "maverick") {
             if supplement_pronouns {
-                return Err(crate::Error::FeatureNotAvailable("FCoref detects mentions from raw text and cannot accept English pronoun proposals".into()));
+                return Err(crate::Error::FeatureNotAvailable(format!("{name} detects mentions from raw text in this evaluation and cannot accept English pronoun proposals")));
             }
-            if config.coref_use_gold_mentions {
+            if config.coref_use_gold_mentions && name == "fcoref" {
                 return Err(crate::Error::FeatureNotAvailable(
                     "FCoref detects mentions from raw text and cannot evaluate gold mentions"
                         .into(),
@@ -2940,7 +2970,24 @@ impl TaskEvaluator {
             let predicted_chains = match &resolver {
                 Resolver::Text(backend) => {
                     use crate::eval::coref::{CorefChain, Mention};
-                    let clusters = backend.resolve(&doc.text).map_err(|e| {
+                    let prediction = if config.coref_use_gold_mentions {
+                        let mut spans: Vec<_> = doc
+                            .chains
+                            .iter()
+                            .flat_map(|chain| &chain.mentions)
+                            .filter(|m| {
+                                m.start < m.end && m.mention_type != Some(anno::MentionType::Zero)
+                            })
+                            .map(|m| (m.start, m.end))
+                            .collect();
+                        spans.sort_unstable();
+                        spans.dedup();
+                        input_spans = Some(spans.iter().copied().collect());
+                        backend.resolve_mentions(&doc.text, &spans)
+                    } else {
+                        backend.resolve(&doc.text)
+                    };
+                    let clusters = prediction.map_err(|e| {
                         crate::Error::Inference(format!(
                             "Coreference backend '{backend_name}' inference failed for document {:?}: {e}",
                             doc.doc_id
@@ -3011,7 +3058,9 @@ impl TaskEvaluator {
                     // End-to-end mode: extract mentions via NER backend, then cluster.
                     // Use a NER backend to extract entities first (heuristic or stacked as default)
                     let ner_backend_name = match name {
-                        "coref_resolver" | "mention_ranking" | "box" | "fcoref" => "stacked",
+                        "coref_resolver" | "mention_ranking" | "box" | "fcoref" | "maverick" => {
+                            "stacked"
+                        }
                         // If the user passed an actual NER backend name, allow it.
                         _ => backend_name,
                     };
@@ -3217,54 +3266,14 @@ impl TaskEvaluator {
 
         let mut predictions_by_doc = vec![Vec::new(); relation_docs.len()];
 
-        // Extract relations using RelationExtractor if backend supports it
-        // GLiNER multi-task backends implement RelationExtractor
-        use anno::backends::inference::RelationExtractor;
-
-        // Try to create RelationExtractor instance for relation extraction backends
-        let relation_extractor: Option<Box<dyn RelationExtractor>> = match backend_name {
-            #[cfg(feature = "onnx")]
-            "gliner_multitask" | "gliner_multitask_onnx" => {
-                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
-                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
-                match GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL) {
-                    Ok(extractor) => Some(Box::new(extractor) as Box<dyn RelationExtractor>),
-                    Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to create GLiNER multi-task (ONNX) for relation extraction: {}",
-                            e
-                        );
-                        None
-                    }
-                }
-            }
-            #[cfg(all(feature = "candle", feature = "onnx"))]
-            "gliner_multitask_candle" => {
-                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
-                use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
-                match GLiNERMultitaskCandle::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL) {
-                    Ok(extractor) => Some(Box::new(extractor) as Box<dyn RelationExtractor>),
-                    Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to create GLiNER multi-task (Candle) for relation extraction: {}",
-                            e
-                        );
-                        None
-                    }
-                }
-            }
-            "tplinker" | "tplink" => {
-                use anno::backends::tplinker::TPLinker;
-                match TPLinker::new() {
-                    Ok(extractor) => Some(Box::new(extractor) as Box<dyn RelationExtractor>),
-                    Err(e) => {
-                        eprintln!("Warning: Failed to create TPLinker: {e}");
-                        None
-                    }
-                }
-            }
-            _ => None,
-        };
+        // Use the loaded artifact: relation support can depend on its exported heads.
+        let relation_extractor = backend.as_relation_extractor();
+        if matches!(backend_name, "gliner_relex" | "relex") && relation_extractor.is_none() {
+            return Err(crate::Error::FeatureNotAvailable(
+                "GLiNER-Relex relation evaluation needs a joint export with relation outputs"
+                    .into(),
+            ));
+        }
 
         // Extract relations from each document
         let allow_oracle_entities = std::env::var("ANNO_RELATION_ORACLE_ENTITIES")
@@ -3285,7 +3294,7 @@ impl TaskEvaluator {
                 v == "1" || v == "true" || v == "yes" || v == "y"
             })
             .unwrap_or(true);
-        let mut oracle_docs_used: usize = 0;
+        let mut gold_endpoints = vec![false; relation_docs.len()];
         let mut oracle_tplinker_docs_used: usize = 0;
 
         for (doc_index, (doc, predicted)) in relation_docs
@@ -3295,14 +3304,14 @@ impl TaskEvaluator {
         {
             let text = &doc.text;
 
-            if let Some(ref rel_extractor) = relation_extractor {
+            if let Some(rel_extractor) = relation_extractor {
                 // Use RelationExtractor to extract relations
                 // Get entity types and relation types from gold relations
                 let entity_types: Vec<&str> = doc
                     .relations
                     .iter()
-                    .flat_map(|r| vec![r.head_type.as_str(), r.tail_type.as_str()])
-                    .collect::<std::collections::HashSet<_>>()
+                    .flat_map(|r| [r.head_type.as_str(), r.tail_type.as_str()])
+                    .collect::<std::collections::BTreeSet<_>>()
                     .into_iter()
                     .collect();
 
@@ -3310,7 +3319,7 @@ impl TaskEvaluator {
                     .relations
                     .iter()
                     .map(|r| r.relation_type.as_str())
-                    .collect::<std::collections::HashSet<_>>()
+                    .collect::<std::collections::BTreeSet<_>>()
                     .into_iter()
                     .collect();
 
@@ -3325,7 +3334,7 @@ impl TaskEvaluator {
                         // TPLinker baseline: optionally use gold entity spans/types as the candidate
                         // entity set, then run our lightweight relation heuristics. This avoids the
                         // baseline being “always junk” due purely to entity boundary mismatch.
-                        if backend_name.starts_with("tplinker")
+                        if matches!(backend_name, "tplinker" | "tplink")
                             && allow_oracle_entities
                             && tplinker_oracle_entities
                             && !doc.relations.is_empty()
@@ -3394,7 +3403,7 @@ impl TaskEvaluator {
                                     });
                                 }
                             }
-                            oracle_docs_used += 1;
+                            gold_endpoints[doc_index] = true;
                             oracle_tplinker_docs_used += 1;
                             continue;
                         }
@@ -3482,7 +3491,7 @@ impl TaskEvaluator {
                                     });
                                 }
                             }
-                            oracle_docs_used += 1;
+                            gold_endpoints[doc_index] = true;
                             continue;
                         }
 
@@ -3591,7 +3600,63 @@ impl TaskEvaluator {
             "boundary_relation_matches".into(),
             metrics_result.boundary_matches as f64,
         );
+        // Predicted endpoints still receive the reference label vocabulary for
+        // that document when the extractor accepts entity and relation prompts.
+        metrics.insert(
+            "gold_label_prompt_docs".into(),
+            if relation_extractor.is_some() {
+                relation_docs.len() as f64
+            } else {
+                0.0
+            },
+        );
+        let oracle_docs_used = gold_endpoints.iter().filter(|&&gold| gold).count();
         metrics.insert("oracle_docs_used".to_string(), oracle_docs_used as f64);
+        for (prefix, supplied, doc_count) in [
+            (
+                "predicted_endpoint",
+                false,
+                relation_docs.len() - oracle_docs_used,
+            ),
+            ("gold_endpoint", true, oracle_docs_used),
+        ] {
+            metrics.insert(format!("{prefix}_docs"), doc_count as f64);
+            if doc_count == 0 {
+                continue;
+            }
+            // Preserve existing aggregate metrics, but avoid mixing two different
+            // prediction tasks in the endpoint-specific results.
+            let subset;
+            let score = if doc_count == relation_docs.len() {
+                &metrics_result
+            } else {
+                subset = evaluate_relation_documents(
+                    relation_docs
+                        .iter()
+                        .zip(&predictions_by_doc)
+                        .zip(&gold_endpoints)
+                        .filter(|(_, used_gold)| **used_gold == supplied)
+                        .map(|((doc, pred), _)| (doc.relations.as_slice(), pred.as_slice())),
+                    &config,
+                );
+                &subset
+            };
+            metrics.insert(format!("{prefix}_strict_f1"), score.strict_f1);
+            metrics.insert(format!("{prefix}_boundary_f1"), score.boundary_f1);
+            metrics.insert(format!("{prefix}_gold_relations"), score.num_gold as f64);
+            metrics.insert(
+                format!("{prefix}_predicted_relations"),
+                score.num_predicted as f64,
+            );
+            metrics.insert(
+                format!("{prefix}_strict_matches"),
+                score.strict_matches as f64,
+            );
+            metrics.insert(
+                format!("{prefix}_boundary_matches"),
+                score.boundary_matches as f64,
+            );
+        }
         metrics.insert(
             "oracle_tplinker_docs_used".to_string(),
             oracle_tplinker_docs_used as f64,
@@ -4023,10 +4088,10 @@ impl ComprehensiveEvalResults {
                 }
                 Task::RelationExtraction => {
                     md.push_str(
-                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs | N | ms |\n",
+                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs | Predicted-endpoint strict F1 | Gold-endpoint strict F1 | N | ms |\n",
                     );
                     md.push_str(
-                        "|---------|---------|--------|----------|-------------|---|----|\n",
+                        "|---------|---------|--------|----------|-------------|-------------|-------------|---|----|\n",
                     );
                     true
                 }
@@ -4209,13 +4274,21 @@ impl ComprehensiveEvalResults {
                                 .get("oracle_docs_used")
                                 .copied()
                                 .unwrap_or(0.0);
+                            let endpoint_f1 = |key| {
+                                result
+                                    .metrics
+                                    .get(key)
+                                    .map_or_else(|| "—".into(), |v| format!("{:.1}", v * 100.0))
+                            };
                             md.push_str(&format!(
-                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} |\n",
+                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
                                 strict,
                                 boundary,
                                 oracle_docs,
+                                endpoint_f1("predicted_endpoint_strict_f1"),
+                                endpoint_f1("gold_endpoint_strict_f1"),
                                 result.num_examples,
                                 time_str
                             ));
@@ -4358,6 +4431,7 @@ impl TaskEvaluator {
                 | "gliner_candle"
                 | "gliner_multitask"
                 | "gliner2_fastino"
+                | "gliner25"
                 | "gliner_poly"
                 | "universal_ner"
         );
@@ -5248,6 +5322,17 @@ mod tests {
             .evaluate_relation_task("no-op", &model, &empty_dataset(DatasetId::CHisIEC), &config)
             .expect("evaluate capped relation fixture");
         assert_eq!(receipt.document_count, expected.len());
+        assert_eq!(receipt.metrics["gold_label_prompt_docs"], 0.0);
+        assert_eq!(
+            receipt.metrics["predicted_endpoint_docs"],
+            expected.len() as f64
+        );
+        assert_eq!(
+            receipt.metrics["predicted_endpoint_gold_relations"],
+            expected_gold as f64
+        );
+        assert_eq!(receipt.metrics["predicted_endpoint_strict_f1"], 0.0);
+        assert!(!receipt.metrics.contains_key("gold_endpoint_strict_f1"));
         assert_eq!(
             receipt.metrics.get("num_docs").copied(),
             Some(expected.len() as f64)

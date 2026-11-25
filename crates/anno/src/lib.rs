@@ -211,6 +211,9 @@ mod sealed {
     #[cfg(feature = "gliner2-fastino")]
     impl Sealed for super::backends::gliner2_fastino::GLiNER2Fastino {}
 
+    #[cfg(feature = "gliner2-fastino")]
+    impl Sealed for super::backends::gliner25::GLiNER25 {}
+
     #[cfg(feature = "gliner2-fastino-candle")]
     impl Sealed for super::backends::gliner2_fastino_candle::GLiNER2FastinoCandle {}
 
@@ -660,7 +663,7 @@ pub use backends::coref::mention_ranking::{
 };
 
 // Unified coref backend trait (open, not sealed)
-pub use backends::CorefBackend;
+pub use backends::{CorefBackend, MaverickCoref};
 
 // Re-export inference traits and types used at the crate root
 pub use backends::inference::{

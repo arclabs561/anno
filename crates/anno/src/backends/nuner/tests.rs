@@ -317,3 +317,17 @@ fn test_create_entity_out_of_bounds() {
     );
     assert!(e.is_none());
 }
+
+#[cfg(feature = "onnx")]
+#[test]
+fn span_checkpoint_uses_its_trained_width_and_unicode_offsets() {
+    let export = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/bughunt7_data/hf_home/hub/models--bh7--gliner-span/snapshots/fixture");
+    let model = NuNER::from_pretrained(export.to_str().unwrap()).unwrap();
+    let entities = model.extract("☎ John Smith now", &["person"], 0.5).unwrap();
+    assert_eq!(entities.len(), 1);
+    assert_eq!(
+        (&*entities[0].text, entities[0].start(), entities[0].end()),
+        ("John Smith", 2, 12)
+    );
+}

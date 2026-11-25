@@ -15,6 +15,10 @@ pub mod resolve;
 // Mention-ranking coreference (Bourgois & Poibeau 2025 inspired)
 pub mod mention_ranking;
 
+/// Optional Python-backed Maverick coreference.
+pub mod maverick;
+pub use maverick::MaverickCoref;
+
 // T5-based coreference resolution
 #[cfg(feature = "onnx")]
 pub mod t5;

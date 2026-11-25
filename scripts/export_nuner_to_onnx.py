@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "torch>=2.0.0",
+#     "gliner==0.2.30",
+#     "sentencepiece",
 #     "transformers>=4.30.0",
 #     "onnx>=1.14.0",
 #     "optimum[onnxruntime]>=1.16.0",
@@ -13,24 +15,19 @@
 Export NuNER Zero models to ONNX format.
 
 NuNER models come in two architectures:
-  - Token classifier (e.g., deepanwa/NuNerZero_onnx): standard BIO tagging
-  - GLiNER-based (e.g., numind/NuNER_Zero-4k): span classification
+  - Fixed-label token classifier: standard BIO tagging
+  - NuNER Zero family: label-conditioned word or span scoring
 
-This script auto-detects the architecture. For GLiNER-based models, it
-delegates to export_gliner_poly_onnx.py.
+GLiNER-based NuNER checkpoints use an inline label prompt and one encoder.
+The GLiNER library exports the matching token or span graph and its tokenizer.
 
 Usage:
-    uv run scripts/export_nuner_to_onnx.py --model deepanwa/NuNerZero_onnx
-    uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k
-
-For the 4k variant (GLiNER-based), prefer using export_gliner_poly_onnx.py directly:
-    uv run scripts/export_gliner_poly_onnx.py --model numind/NuNER_Zero-4k
+    uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero --output /tmp/nuner
+    NUNER_MODEL_PATH=/tmp/nuner anno extract --model nuner 'Ada lives in London.'
 """
 
 import argparse
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 
@@ -38,11 +35,7 @@ def is_gliner_model(model_id: str) -> bool:
     """Check if a HuggingFace model uses GLiNER architecture."""
     from huggingface_hub import list_repo_files
 
-    try:
-        files = list_repo_files(model_id)
-        return "gliner_config.json" in files
-    except Exception:
-        return False
+    return "gliner_config.json" in list_repo_files(model_id)
 
 
 def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
@@ -83,32 +76,31 @@ def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
 
 
 def export_gliner_model(model_id: str, output_dir: Path, quantize: bool):
-    """Delegate GLiNER-based models to export_gliner_poly_onnx.py."""
-    print(f"Detected: GLiNER architecture (has gliner_config.json)")
-    print(f"Delegating to export_gliner_poly_onnx.py...")
+    """Export the trained shared encoder, prompt tokenizer and width metadata."""
+    import json
+    from gliner import GLiNER
+    from huggingface_hub import hf_hub_download
 
-    script_dir = Path(__file__).parent
-    gliner_script = script_dir / "export_gliner_poly_onnx.py"
-
-    if not gliner_script.exists():
-        print(f"ERROR: {gliner_script} not found", file=sys.stderr)
-        print(f"For GLiNER-based NuNER models, use export_gliner_poly_onnx.py directly.")
-        sys.exit(1)
-
-    cmd = ["uv", "run", str(gliner_script), "--model", model_id, "--output", str(output_dir)]
-    if quantize:
-        cmd.append("--quantize")
-
-    result = subprocess.run(cmd)
-    sys.exit(result.returncode)
+    config_file = hf_hub_download(model_id, filename="gliner_config.json")
+    config = json.loads(Path(config_file).read_text())
+    if config.get("model_name") == "allenai/longformer-large-4096":
+        raise ValueError(
+            "NuNER Zero-4k requires a parity-tested Longformer export. "
+            "GLiNER 0.2.30 exports a runnable graph with different predictions "
+            "from PyTorch on both short and long inputs. Use the upstream PyTorch "
+            "model for Zero-4k or onnx-community/NuNER_Zero-span for Anno."
+        )
+    model = GLiNER.from_pretrained(model_id)
+    model.eval()
+    model.export_to_onnx(save_dir=output_dir, quantize=quantize)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Export NuNER Zero model to ONNX")
     parser.add_argument(
         "--model",
-        default="numind/NuNER_Zero-4k",
-        help="HuggingFace model ID (default: numind/NuNER_Zero-4k)",
+        default="numind/NuNER_Zero",
+        help="HuggingFace model ID (default: numind/NuNER_Zero)",
     )
     parser.add_argument(
         "--output",

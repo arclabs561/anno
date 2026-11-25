@@ -520,7 +520,6 @@ fn try_neural_coref(
 
 /// Validate all cluster shapes before mutation. Stage nonempty writes so a rejected
 /// insertion leaves earlier tracks and signals untouched for the fallback resolver.
-#[cfg(any(test, feature = "onnx", feature = "discourse"))]
 pub(super) fn append_coref_clusters(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
@@ -564,7 +563,6 @@ pub(super) fn append_coref_clusters(
 }
 
 /// Source spans are in characters. Only character-to-byte lookups are needed.
-#[cfg(any(test, feature = "onnx", feature = "discourse"))]
 fn validate_coref_clusters(
     text: &str,
     clusters: &[anno::backends::coref::resolve::CorefCluster],

@@ -15,9 +15,7 @@ use anno::{Confidence, Language};
 
 #[cfg(feature = "eval")]
 use crate::cli::ingest::CompositeResolver;
-use anno::backends::inference::{
-    extract_relation_triples_simple, RelationExtractionConfig, RelationExtractor,
-};
+use anno::backends::inference::{extract_relation_triples_simple, RelationExtractionConfig};
 use anno::core::grounded::{GroundedDocument, Location, Modality, Quantifier, Signal, SignalId};
 #[cfg(feature = "graph")]
 use anno::graph::{GraphDocument, GraphExportFormat};
@@ -327,53 +325,40 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
     // path so entity/relation indices remain consistent.
+    let mut ran_joint = false;
     let (mut entities, mut relation_triples) = if args.extract_relations {
-        let entity_schema: Vec<&str> = if let Some(ref custom_types) = extract_types {
-            custom_types.iter().map(|s| s.as_str()).collect()
+        let backend = model.create_model().map_err(CliError::from)?;
+        let entity_schema: Vec<&str> = extract_types.iter().flatten().map(String::as_str).collect();
+        if let Some(extractor) = backend.as_relation_extractor() {
+            let rel_schema: Vec<&str> = relation_types.iter().map(String::as_str).collect();
+            let out = extractor
+                .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
+                .map_err(|e| CliError::from(format!("Relation extraction failed: {e}")))?;
+            ran_joint = true;
+            (out.entities, out.relations)
         } else {
-            Vec::new()
-        };
-        let rel_schema: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
-
-        match model {
-            ModelBackend::Tplinker => {
-                let re = anno::backends::tplinker::TPLinker::new()
-                    .map_err(|e| CliError::from(format!("Failed to init tplinker: {}", e)))?;
-                let out = re
-                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
-                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations)
-            }
             #[cfg(feature = "onnx")]
-            ModelBackend::GlinerMultitask => {
-                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
-                let re = GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
-                    .map_err(|e| {
-                        CliError::from(format!("Failed to init gliner_multitask: {}", e))
-                    })?;
-                let out = re
-                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
-                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations)
+            if matches!(model, ModelBackend::GlinerRelex) {
+                return Err(CliError::from("GLiNER-Relex relations require the joint export. Run uv run scripts/export_gliner_relex_onnx.py --joint"));
             }
-            _ => {
-                // Standard extraction, then heuristic relation detection.
-                let ents = if let Some(ref custom_types) = extract_types {
-                    extract_with_custom_types(
-                        &model,
-                        &text,
-                        custom_types,
-                        args.threshold,
-                        args.quiet,
-                    )?
-                } else {
-                    let backend = model.create_model().map_err(CliError::from)?;
-                    backend
-                        .extract_entities(&text, None)
-                        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
-                };
-                (ents, Vec::new())
+            let entities = match (extract_types.as_ref(), backend.as_zero_shot()) {
+                (Some(_), Some(extractor)) => extractor.extract_with_types(
+                    &text,
+                    &entity_schema,
+                    args.threshold.unwrap_or(0.5) as f32,
+                ),
+                _ => {
+                    if extract_types.is_some() && !args.quiet {
+                        eprintln!(
+                            "{} This backend ignores custom entity types.",
+                            color("33", "warning:")
+                        );
+                    }
+                    backend.extract_entities(&text, None)
+                }
             }
+            .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
+            (entities, Vec::new())
         }
     } else {
         let ents = if let Some(ref custom_types) = extract_types {
@@ -391,11 +376,6 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     let elapsed = start.elapsed();
 
-    // Apply confidence threshold if requested
-    if let Some(threshold) = args.threshold {
-        entities.retain(|e| e.confidence >= threshold);
-    }
-
     // Filter by labels/types if specified
     let mut type_filters: Vec<String> = Vec::new();
     type_filters.extend(args.labels.iter().cloned());
@@ -408,42 +388,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
     }
 
-    if !type_filters.is_empty() {
+    if args.threshold.is_some() || !type_filters.is_empty() {
         let normalized: std::collections::HashSet<String> = type_filters
             .iter()
             .map(|t| anno::EntityType::from_label(t).as_label().to_string())
             .collect();
-
-        // If relations were extracted jointly, we must keep relation indices consistent when
-        // filtering entities. Remap indices and drop relations that reference filtered entities.
-        if args.extract_relations && !relation_triples.is_empty() {
-            let mut old_to_new: Vec<Option<usize>> = vec![None; entities.len()];
-            let mut new_entities: Vec<anno::Entity> = Vec::new();
-            for (i, e) in entities.iter().enumerate() {
-                if normalized.contains(e.entity_type.as_label()) {
-                    old_to_new[i] = Some(new_entities.len());
-                    new_entities.push(e.clone());
-                }
-            }
-            let mut new_rel = Vec::new();
-            for r in &relation_triples {
-                if let (Some(h), Some(t)) = (
-                    old_to_new.get(r.head_idx).and_then(|x| *x),
-                    old_to_new.get(r.tail_idx).and_then(|x| *x),
-                ) {
-                    new_rel.push(anno::RelationTriple {
-                        head_idx: h,
-                        tail_idx: t,
-                        relation_type: r.relation_type.clone(),
-                        confidence: r.confidence,
-                    });
-                }
-            }
-            entities = new_entities;
-            relation_triples = new_rel;
-        } else {
-            entities.retain(|e| normalized.contains(e.entity_type.as_label()));
-        }
+        retain_endpoints(&mut entities, &mut relation_triples, |_, entity| {
+            args.threshold
+                .is_none_or(|threshold| entity.confidence >= threshold)
+                && (normalized.is_empty() || normalized.contains(entity.entity_type.as_label()))
+        });
     }
 
     // GLiNER UX: hint when zero entities returned without custom types
@@ -498,7 +452,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations were requested but we didn't run a joint extractor, do heuristic relation
     // detection over the final entity list.
-    if args.extract_relations && relation_triples.is_empty() {
+    if args.extract_relations && !ran_joint {
         let rel_strs: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
         let cfg = RelationExtractionConfig {
             threshold: Confidence::new(relation_threshold as f64),
@@ -539,7 +493,14 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Build grounded document with validation using library method
     let mut doc = GroundedDocument::new("extract", &text);
-    let validation_errors = doc.add_signals_validated(signals);
+    let validation_errors = doc.add_signals_validated_indexed(signals);
+    if !validation_errors.is_empty() {
+        let rejected: std::collections::HashSet<_> =
+            validation_errors.iter().map(|(i, _)| *i).collect();
+        retain_endpoints(&mut entities, &mut relation_triples, |i, _| {
+            !rejected.contains(&i)
+        });
+    }
     if let Some(html) = mapped_html {
         html.record(&mut doc)?;
     }
@@ -551,7 +512,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             color("33", "warning:"),
             validation_errors.len()
         );
-        for err in &validation_errors {
+        for (_, err) in &validation_errors {
             eprintln!("  - {}", err);
         }
     }
@@ -608,7 +569,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                model.name(),
+                model,
                 &entities_out,
                 elapsed,
                 language,
@@ -630,7 +591,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                model.name(),
+                model,
                 &entities_out,
                 elapsed,
                 language,
@@ -900,6 +861,33 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     Ok(())
 }
 
+/// Keep relation indices in the same coordinate system as the output entities.
+fn retain_endpoints(
+    entities: &mut Vec<anno::Entity>,
+    relations: &mut Vec<anno::RelationTriple>,
+    mut keep: impl FnMut(usize, &anno::Entity) -> bool,
+) {
+    let mut mapping = Vec::with_capacity(entities.len());
+    let mut next = 0;
+    entities.retain(|entity| {
+        let kept = keep(mapping.len(), entity);
+        mapping.push(kept.then_some(next));
+        next += usize::from(kept);
+        kept
+    });
+    relations.retain_mut(|relation| {
+        let (Some(Some(head)), Some(Some(tail))) = (
+            mapping.get(relation.head_idx),
+            mapping.get(relation.tail_idx),
+        ) else {
+            return false;
+        };
+        relation.head_idx = *head;
+        relation.tail_idx = *tail;
+        true
+    });
+}
+
 fn validate_confidence_threshold(flag: &str, value: Option<f64>) -> Result<(), CliError> {
     if let Some(value) = value {
         if !value.is_finite() || !(0.0..=1.0).contains(&value) {
@@ -935,6 +923,14 @@ fn extract_with_custom_types(
         let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
 
         match backend {
+            #[cfg(feature = "gliner2-fastino")]
+            ModelBackend::Gliner25 => {
+                let model = anno::backends::gliner25::GLiNER25::from_env()
+                    .map_err(|e| CliError::from(e.to_string()))?;
+                return model
+                    .extract_with_types(text, &type_refs, threshold)
+                    .map_err(|e| CliError::from(e.to_string()));
+            }
             ModelBackend::GlinerPoly => {
                 let model =
                     anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
@@ -967,13 +963,11 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Nuner => {
-                use anno::ZeroShotNER;
-                let model =
-                    anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
-                        .map_err(|e| {
-                            CliError::from(format!("Failed to create NuNER model: {}", e))
-                        })?;
-                return model
+                let model = backend.create_model().map_err(CliError::from)?;
+                let ner = model
+                    .as_zero_shot()
+                    .ok_or_else(|| CliError::from("NuNER does not expose zero-shot extraction"))?;
+                return ner
                     .extract_with_types(text, &type_refs, threshold)
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
@@ -1113,7 +1107,7 @@ fn entity_json(
 
 fn build_provenance(
     text: &str,
-    model: &str,
+    model: ModelBackend,
     entities: &[serde_json::Value],
     elapsed: std::time::Duration,
     language: Option<(Language, &'static str)>,
@@ -1165,7 +1159,7 @@ fn build_provenance(
     let confidence_stats = compute_confidence_stats(&confs);
 
     let mut prov = serde_json::json!({
-        "model": model,
+        "model": model.name(),
         "text_chars": text.chars().count(),
         "entity_count": ents.len(),
         "elapsed_ms": (elapsed.as_secs_f64() * 1000.0),
@@ -1173,6 +1167,9 @@ fn build_provenance(
         "text_hash": format!("xxh3:{:016x}", xxh3_64(text.as_bytes())),
         "confidence_stats": confidence_stats,
     });
+    if let Some(checkpoint) = model.checkpoint_override() {
+        prov["checkpoint"] = checkpoint.to_string_lossy().as_ref().into();
+    }
     if let Some(url) = source_url {
         prov["source_url"] = url.into();
     }
@@ -1297,6 +1294,39 @@ fn propagate_quantifiers_across_lists(text: &str, signals: &mut [Signal]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relation_endpoints_survive_threshold_and_source_validation() {
+        let text = "A B C D";
+        let mut entities = vec![
+            anno::Entity::new("A", anno::EntityType::Person, 0, 1, 0.2),
+            anno::Entity::new("B", anno::EntityType::Person, 2, 3, 0.9),
+            anno::Entity::new("X", anno::EntityType::Person, 4, 5, 0.9),
+            anno::Entity::new("D", anno::EntityType::Person, 6, 7, 0.9),
+        ];
+        let edge = |head_idx, tail_idx| anno::RelationTriple {
+            head_idx,
+            tail_idx,
+            relation_type: "knows".into(),
+            confidence: Confidence::new(1.0),
+        };
+        let mut relations = vec![edge(1, 3), edge(0, 3), edge(2, 3)];
+        retain_endpoints(&mut entities, &mut relations, |_, entity| {
+            entity.confidence >= 0.5
+        });
+        let mut doc = GroundedDocument::new("test", text);
+        let rejected =
+            doc.add_signals_validated_indexed(entities.iter().map(Signal::from).collect());
+        assert_eq!(rejected.len(), 1);
+        assert_eq!(rejected[0].0, 1);
+        retain_endpoints(&mut entities, &mut relations, |i, _| i != rejected[0].0);
+        assert_eq!(relations.len(), 1);
+        let edge = &relations[0];
+        assert_eq!(entities[edge.head_idx].text, "B");
+        assert_eq!(entities[edge.tail_idx].text, "D");
+        assert_eq!(doc.signals()[edge.head_idx].surface, "B");
+        assert_eq!(doc.signals()[edge.tail_idx].surface, "D");
+    }
 
     #[test]
     fn test_propagate_quantifiers_basic() {

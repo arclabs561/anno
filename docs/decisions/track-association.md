@@ -48,6 +48,12 @@ ANNO_NO_DOWNLOADS=1 HF_HUB_OFFLINE=1 FCOREF_MODEL_PATH="$FCOREF_MODEL_DIR" \
   anno pipeline --files /tmp/anno-namesakes.txt --model heuristic --coref --format grounded
 ```
 
+### Holding the model fixed and changing mention proposals
+
+The CPU Maverick OntoNotes checkpoint produced the same two broad referring-expression pairs as F-coref on this fixture. Using `anno pipeline --model heuristic --coref --maverick-model "$MAVERICK_MODEL_PATH"` gave “Dr. Léa Noor (alias Finch)” with “She” and “A different Léa Noor, the pilot” with “The pilot”. Every emitted mention sliced back to the original Unicode source. [Checkpoint and runtime](../BACKENDS.md#maverick-coreference)
+
+With the same weights and all seven fixture spans supplied to the Maverick worker, the clusters were `{Léa Noor [17,25), Finch, She}` and `{Léa Noor [74,82), the pilot, The pilot, Noor}`. All six annotated positive pairs and nine annotated negative pairs are correct under the fixture’s exact-span policy in this **supplied-mention** condition. The model also assigned the final “Noor?” to the second track. Its gold membership is unknown, so the three extra pairs are unjudged. Changing mention proposals alone changed the measured links; gold coverage, unjudged edges, and the document’s committed track memberships each carry different information.
+
 ## A comparison that could change the design
 
 1. Run the native mention ranker and a pinned English F-coref model on the same document groups. Record the backend that actually ran. Report exact-span detection precision and recall first. On fixed mentions, score an antecedent as correct if it selects any earlier member of the gold chain. Track first mentions separately. The existing CLI oracle-mentions path uses the simple resolver, so a fixed-mention F-coref comparison requires an adapter. [F-coref](https://aclanthology.org/2022.aacl-demo.6/) · [Evaluation path](../../crates/anno-cli/src/cli/commands/dataset.rs)

@@ -548,7 +548,9 @@ impl From<&crate::Entity> for RankedMention {
             start: entity.start(),
             end: entity.end(),
             text: entity.text.clone(),
-            mention_type: MentionType::classify(&entity.text),
+            mention_type: entity
+                .mention_type
+                .unwrap_or_else(|| MentionType::classify(&entity.text)),
             gender: None,
             number: None,
             animacy: Animacy::Unknown,
@@ -661,7 +663,7 @@ impl RankedMention {
             Some(et) => crate::TypeLabel::from(et.clone()),
             None => crate::TypeLabel::from(self.mention_type.as_label()),
         };
-        crate::Signal::new(
+        let mut signal = crate::Signal::new(
             signal_id,
             crate::Location::Text {
                 start: self.start,
@@ -670,7 +672,9 @@ impl RankedMention {
             self.text.clone(),
             label,
             1.0,
-        )
+        );
+        signal.mention_type = Some(self.mention_type);
+        signal
     }
 }
 
@@ -906,8 +910,10 @@ mod tests {
     #[test]
     fn explicit_category_survives_mention_and_cluster_projection() {
         let entity_type = crate::EntityType::custom("DISEASE", crate::EntityCategory::Agent);
-        let entity = crate::Entity::new("fever", entity_type.clone(), 0, 5, 0.9);
+        let mut entity = crate::Entity::new("fever", entity_type.clone(), 0, 5, 0.9);
+        entity.mention_type = Some(MentionType::Unknown);
         let mention = RankedMention::from(&entity);
+        assert_eq!(mention.mention_type, MentionType::Unknown);
         let base = crate::SignalId::new(5);
         assert_eq!(mention.to_signal(base).label.to_entity_type(), entity_type);
 
@@ -918,6 +924,7 @@ mod tests {
         let (_, signals) = cluster.to_track(base);
         assert_eq!(signals[0].id, base);
         assert_eq!(signals[0].label.to_entity_type(), entity_type);
+        assert_eq!(signals[0].mention_type, Some(MentionType::Unknown));
     }
 
     #[test]
