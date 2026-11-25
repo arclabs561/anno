@@ -39,13 +39,19 @@ from the previous LitBank run.
 
 ## Reproduce
 
-Use Python 3.10 or later and the full test annotation JSONL. The experiment
-does not require rebuilding the Gutenberg text. Raw data are excluded.
+Use Python 3.10 or later and an authorized local copy of the full test annotation
+JSONL. At the pinned revision the publisher explicitly licenses the annotations
+under CC BY-NC-SA 4.0, while the card metadata says CC BY-SA 4.0. Check the
+annotation terms for your use before downloading. The publisher gives separate
+territorial guidance for the Gutenberg source texts. From this directory, the
+commands below download into a temporary directory outside the checkout. The
+replay verifies the pinned file digest before scoring. It uses only
+mention coordinates and stores aggregate counts. [Publisher’s license information](https://huggingface.co/datasets/sapienzanlp/bookcoref/blob/2c2587aca956a4225712abdcf1af72b93f18a28f/README.md#%C2%A9%EF%B8%8F-license-information)
 
 ```sh
-curl -fL https://huggingface.co/datasets/sapienzanlp/bookcoref/resolve/2c2587aca956a4225712abdcf1af72b93f18a28f/bookcoref_annotations/full/test.jsonl -o bookcoref-test.jsonl
-echo 'c4d426a722d3901489bf7bfcb3554d734db29a689876fcff269719ec7288dc9a  bookcoref-test.jsonl' | sha256sum -c -
-python run.py bookcoref-test.jsonl
+bookcoref_dir="$(mktemp -d)"
+curl -fL https://huggingface.co/datasets/sapienzanlp/bookcoref/resolve/2c2587aca956a4225712abdcf1af72b93f18a28f/bookcoref_annotations/full/test.jsonl -o "$bookcoref_dir/test.jsonl"
+python run.py "$bookcoref_dir/test.jsonl" > "$bookcoref_dir/results.json" && cmp "$bookcoref_dir/results.json" results.json
 ```
 
 [BookCoref paper](https://aclanthology.org/2025.acl-long.1197/) · [Pinned data release](https://huggingface.co/datasets/sapienzanlp/bookcoref/tree/2c2587aca956a4225712abdcf1af72b93f18a28f)
@@ -60,7 +66,6 @@ specific data revision used here. Run these checks in this directory:
 
 ```sh
 python -m unittest discover -p 'test_*.py'
-python run.py bookcoref-test.jsonl | cmp - results.json
 ```
 
 The offline case distinguishes a resident character falling below rank four

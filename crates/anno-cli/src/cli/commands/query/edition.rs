@@ -50,7 +50,11 @@ enum Command {
     /// Read one complete edition. Omit the number for the latest published release.
     Read {
         database: PathBuf,
+        /// Read exactly this published edition.
         edition: Option<u64>,
+        /// Require the latest published edition in this scope to be at least this number.
+        #[arg(long, conflicts_with = "edition")]
+        min_edition: Option<u64>,
     },
     /// Drop retained rows for one checkpoint, supplied as JSON. The current edition is protected.
     Evict {
@@ -97,9 +101,11 @@ fn execute(args: EditionArgs) -> Result<Value> {
             }
             Ok(EditionStore::open(&database, &scope)?.publish(&manifest)?)
         }
-        Command::Read { database, edition } => {
-            EditionStore::open_reader(&database, &scope)?.read(edition)
-        }
+        Command::Read {
+            database,
+            edition,
+            min_edition,
+        } => EditionStore::open_reader(&database, &scope)?.read(edition, min_edition),
         Command::Evict {
             database,
             checkpoint,

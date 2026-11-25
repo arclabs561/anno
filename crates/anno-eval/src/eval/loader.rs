@@ -143,8 +143,11 @@ enum DatasetParsePlan {
     JsonlNer,
     WikiannJson,
     TweetNer7,
+    Tacred,
     DocredJson,
+    SciErcJson,
     GoogleReCorpus,
+    FewRel,
     ChisiecJson,
     CadecHybrid,
     Bc5cdr,
@@ -379,7 +382,6 @@ impl LoadableDatasetId {
             | DatasetId::BookCoref
             | DatasetId::BookCorefSplit
             | DatasetId::WIESP2022NER
-            | DatasetId::FewRel
             | DatasetId::PIIMasking200k
             | DatasetId::B2NERD
             | DatasetId::OpenNER
@@ -397,15 +399,14 @@ impl LoadableDatasetId {
             // Relation extraction datasets use JSON format with entity pairs and relations.
             // Common structure: {entities: [...], relations: [...], text: "..."}
             //
-            // The DocredJson parser handles the CrossRE sentence format (CrossREAI),
-            // ReTACRED, and similar formats. It does not parse DocRED itself.
+            // The DocredJson parser handles the CrossRE sentence format (CrossREAI)
+            // and similar formats. It does not parse DocRED itself.
             // Some datasets (SciERC, PolyIE, EnzChemRED) are auto-detected via
             // registry_hint_plan() but listed here for explicit control.
             //
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -414,7 +415,6 @@ impl LoadableDatasetId {
             | DatasetId::CovEReD
             | DatasetId::ACE2005
             | DatasetId::MuDoCo
-            | DatasetId::SciERCNER
             // Added 2025-01-27: RE datasets with public URLs but missing hints
             // Note: SciERC, PolyIE, EnzChemRED are now handled by registry_hint_plan() auto-detection
             => DatasetParsePlan::DocredJson,
@@ -503,6 +503,16 @@ impl LoadableDatasetId {
     #[must_use]
     fn registry_hint_plan(id: DatasetId) -> Option<DatasetParsePlan> {
         // Hybrids / special cases first.
+        if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
+            return Some(DatasetParsePlan::Tacred);
+        }
+        if id == DatasetId::SciERC {
+            return Some(DatasetParsePlan::SciErcJson);
+        }
+        if id == DatasetId::SciERCNER {
+            // The local NER projection uses sentence/ner arrays in CrossRE-style JSONL.
+            return Some(DatasetParsePlan::DocredJson);
+        }
         if id == DatasetId::CHisIEC {
             // CHisIEC is multi-task and uses a custom JSON array format (not DocRED/CrossRE).
             // It MUST not be auto-detected as DocredJson.
@@ -513,6 +523,9 @@ impl LoadableDatasetId {
             DatasetId::CADEC | DatasetId::ShARe13 | DatasetId::ShARe14
         ) {
             return Some(DatasetParsePlan::CadecHybrid);
+        }
+        if id == DatasetId::FewRel {
+            return Some(DatasetParsePlan::FewRel);
         }
         if id == DatasetId::GoogleRE {
             // The Google relation-extraction-corpus files are not DocRED/CrossRE.
@@ -620,7 +633,6 @@ impl LoadableDatasetId {
                 | DatasetId::BookCoref
                 | DatasetId::BookCorefSplit
                 | DatasetId::WIESP2022NER
-                | DatasetId::FewRel
                 | DatasetId::PIIMasking200k
                 | DatasetId::B2NERD
                 | DatasetId::OpenNER
@@ -760,7 +772,7 @@ impl LoadableDatasetId {
                 }
 
                 // Relation extraction: unambiguous only when the dataset is *only* RE.
-                // Also handle RE datasets that might have NER as secondary task (e.g., SciERCNER).
+                // Also handle RE datasets with NER as a secondary task.
                 "JSON" | "JSONL" if is_re && !is_coref && !is_event => {
                     Some(DatasetParsePlan::DocredJson)
                 }
@@ -1229,6 +1241,45 @@ impl std::fmt::Display for DataSource {
     }
 }
 
+/// Whether a pinned load may fetch the publisher's artifact on a cache miss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublisherFallback {
+    /// Try the publisher if a matching cache object cannot be retrieved.
+    Allow,
+    /// Use only the local cache and the configured S3 cache.
+    Forbid,
+}
+
+/// Why the configured S3 route did not supply a dataset subsequently fetched from its publisher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum S3FallbackReason {
+    /// The requested cache object was missing.
+    NotFound,
+    /// S3 denied the object read.
+    AccessDenied,
+    /// The object content disagreed with its cache pointer.
+    ChecksumMismatch,
+    /// The registry excludes this dataset from shared reads.
+    Excluded,
+    /// Other I/O, tool, or data-format failure.
+    Unavailable,
+}
+
+#[cfg(feature = "eval")]
+type S3ReadResult<T> = std::result::Result<T, (S3FallbackReason, Error)>;
+
+/// Result of a generic dataset load, with the identity of the payload actually parsed.
+#[derive(Debug)]
+pub struct DatasetLoadReceipt {
+    /// The loaded dataset and its actual source.
+    pub dataset: LoadedDataset,
+    /// SHA-256 of the exact parser input; a byte identity independent of release metadata.
+    pub content_sha256: String,
+    /// Set when a publisher load followed an unsuccessful configured S3 lookup.
+    pub s3_fallback: Option<S3FallbackReason>,
+}
+
 /// A loaded dataset with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedDataset {
@@ -1666,10 +1717,19 @@ impl DatasetLoader {
     ///
     /// Returns an error if the dataset is not cached.
     pub fn load(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
+        Ok(self.load_with_receipt(id)?.dataset)
+    }
+
+    /// Load from the local cache and identify the bytes given to the generic parser.
+    pub fn load_with_receipt(&self, id: LoadableDatasetId) -> Result<DatasetLoadReceipt> {
         let dataset_id = id.0;
         if let Some(fixture) = dataset_id.checkout_fixture() {
             let content = self.read_checkout_fixture(dataset_id, &fixture)?;
-            return self.parse_content_impl(&content, dataset_id);
+            return Ok(DatasetLoadReceipt {
+                dataset: self.parse_content_impl(&content, dataset_id)?,
+                content_sha256: fixture.digest.to_string(),
+                s3_fallback: None,
+            });
         }
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
@@ -1697,64 +1757,185 @@ impl DatasetLoader {
             )));
         }
         dataset.data_source = DataSource::LocalCache;
+        let content_sha256 = self.compute_sha256(&parse_content);
         if let Ok(manifest) = self.manifest.read() {
             if let Some(entry) = manifest.get(dataset_id.cache_filename()) {
-                if self.compute_sha256(&content) != entry.sha256 {
+                let stored_hash = if matches!(parse_content, std::borrow::Cow::Owned(_)) {
+                    self.compute_sha256(&content)
+                } else {
+                    content_sha256.clone()
+                };
+                if stored_hash != entry.sha256 {
                     return Err(Error::InvalidInput("Cached dataset checksum differs from its manifest; refresh the dataset cache".into()));
                 }
                 Self::apply_manifest_provenance(&mut dataset, entry);
             }
         }
         if matches!(parse_content, std::borrow::Cow::Owned(_)) {
-            dataset.metadata.version =
-                Some(format!("sha256:{}", self.compute_sha256(&parse_content)));
+            dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
         }
         // The matrix stages the verified WikiGold release without a cache manifest.
         // Only identify these public bytes; other bare WikiGold caches may be local fixtures.
         if dataset_id == DatasetId::WikiGold && dataset.metadata.version.is_none() {
             const RELEASE_SHA256: &str =
                 "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
-            if self.compute_sha256(&content) == RELEASE_SHA256 {
+            if content_sha256 == RELEASE_SHA256 {
                 dataset.metadata.version = Some(format!("sha256:{RELEASE_SHA256}"));
             }
         }
-        Ok(dataset)
+        Ok(DatasetLoadReceipt {
+            dataset,
+            content_sha256,
+            s3_fallback: None,
+        })
     }
 
     /// Load or download a dataset.
     ///
     /// Tries cache first, then S3 (if enabled), then downloads from URL.
-    #[cfg(feature = "eval")]
     pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
-        let dataset_id = id.0;
-        // 1. Check local cache first
-        if self.is_cached(id) {
-            return self.load(id);
+        Ok(self.load_or_download_with_receipt(id)?.dataset)
+    }
+
+    /// Use the ordinary cache and download policy, reporting the exact generic parser input.
+    pub fn load_or_download_with_receipt(
+        &self,
+        id: LoadableDatasetId,
+    ) -> Result<DatasetLoadReceipt> {
+        self.load_with_policy(id, None, PublisherFallback::Allow)
+    }
+
+    /// Stage a missing generic input from the configured shared cache. Keep an
+    /// existing local file and its manifest checks authoritative.
+    #[cfg(feature = "eval")]
+    pub(crate) fn stage_from_shared_cache(
+        &self,
+        id: LoadableDatasetId,
+    ) -> Result<DatasetLoadReceipt> {
+        if self.cache_path(id).exists() {
+            return self.load_with_receipt(id);
         }
+        self.load_with_policy(id, None, PublisherFallback::Forbid)
+    }
 
-        // 2. Try S3 cache if enabled
-        if let Some(ref bucket) = self.s3_bucket {
-            if let Ok((content, manifest_entry)) = self.download_from_s3(bucket, dataset_id) {
-                Self::enforce_max_download_bytes(content.len(), "S3")?;
-                let expected_checksum = manifest_entry.as_ref().map(|entry| entry.sha256.as_str());
-                let mut dataset =
-                    self.validate_and_cache_content(id, &content, expected_checksum)?;
-                dataset.data_source = DataSource::S3Cache;
+    /// Require a particular SHA-256 of the generic parser input. Local bytes have priority.
+    /// On a cold cache, try the exact S3 snapshot and then the legacy object. Reject a
+    /// digest mismatch before publishing newly fetched bytes. A different local version
+    /// is preserved and reported as a mismatch; use a separate cache for a second version.
+    pub fn load_or_download_pinned(
+        &self,
+        id: LoadableDatasetId,
+        expected_sha256: &str,
+        publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        if expected_sha256.len() != 64 || !expected_sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(Error::InvalidInput(
+                "Expected a 64-digit SHA-256 digest".into(),
+            ));
+        }
+        self.load_with_policy(id, Some(&expected_sha256.to_ascii_lowercase()), publisher)
+    }
 
-                // Best-effort: if S3 provides a manifest entry, record it locally.
-                if let Some(entry) = manifest_entry {
-                    Self::apply_manifest_provenance(&mut dataset, &entry);
-                    let _ = self.update_manifest(entry);
-                }
-                return Ok(dataset);
+    fn verify_digest(actual: &str, expected: Option<&str>) -> Result<()> {
+        if let Some(expected) = expected {
+            if actual != expected {
+                return Err(Error::InvalidInput(format!(
+                    "Dataset checksum mismatch: expected {expected}, got {actual}"
+                )));
             }
         }
+        Ok(())
+    }
 
-        // 3. Download from original URL
-        let (content, resolved_url) = self.download_with_resolved_url(dataset_id)?;
+    #[cfg(feature = "eval")]
+    fn load_with_policy(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        self.load_with_fetchers(
+            id,
+            pin,
+            publisher,
+            |bucket| self.download_from_s3(bucket, id.0, pin),
+            || self.download_with_resolved_url(id.0),
+        )
+    }
+
+    #[cfg(feature = "eval")]
+    fn load_with_fetchers(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        publisher: PublisherFallback,
+        fetch_s3: impl FnOnce(&str) -> S3ReadResult<(String, Option<CacheManifestEntry>)>,
+        fetch_original: impl FnOnce() -> Result<(String, String)>,
+    ) -> Result<DatasetLoadReceipt> {
+        let dataset_id = id.0;
+        if self.is_cached(id) || (pin.is_some() && self.cache_path(id).exists()) {
+            let receipt = self.load_with_receipt(id)?;
+            Self::verify_digest(&receipt.content_sha256, pin)?;
+            return Ok(receipt);
+        }
+
+        let mut s3_fallback = None;
+        if let Some(ref bucket) = self.s3_bucket {
+            match fetch_s3(bucket) {
+                Ok((content, entry)) => {
+                    Self::enforce_max_download_bytes(content.len(), "S3")?;
+                    let content_sha256 = self.compute_sha256(&content);
+                    Self::verify_digest(&content_sha256, pin)?;
+                    // The movable sidecar describes the latest release, not necessarily
+                    // the caller's pinned snapshot. Attach only metadata for these bytes.
+                    let entry = entry.filter(|e| pin.is_none_or(|p| p == e.sha256));
+                    let mut dataset = self.validate_and_cache_content(
+                        id,
+                        &content,
+                        entry.as_ref().map(|e| e.sha256.as_str()),
+                    )?;
+                    dataset.data_source = DataSource::S3Cache;
+                    if let Some(entry) = entry {
+                        Self::apply_manifest_provenance(&mut dataset, &entry);
+                        let _ = self.update_manifest(entry);
+                    } else if let Ok(mut manifest) = self.manifest.write() {
+                        // A restored payload can outlive a deleted canonical file's manifest.
+                        // Preserve matching provenance and remove details for a different artifact.
+                        let key = dataset_id.cache_filename();
+                        if manifest.get(key).is_some_and(|old| {
+                            old.sha256 != content_sha256
+                                || old.source_url != dataset_id.download_url()
+                        }) {
+                            manifest.entries.remove(key);
+                            manifest.save(&self.cache_dir)?;
+                        }
+                    }
+                    return Ok(DatasetLoadReceipt {
+                        dataset,
+                        content_sha256,
+                        s3_fallback: None,
+                    });
+                }
+                Err((reason, error)) => {
+                    if publisher == PublisherFallback::Forbid {
+                        return Err(error);
+                    }
+                    s3_fallback = Some(reason);
+                }
+            }
+        }
+        if publisher == PublisherFallback::Forbid {
+            return Err(Error::InvalidInput(
+                "No matching local dataset; S3 is disabled and publisher fallback is forbidden"
+                    .into(),
+            ));
+        }
+
+        let (content, resolved_url) = fetch_original()?;
         Self::enforce_max_download_bytes(content.len(), &resolved_url)?;
         let file_size = content.len() as u64;
         let sha256 = self.compute_sha256(&content);
+        Self::verify_digest(&sha256, pin)?;
 
         // 4. Validate before replacing the canonical cache.
         let mut dataset = self.validate_and_cache_content(id, &content, None)?;
@@ -1771,45 +1952,41 @@ impl DatasetLoader {
             dataset_id: dataset_id.cache_filename().to_string(),
             source_url: dataset_id.download_url().to_string(),
             resolved_url: Some(resolved_url.clone()),
-            sha256,
+            sha256: sha256.clone(),
             file_size,
             downloaded_at: super::timestamp::now(),
             sentence_count: dataset.sentences.len(),
             entity_count: dataset.entity_count(),
             anno_version: env!("CARGO_PKG_VERSION").to_string(),
         };
-        let _ = self.update_manifest(entry); // Best effort
+        let _ = self.update_manifest(entry.clone()); // Best effort
 
-        // 6. Optionally upload to S3 for future use (best effort)
         if let Some(bucket) = self
             .s3_bucket
             .as_ref()
             .filter(|_| dataset_id.approved_for_shared_publication())
         {
-            let entry = CacheManifestEntry {
-                dataset_id: dataset_id.cache_filename().to_string(),
-                source_url: dataset_id.download_url().to_string(),
-                resolved_url: Some(resolved_url),
-                sha256: self.compute_sha256(&content),
-                file_size: content.len() as u64,
-                downloaded_at: super::timestamp::now(),
-                sentence_count: dataset.sentences.len(),
-                entity_count: dataset.entity_count(),
-                anno_version: env!("CARGO_PKG_VERSION").to_string(),
-            };
             let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
         }
 
-        Ok(dataset)
+        Ok(DatasetLoadReceipt {
+            dataset,
+            content_sha256: sha256,
+            s3_fallback,
+        })
     }
 
-    /// Load-or-download shim when `eval` is disabled.
-    ///
-    /// This method will load from cache if present, otherwise return a helpful error.
     #[cfg(not(feature = "eval"))]
-    pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
-        if self.is_cached(id) {
-            return self.load(id);
+    fn load_with_policy(
+        &self,
+        id: LoadableDatasetId,
+        pin: Option<&str>,
+        _publisher: PublisherFallback,
+    ) -> Result<DatasetLoadReceipt> {
+        if self.is_cached(id) || (pin.is_some() && self.cache_path(id).exists()) {
+            let receipt = self.load_with_receipt(id)?;
+            Self::verify_digest(&receipt.content_sha256, pin)?;
+            return Ok(receipt);
         }
 
         Err(Error::InvalidInput(
@@ -1844,94 +2021,63 @@ impl DatasetLoader {
         &self,
         bucket: &str,
         id: DatasetId,
-    ) -> Result<(String, Option<CacheManifestEntry>)> {
-        use std::process::Command;
-
-        Self::check_shared_cache_source(id)?;
-
-        // Prefer a content-addressed snapshot if the pointer exists; fall back to the legacy key.
-        let pointer_key = format!("datasets/{}.latest.json", id.cache_filename());
-        let pointer_uri = format!("s3://{}/{}", bucket, pointer_key);
-
-        let mut content: Option<String> = None;
-        let mut pointer_sha256: Option<String> = None;
-
-        // Attempt: pointer -> by-sha256 snapshot
-        let pointer = Command::new("aws")
-            .args(["s3", "cp", &pointer_uri, "-"])
-            .output()
-            .ok()
-            .and_then(|o| {
-                if !o.status.success() {
-                    // Pointer missing or unreadable; fall back to legacy key.
-                    return None;
-                }
-                String::from_utf8(o.stdout).ok()
-            })
-            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
-
-        if let Some(pointer) = pointer {
-            if let Some(sha) = pointer.get("sha256").and_then(|v| v.as_str()) {
-                pointer_sha256 = Some(sha.to_string());
-                let by_sha_key = format!("datasets/by-sha256/{}/{}", sha, id.cache_filename());
-                let by_sha_uri = format!("s3://{}/{}", bucket, by_sha_key);
-                let output = Command::new("aws")
-                    .args(["s3", "cp", &by_sha_uri, "-"])
-                    .output()
-                    .ok();
-
-                if let Some(output) = output {
-                    if output.status.success() {
-                        content = String::from_utf8(output.stdout).ok();
-                    }
-                }
-            }
-        }
-
-        // Fall back: legacy key (mutable)
-        if content.is_none() {
-            let s3_key = format!("datasets/{}", id.cache_filename());
-            let s3_uri = format!("s3://{}/{}", bucket, s3_key);
-
-            // Use aws s3 cp to download to stdout
-            let output = Command::new("aws")
-                .args(["s3", "cp", &s3_uri, "-"])
+        pin: Option<&str>,
+    ) -> S3ReadResult<(String, Option<CacheManifestEntry>)> {
+        Self::check_shared_cache_source(id).map_err(|error| (S3FallbackReason::Excluded, error))?;
+        let object = format!("datasets/{}", id.cache_filename());
+        let read = |key: &str| {
+            let output = std::process::Command::new("aws")
+                .args(["s3", "cp", &format!("s3://{bucket}/{key}"), "-"])
                 .output()
-                .map_err(|e| Error::InvalidInput(format!("Failed to run aws s3 cp: {}", e)))?;
-
-            if output.status.success() {
-                content = Some(String::from_utf8(output.stdout).map_err(|e| {
-                    Error::InvalidInput(format!("S3 content not valid UTF-8: {}", e))
-                })?);
-            } else {
-                return Err(Error::InvalidInput(format!(
-                    "S3 download failed: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                )));
-            }
-        }
-
-        let Some(content) = content else {
-            return Err(Error::InvalidInput("S3 download failed".to_string()));
-        };
-
-        if let Some(expected) = pointer_sha256 {
-            if self.compute_sha256(&content) != expected {
-                return Err(Error::InvalidInput(
-                    "S3 dataset checksum differs from its pointer".into(),
+                .map_err(|e| {
+                    (
+                        S3FallbackReason::Unavailable,
+                        Error::InvalidInput(format!("Failed to run aws s3 cp: {e}")),
+                    )
+                })?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let reason = if stderr.contains("(403)") || stderr.contains("(AccessDenied)") {
+                    S3FallbackReason::AccessDenied
+                } else if stderr.contains("(404)") || stderr.contains("(NoSuchKey)") {
+                    S3FallbackReason::NotFound
+                } else {
+                    S3FallbackReason::Unavailable
+                };
+                return Err((
+                    reason,
+                    Error::InvalidInput(format!("S3 download failed: {stderr}")),
                 ));
             }
-        }
+            String::from_utf8(output.stdout).map_err(|e| {
+                (
+                    S3FallbackReason::Unavailable,
+                    Error::InvalidInput(format!("S3 content not valid UTF-8: {e}")),
+                )
+            })
+        };
 
-        // An old annotation-only mirror cannot supply the corresponding source text.
-        if id == DatasetId::LitBank && !content.trim_start().starts_with('{') {
-            return Err(Error::InvalidInput(
-                "LitBank mirror lacks the source text".into(),
+        // In pinned mode the mutable latest pointer cannot choose a different artifact.
+        let digest = match pin {
+            Some(pin) => Some(pin.to_owned()),
+            None => read(&format!("{object}.latest.json"))
+                .ok()
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .and_then(|v| v.get("sha256")?.as_str().map(str::to_owned)),
+        };
+        let content = match &digest {
+            Some(sha) => read(&format!("datasets/by-sha256/{sha}/{}", id.cache_filename()))
+                .or_else(|_| read(&object))?,
+            None => read(&object)?,
+        };
+        // A caller's pin is checked by load_with_policy before any cache write.
+        if pin.is_none() && digest.is_some_and(|sha| self.compute_sha256(&content) != sha) {
+            return Err((
+                S3FallbackReason::ChecksumMismatch,
+                Error::InvalidInput("S3 dataset checksum differs from its pointer".into()),
             ));
         }
-        // Best-effort: attempt to fetch per-dataset manifest entry.
         let manifest = self.download_manifest_entry_from_s3(bucket, id).ok();
-
         Ok((content, manifest))
     }
 
@@ -2115,13 +2261,16 @@ impl DatasetLoader {
     ///
     /// Implements exponential backoff retry strategy:
     /// - 3 retries maximum
-    /// - Initial delay: 1 second
-    /// - Exponential backoff: 2^attempt seconds
-    /// - Max delay: 10 seconds
+    /// - Backoff delays: 1, 2, then 4 seconds
     ///
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
+        self.download_from_url(id, id.download_url().to_owned())
+    }
+
+    #[cfg(feature = "eval")]
+    fn download_from_url(&self, id: DatasetId, url: String) -> Result<(String, String)> {
         if id.requires_local_source() {
             return Err(Error::InvalidInput(format!(
                 "{} requires an authorized local source. Place it at {}. {}",
@@ -2130,7 +2279,6 @@ impl DatasetLoader {
                 id.notes().unwrap_or_default()
             )));
         }
-        let url = id.download_url().to_string();
         if id == DatasetId::LitBank {
             let source_url = url
                 .strip_suffix(".ann")
@@ -2349,46 +2497,8 @@ impl DatasetLoader {
             }
         }
 
-        // Regular download with retry logic
-        const MAX_RETRIES: u32 = 3;
-        const INITIAL_DELAY_SECS: u64 = 1;
-
-        let mut last_error = None;
-
-        for attempt in 0..=MAX_RETRIES {
-            match self.download_attempt(&url) {
-                Ok(content) => {
-                    // Checksum validation removed - registry doesn't provide expected_checksum
-                    // Future: Add checksum validation if registry provides it
-
-                    return Ok((content, url.clone()));
-                }
-                Err(e) => {
-                    last_error = Some(e);
-                    if attempt < MAX_RETRIES {
-                        let delay_secs = (INITIAL_DELAY_SECS * (1 << attempt)).min(10);
-                        log::warn!(
-                            "Download attempt {} failed for {}, retrying in {}s...",
-                            attempt + 1,
-                            url,
-                            delay_secs
-                        );
-                        std::thread::sleep(std::time::Duration::from_secs(delay_secs));
-                    }
-                }
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| {
-            Error::InvalidInput(format!(
-                "Failed to download {} after {} retries. \
-                 Check network connection and try again. \
-                 URL: {}",
-                id.name(),
-                MAX_RETRIES + 1,
-                url
-            ))
-        }))
+        let content = self.download_attempt(&url)?;
+        Ok((content, url))
     }
 
     /// Extract `<org>/<dataset>` from `https://huggingface.co/datasets/<org>/<dataset>(/...)`.
@@ -2561,11 +2671,8 @@ impl DatasetLoader {
             "https://datasets-server.huggingface.co/splits?dataset={}",
             Self::url_encode_component(dataset)
         );
-        let response = ureq::get(&url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
+        let response = super::http::agent(std::time::Duration::from_secs(30))?
+            .get(&url)
             .call()
             .map_err(|e| Error::InvalidInput(format!("Failed to query HF splits: {}", e)))?;
 
@@ -2603,18 +2710,13 @@ impl DatasetLoader {
     fn download_hf_dataset_file_from_hub(&self, dataset: &str) -> Result<(String, String)> {
         // Example API: https://huggingface.co/api/datasets/coref-data/preco_raw
         let api_url = format!("https://huggingface.co/api/datasets/{}", dataset);
-        let response = ureq::get(&api_url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(30)))
-            .http_status_as_error(false)
-            .build()
-            .call()
-            .map_err(|e| {
-                Error::InvalidInput(format!(
-                    "Failed to query HuggingFace dataset metadata for {}: {}",
-                    dataset, e
-                ))
-            })?;
+        let agent = super::http::agent(std::time::Duration::from_secs(30))?;
+        let response = agent.get(&api_url).call().map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to query HuggingFace dataset metadata for {}: {}",
+                dataset, e
+            ))
+        })?;
 
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
@@ -2663,13 +2765,7 @@ impl DatasetLoader {
 
         // Best-effort: avoid downloading huge files if a max byte limit is configured.
         if let Some(limit) = Self::max_download_bytes() {
-            if let Ok(resp) = ureq::head(&file_url)
-                .config()
-                .timeout_global(Some(std::time::Duration::from_secs(30)))
-                .http_status_as_error(false)
-                .build()
-                .call()
-            {
+            if let Ok(resp) = agent.head(&file_url).call() {
                 if resp.status() == 200 {
                     if let Some(len) = resp
                         .headers()
@@ -2943,9 +3039,7 @@ impl DatasetLoader {
         Err(Error::InvalidInput("hf-hub not available".to_string()))
     }
 
-    /// Single download attempt with retry logic.
-    ///
-    /// Retries up to 3 times with exponential backoff for transient failures (timeouts, 5xx errors).
+    /// Download a text object with up to three retries for transient failures.
     #[cfg(feature = "eval")]
     fn download_attempt(&self, url: &str) -> Result<String> {
         const MAX_RETRIES: usize = 3;
@@ -2953,28 +3047,30 @@ impl DatasetLoader {
         const MAX_TIMEOUT_SECS: u64 = 120;
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            let response = agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
-            {
-                Ok(response) => {
-                    if response.status() == 200 {
-                        // Success - read content
-                        let content = response.into_body().read_to_string().map_err(|e| {
-                            Error::InvalidInput(format!(
-                                "Failed to read response from {}: {}. \
-                                 Response may be too large or corrupted.",
-                                url, e
-                            ))
-                        })?;
-
+                .and_then(|response| {
+                    let status = response.status().as_u16();
+                    let body = response.into_body().read_to_string();
+                    if status == 200 {
+                        body.map(|content| (status, content))
+                    } else {
+                        // An unreadable error body must not hide the HTTP status.
+                        Ok((status, body.unwrap_or_default()))
+                    }
+                });
+            match response {
+                Ok((status, content)) => {
+                    if status == 200 {
                         // Heuristic guardrail: many registry URLs are dataset homepages. If we fetch HTML,
                         // treat it as a download failure so we don't silently cache garbage and then parse
                         // "0 sentences".
@@ -2993,17 +3089,17 @@ impl DatasetLoader {
                         return Ok(content);
                     }
 
-                    let status = response.status().as_u16();
-                    let body = response.into_body().read_to_string().unwrap_or_default();
-                    let body = body.trim();
+                    let body = content.trim();
                     let body_preview = if body.len() > 800 {
-                        format!("{}…", &body[..800])
+                        format!("{}…", &body[..body.floor_char_boundary(800)])
                     } else {
                         body.to_string()
                     };
 
-                    // Retry on 5xx server errors (transient)
-                    if (500..600).contains(&status) && attempt < MAX_RETRIES {
+                    // Retry timeouts, rate limits and server errors.
+                    if (matches!(status, 408 | 429) || (500..600).contains(&status))
+                        && attempt < MAX_RETRIES
+                    {
                         let wait_ms = 1000 * (1 << attempt); // Exponential backoff: 1s, 2s, 4s
                         log::debug!(
                             "Server error {} downloading {} (attempt {}/{}), retrying in {}ms...",
@@ -3051,14 +3147,10 @@ impl DatasetLoader {
                 ) => {
                     // Network errors (timeouts, connection failures) - retry
                     let error_msg = format!("{}", e);
-                    let is_timeout = matches!(e, ureq::Error::Timeout(_))
-                        || error_msg.contains("timeout")
-                        || error_msg.contains("timed out");
-
-                    if is_timeout && attempt < MAX_RETRIES {
+                    if attempt < MAX_RETRIES {
                         let wait_ms = 1000 * (1 << attempt); // Exponential backoff
                         log::debug!(
-                            "Timeout downloading {} (attempt {}/{}), retrying in {}ms...",
+                            "Network error downloading {} (attempt {}/{}), retrying in {}ms...",
                             url,
                             attempt + 1,
                             MAX_RETRIES + 1,
@@ -3069,7 +3161,6 @@ impl DatasetLoader {
                         continue;
                     }
 
-                    // Final attempt failed or non-timeout error
                     return Err(Error::InvalidInput(format!(
                         "Network error downloading {}: {}. \
                          Check your internet connection and try again. \
@@ -3115,14 +3206,15 @@ impl DatasetLoader {
         const MAX_BYTES: usize = 50 * 1024 * 1024; // 50 MB limit
 
         let mut last_error = None;
+        let agent = super::http::agent(std::time::Duration::from_secs(INITIAL_TIMEOUT_SECS))?;
 
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            match agent
+                .get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-                .http_status_as_error(false)
                 .build()
                 .call()
             {
@@ -3379,7 +3471,11 @@ impl DatasetLoader {
         // whose registry format is CoNLL. Dispatch it before the format-specific
         // parser: treating the one-line JSON document as CoNLL creates one enormous
         // token and can make downstream model evaluation exhaust memory.
-        if id != DatasetId::PreCo && self.is_hf_api_response(content) {
+        if id != DatasetId::PreCo
+            && plan != DatasetParsePlan::Tacred
+            && plan != DatasetParsePlan::SciErcJson
+            && self.is_hf_api_response(content)
+        {
             return match plan {
                 DatasetParsePlan::CadecHybrid => self.parse_cadec_hf_api(content, id),
                 _ => self.parse_hf_api_response(content, id),
@@ -3401,7 +3497,23 @@ impl DatasetLoader {
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
+            DatasetParsePlan::Tacred => Ok(LoadedDataset {
+                id,
+                sentences: super::tacred::records(content)?
+                    .into_iter()
+                    .map(|record| record.sentence(id))
+                    .collect(),
+                loaded_at: super::timestamp::now(),
+                source_url: id.download_url().to_string(),
+                data_source: DataSource::LocalCache,
+                temporal_metadata: Self::get_temporal_metadata(id),
+                metadata: id.default_metadata(),
+            }),
             DatasetParsePlan::DocredJson => self.parse_docred(content, id),
+            DatasetParsePlan::FewRel => self.parse_fewrel(content),
+            DatasetParsePlan::SciErcJson => {
+                self.parse_crossre_sentences(super::scierc::sentences(content, true)?, id)
+            }
             DatasetParsePlan::GoogleReCorpus => self.parse_google_re_corpus(content, id),
             DatasetParsePlan::ChisiecJson => self.parse_chisiec(content, id),
             DatasetParsePlan::CadecHybrid => {
@@ -4625,20 +4737,21 @@ impl DatasetLoader {
     ///
     /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        self.parse_crossre_sentences(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+            id,
+        )
+    }
+
+    fn parse_crossre_sentences(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+        id: DatasetId,
+    ) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // CrossRE format: sentence array + ner array
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,
@@ -4702,6 +4815,28 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
+    fn parse_fewrel(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::FewRel;
+        let examples = match super::fewrel::read(content) {
+            Ok(examples) => examples,
+            // Older locally prepared BIO caches are valid for the generic sentence
+            // reader. They have no predicates for the relation reader.
+            Err(err) => return self.parse_jsonl_ner(content, id).map_err(|_| err),
+        };
+        Ok(LoadedDataset {
+            id,
+            sentences: examples
+                .into_iter()
+                .map(super::fewrel::Example::into_sentence)
+                .collect(),
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
             metadata: id.default_metadata(),
@@ -5604,7 +5739,7 @@ impl DatasetLoader {
 
     /// Load relation extraction dataset, returning documents with relations.
     ///
-    /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
+    /// Supports CrossRE and locally supplied TACRED and Re-TACRED splits, among others.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if let Some(reason) = id.relation_span_limitation() {
             return Err(Error::InvalidInput(reason.into()));
@@ -5638,8 +5773,14 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<Vec<RelationDocument>> {
         match id {
+            DatasetId::TACRED | DatasetId::ReTACRED => Ok(super::tacred::records(content)?
+                .into_iter()
+                .map(|record| record.document())
+                .collect()),
+            DatasetId::SciERC => {
+                self.parse_crossre_relations(super::scierc::sentences(content, false)?)
+            }
             DatasetId::CrossREAI
-            | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::BioRED
@@ -5649,6 +5790,10 @@ impl DatasetLoader {
                 // All these datasets use the CrossRE sentence format
                 self.parse_docred_relations(content)
             }
+            DatasetId::FewRel => Ok(super::fewrel::read(content)?
+                .into_iter()
+                .map(super::fewrel::Example::into_document)
+                .collect()),
             DatasetId::CHisIEC => {
                 // CHisIEC uses a different JSON format with entity indices
                 self.parse_chisiec_relations(content)
@@ -5700,22 +5845,20 @@ impl DatasetLoader {
     ///
     /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
     fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
+        self.parse_crossre_relations(
+            content
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok()),
+        )
+    }
+
+    fn parse_crossre_relations(
+        &self,
+        rows: impl IntoIterator<Item = serde_json::Value>,
+    ) -> Result<Vec<RelationDocument>> {
         use super::relation::RelationGold;
-
         let mut documents = Vec::new();
-
-        // Parse as JSONL (one JSON object per line)
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let doc: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
+        for doc in rows {
             // Get sentence tokens
             let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
                 Some(t) => t,
@@ -7440,6 +7583,66 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "eval")]
+    #[test]
+    fn direct_download_retries_transient_responses_only() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::{TcpListener, TcpStream};
+
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        // The four-byte character crosses byte 800 of a permanent error response.
+        let localized = format!("{}🌊", "x".repeat(799));
+        for (status, body, content_length, failures, expected_requests) in [
+            (404, localized.as_str(), localized.len(), 1, 1),
+            (429, "ner", 3, 1, 2),
+            (503, "ner", 3, 1, 2),
+            (503, "ner", 3, 4, 4),
+            (200, "n", 3, 1, 2),
+        ] {
+            let body = body.to_owned();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = std::thread::spawn(move || {
+                let mut requests = 0;
+                for stream in listener.incoming() {
+                    let mut stream = stream.unwrap();
+                    let mut headers = BufReader::new(&stream).lines();
+                    if headers.next().is_none() {
+                        break;
+                    }
+                    for header in headers {
+                        if header.unwrap().is_empty() {
+                            break;
+                        }
+                    }
+                    requests += 1;
+                    let (status, body, length) = if requests <= failures {
+                        (status, body.as_str(), content_length)
+                    } else {
+                        (200, "ner", 3)
+                    };
+                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{body}").unwrap();
+                }
+                requests
+            });
+            let url = format!("http://{address}/wikigold.txt");
+            let result = loader.download_from_url(DatasetId::WikiGold, url.clone());
+            // Wake the accept loop with EOF after all client requests have completed.
+            drop(TcpStream::connect(address).unwrap());
+            assert_eq!(server.join().unwrap(), expected_requests, "HTTP {status}");
+            if expected_requests <= failures {
+                let message = result.unwrap_err().to_string();
+                assert!(message.contains(&format!("HTTP {status}")));
+                if status == 404 {
+                    assert!(message.ends_with(&format!("{}…", "x".repeat(799))));
+                }
+            } else {
+                assert_eq!(result.unwrap(), ("ner".to_owned(), url));
+            }
+        }
+    }
+
     /// Relation gold spans are character offsets: a non-ASCII token before an
     /// entity must not shift later spans.
     #[test]
@@ -7608,6 +7811,140 @@ mod tests {
     }
 
     #[test]
+    fn pinned_local_receipt_verifies_parser_input_without_claiming_release() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let input = "Ada B-PER\nleft O\n\n";
+        fs::write(loader.cache_path(id), input).unwrap();
+        let digest = loader.compute_sha256(input);
+        let receipt = loader
+            .load_or_download_pinned(id, &digest.to_uppercase(), PublisherFallback::Forbid)
+            .unwrap();
+        assert_eq!(receipt.content_sha256, digest);
+        assert_eq!(receipt.dataset.data_source, DataSource::LocalCache);
+        assert_eq!(receipt.s3_fallback, None);
+        assert_eq!(receipt.dataset.metadata.version, None);
+        for wrong in ["bad", &"0".repeat(64)] {
+            assert!(loader
+                .load_or_download_pinned(id, wrong, PublisherFallback::Allow)
+                .is_err());
+            assert_eq!(fs::read_to_string(loader.cache_path(id)).unwrap(), input);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn pinned_load_checks_each_route_before_writing_and_identifies_publisher_fallback() {
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let text = "Ada B-PER\nleft O\n\n";
+        // A still-parseable older snapshot and a truncated, still-parseable payload.
+        for wrong in ["Bea B-PER\nleft O\n\n", "Ada B-PER\n"] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            loader.s3_bucket = Some("fixture".into());
+            let pin = loader.compute_sha256(text);
+            let err = loader
+                .load_with_fetchers(
+                    id,
+                    Some(&pin),
+                    PublisherFallback::Allow,
+                    |_| Ok((wrong.into(), None)),
+                    || panic!("a present S3 object failed integrity verification"),
+                )
+                .unwrap_err();
+            assert!(err.to_string().contains("checksum mismatch"));
+            assert!(!loader.cache_path(id).exists());
+            for reason in [S3FallbackReason::NotFound, S3FallbackReason::AccessDenied] {
+                let failure = |_: &str| Err((reason, Error::InvalidInput("read failed".into())));
+                for wanted in [None, Some(pin.as_str())] {
+                    let res = loader.load_with_fetchers(
+                        id,
+                        wanted,
+                        PublisherFallback::Forbid,
+                        failure,
+                        || panic!("publisher fallback was forbidden"),
+                    );
+                    assert!(res.is_err());
+                    assert!(!loader.cache_path(id).exists());
+                }
+                let res = loader.load_with_fetchers(
+                    id,
+                    Some(&pin),
+                    PublisherFallback::Allow,
+                    |_| Err((reason, Error::InvalidInput("read failed".into()))),
+                    || Ok((wrong.into(), "https://example.test/test.conll".into())),
+                );
+                assert!(res.unwrap_err().to_string().contains("checksum mismatch"));
+                assert!(!loader.cache_path(id).exists());
+            }
+        }
+        for reason in [
+            S3FallbackReason::AccessDenied,
+            S3FallbackReason::ChecksumMismatch,
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            loader.s3_bucket = Some("fixture".into());
+            let pin = loader.compute_sha256(text);
+            let receipt = loader
+                .load_with_fetchers(
+                    id,
+                    None,
+                    PublisherFallback::Allow,
+                    |_| Err((reason, Error::InvalidInput("read failed".into()))),
+                    || Ok((text.into(), "https://example.test/test.conll".into())),
+                )
+                .unwrap();
+            assert_eq!(receipt.s3_fallback, Some(reason));
+            assert_eq!(receipt.dataset.data_source, DataSource::OriginalUrl);
+            assert_eq!(receipt.content_sha256, pin);
+            let cached = loader
+                .load_or_download_pinned(id, &pin, PublisherFallback::Forbid)
+                .unwrap();
+            assert_eq!(cached.dataset.data_source, DataSource::LocalCache);
+            assert_eq!(cached.s3_fallback, None);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn pinned_snapshot_ignores_newer_metadata_after_payload_eviction() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        loader.s3_bucket = None;
+        let newer = "Bea B-PER\nleft O\n\n";
+        let older = "Ada B-PER\nleft O\n\n";
+        loader
+            .load_with_fetchers(
+                id,
+                None,
+                PublisherFallback::Allow,
+                |_| unreachable!(),
+                || Ok((newer.into(), "https://example.test/dev.conll".into())),
+            )
+            .unwrap();
+        let sidecar = loader.cached_manifest_entries().pop().unwrap();
+        fs::remove_file(loader.cache_path(id)).unwrap();
+        loader.s3_bucket = Some("fixture".into());
+        let pin = loader.compute_sha256(older);
+        let receipt = loader
+            .load_with_fetchers(
+                id,
+                Some(&pin),
+                PublisherFallback::Forbid,
+                |_| Ok((older.into(), Some(sidecar))),
+                || unreachable!(),
+            )
+            .unwrap();
+        assert_eq!(receipt.dataset.data_source, DataSource::S3Cache);
+        assert_eq!(receipt.dataset.metadata.split, None);
+        let reopened = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        assert_eq!(reopened.load_with_receipt(id).unwrap().content_sha256, pin);
+    }
+
+    #[test]
     fn cached_dataset_retains_provenance_and_rejects_modified_content() {
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
@@ -7718,6 +8055,27 @@ mod tests {
             loader.compute_sha256("abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn scierc_local_ner_projection_has_no_relation_task() {
+        let id = DatasetId::SciERCNER;
+        assert_eq!(id.tasks_or_inferred(), vec!["ner"]);
+        assert!(!id.is_relation_extraction());
+        assert!(id.requires_local_source());
+        assert!(!id.is_automatable_download());
+        assert!(DatasetId::SciERC.is_relation_extraction());
+
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let example = r#"{"sentence":["A","mosaic","lens"],"ner":[[1,2,"Method"]]}"#;
+        let data = loader.parse_content_str(example, id).unwrap();
+        assert_eq!(data.sentences[0].entities()[0].text, "mosaic lens");
+        assert!(loader
+            .load_relation(id)
+            .unwrap_err()
+            .to_string()
+            .contains("not a relation extraction dataset"));
     }
 
     #[test]
@@ -9956,7 +10314,6 @@ CEO,O
             DatasetId::BookCoref,
             DatasetId::BookCorefSplit,
             DatasetId::WIESP2022NER,
-            DatasetId::FewRel,
             DatasetId::PIIMasking200k,
             DatasetId::B2NERD,
             DatasetId::OpenNER,
@@ -10026,13 +10383,12 @@ CEO,O
 
     #[test]
     fn test_fewrel_jsonl_parse() {
-        // FewRel has relation extraction in JSONL format. Tags use the
-        // documented JsonlNer shape (BIO strings); integer ids are only known
-        // for MultiNERD.
+        // Legacy, locally prepared BIO rows remain readable by the generic loader.
         let fewrel_sample = r#"{"tokens":["John","works","at","Google","."],"ner_tags":["B-PER","O","O","B-ORG","O"]}"#;
 
-        let loader = DatasetLoader::new().unwrap();
-        let result = loader.parse_jsonl_ner(fewrel_sample, DatasetId::FewRel);
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let result = loader.parse_content_str(fewrel_sample, DatasetId::FewRel);
         assert!(result.is_ok());
 
         let dataset = result.unwrap();
@@ -10819,8 +11175,9 @@ CEO,O
                 DatasetId::CUAD,
             ] {
                 assert!(loader
-                    .download_from_s3("unused", id)
+                    .download_from_s3("unused", id, None)
                     .unwrap_err()
+                    .1
                     .to_string()
                     .contains("excluded"));
                 assert!(loader

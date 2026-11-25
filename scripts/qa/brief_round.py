@@ -25,28 +25,46 @@ def measured_counts(values, *keys):
     return tuple(map(int, result))
 
 
+def registry_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", value):
+        raise ValueError("expected registry identifiers for the dataset and backend")
+    return value
+
+
 def outcome_evidence(path):
     lines = []
+    selected = {}
+    observed = set()
     with path.open(encoding="utf-8") as stream:
-        for line in stream:
+        for number, line in enumerate(stream, 1):
             if not line.strip():
                 continue
             row = json.loads(line)
+            scope = tuple(row.get(k) for k in ("run_id", "strategy", "slice"))
+            scoped = all(isinstance(value, str) and value for value in scope)
             if row.get("record_type") != "outcome":
+                # Some selectors name only the first backend; these rows give a lower bound.
+                if scoped and "record_type" not in row and row.get("chosen"):
+                    if not isinstance(row["chosen"], str) or not isinstance(row.get("datasets"), list):
+                        raise ValueError("invalid matrix selection")
+                    backends = [registry_id(value) for value in row["chosen"].split(",")]
+                    for value in row["datasets"]:
+                        dataset = registry_id(value)
+                        for backend in backends:
+                            selected.setdefault((scope, dataset, backend), number)
                 continue
-            dataset, backend = row["dataset"], row["backend"]
-            if not all(isinstance(s, str) and re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", s)
-                       for s in (dataset, backend)):
-                raise ValueError("expected registry identifiers for the dataset and backend")
+            dataset, backend = registry_id(row["dataset"]), registry_id(row["backend"])
+            if scoped:
+                observed.add((scope, dataset, backend))
             score = row.get("primary_f1")
             if row.get("hard_junk") or row.get("cost_units") == 0 or score is None:
-                lines.append(f"- {dataset} / {backend}: no usable score. Check execution first.")
+                lines.append(f"- Line {number}, {dataset} / {backend}: no usable score. Check execution first.")
                 continue
             if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
                 raise ValueError("invalid primary F1")
             if type(row.get("ok")) is not bool:
                 raise ValueError("invalid outcome status")
-            lines.append(f"- {dataset} / {backend}: ok={row['ok']}, primary F1={score}")
+            lines.append(f"- Line {number}, {dataset} / {backend}: ok={row['ok']}, primary F1={score}")
             counts = row.get("structural_counts")
             coref = measured_counts(counts, "gold_coref_links", "reachable_gold_links",
                                     "matched_coref_links", "predicted_coref_links")
@@ -76,6 +94,17 @@ def outcome_evidence(path):
                 near, matched, predicted, empty, alarms = temporal
                 if matched > predicted or near > predicted - matched or alarms > empty:
                     raise ValueError("inconsistent temporal span counts")
+                gold_count = measured_counts(counts, "gold_spans")
+                if gold_count is not None:
+                    gold, = gold_count
+                    if matched > gold:
+                        raise ValueError("inconsistent temporal span counts")
+                    if (row.get("task") == "temporal" and backend == "pattern"
+                            and gold > matched and predicted == matched and empty and not alarms):
+                        lines.append(f"  Pattern missed {gold-matched}/{gold} gold spans. "
+                                     "Probe weekday recall with an authored name, title and numeric-date control: "
+                                     "just qa-spans target/debug/anno pattern "
+                                     "scripts/qa/fixtures/weekday-span-assertions.json")
                 if near:
                     lines.append(f"  {near}/{predicted-matched} unmatched predictions overlap missed gold. "
                                  "Compare native and reference decoding on identical frozen model outputs.")
@@ -83,8 +112,13 @@ def outcome_evidence(path):
                     lines.append(f"  {alarms}/{empty} gold-empty sentences triggered. Preserve that control.")
                 else:
                     lines.append("  No gold-empty sentences were scored. Reserve a labeled negative panel.")
+    for key, number in selected.items():
+        if key not in observed:
+            _, dataset, backend = key
+            lines.append(f"- Line {number} selects {dataset} / {backend}. This file contains no outcome "
+                         "with a matching run, strategy and slice. Execution and score are unknown.")
     if not lines:
-        raise ValueError("completed measurement has no outcome rows")
+        raise ValueError("matrix receipt contains no outcome or identifiable selection rows")
     return "\n".join(lines)
 
 
@@ -158,12 +192,51 @@ def replay_evidence(receipt):
     return f"Reviewed replay evaluated 1 case. Outcome {outcome}."
 
 
+def benchmark_evidence(receipt):
+    """Project recorded benchmark fields into a source-free reviewer handoff."""
+    rows = receipt["results"]
+    if not isinstance(rows, list):
+        raise ValueError("expected benchmark result rows")
+    lines = [f"Benchmark result rows: {len(rows)}."]
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("expected a benchmark result object")
+        dataset, backend = row.get("dataset"), row.get("backend")
+        if not all(isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", v)
+                   for v in (dataset, backend)):
+            raise ValueError("invalid benchmark dataset or backend identifier")
+        success = row.get("success")
+        if type(success) is not bool:
+            raise ValueError("expected a benchmark success flag")
+        provenance = row.get("provenance") or {}
+        if not isinstance(provenance, dict):
+            raise ValueError("invalid benchmark provenance")
+        observed = provenance.get("dataset") or {}
+        if not isinstance(observed, dict):
+            raise ValueError("invalid benchmark dataset provenance")
+        tier = observed.get("data_source")
+        if tier not in ("S3 cache", "local cache", "original URL", "embedded",
+                        "skipped (unavailable)", "unavailable before dataset load"):
+            tier = "unrecorded"
+        content_digest = observed.get("content_sha256")
+        version = observed.get("version")
+        digest = "unrecorded"
+        if isinstance(content_digest, str) and re.fullmatch(r"[0-9a-f]{64}", content_digest):
+            digest = "sha256:" + content_digest
+        elif isinstance(version, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", version):
+            digest = version
+        lines.append(f"- {dataset} / {backend}: success={success}, source={tier}, digest={digest}")
+    return "\n".join(lines)
+
+
 def evidence(directory):
     if directory.is_file():
         if directory.suffix == ".jsonl":
             return outcome_evidence(directory)
         receipt = json.loads(directory.read_text(encoding="utf-8"))
         if isinstance(receipt, dict):
+            if "kind" not in receipt and "results" in receipt and "summary" in receipt:
+                return benchmark_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-query-case.v1":
                 return query_case_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-case.v1":
@@ -216,11 +289,18 @@ def main():
     parser.add_argument("receipts", type=Path)
     parser.add_argument("claim")
     parser.add_argument("--trace", type=Path, help="create a local round trace at a new SQLite path")
+    parser.add_argument("--compact", action="store_true", help="include the next review step and a guide reference")
     args = parser.parse_args()
     try:
         summary = evidence(args.receipts)
+        guidance = (
+            "Check the claim against the original receipt. Record one counterexample or the next "
+            "replay that would distinguish the explanations. For independent labeling, share the "
+            "input and contract before the producer output. See docs/ADVERSARIAL_QA.md in this checkout."
+            if args.compact else GUIDE.read_text()
+        )
         handoff = (f"# Coordinator handoff\n\nClaim to investigate: {args.claim}\n\n"
-                   f"Starting evidence\n\n{summary}\n\n{GUIDE.read_text()}\n")
+                   f"Starting evidence\n\n{summary}\n\n{guidance}\n")
         if args.trace:
             trace_id = initialize(args.trace, handoff)
             print(f"QA trace {trace_id} at {args.trace}", file=sys.stderr)

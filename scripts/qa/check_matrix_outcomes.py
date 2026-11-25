@@ -84,6 +84,36 @@ def check_temporal_contrast(lines):
                               backend="pattern", examples=34, exact=False)
 
 
+def report_dataset_pools(lines):
+    """Report each automatic selection pass independently, including empty passes."""
+    for number, line in enumerate(lines, 1):
+        try:
+            row = json.loads(line)
+            pool = row["pool"]
+            strategy, task, phase = row["strategy"], row["slice"], row["pass"]
+            excluded, rejected = pool["excluded"], pool["load_rejections"]
+            counts = (pool["catalog_count"], pool["eligible_count"], pool["backend_incompatible_count"],
+                      *excluded.values(), *rejected.values())
+            if (not isinstance(pool["selected"], list)
+                    or any(type(n) is not int or n < 0 for n in counts)):
+                raise ValueError("invalid selection or dataset count")
+            selected = len(pool["selected"])
+            probed = selected + sum(rejected.values())
+            unchecked = pool["eligible_count"] - probed - pool["backend_incompatible_count"]
+            if (row["schema_version"] != 1 or unchecked < 0
+                    or pool["catalog_count"] != pool["eligible_count"] + sum(excluded.values())):
+                raise ValueError("inconsistent dataset pool counts or unsupported schema")
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise ValueError(f"invalid dataset pool at line {number}: {exc}") from exc
+        print(f"- {strategy} / {task} ({phase}): "
+              f"{pool['eligible_count']}/{pool['catalog_count']} policy-eligible, "
+              f"{probed} load checks, {selected} selected, "
+              f"{pool['backend_incompatible_count']} incompatible, {unchecked} unexamined.")
+        for label, counts in (("Policy exclusions", excluded), ("Load rejections", rejected)):
+            if counts:
+                print(f"  - {label}: " + ", ".join(f"{key} ({value})" for key, value in sorted(counts.items())))
+
+
 def check(lines, report=False, verify_wikigold=False):
     unverified_wikigold = 0
     attempts = Counter()
@@ -186,6 +216,7 @@ if __name__ == "__main__":
     parser.add_argument("log", type=Path)
     parser.add_argument("--verify-wikigold", action="store_true",
                         help="require the prepared release digest for scored WikiGold outcomes")
+    parser.add_argument("--dataset-pools", type=Path, help="report automatic dataset selection passes from the companion JSONL")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--bootstrap", action="store_true", help="require five real WikiGold examples")
     mode.add_argument("--smoke", action="store_true", help="require the exact offline NER fixture result")
@@ -196,6 +227,9 @@ if __name__ == "__main__":
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
+        if args.dataset_pools:
+            with args.dataset_pools.open(encoding="utf-8") as pools:
+                report_dataset_pools(pools)
         with args.log.open(encoding="utf-8") as stream:
             if args.temporal_contrast:
                 passed = check_temporal_contrast(stream)

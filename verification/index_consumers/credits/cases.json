@@ -3,6 +3,7 @@
   "scenarios": [
     {
       "name": "withdraw-interview-keep-printed-collective-and-independent-support",
+      "stale_cache_witness": {"step": 5, "audience": "restricted", "subject": ["local-persons", "p4"]},
       "references": ["nga", "yale"],
       "work": "program-leaf-17",
       "queries": {"person": ["local-persons", "p4"], "collective": ["local-groups", "g9"]},
@@ -48,6 +49,7 @@
     },
     {
       "name": "two-venues-same-spelling-and-accession-different-catalogs",
+      "stale_cache_witness": {"step": 3, "audience": "restricted", "subject": ["studio-index", "42"]},
       "references": ["nga", "rijks"],
       "work": "glass-study-8",
       "queries": {"first": ["studio-index", "42"], "second": ["venue-index", "42"]},
@@ -88,6 +90,7 @@
     },
     {
       "name": "attribution-access-changes-while-printed-byline-stays-public",
+      "stale_cache_witness": {"step": 3, "audience": "public", "subject": ["local-persons", "p8"]},
       "references": ["aps"],
       "work": "ledger-song-11",
       "queries": {"person": ["local-persons", "p8"], "byline": ["byline-index", "b3"]},

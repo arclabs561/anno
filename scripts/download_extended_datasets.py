@@ -298,9 +298,9 @@ DATASETS = {
     # Relation extraction
     "fewrel_val": {
         "group": "relations",
-        "url": "https://raw.githubusercontent.com/thunlp/FewRel/master/data/val_wiki.json",
+        "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json",
         "output": "fewrel_val.json",
-        "description": "FewRel validation set (100 relations)",
+        "description": "FewRel Wikipedia validation set (16 relations)",
     },
     "semeval2010_task8": {
         "group": "relations",
@@ -740,8 +740,9 @@ DATASETS = {
     
     "tacred": {
         "group": "relations",
-        "hf_dataset": "DFKI-SLT/tacred",
-        "output": "tacred.json",
+        "manual": True,
+        "url": "https://catalog.ldc.upenn.edu/LDC2018T24",
+        "output": "TACRED.cache",
         "description": "TACRED: Large-scale relation classification",
     },
     "semeval2010_task8": {
@@ -796,8 +797,9 @@ DATASETS = {
     
     "scierc": {
         "group": "scientific",
-        "hf_dataset": "allenai/scierc",
-        "output": "scierc.json",
+        "manual": True,
+        "url": "https://nlp.cs.washington.edu/sciIE/",
+        "output": "SciERC.cache",
         "description": "SciERC: Scientific entities and relations",
     },
     "sciie": {

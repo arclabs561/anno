@@ -11,6 +11,31 @@ from brief_round import evidence
 
 
 class RoundEvidenceTest(unittest.TestCase):
+    def test_benchmark_handoff_uses_recorded_source_and_digest(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            digest = "sha256:" + "a" * 64
+            row = dict(dataset="WikiGold", backend="heuristic", success=True)
+            path.write_text(json.dumps({"summary": {}, "results": [
+                dict(row, provenance={"dataset": {"data_source": "S3 cache", "version": digest,
+                                                   "source_url": "PRIVATE_SENTINEL"}}),
+                dict(row, provenance={"dataset": {"data_source": "local cache", "content_sha256": "b" * 64}}),
+                dict(row, success=False, error="PRIVATE_SENTINEL"),
+            ]}))
+            script = Path(__file__).with_name("brief_round.py")
+            command = [sys.executable, str(script), str(path), "Which input did the run use?"]
+            brief = subprocess.check_output([*command, "--compact"], text=True)
+            full = subprocess.check_output(command, text=True)
+            self.assertIn(f"success=True, source=S3 cache, digest={digest}", brief)
+            self.assertIn("source=local cache, digest=sha256:" + "b" * 64, brief)
+            self.assertIn("success=False, source=unrecorded, digest=unrecorded", brief)
+            self.assertNotIn("PRIVATE_SENTINEL", brief)
+            self.assertLess(len(brief), len(full))
+            row["dataset"] = "invalid\nidentifier"
+            path.write_text(json.dumps({"summary": {}, "results": [row]}))
+            with self.assertRaises(ValueError):
+                evidence(path)
+
     def test_only_completed_measurements_present_scores(self):
         with TemporaryDirectory() as tmp:
             directory = Path(tmp)
@@ -26,6 +51,34 @@ class RoundEvidenceTest(unittest.TestCase):
             (directory / "decisions.jsonl").write_text(json.dumps(dict(
                 record_type="outcome", dataset="WikiGold", backend="heuristic", ok=True, primary_f1=0.0)))
             self.assertIn("ok=True, primary F1=0.0", evidence(directory))
+
+    def test_selections_only_match_outcomes_in_the_same_scope(self):
+        selected = dict(run_id="run-1", strategy="estimate", slice="ner", datasets=["Sample"],
+                        chosen="ridge,reed", round=1, remaining=["PRIVATE_CANDIDATE"])
+        outcome = dict(run_id="run-1", strategy="estimate", slice="ner", record_type="outcome",
+                       dataset="Sample", backend="ridge", primary_f1=0.0, cost_units=4, ok=False)
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "decisions.jsonl"
+
+            def brief(*rows):
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+                return evidence(path)
+
+            for other_scope in ({"run_id": "run-2"}, {"strategy": "fixed"}, {"slice": "re"}):
+                with self.subTest(scope=other_scope):
+                    text = brief(outcome, selected, dict(outcome, backend="reed", **other_scope))
+                    self.assertIn("Line 1, Sample / ridge: ok=False, primary F1=0.0", text)
+                    self.assertIn("Line 2 selects Sample / reed", text)
+                    self.assertEqual(text.count("Execution and score are unknown"), 1)
+                    self.assertNotIn("PRIVATE_CANDIDATE", text)
+            text = brief(selected)
+            self.assertEqual(text.count("Execution and score are unknown"), 2)
+            self.assertNotIn("primary F1", text)
+            self.assertNotIn("unknown", brief(selected, outcome, dict(outcome, backend="reed")))
+            with self.assertRaisesRegex(ValueError, "no outcome or identifiable selection"):
+                brief(dict(selected, chosen=None))
+            with self.assertRaisesRegex(ValueError, "registry identifiers"):
+                brief(dict(selected, chosen="ridge,private\ntext"))
 
     def test_real_measurements_select_different_challenges_without_forwarding_source_text(self):
         base = dict(record_type="outcome", dataset="Synthetic", backend="control", ok=False,
@@ -50,6 +103,28 @@ class RoundEvidenceTest(unittest.TestCase):
             self.assertIn("3/4 unmatched predictions", brief(temporal))
             self.assertIn("Reserve a labeled negative panel", brief(temporal))
             self.assertNotIn("gold-empty", brief({}))
+
+    def test_pattern_temporal_misses_nominate_an_existing_control(self):
+        counts = dict(gold_spans=16, matched_spans=4, predicted_spans=4, gold_empty_sentences=21,
+                      gold_empty_sentences_with_predictions=0, unmatched_predictions_overlapping_missed_gold=0)
+        row = dict(record_type="outcome", dataset="AnnoTimexContrast", backend="pattern", task="temporal",
+                   ok=True, cost_units=34, primary_f1=0.4, structural_counts=counts)
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "matrix.jsonl"
+
+            def brief(**changes):
+                path.write_text(json.dumps(dict(row, **changes)))
+                return evidence(path)
+
+            self.assertIn("Pattern missed 12/16 gold spans", brief())
+            fixture = "scripts/qa/fixtures/weekday-span-assertions.json"
+            self.assertIn(fixture, brief())
+            self.assertTrue((Path(__file__).resolve().parents[2] / fixture).is_file())
+            self.assertNotIn(fixture, brief(structural_counts=dict(counts, gold_spans=4)))
+            self.assertNotIn(fixture, brief(backend="other"))
+            self.assertNotIn(fixture, brief(primary_f1=None))
+            with self.assertRaisesRegex(ValueError, "inconsistent"):
+                brief(structural_counts=dict(counts, gold_spans=3))
 
     def test_crossdoc_handoff_accepts_only_consistent_bounded_assertion_counts(self):
         digests = {k + "_sha256": "a" * 64 for k in ("source", "oracle", "producer")}

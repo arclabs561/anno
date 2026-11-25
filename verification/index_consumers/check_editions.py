@@ -34,7 +34,7 @@ class Client:
     def call(self, *args, error=None):
         result = subprocess.run([*self.command, *map(str, args)], capture_output=True, text=True)
         if error is not None:
-            assert result.returncode and error in result.stderr, (args, result)
+            assert result.returncode and error in result.stderr and result.stdout == "", (args, result)
             return
         assert result.returncode == 0, (args, result.stderr)
         return json.loads(result.stdout)
@@ -150,6 +150,74 @@ def schedules(client, temp, snapshots, deltas, manifests, bulk):
             reads += 1
     assert reads == 540
     return base
+
+
+def minimum_edition_reads(binary, client, temp, snapshots):
+    db = temp / "minimum.sqlite"
+    floor = 2**63 + 1
+    later = floor + 2
+    staff = Client(binary, "staff")
+    staff_manifest = staff.call("manifest", later)
+    staff.call("publish", db, save(temp / "staff-later", staff_manifest))
+    assert staff.call("read", db, "--min-edition", floor) == {"manifest": staff_manifest, "members": []}
+    client.call("read", db, "--min-edition", 0, error="unavailable")
+
+    old = snapshots[0, 0]
+    client.call("stage", db, old)
+    client.call("publish", db, save(temp / "public-first", client.call("manifest", 9, old)))
+    correction = snapshots[1, 1]
+    target = client.call("manifest", later, correction)
+    path = save(temp / "public-later", target)
+    assert client.call("publish", db, path)["status"] == "waiting"
+    client.call("stage", db, correction)
+    client.call("read", db, "--min-edition", 10, error="current edition 9")
+    client.call("read", db, "--min-edition", floor, error=f"requested minimum {floor}")
+
+    # A complete publication skips the floor. Read the newest release, including
+    # its exact rows; a retained snapshot or an unpublished member cannot substitute.
+    client.call("publish", db, path)
+    view = {"manifest": target, "members": [json.loads(correction.read_text())]}
+    assert client.call("read", db, "--min-edition", floor) == view
+    assert client.call("read", db, "--min-edition", later) == view
+    client.call("read", db, "--min-edition", later + 1, error=str(later + 1))
+    assert client.call("read", db, 9)["members"] == [json.loads(old.read_text())]
+    client.call("read", db, 9, "--min-edition", 0, error="cannot be used with")
+
+    empty = client.call("manifest", later + 1)
+    client.call("publish", db, save(temp / "public-empty", empty))
+    assert client.call("read", db, "--min-edition", floor) == {"manifest": empty, "members": []}
+    with sqlite3.connect(db) as writer:
+        writer.execute("DELETE FROM published_editions WHERE edition=?", (f"{later + 1:020d}",))
+    client.call("read", db, "--min-edition", floor, error="manifest body missing")
+
+
+def reissued_member(client, temp, snapshots):
+    """A newer collection can explicitly select an older member after a withdrawal."""
+    db = temp / "reissue.sqlite"
+    old, withdrawn = snapshots[0, 0], snapshots[0, 1]
+    old_body = json.loads(old.read_text())
+    empty_body = json.loads(withdrawn.read_text())
+    assert [row["surface"] for row in old_body["rows"]] == ["Arden"]
+    assert empty_body["rows"] == []
+    for snapshot in (old, withdrawn):
+        client.call("stage", db, snapshot)
+    for edition, members in [(10, [old]), (11, [withdrawn]), (12, [])]:
+        manifest = client.call("manifest", edition, *members)
+        assert client.call("publish", db, save(temp / f"release-{edition}", manifest))["status"] == "published"
+
+    checkpoint = save(temp / "reissue-checkpoint", old_body["checkpoint"])
+    assert client.call("evict", db, checkpoint)["evicted"]
+    client.call("read", db, 10, error="evicted member")
+    latest = client.call("read", db, "--min-edition", 11)
+    assert latest["manifest"]["edition"] == 12 and latest["members"] == []
+    release = client.call("manifest", 13, old)
+    manifest_path = save(temp / "reissue-release", release)
+    assert client.call("publish", db, manifest_path)["status"] == "waiting"
+    assert client.call("read", db, "--min-edition", 11) == latest
+    client.call("stage", db, old)
+    assert client.call("publish", db, manifest_path)["status"] == "published"
+    assert client.call("read", db, "--min-edition", 11) == {"manifest": release, "members": [old_body]}
+    assert client.call("read", db, 11)["members"] == [empty_body]
 
 
 def observe_pending(db):
@@ -347,6 +415,8 @@ def run(binary, review_example=False):
         if review_example:
             reviewed_catalog(binary, directory, client)
         snapshots, deltas, manifests, bulk = prepare(binary, directory, client)
+        minimum_edition_reads(binary, client, directory, snapshots)
+        reissued_member(client, directory, snapshots)
         base = schedules(client, directory, snapshots, deltas, manifests, bulk)
         failure_cases(binary, client, directory, base, snapshots, deltas, manifests, bulk)
         integrity_cases(client, directory, base, snapshots, manifests, bulk)

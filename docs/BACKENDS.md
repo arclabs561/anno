@@ -39,7 +39,7 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 | `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `gliner2_fastino` | Fastino GLiNER2, eight-graph ONNX pipeline | Yes | experimental | `jugaadsrl/gliner2-multi-v1-onnx` at `4241d7c66b648e618c89c150bf4cf418d2f83159` |
-| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
+| `nuner` | Zero-shot NER | Yes | stable | `deepanwa/NuNerZero_onnx` (default ONNX export of `numind/NuNER_Zero`), or a prepared NuNER Zero 4k export for the `nuner_4k` evaluator |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
 | `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- (no public pre-trained weights; runs a heuristic fallback unless you supply a checkpoint to `export_tplinker_onnx.py`) |
@@ -472,7 +472,7 @@ not “backends” in the NER table sense:
 
 ## Where weights come from
 
-All ML models download from HuggingFace on first use. See the tables above for default model IDs per backend.
+Several ML backends download their default weights from Hugging Face on first use. NuNER 4k and GLiNER Poly require prepared ONNX exports. See the tables above for model IDs.
 
 Override with model-specific flags or environment variables.
 
@@ -483,7 +483,7 @@ Some models only distribute PyTorch weights. Export scripts in `scripts/` conver
 | Script | Target model | Notes |
 |--------|-------------|-------|
 | `export_gliner_poly_onnx.py` | GLiNER bi-encoder (v1/v2) | Dual strategy: library export, then manual fallback. Produces `model.onnx` + `label_encoder.onnx` |
-| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Delegates GLiNER variants to `export_gliner_poly_onnx.py` |
+| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Uses GLiNER’s uni-encoder export for the 4k checkpoint. The evaluator discovers the default export directory or a directory supplied through `NUNER_4K_MODEL_PATH` |
 | `export_deberta_ner_to_onnx.py` | DeBERTa-v3 NER | Standard token classifier export |
 | `export_biomedical_ner_to_onnx.py` | d4data/biomedical-ner-all | Uses Optimum; optional INT8 quantization |
 | `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |

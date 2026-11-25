@@ -379,49 +379,52 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
         }
     }
 
-    // Second pass: parse entity annotations
-    for line in content.lines() {
-        if line.starts_with('T') {
-            // Entity line: T1	Type Start End	Text
-            let parts: Vec<&str> = line.splitn(3, '\t').collect();
-            if parts.len() >= 3 {
-                let tid = parts[0];
-                if let Some((entity_type, spans)) = parts[1].trim().split_once(char::is_whitespace)
-                {
-                    let (span, text) = if spans.contains(';') {
-                        let (source, bytes) = read_source().map_err(|e| {
-                            format!(
-                                "{tid}: need {} to check the gaps in a multi-span mention: {e}",
-                                txt_path.display()
-                            )
-                        })?;
-                        import_brat_segments(spans, parts[2], source, bytes)
-                            .map_err(|e| format!("{tid}: {e}"))?
-                    } else {
-                        let range = brat_span(spans)?;
-                        let (start, end) = (range.start, range.end);
-                        let text = if !parts[2].is_empty() {
-                            parts[2].to_string()
-                        } else if let Some((txt, _)) =
-                            include_text.then(read_source).and_then(Result::ok)
-                        {
-                            txt.chars().skip(start).take(end - start).collect()
-                        } else {
-                            format!("[{start}:{end}]")
-                        };
-                        (ImportedSpan::Contiguous(range), text)
-                    };
-
-                    annotations.push(ImportedAnnotation {
-                        text,
-                        entity_type: entity_type.to_string(),
-                        span,
-                        source: input.to_string_lossy().to_string(),
-                        confidence: confidences.get(tid).copied(),
-                    });
-                }
-            }
+    // A malformed text-bound record invalidates the file before its rows can be published.
+    for (index, line) in content
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.starts_with('T'))
+    {
+        let context = |error: &str| format!("line {}: {error}", index + 1);
+        let mut parts = line.splitn(3, '\t');
+        let tid = parts.next().expect("split always has a first field");
+        if tid.len() < 2 || !tid[1..].bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(context("invalid brat text-bound ID"));
         }
+        let (entity_type, spans) = parts
+            .next()
+            .and_then(|field| field.trim().split_once(char::is_whitespace))
+            .ok_or_else(|| context("expected a brat entity type and offsets"))?;
+        let reference = parts
+            .next()
+            .ok_or_else(|| context("missing brat reference-text field"))?;
+        let (span, text) = if spans.contains(';') {
+            let (source, bytes) = read_source().map_err(|e| {
+                context(&format!(
+                    "{tid}: need {} to check the gaps in a multi-span mention: {e}",
+                    txt_path.display()
+                ))
+            })?;
+            import_brat_segments(spans, reference, source, bytes)
+                .map_err(|e| context(&format!("{tid}: {e}")))?
+        } else {
+            let range = brat_span(spans).map_err(|e| context(&format!("{tid}: {e}")))?;
+            let text = if !reference.is_empty() {
+                reference.to_owned()
+            } else if let Some((txt, _)) = include_text.then(read_source).and_then(Result::ok) {
+                txt.chars().skip(range.start).take(range.len()).collect()
+            } else {
+                format!("[{}:{}]", range.start, range.end)
+            };
+            (ImportedSpan::Contiguous(range), text)
+        };
+        annotations.push(ImportedAnnotation {
+            text,
+            entity_type: entity_type.to_string(),
+            span,
+            source: input.to_string_lossy().to_string(),
+            confidence: confidences.get(tid).copied(),
+        });
     }
 
     Ok(annotations)
@@ -643,6 +646,47 @@ fn parse_jsonl_row(
 // N-Triples import
 // =============================================================================
 
+/// Current writers describe ordered half-open Unicode ranges explicitly. Earlier
+/// Anno v2 exports stored the same ranges only in their occurrence IRI, after
+/// the encoded document, type, and envelope. Keep those archives readable.
+fn rdf_span(
+    subject: &str,
+    bounds: Range<usize>,
+    segments: Option<&str>,
+) -> Result<ImportedSpan, String> {
+    let ranges = if let Some(segments) = segments {
+        segments
+            .split(';')
+            .map(brat_span)
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        let Some((_, locator)) = subject.rsplit_once("/mention/v2/") else {
+            return Ok(ImportedSpan::Contiguous(bounds));
+        };
+        let mut parts = locator.split('/').skip(2);
+        if parts.next() != Some(format!("{}-{}", bounds.start, bounds.end).as_str()) {
+            return Ok(ImportedSpan::Contiguous(bounds));
+        }
+        let mut ranges = Vec::new();
+        for part in parts.take_while(|part| !matches!(*part, "visual" | "empty")) {
+            let (start, end) = part.split_once('-').ok_or("invalid legacy Anno range")?;
+            ranges.push(
+                start.parse().map_err(|_| "invalid legacy Anno start")?
+                    ..end.parse().map_err(|_| "invalid legacy Anno end")?,
+            );
+        }
+        if ranges.is_empty() {
+            return Ok(ImportedSpan::Contiguous(bounds));
+        }
+        ranges
+    };
+    let segments = SourceSegments::new(ranges)?;
+    if segments.bounds() != bounds {
+        return Err("RDF offsets must match the bounds of sourceSegments".into());
+    }
+    Ok(ImportedSpan::Segmented(segments))
+}
+
 /// Import entity annotations from N-Triples (`.nt`) format.
 ///
 /// Parses triples produced by `anno export --format ntriples` or `--format graph-ntriples`.
@@ -678,7 +722,7 @@ fn import_ntriples(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
 
     let mut annotations = Vec::new();
 
-    for pairs in by_subject.values() {
+    for (subject, pairs) in by_subject {
         // Skip document nodes (no rdfs:label).
         let label = pairs
             .iter()
@@ -723,11 +767,20 @@ fn import_ntriples(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             .map(|(_, o)| o.trim_start_matches('<').trim_end_matches('>').to_string())
             .unwrap_or_default();
 
+        let mut segment_values = pairs
+            .iter()
+            .filter(|(p, _)| p.ends_with("/vocab#sourceSegments"))
+            .map(|(_, o)| strip_literal(o));
+        let segments = segment_values.next();
+        if segment_values.any(|other| Some(other) != segments) {
+            return Err(format!("conflicting sourceSegments for {subject}"));
+        }
+        let span = rdf_span(subject, start..end, segments)?;
         if !text.is_empty() && end > start {
             annotations.push(ImportedAnnotation {
                 text,
                 entity_type,
-                span: ImportedSpan::Contiguous(start..end),
+                span,
                 source,
                 confidence,
             });
@@ -869,11 +922,16 @@ fn import_jsonld(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             .unwrap_or(&source_default)
             .to_string();
 
+        let segments = node
+            .get("anno:sourceSegments")
+            .map(|value| value.as_str().ok_or("invalid RDF sourceSegments literal"))
+            .transpose()?;
+        let span = rdf_span(node["@id"].as_str().unwrap_or(""), start..end, segments)?;
         if !text.is_empty() && end > start {
             annotations.push(ImportedAnnotation {
                 text,
                 entity_type,
-                span: ImportedSpan::Contiguous(start..end),
+                span,
                 source,
                 confidence,
             });
@@ -887,6 +945,23 @@ fn import_jsonld(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rdf_import_preserves_legacy_locators_and_validates_explicit_segments() {
+        let legacy = "urn:anno:/mention/v2/urn%3Adoc/PER/2-13/2-5/10-13";
+        let ImportedSpan::Segmented(old) = rdf_span(legacy, 2..13, None).unwrap() else {
+            panic!("lost legacy RDF segments");
+        };
+        assert_eq!(old.0, [2..5, 10..13]);
+        for invalid in ["10 13;2 5", "2 5;4 13", "2 5;10 12", "2 5"] {
+            assert!(rdf_span("urn:mention", 2..13, Some(invalid)).is_err());
+        }
+        let visual = "urn:anno:/mention/v2/doc/PER/2-13/visual/encoded";
+        assert!(matches!(
+            rdf_span(visual, 2..13, None),
+            Ok(ImportedSpan::Contiguous(_))
+        ));
+    }
 
     #[test]
     fn brat_line_breaks_round_trip_with_their_source_offsets() {

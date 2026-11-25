@@ -175,6 +175,7 @@ impl ScorerWeights {
 /// # Arguments
 ///
 /// * `hidden` - Encoder hidden states [seq_len, hidden_size]
+/// * `attention_mask` - Nonzero for active tokens in the encoder sequence
 /// * `weights` - Scorer weights
 /// * `max_span_length` - Maximum span width
 /// * `max_candidates` - Maximum number of spans to pass to antecedent scoring
@@ -184,6 +185,7 @@ impl ScorerWeights {
 /// A [`MentionScoringResult`] with top-k mention spans and coref representations.
 pub(crate) fn score_mentions(
     hidden: &Array2<f32>,
+    attention_mask: &[u32],
     weights: &ScorerWeights,
     max_span_length: usize,
     max_candidates: usize,
@@ -214,8 +216,14 @@ pub(crate) fn score_mentions(
     // Then mask to valid spans (i <= j < i + max_span_length)
     let mut candidates: Vec<(usize, usize, f32)> = Vec::new();
     for i in 0..seq_len {
-        let j_max = (i + max_span_length).min(seq_len);
+        if attention_mask[i] == 0 {
+            continue;
+        }
+        let j_max = i.saturating_add(max_span_length).min(seq_len);
         for j in i..j_max {
+            if attention_mask[j] == 0 {
+                break; // A candidate span cannot include padding.
+            }
             let score = start_logits[i] + end_logits[j] + joint_logits[[i, j]];
             candidates.push((i, j, score));
         }

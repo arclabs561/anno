@@ -904,6 +904,11 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 .map_err(|e| format!("Failed to load relation dataset: {}", e))?;
 
                             println!("  Documents: {}", gold_docs.len());
+                            match dataset_id {
+                                DatasetId::FewRel => println!("  FewRel labels one designated entity pair per example. This command scores open extraction. The publisher evaluates few-shot relation classification on the designated pair."),
+                                DatasetId::TACRED | DatasetId::ReTACRED => println!("  The source labels the designated subject and object in each example. This command scores open extraction. The published task classifies that pair, including no_relation."),
+                                _ => {}
+                            }
                             println!();
 
                             // Try to use RelationExtractor if available (e.g., GLiNERMultitask)
@@ -927,7 +932,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                             println!("  Entity types: {}", entity_types_vec.join(", "));
                             println!(
-                                "  Relation types: {} ({} total)",
+                                "  Relation types: {} (sample: {})",
                                 relation_types_vec.len(),
                                 relation_types_vec.iter().take(5).join(", ")
                             );
@@ -3330,14 +3335,16 @@ fn run_check_health(
     let (tx, rx) = mpsc::channel();
     let mut handles = Vec::new();
 
+    let agent = anno_eval::eval::http::agent(std::time::Duration::from_secs(timeout))
+        .map_err(|e| e.to_string())?;
     // Spawn worker threads
     for dataset_id in datasets_to_check {
         let tx = tx.clone();
         let url = dataset_id.download_url().to_string();
-        let timeout_secs = timeout;
+        let agent = agent.clone();
 
         let handle = thread::spawn(move || {
-            let result = check_single_url(dataset_id.name(), &url, timeout_secs);
+            let result = check_single_url(&agent, &url);
             tx.send((dataset_id, result)).ok();
         });
 
@@ -3474,7 +3481,7 @@ struct URLHealthResult {
 }
 
 #[cfg(feature = "eval")]
-fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResult {
+fn check_single_url(agent: &ureq::Agent, url: &str) -> URLHealthResult {
     if url.is_empty() {
         return URLHealthResult {
             status: "missing".to_string(),
@@ -3492,14 +3499,11 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
         };
     }
 
-    // Use ureq for simple HTTP checking (already a dependency). Error statuses
-    // come back as responses so a 405 can fall back to GET.
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    match agent.head(url).call() {
+    let response = match agent.head(url).call() {
+        Ok(resp) if resp.status() == 405 => agent.get(url).call(),
+        result => result,
+    };
+    match response {
         Ok(response) => {
             let status = response.status().as_u16();
             if status == 200 {
@@ -3520,20 +3524,6 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
                             .and_then(|v| v.to_str().ok())
                             .unwrap_or("unknown")
                     ),
-                }
-            } else if status == 405 {
-                // HEAD not allowed, try GET
-                match agent.get(url).call() {
-                    Ok(resp) => URLHealthResult {
-                        status: "ok".to_string(),
-                        code: Some(resp.status().as_u16()),
-                        message: "OK (HEAD not allowed)".to_string(),
-                    },
-                    Err(e) => URLHealthResult {
-                        status: "error".to_string(),
-                        code: None,
-                        message: format!("GET failed: {}", e),
-                    },
                 }
             } else {
                 URLHealthResult {
@@ -3839,5 +3829,45 @@ mod oracle_mention_tests {
                 (16, 19, "COREF".into())
             ]
         );
+    }
+}
+
+#[cfg(all(test, feature = "eval"))]
+mod url_health_tests {
+    use super::*;
+    use std::io::{BufRead, BufReader, Write};
+    use std::{net::TcpListener, thread, time::Duration};
+
+    #[test]
+    fn head_not_allowed_uses_the_get_status() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/dataset", listener.local_addr().unwrap());
+        let server = thread::spawn(move || {
+            for (method, status) in [("HEAD", "405 Method Not Allowed"), ("GET", "404 Not Found")] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut lines = BufReader::new(&stream).lines();
+                assert!(lines.next().unwrap().unwrap().starts_with(method));
+                for line in lines {
+                    if line.unwrap().is_empty() {
+                        break;
+                    }
+                }
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+                )
+                .unwrap();
+            }
+        });
+        let agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(2)))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        let result = check_single_url(&agent, &url);
+        server.join().unwrap();
+        assert_eq!(result.code, Some(404));
+        assert_eq!(result.status, "error");
     }
 }

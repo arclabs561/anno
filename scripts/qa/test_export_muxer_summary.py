@@ -39,6 +39,19 @@ class PublicSummaryTest(unittest.TestCase):
         for private in ["private-run-id","sensitive fixture","private.invalid","observation_id","source_url"]:
             self.assertNotIn(private, encoded)
 
+    def test_completed_trials_accept_explicit_skip_schema(self):
+        rows, outcomes = receipts()
+        original = summarize(rows, outcomes, REVISION)
+        meta = json.loads(rows[0]["metadata"])
+        for version in (2, 3, True):
+            meta["provenance"]["schema_version"] = version
+            sample = [dict(rows[0], metadata=json.dumps(meta)), *rows[1:]]
+            if version == 2:
+                self.assertEqual(summarize(sample, outcomes, REVISION), original)
+            else:
+                with self.assertRaises(ValueError):
+                    summarize(sample, outcomes, REVISION)
+
     def test_unattempted_missing_and_conflicting_evidence_is_rejected(self):
         rows, outcomes = receipts()
         with self.assertRaises(ValueError):

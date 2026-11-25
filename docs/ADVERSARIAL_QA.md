@@ -4,6 +4,8 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 ## Coordinator prompt
 
+To challenge a corrected byline, attribution, catalog redirect, or visibility decision, propose a short event history and run the [credit reader replay](../verification/index_consumers/reader_cases/README.md#propose-and-judge-another-history). It checks the Rust and SQLite readers against a separate answer key and accepts local proposals without contacting a model provider.
+
 > At the baseline revision, identify one user-visible claim and the decision that depends on it. Read the starting receipt. State two plausible explanations for the observation, the smallest test on which they predict different outcomes, and what result would change your mind.
 >
 > Choose the job for this round. **Verify** a recurring failure using triage history. **Explore** an under-observed part of a compatible panel using coverage. **Discriminate** between explanations using a paired experiment on the same inputs. These are assignments for the coordinator. The existing sampler modes select cells; the coordinator chooses the claim to test inside a cell.
@@ -77,6 +79,8 @@ For a labeled round, pass the [domain span checker’s JSON report](DOMAIN_QA.md
 ## Assign a reviewer and account for the run
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
+
+For a benchmark handoff, pass the saved JSON to `python3 scripts/qa/brief_round.py REPORT.json "Which dataset source supplied this run?" --compact`. Each row names the backend, recorded source and available SHA-256. A missing digest stays unrecorded. The compact form also works for matrix outcomes and named replays. Omit `--compact` to include the full guide for a reviewer without a checkout.
 
 ### Choose how to ask the oracle
 

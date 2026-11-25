@@ -283,9 +283,12 @@ pub mod discontinuous;
 #[cfg(feature = "discourse")]
 pub mod discourse_deixis;
 pub mod evaluator;
+mod fewrel;
 pub mod harness;
 pub mod history;
 mod history_clock;
+#[cfg(feature = "eval")]
+pub mod http;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
 mod litbank;
@@ -300,9 +303,11 @@ pub mod provenance;
 pub mod relation;
 pub mod report;
 pub mod sampling;
+mod scierc;
 pub mod shell_nouns;
 pub mod synthetic;
 pub mod synthetic_gen;
+mod tacred;
 pub mod task_evaluator;
 
 #[cfg(feature = "eval-profiling")]

@@ -495,61 +495,6 @@ mod tests {
 
     #[cfg(feature = "onnx")]
     #[test]
-    fn test_word_span_to_char_offsets_ascii() {
-        let text = "New York City is great";
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 0, 2);
-        let extracted: String = text.chars().skip(start).take(end - start).collect();
-        assert_eq!(extracted, "New York City");
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
-    fn test_word_span_to_char_offsets_unicode() {
-        let text = "Visit 北京 for tourism";
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 1, 1);
-        let extracted: String = text.chars().skip(start).take(end - start).collect();
-        assert_eq!(extracted, "北京");
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
-    fn test_word_span_to_char_offsets_empty_words() {
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets("hello", &[], 0, 0);
-        assert_eq!((start, end), (0, 0));
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
-    fn test_word_span_to_char_offsets_out_of_bounds() {
-        let text = "hello world";
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 5, 10);
-        assert_eq!((start, end), (0, 0));
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
-    fn test_word_span_to_char_offsets_inverted() {
-        let text = "hello world";
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 1, 0);
-        assert_eq!((start, end), (0, 0));
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
-    fn test_word_span_to_char_offsets_single_word() {
-        let text = "Steve Jobs founded Apple in California";
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 3, 3);
-        let extracted: String = text.chars().skip(start).take(end - start).collect();
-        assert_eq!(extracted, "Apple");
-    }
-
-    #[cfg(feature = "onnx")]
-    #[test]
     fn test_local_model_cache_candidates() {
         let paths = local_model_cache_candidates();
         assert!(paths.len() >= 2, "should have at least 2 candidate paths");

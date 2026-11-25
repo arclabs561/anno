@@ -7,6 +7,7 @@ import hashlib
 import json
 
 SHA = '2c2587aca956a4225712abdcf1af72b93f18a28f'
+ANNOTATION_SHA256 = 'c4d426a722d3901489bf7bfcb3554d734db29a689876fcff269719ec7288dc9a'
 URL = f'https://huggingface.co/datasets/sapienzanlp/bookcoref/resolve/{SHA}/bookcoref_annotations/full/test.jsonl'
 
 
@@ -54,8 +55,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('data',type=Path)
     args=parser.parse_args()
-    docs=[json.loads(line) for line in args.data.read_text().splitlines()]
-    result={'source':URL,'sha256':hashlib.sha256(args.data.read_bytes()).hexdigest(),'capacities':{}}
+    payload = args.data.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    if digest != ANNOTATION_SHA256:
+        parser.error(f'expected the pinned BookCoref test annotations ({ANNOTATION_SHA256}), got {digest}')
+    docs = [json.loads(line) for line in payload.decode('utf-8').splitlines()]
+    result={'source':URL,'sha256':digest,'capacities':{}}
     for capacity in (8,24,64):
         books={doc['doc_key']:replay(doc,capacity) for doc in docs}
         total=defaultdict(Counter)

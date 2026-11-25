@@ -22,13 +22,36 @@ class ExtractionVerdict(unittest.TestCase):
             return qa.run_anno(source, "anno", "https://example.org", "pattern", 1, False)
 
     def test_zero_matches_in_nonempty_text(self):
-        output = {"entities": [], "provenance": {"model": "regex", "text_chars": 4, "entity_count": 0}}
+        output = {"entities": [], "provenance": {"model": "pattern", "runtime_model": "regex", "text_chars": 4, "entity_count": 0}}
         result = self.run_extractor(output)
         self.assertEqual((result.status, result.backend, result.reported_model), ("OK", "pattern", "regex"))
 
+    def test_cross_domain_receipt_and_handoff_use_executing_model(self):
+        source = qa.CROSS_DOMAIN_SOURCES[0]
+        prov = {"model": "pattern", "runtime_model": "regex", "text_chars": 4, "entity_count": 0,
+                "source_url": source.url, "text_hash": "xxh3:" + "a" * 16}
+        runs = []
+        for requested in ("pattern", "heuristic"):
+            # Even if the producer echoes the requested CLI flag as model, its executing
+            # instance is regex in both outputs.
+            output = {"entities": [], "provenance": {**prov, "model": requested}}
+            proc = subprocess.CompletedProcess([], 0, json.dumps(output), "")
+            with patch.object(qa.subprocess, "run", return_value=proc):
+                runs.append(qa.run_anno(source, "anno", source.url, requested, 1, False))
+        self.assertEqual([run.status for run in runs], ["OK", "backend_mismatch"])
+        receipt = qa.cross_domain_receipt(4, ["pattern", "heuristic"], {source.domain: 1},
+                                          {source: source.url}, runs)
+        self.assertEqual([r["reported_model"] for r in receipt["sources"][0]["checks"]], ["regex", "regex"])
+        summary = qa.coverage_summary(receipt)
+        self.assertEqual((summary["input_matched"], summary["matched"], summary["failures"]),
+                         (1, 0, {"backend_mismatch": 1}))
+        del prov["runtime_model"]
+        self.assertEqual(self.run_extractor({"entities": [], "provenance": prov}, source).status,
+                         "backend_unverified")
+
     def test_fixed_japanese_document_requires_japanese_extraction(self):
         source = next(s for s in qa.DOCUMENT_SOURCES if s.lang == "ja")
-        prov = {"model": "pattern", "text_chars": 200, "entity_count": 0}
+        prov = {"model": "pattern", "runtime_model": "regex", "text_chars": 200, "entity_count": 0}
         for language in ("en", None, "ja"):
             with self.subTest(language=language):
                 data = {"entities": [], "provenance": dict(prov)}
@@ -46,7 +69,7 @@ class ExtractionVerdict(unittest.TestCase):
 
     def test_counts_and_character_bounds(self):
         entity = {"text": "東京", "type": "LOC", "start": 2, "end": 4}
-        prov = {"model": "test", "text_chars": 4, "entity_count": 1}
+        prov = {"model": "pattern", "runtime_model": "regex", "text_chars": 4, "entity_count": 1}
         self.assertEqual(self.run_extractor({"entities": [entity], "provenance": prov}).status, "OK")
         for row, metadata in (
             (None, prov), (dict(entity, end=6), prov), (dict(entity, start=True), prov),
@@ -131,7 +154,7 @@ class CrossDomainSampling(unittest.TestCase):
         article = "https://lab.example/story"
         digest = "xxh3:0000000000000001"
         def extract(source, binary, url, backend, timeout, verbose):
-            return qa.RunResult(source, url, "OK", backend=backend, text_hash=digest)
+            return qa.RunResult(source, url, "OK", backend=backend, reported_model=backend, text_hash=digest)
         with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", [feed, fixed]), \
                 patch.object(qa, "discover_publisher_article", return_value=article) as discover, \
                 patch.object(qa, "run_anno", side_effect=extract) as run:
@@ -181,7 +204,7 @@ class CrossDomainSampling(unittest.TestCase):
 
         def extract(source, binary, url, backend, timeout, verbose):
             if source == pool[0]:
-                return qa.RunResult(source, "https://final.example/new", "OK", backend=backend, text_hash="xxh3:0000000000000abc")
+                return qa.RunResult(source, "https://final.example/new", "OK", backend=backend, reported_model=backend, text_hash="xxh3:0000000000000abc")
             return qa.RunResult(source, url, "timeout", backend=backend, error_msg="timed out")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -229,7 +252,7 @@ class CrossDomainSampling(unittest.TestCase):
             ref, summary, report = root / "source.json", root / "public.json", root / "local.md"
             for backend, eligible in [("unreviewed", {"arts": 1}), ("pattern", {"arts": 1, "private": 1})]:
                 receipt = qa.cross_domain_receipt(1, [backend], eligible, {source: source.url}, [
-                    qa.RunResult(source, source.url, "OK", backend=backend, text_hash="xxh3:0000000000000001")
+                    qa.RunResult(source, source.url, "OK", backend=backend, reported_model=backend, text_hash="xxh3:0000000000000001")
                 ])
                 ref.write_text(json.dumps(receipt))
                 with patch("sys.argv", ["qa", "--replay", str(ref), "--output", str(report),
@@ -240,7 +263,7 @@ class CrossDomainSampling(unittest.TestCase):
 
     def test_cross_domain_success_requires_text_hash(self):
         source = qa.CROSS_DOMAIN_SOURCES[0]
-        data = {"entities": [], "provenance": {"model": "pattern", "text_chars": 4, "entity_count": 0}}
+        data = {"entities": [], "provenance": {"model": "pattern", "runtime_model": "regex", "text_chars": 4, "entity_count": 0}}
         proc = subprocess.CompletedProcess([], 0, json.dumps(data), "")
         with patch.object(qa.subprocess, "run", return_value=proc):
             result = qa.run_anno(source, "anno", source.url, "pattern", 1, False)
@@ -286,7 +309,7 @@ class PublisherFeeds(unittest.TestCase):
             return io.BytesIO(b"<rss><channel><item><link>https://news.example/entry</link></item></channel></rss>")
 
         def extract(source, binary, url, backend, timeout, verbose):
-            return qa.RunResult(source, url + "-final", "OK", backend=backend, text_hash="xxh3:0000000000000123")
+            return qa.RunResult(source, url + "-final", "OK", backend=backend, reported_model=backend, text_hash="xxh3:0000000000000123")
 
         with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", pool), \
                 patch.object(qa.urllib.request, "urlopen", side_effect=fetch) as feeds, \
