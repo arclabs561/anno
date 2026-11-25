@@ -90,6 +90,12 @@ In GitHub repo settings:
   - `ANNO_AWS_REGION`: region for STS (commonly `us-east-1`)
   - optional `ANNO_S3_BUCKET`: override bucket (defaults to `arc-anno-data`)
 
+## Pin a generic loader input
+
+For reproducible evaluations, call `DatasetLoader::load_or_download_pinned(id, sha256, PublisherFallback::Forbid)` with the expected digest of the bytes passed to the parser. The loader checks an existing local file first. On a cold cache with S3 enabled it tries the exact content-addressed snapshot and then the legacy key. A checksum mismatch leaves the candidate unpublished. Keep a separate local cache for each version you need to retain. Set `PublisherFallback::Allow` to permit a publisher fetch on a cache miss or denied read; the same digest check applies before the cache write.
+
+For ordinary source selection, `load_or_download_with_receipt` returns the loaded dataset, its input digest, and the reason a configured S3 lookup gave way to a successful publisher load. Bare local files can have a known digest and unknown release or split. For old split-file LitBank caches, the digest covers the reconstructed pair actually parsed. These methods apply to the generic `LoadableDatasetId` route. Specialized relation and coreference loaders use their own input formats.
+
 ## What CI shares
 
 Job-local corpus files live in `$ANNO_CACHE_DIR/datasets`. Hosted CI publishes aggregate decision receipts and the scores and retry state Muxer needs for the next run. The checkpoint exporter rebuilds the SQLite index from that projected journal. Diagnostic text stays in the runner cache. The v2 checkpoint starts with empty history and leaves older artifacts on their existing retention schedule. [Checkpoint contents and retry behavior](EVALUATION_SAMPLING.md) Model and corpus files stay in the job workspace. Raw datasets have no approved shared publication package. The S3 reader can still use existing owner-provisioned storage for eligible inputs on trusted refs. The read exclusions cover PreCo, LitBank, CUAD, TimeBank 1.2 and its TIMEX derivative, including known legacy object names. The dataset registry distinguishes explicit publisher retrieval from authorized local-only inputs. [Source rules](../crates/anno-eval/src/eval/shared_cache_exclusions.tsv) · [Source-specific terms](QA.md#score-a-litbank-book-or-cohort)
