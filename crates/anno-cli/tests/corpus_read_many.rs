@@ -123,7 +123,7 @@ fn pinning_a_review_rejects_an_advanced_head_even_when_the_reviewed_documents_ma
     let stale = pinned(head);
     assert!(String::from_utf8_lossy(&stale.stderr)
         .to_lowercase()
-        .contains("head"));
+        .contains("corpus head changed"));
     assert_rejected(stale);
     let refreshed = preview();
     let new_head = refreshed["head"].as_str().unwrap();
