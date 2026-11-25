@@ -1,5 +1,7 @@
 # Relation extraction on held-out CrossRE AI sentences
 
+This 32-sentence pilot has a follow-up covering all 431 AI and 416 literature test sentences. [Full-domain results](crossre-full-prompt-comparison.md)
+
 The production-style condition gives the extractor one vocabulary for the entire run. We took the sorted union of annotated entity types and relation types over the 100 CrossRE AI training sentences, yielding 14 entity labels and 15 relation labels. The diagnostic condition supplies only the labels present in each test sentence's gold relations. Both conditions ask the backend to find endpoints in the text. The fixed inventory also reaches sentences with no reference relations. [Fixed schema](crossre-ai-prompt-schema.json) · [CrossRE dataset and split](https://github.com/mainlp/CrossRE/tree/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data)
 
 The evaluator selected 32 of 431 test sentences with seed 42. The train and test splits share zero identical token sequences. Strict micro-averaged scoring requires a case-insensitive relation-label match and exact directed head and tail character spans in the same sentence. It ignores the endpoint type strings. Every annotated relation counts toward recall, including labels outside the fixed vocabulary. Gold endpoints were disabled in all runs.

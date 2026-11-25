@@ -19,7 +19,11 @@ DOMAINS = {
                    "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a"),
 }
 RELEX = "knowledgator/gliner-relex-large-v1.0"
-GRAPH = "084b3873084a4173fc443c8bca691aabdf9f4357972fe032766bf6ec0c76a689"
+RELEX_ARTIFACTS = {
+    "graph": "084b3873084a4173fc443c8bca691aabdf9f4357972fe032766bf6ec0c76a689",
+    "tokenizer": "9dd6016a277d88072abe003d66f29e01f0ae7ab6b5be519677559dc21a5f6803",
+    "config": "9ff363d306ba1edcb830343b3b79299278deb5037081d8097d06fe08a63d0e3c",
+}
 
 
 def digest(data):
@@ -137,8 +141,9 @@ def validate_row(row, corpus, backend, policy):
         raise ValueError("unexpected prompt or confidence threshold")
     if backend == "gliner_relex":
         files = row["provenance"]["backend"]["model_artifacts"]["files"]
-        if not any(f["role"] == "graph" and f["sha256"].get("value") == GRAPH for f in files):
-            raise ValueError("unexpected Relex graph")
+        hashes = {f["role"]: f["sha256"].get("value") for f in files}
+        if any(hashes.get(role) != expected for role, expected in RELEX_ARTIFACTS.items()):
+            raise ValueError("unexpected Relex graph, tokenizer or config")
 
 
 def main():
@@ -162,7 +167,7 @@ def main():
     env = {**os.environ, "ANNO_NO_DOWNLOADS": "1", "ANNO_RELATION_ORACLE_ENTITIES": "0",
            "ANNO_CACHE_DIR": str((args.out / "cache").resolve())}
     report = {"crossre_revision": REVISION, "binary_sha256": digest(binary.read_bytes()),
-              "relex_graph_sha256": GRAPH, "cpus": sorted(cpus), "seed": 42,
+              "relex_artifacts_sha256": RELEX_ARTIFACTS, "cpus": sorted(cpus), "seed": 42,
               "arm_timeout_seconds": args.arm_timeout, "domains": {}}
     for domain in args.domain or DOMAINS:
         corpus = prepare(args.data, args.out, domain)
