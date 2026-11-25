@@ -38,7 +38,21 @@ def scan(name, config, targets):
     print(f"{name}: {scanned} scanned, {findings} findings", flush=True)
 
 
-def test_fixture(config, fixture):
+def check_fixture_ids(config, declared, checks):
+    missing = declared - checks.keys()
+    unexpected = checks.keys() - declared
+    if not declared or missing or unexpected:
+        raise ValueError(f"{config}: missing fixture checks {sorted(missing)}, unexpected {sorted(unexpected)}")
+    for rule_id, check in checks.items():
+        if not check["passed"] or not any(match["expected_lines"] for match in check["matches"].values()):
+            raise ValueError(f"{config}: {rule_id} has no passing positive case")
+
+
+def test_fixture(engine, config, fixture):
+    # Ask the pinned scanner to parse the configuration independently of target filtering.
+    rules = subprocess.check_output([engine, "-prefilter_of_rules", config], text=True)
+    declared = {rule["rule_id"] for rule in json.loads(rules)}
+
     command = ["opengrep", "test", "--json", "-f", config, Path(".opengrep/fixtures") / fixture]
     completed = subprocess.run(command, stdout=subprocess.PIPE, text=True)
     if completed.returncode:
@@ -46,9 +60,10 @@ def test_fixture(config, fixture):
         completed.check_returncode()
     result = json.loads(completed.stdout)
     checks = result["results"][str(config)]["checks"]
-    # OpenGrep can exit successfully with no checks when fixture annotations drift.
-    if result["config_with_errors"] or not checks:
-        raise ValueError(f"{config} has no successful fixture run for {fixture}")
+    if result["config_with_errors"]:
+        raise ValueError(f"{config} has scanner errors for {fixture}")
+    # OpenGrep can exit successfully when a rule loses its whole fixture case.
+    check_fixture_ids(config, declared, checks)
     print(f"{config.stem}: {len(checks)} fixture checks passed", flush=True)
 
 
@@ -56,12 +71,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", action="store_true", help="run annotated positive and negative cases")
     args = parser.parse_args()
+    engine = None
+    if args.fixtures:
+        engine = subprocess.check_output(["opengrep", "scan", "--dump-engine-path"], text=True).strip()
     failed = False
     for name, pack, targets, fixture in PACKS:
         config = Path(".opengrep/rules") / f"{pack}.yaml"
         try:
             if args.fixtures:
-                test_fixture(config, fixture)
+                test_fixture(engine, config, fixture)
             else:
                 scan(name, config, targets)
         except (KeyError, OSError, TypeError, ValueError, subprocess.CalledProcessError) as error:

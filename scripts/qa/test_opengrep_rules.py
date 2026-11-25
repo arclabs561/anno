@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from opengrep_rules import scan_counts
+from opengrep_rules import check_fixture_ids, scan_counts
 
 
 class ScanCountsTests(unittest.TestCase):
@@ -29,3 +29,16 @@ class ScanCountsTests(unittest.TestCase):
                     path.write_text(json.dumps(report))
                     with self.assertRaises((KeyError, TypeError, ValueError)):
                         scan_counts(path)
+
+
+class FixtureCoverageTests(unittest.TestCase):
+    def test_another_passing_rule_cannot_hide_a_missing_case(self):
+        checks = {"present": {"passed": True, "matches": {"graph.rs": {"expected_lines": [4]}}}}
+        check_fixture_ids("config.yaml", {"present"}, checks)
+        with self.assertRaisesRegex(ValueError, "omitted"):
+            check_fixture_ids("config.yaml", {"present", "omitted"}, checks)
+
+    def test_an_empty_positive_case_is_rejected(self):
+        checks = {"present": {"passed": True, "matches": {"graph.rs": {"expected_lines": []}}}}
+        with self.assertRaisesRegex(ValueError, "no passing positive case"):
+            check_fixture_ids("config.yaml", {"present"}, checks)
