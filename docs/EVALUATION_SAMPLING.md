@@ -460,8 +460,14 @@ case, with a second replay only to confirm a failure. Random controls, the
 reserved coverage slot and other triage slots run the native selection. The
 oldest-served eligible corpus gets the next turn, then its oldest-served
 family and case.
-The catalog adapter admits the seven named, repository-authored regression seeds.
-A new seed needs provenance review and admission before it can enter the ledger.
+The catalog adapter admits seven named, repository-authored regression seeds.
+The `document_delivery` adapter replays the five reviewed histories from the
+[native fuzz corpus](../fuzz/README.md#document-deliveries). Each runs the same
+per-operation reader and final-receipt checks as the stable Cargo regression.
+For example, `observe document_delivery historical-receipt` checks a retry after
+a source revision; `issuer-token-collision` exercises an independent control.
+Run the two cases separately to preserve their distinct observations. A new seed
+needs provenance review and admission before it can enter the ledger.
 Rerunning the same evidence adds no observations. A clean replay closes that
 witness alone. When a seed or oracle changes, re-observe it under the new
 hashes. A changed producer can close a finding against unchanged inputs.
