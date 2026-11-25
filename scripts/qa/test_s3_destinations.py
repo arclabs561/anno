@@ -2,6 +2,7 @@
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -43,6 +44,52 @@ class S3DestinationTests(unittest.TestCase):
             self.assertEqual(
                 ENRICHMENT.update_registry("unchanged", {}, {}), ("unchanged", 0)
             )
+
+    def test_spot_reader_uses_shared_filters_and_only_syncs_datasets(self):
+        from shared_dataset_cache import excluded_patterns
+
+        for cli, command in (("aws", "sync-ds"), ("s5cmd", "sync-datasets")):
+            with self.subTest(cli=cli), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                cache = root / "local cache"
+                calls = root / "arguments"
+                for tool in ("bash", "dirname", "mkdir", "python3"):
+                    (root / tool).symlink_to(shutil.which(tool))
+                program = root / cli
+                program.write_text(
+                    '#!/bin/sh\nprintf "%s\\0" "$@" >> "$CALLS"\nexit "${FAKE_STATUS:-0}"\n'
+                )
+                program.chmod(0o755)
+                env = {
+                    "PATH": str(root),
+                    "HOME": str(root),
+                    "CALLS": str(calls),
+                    "ANNO_SPOT_BUCKET": "example-cache",
+                    "ANNO_CACHE_DIR": str(cache),
+                }
+                bridge = [str(ROOT / "scripts/spot/trainctl-bridge.sh"), command]
+                subprocess.run(
+                    bridge, env=env, check=True, capture_output=True, timeout=10
+                )
+                args = calls.read_bytes().decode().split("\0")[:-1]
+                filters = [
+                    arg for pattern in excluded_patterns() for arg in ("--exclude", pattern)
+                ]
+                if cli == "aws":
+                    expected = [
+                        "s3", "sync", "s3://example-cache/datasets/",
+                        str(cache / "datasets"), "--size-only", *filters,
+                    ]
+                else:
+                    expected = [
+                        "sync", "--size-only", *filters,
+                        "s3://example-cache/datasets/*", f"{cache}/datasets/",
+                    ]
+                self.assertEqual(args, expected)
+                failed = subprocess.run(
+                    bridge, env={**env, "FAKE_STATUS": "7"}, capture_output=True, timeout=10
+                )
+                self.assertEqual(failed.returncode, 7)
 
     def test_source_upload_uses_only_explicit_destination(self):
         # Execute the repository recipe body with its declared Bash interpreter.

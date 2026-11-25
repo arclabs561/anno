@@ -930,8 +930,7 @@ spot-setup:
     @chmod +x scripts/spot/setup.sh
     @./scripts/spot/setup.sh
 
-# Pre-download datasets to S3 (avoids HuggingFace API rate limits on spot instances)
-# Run this before spot-eval to ensure datasets are available in S3
+# Report which dataset packages are approved for shared publication
 spot-prepare-datasets:
     @uv run scripts/prepare_datasets_s3.py
 
@@ -1114,7 +1113,7 @@ spot-compare BASELINE:
 spot-dash:
     @scripts/spot/trainctl-bridge.sh dashboard
 
-# Sync datasets from S3 using trainctl (faster parallel downloads)
+# Download permitted datasets from S3 using s5cmd or the AWS CLI
 spot-sync-datasets:
     @scripts/spot/trainctl-bridge.sh sync-datasets
 

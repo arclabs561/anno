@@ -1,4 +1,7 @@
 """Exercise the four LitBank judgments without model weights or upstream text."""
+from contextlib import redirect_stdout
+import hashlib
+import io
 import json
 import os
 import subprocess
@@ -6,7 +9,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import replay_litbank_role as litbank
+from fcoref_cgroup import replay
 from replay_litbank_role import FIXTURE, prepare, score, source_sha256
 
 
@@ -64,10 +70,55 @@ class LitBankRoleTest(unittest.TestCase):
                 self.assertEqual(proc.returncode, 77, proc.stderr)
                 self.assertEqual(json.loads(proc.stdout)["status"], "not_run")
             path = root / "predictions.json"
+            path.write_text(json.dumps({"results": [{
+                "id": self.doc["id"], "source_sha256": source_sha256(self.doc["text"]),
+                "mentions": [], "clusters": [],
+            }], "model": "unverified"}))
+            saved = run("--predictions", path)
+            self.assertEqual(saved.returncode, 1, saved.stderr)
+            self.assertEqual(json.loads(saved.stdout)["prediction_source"], {
+                "kind": "saved_predictions", "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            })
+            (root / "encoder_quantized.onnx").touch()
+            shadowed = run("--runner", sys.executable, "--model-dir", root)
+            self.assertEqual(shadowed.returncode, 2)
+            self.assertIn("override", shadowed.stderr)
             path.write_text("corrupt")
             proc = run("--predictions", path)
             self.assertEqual(proc.returncode, 2)
             self.assertIn("LitBank replay error", proc.stderr)
+
+    def test_model_identity_rejects_encoder_substitution_and_changed_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            expected = {}
+            for name in replay.MODEL_SHA:
+                data = name.encode()
+                (root / name).write_bytes(data)
+                expected[name] = hashlib.sha256(data).hexdigest()
+            with patch.object(replay, "MODEL_SHA", expected):
+                self.assertEqual(replay.pinned_fp32_hashes(root), expected)
+                predictions = {"results": [{
+                    "id": self.doc["id"], "source_sha256": source_sha256(self.doc["text"]),
+                    "mentions": [], "clusters": [],
+                }]}
+                # The supplied runner is a stand-in. Verification hashes the real local files.
+                with patch.object(litbank, "prepare", return_value=(self.doc, self.named)), \
+                        patch.object(sys, "argv", ["litbank", str(root), "--runner", sys.executable,
+                                                 "--model-dir", str(root)]), \
+                        patch.object(subprocess, "check_output", return_value=json.dumps(predictions).encode()), \
+                        redirect_stdout(io.StringIO()) as stdout:
+                    self.assertEqual(litbank.main(), 1)
+                self.assertEqual(json.loads(stdout.getvalue())["prediction_source"],
+                                 {"kind": "pinned_fp32", "files_sha256": expected})
+                alternate = root / "encoder_quantized.onnx"
+                alternate.write_bytes(b"preferred by native loader")
+                with self.assertRaisesRegex(ValueError, "override"):
+                    replay.pinned_fp32_hashes(root)
+                alternate.unlink()
+                (root / "encoder.onnx").write_bytes(b"wrong FP32 bytes")
+                with self.assertRaisesRegex(ValueError, "pinned FP32"):
+                    replay.pinned_fp32_hashes(root)
 
     def test_source_and_scalar_offsets(self):
         source = "🐟" + self.doc["text"]

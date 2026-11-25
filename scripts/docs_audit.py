@@ -84,13 +84,16 @@ def check_stale_doc_path_mentions(repo_root: Path) -> int:
     This complements markdown link checking because many references are plain text,
     not clickable links.
     """
-    # Conservative: check markdown files in docs/ + README.md.
     md_paths: list[Path] = []
     for p in iter_tracked_text_files(repo_root):
         rel = p.relative_to(repo_root)
         if p.suffix.lower() != ".md":
             continue
-        if rel == Path("README.md") or (rel.parts and rel.parts[0] == "docs"):
+        if (
+            rel == Path("README.md")
+            or rel.parts[:1] == ("docs",)
+            or rel.parts[:2] == (".agents", "skills")
+        ):
             md_paths.append(p)
 
     # Match common "docs/..." paths ending in .md (avoid grabbing trailing punctuation).

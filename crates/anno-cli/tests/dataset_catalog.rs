@@ -133,3 +133,20 @@ fn googlere_download_loads_snippets_and_relation_eval_explains_missing_offsets()
     );
     assert!(String::from_utf8_lossy(&download.stdout).contains("Google-RE (sentences=1)"));
 }
+
+#[test]
+fn publisher_load_respects_the_explicit_trust_bundle_before_fetching() {
+    let cache = tempfile::tempdir().unwrap();
+    let ca = cache.path().join("empty.pem");
+    std::fs::write(&ca, "").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_anno"))
+        .args(["dataset", "download", "--dataset", "FewRel"])
+        .env("SSL_CERT_FILE", ca)
+        .env("ANNO_CACHE_DIR", cache.path())
+        .env("ANNO_S3_CACHE", "0")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("No certificates in SSL_CERT_FILE"));
+    assert!(!cache.path().join("datasets/FewRel.cache").exists());
+}

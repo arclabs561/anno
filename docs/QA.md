@@ -11,6 +11,18 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Checks for silent data loss and false passes
+
+| Contract | Regression that exercises it |
+| --- | --- |
+| Import and export preserve the dataset or report an error | Put a malformed BRAT mention after a valid one and prefill the destination. Check the exit status and the destination bytes. Round-trip a mention with a word in the gap through each advertised format and compare the exact segments. |
+| Scores depend on the annotations | Permute predictions, reverse an undirected edge with differently typed endpoints, and include duplicate spans with different labels. Check one-to-one matches, both per-label denominators, and deterministic tied votes. |
+| A model result still points into the source | Pad the same token sequence or repeat whitespace between words while holding the model outputs fixed. Check the source spans and surfaces at the public interface. |
+| QA credits the implementation that ran | Give two requested backends the same reported runtime identity, replay with a different selector, or change the model inventory. Check the saved receipt and the downstream coverage decision. |
+| A release or cache can be verified by another job | Compare the tag, manifest version and registry checksum. Exercise duplicate uploads with mismatched bytes. Check the workflow’s saved paths against its retention policy. |
+
+A type can require a parsed span, a validated threshold or a resolved identity at an internal boundary. Comparing against the original input, running producer or registry still needs a behavioral check. Keep these small cases in the ordinary PR suites so they also run for contributors.
+
 ## Try a workflow as a new reader
 
 Start outside the checkout with a published package or a named build. Give a reader
@@ -75,6 +87,12 @@ The pinned LitBank release grants CC BY 4.0, which permits commercial reuse of t
 
 For an older local cache containing raw annotations in `LitBank.cache`, place the matching source beside it as `LitBank.txt`. An annotation-only cache returns an error naming the missing path. Reading a compatible local cache preserves its existing bytes. To obtain the attributed publisher pair separately, point `ANNO_CACHE_DIR` at an empty directory and run `anno dataset download --dataset LitBank`. Flat NER uses the leftmost outer mention when labels nest.
 
+## Score a local TACRED or Re-TACRED split
+
+Copy an authorized TACRED split JSON to `$ANNO_CACHE_DIR/datasets/TACRED.cache`. For Re-TACRED, apply the authors’ patch to a licensed TACRED split and place the resulting split at `$ANNO_CACHE_DIR/datasets/ReTACRED.cache`. The public patch contains ID-to-label mappings and requires the original sentences. Both inputs stay local. [TACRED distribution](https://catalog.ldc.upenn.edu/LDC2018T24) · [Re-TACRED patch and release notes](https://github.com/gstoica27/Re-TACRED)
+
+Run `anno dataset eval --task relation --dataset retacred --model heuristic` (or use `--dataset tacred`). Each record contributes one document. Positive labels create directed subject-to-object relations. A `no_relation` record has empty gold and can still incur false positives. The scorer evaluates extracted argument spans and relation labels. Published TACRED classification benchmarks supply the argument pair to the model.
+
 ## Check what a negative span means
 
 Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.
@@ -124,6 +142,8 @@ just qa-round qa/reports/field.json 'Which selected topic still needs an indepen
 python3 scripts/qa_random_urls.py --replay qa/reports/field.json --output qa/reports/revisit.md
 ```
 
+The cross-domain receipt records the requested backend and the runtime model named by the executing Anno instance. A matching URL and text hash establish input agreement. Backend coverage also requires a compatible runtime name. Legacy receipts support input comparisons and report their backend identity as unverified.
+
 The catalog assigns one topic to each publisher, including its feeds. Each pass samples distinct publishers. The next publisher is chosen from the least represented available topics. A topic describes a catalog entry. The Markdown report counts eligible, selected and verified entries alongside distinct final hosts and rendered text hashes. A source counts as verified when every requested backend reports the same final URL and text hash. Repeated content, failures and mismatches remain visible. These checks measure input coverage and output integrity. Accuracy requires independent labels.
 
 The sibling JSON receipt records the original feed or page, selected article, final URL, requested backends and rendered text hashes. Replaying a receipt revisits its selected URLs and compares them to its original successful results. A changed final URL or rendered hash, a missing baseline or an incomplete current run yields a nonzero exit. The prior receipt stays available. Live RSS/Atom entries may change between seeded selections. `--no-rss` restricts sampling to standing pages. Use `--category all` for the wider multilingual discovery pool, or select a category such as `wikipedia`. A language filter alone searches the multilingual pool; pass `--cross-domain --lang ...` to limit the topical catalog. Contributor PRs run deterministic offline checks.
@@ -166,7 +186,7 @@ python3 scripts/qa/replay_litbank_role.py target/litbank \
 
 The oracle expects the pronoun, role and correct name to share a cluster, and the other named person to appear in a different cluster. The scorer reports all four selected pairs, with an unresolved judgment when either exact span lacks an emitted cluster. Stock FCoref on 942eb6a6 proposed all four endpoints but grouped the pronoun and role with the other named person. This single case has no frequency estimate.
 
-Use `--predictions FILE` to score a saved receipt from the example. A match exits 0 and a mismatch exits 1. An unavailable runner or model, or a source-only check with neither execution mode, reports `not_run` and exits 77. A bad source, malformed receipt, or failed invocation exits 2. Synthetic same-person, wrong-person and missing-endpoint controls run with `python3 -m unittest discover -s scripts/qa -p test_replay_litbank_role.py`.
+Live runs verify the four pinned FP32 files before and after inference and include their SHA-256 digests in `prediction_source`. A co-located quantized encoder or a mismatched digest exits 2. Use `--predictions FILE` to score saved predictions from the example. That mode records the SHA-256 of the supplied receipt and leaves the model identity unverified. A match exits 0 and a mismatch exits 1. An unavailable runner or model, or a source-only check with neither execution mode, reports `not_run` and exits 77. A bad source, malformed receipt, or failed invocation exits 2. Synthetic same-person, wrong-person and missing-endpoint controls run with `python3 -m unittest discover -s scripts/qa -p test_replay_litbank_role.py`.
 
 ### Compare compact name displays
 
@@ -249,6 +269,10 @@ The June 3, 2024 issue yielded 53 anchors in 47 abstracts. A separate September 
 2024 issue yielded 50 in 44. Save each response and its reported SHA-256 for
 repeat comparisons. Use `--cases PATH` to inspect individual spans and look
 up the corresponding Federal Register document number.
+
+## Score a SciERC split
+
+Put an authorized `processed_data/json/{train,dev,test}.json` split from the authors’ processed archive at `$ANNO_CACHE_DIR/datasets/SciERC.cache`. Run `anno dataset eval --task relation --dataset SciERC --model heuristic`. The scorer evaluates each sentence separately, retains sentences with no gold relations, and resolves nested arguments using the release’s document-relative token indices. Flat NER keeps the leftmost non-overlapping mentions, preferring the longest at a shared start. The separate `SciERCNER.cache` input accepts an already normalized sentence-level NER projection. [SciERC release and annotation guidelines](https://nlp.cs.washington.edu/sciIE/)
 
 ## Score cross-document linkage on ECB+
 

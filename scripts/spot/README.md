@@ -231,7 +231,6 @@ just spot-dash              # Interactive ratatui dashboard
 just spot-ps                # Process list on worker
 just spot-top               # Interactive top on worker
 just spot-cost              # Show fleet costs
-just spot-sync-datasets     # Fast parallel dataset download
 ```
 
 The `trainctl-bridge.sh` script provides the integration. Build trainctl with:
@@ -239,7 +238,7 @@ The `trainctl-bridge.sh` script provides the integration. Build trainctl with:
 cd ../trainctl && cargo build --release
 ```
 
-The self-contained approach (`just spot-eval`) works without trainctl.
+The self-contained approach (`just spot-eval`) works without trainctl. `just spot-sync-datasets` downloads datasets using the shared cache exclusion rules with s5cmd or the AWS CLI. It uses `ANNO_SPOT_BUCKET` for the source bucket and `ANNO_CACHE_DIR` for the local cache.
 
 ## Troubleshooting
 

@@ -4,6 +4,8 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 ## Coordinator prompt
 
+To challenge a corrected byline, attribution, catalog redirect, or visibility decision, propose a short event history and run the [credit reader replay](../verification/index_consumers/reader_cases/README.md#propose-and-judge-another-history). It checks the Rust and SQLite readers against a separate answer key and accepts local proposals without contacting a model provider.
+
 > At the baseline revision, identify one user-visible claim and the decision that depends on it. Read the starting receipt. State two plausible explanations for the observation, the smallest test on which they predict different outcomes, and what result would change your mind.
 >
 > Choose the job for this round. **Verify** a recurring failure using triage history. **Explore** an under-observed part of a compatible panel using coverage. **Discriminate** between explanations using a paired experiment on the same inputs. These are assignments for the coordinator. The existing sampler modes select cells; the coordinator chooses the claim to test inside a cell.

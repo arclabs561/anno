@@ -2,8 +2,7 @@
 
 ## Current packages
 
-The workspace currently assigns version `0.14.0` to its three crates.io
-packages. `anno-py` is a separate PyPI wheel and has `publish = false` for
+The three crates.io packages share one release version. `anno-py` is a separate PyPI wheel and has `publish = false` for
 crates.io.
 
 | Crate | Package name | Publish | Notes |
@@ -29,9 +28,12 @@ at the published commit. Check for existing local and remote tags first; never
 reuse a tag from unrelated history. Push only the intended tag. The tag event
 reruns the idempotent publish workflow.
 
-The workflow publishes bottom-up by dependency order. Each step uses
-`publish-crate.sh`, which treats an already-uploaded version as success so a
-rerun can continue after a partial failure.
+A read-only job checks that the three package versions agree and that any release
+tag matches that exact version before authentication. The publish job packages
+each crate from the locked checkout in dependency order. It confirms the SHA-256
+of the candidate archive against the crates.io index before advancing. A retry
+can reuse an existing, unyanked version with identical bytes. A mismatch stops
+the release and identifies the crate to investigate.
 
 ## Trusted-publisher configuration (crates.io)
 

@@ -141,13 +141,13 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test attribution footer matching
         run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
-      - name: Test optional research routing
+      - name: Test research routing and QA retention
         timeout-minutes: 2
         run: |
           test_dir="$RUNNER_TEMP/anno-routing-tests"
           npm install --prefix "$test_dir" --ignore-scripts --no-audit --no-fund --no-package-lock --no-save @actions/expressions@0.3.61 yaml@2.8.4
-          cp .github/scripts/test_research_routing.mjs "$test_dir/"
-          node "$test_dir/test_research_routing.mjs"
+          cp .github/scripts/test_research_routing.mjs .github/scripts/test_qa_retention.mjs "$test_dir/"
+          node --test "$test_dir/test_research_routing.mjs" "$test_dir/test_qa_retention.mjs"
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test QA panels, matrix outcomes, and CI scripts
@@ -455,6 +455,8 @@ jobs:
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
+      - name: Check prepared model loading and shared dataset staging offline
+        run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache
       # Reuse the workspace test build and retain the dedicated 100-case run.
       - name: Run property tests
         if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
@@ -620,6 +622,7 @@ jobs:
             # Keep current-run evidence outside restored cache state so the outcome gate cannot
             # pass on decision records from an earlier workflow run.
             echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
+            echo "ANNO_MATRIX_DATASET_POOLS_FILE=$RUNNER_TEMP/matrix-dataset-pools.jsonl"
           } >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
@@ -631,6 +634,7 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
+          echo "ANNO_MATRIX_STAGE_FROM_S3=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
@@ -734,8 +738,8 @@ jobs:
         run: |
           set -o pipefail
           printf 'Matrix evaluator and scorer checkout: `%s` (features `onnx,eval,discourse`).\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-          touch "$ANNO_MUXER_DECISIONS_FILE"
-          python3 scripts/qa/check_matrix_outcomes.py --report \
+          touch "$ANNO_MUXER_DECISIONS_FILE" "$ANNO_MATRIX_DATASET_POOLS_FILE"
+          python3 scripts/qa/check_matrix_outcomes.py --report --dataset-pools "$ANNO_MATRIX_DATASET_POOLS_FILE" \
             ${{ steps.wikigold.outcome == 'success' && '--verify-wikigold' || '' }} \
             "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
@@ -761,6 +765,7 @@ jobs:
           name: matrix-muxer-decisions${{ github.run_attempt != '1' && format('-attempt-{0}', github.run_attempt) || '' }}
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
+            ${{ runner.temp }}/matrix-dataset-pools.jsonl
             ${{ runner.temp }}/matrix-bootstrap.jsonl
             ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             ${{ runner.temp }}/matrix-smoke/temporal-outcomes.jsonl
@@ -849,17 +854,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-      # Restore eval history so CLI benchmark accumulates observation counts across runs.
-      # Uses the same anno-muxer key family as matrix-test to share state.
-      - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.anno_cache/eval-results.jsonl
-            ~/.anno_cache/eval-history.db
-          key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
-          restore-keys: |
-            anno-muxer-${{ runner.os }}-v1-
       - name: Run sanity check evaluations
         run: ./scripts/eval-sanity.sh
         env:
@@ -930,16 +924,6 @@ jobs:
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
-      # Restore eval history so full evals seed from accumulated observation counts.
-      - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.anno_cache/eval-results.jsonl
-            ~/.anno_cache/eval-history.db
-          key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
-          restore-keys: |
-            anno-muxer-${{ runner.os }}-v1-
       - name: Run full evaluations
         run: ./scripts/eval-full.sh
         env:
@@ -1322,6 +1306,8 @@ jobs:
         run: |
           set -o pipefail
           bash scripts/test-validate-publish.sh 2>&1 | tee publish-regression.log
+      - name: Exercise release identity and retry checks
+        run: python3 -m unittest discover -s .github/scripts -p test_rust_release.py
       - name: Validate packaged workspace
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

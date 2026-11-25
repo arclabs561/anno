@@ -209,7 +209,9 @@ impl Location {
         }
     }
 
-    fn coverage(&self) -> LocationCoverage {
+    /// Canonical source character ranges covered by this location. A gap separates two ranges.
+    #[must_use]
+    pub fn coverage(&self) -> LocationCoverage {
         match self {
             Self::Text { start, end } => LocationCoverage::Contiguous(*start..*end),
             Self::Discontinuous { segments } => LocationCoverage::Segmented(
@@ -231,14 +233,19 @@ impl Location {
     }
 }
 
-// Store contiguous coordinates inline and normalize legacy segmented locations once.
-enum LocationCoverage {
+/// Canonical coverage of a grounded location. Legacy segment lists are normalized once.
+#[derive(Debug)]
+pub enum LocationCoverage {
+    /// One contiguous character range.
     Contiguous(std::ops::Range<usize>),
+    /// Sorted, non-overlapping ranges.
     Segmented(DiscontinuousSpan),
 }
 
 impl LocationCoverage {
-    fn view(&self) -> crate::SpanCoverage<'_> {
+    /// Borrow the same coverage representation used by flat entities.
+    #[must_use]
+    pub fn view(&self) -> crate::SpanCoverage<'_> {
         match self {
             Self::Contiguous(range) => crate::SpanCoverage::Contiguous(range.clone()),
             Self::Segmented(span) => crate::SpanCoverage::Segmented(span),
@@ -2412,10 +2419,18 @@ impl GroundedDocument {
     /// ```
     #[must_use]
     pub fn validate(&self) -> Vec<SignalValidationError> {
+        self.signal_validation_errors().collect()
+    }
+
+    fn signal_validation_errors(&self) -> impl Iterator<Item = SignalValidationError> + '_ {
+        let offsets = self.validation_offsets(self.signals.len());
         self.signals
             .iter()
-            .filter_map(|s| s.validate_against(&self.text))
-            .collect()
+            .filter_map(move |signal| signal.validate_with_offsets(&self.text, offsets.as_deref()))
+    }
+
+    fn validation_offsets(&self, signal_count: usize) -> Option<Vec<usize>> {
+        (signal_count > 1).then(|| crate::offset::build_char_to_byte_map(&self.text))
     }
 
     /// Validate structural invariants of the document.
@@ -2589,7 +2604,7 @@ impl GroundedDocument {
     /// Check if all signals are valid against document text.
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        self.signals.iter().all(|s| s.is_valid(&self.text))
+        self.signal_validation_errors().next().is_none()
     }
 
     /// Add a signal, validating it first.
@@ -2611,8 +2626,7 @@ impl GroundedDocument {
         &mut self,
         signals: Vec<Signal<Location>>,
     ) -> Vec<SignalValidationError> {
-        let offsets =
-            (signals.len() > 1).then(|| crate::offset::build_char_to_byte_map(&self.text));
+        let offsets = self.validation_offsets(signals.len());
         let mut errors = Vec::new();
         for signal in signals {
             if let Some(error) = signal.validate_with_offsets(&self.text, offsets.as_deref()) {
@@ -5982,6 +5996,18 @@ mod tests {
             .cloned()
             .filter_map(|s| single.add_signal_validated(s).err())
             .collect();
+        let mut unchecked = GroundedDocument::new("all", text);
+        for signal in &signals {
+            unchecked.add_signal(signal.clone());
+        }
+        let individual: Vec<_> = unchecked
+            .signals()
+            .iter()
+            .filter_map(|signal| signal.validate_against(text))
+            .collect();
+        assert_eq!(unchecked.validate(), individual);
+        assert!(!unchecked.is_valid());
+        assert!(single.is_valid());
         assert_eq!(expected.len(), 4);
         assert_eq!(expected, batch.add_signals_validated(signals));
         assert_eq!(

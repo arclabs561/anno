@@ -101,6 +101,8 @@ Run commands from the repository root.
    set `DATASETS` and `PANEL` to comma-separated IDs from the coverage report:
 
    ```bash
+   # Both runs use prepared local datasets, including on hosts configured for S3.
+   export ANNO_S3_CACHE=0 ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=0
    for POLICY in random worst-first; do
      mkdir -p "$REC/$POLICY"
      ANNO_EVAL_HISTORY="$REC/$POLICY/eval-results.jsonl" \

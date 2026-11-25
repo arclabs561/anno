@@ -422,7 +422,7 @@ impl BackendFactory {
             #[cfg(feature = "onnx")]
             "nuner_4k" | "nunerzero4k" => {
                 use crate::backends::nuner::NuNER;
-                NuNER::from_pretrained("numind/NuNER_Zero-4k")
+                NuNER::from_pretrained(anno::models::NUNER_ZERO_4K)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -690,11 +690,13 @@ impl BackendFactory {
                 "gliner",
                 "gliner_onnx",
                 "nuner",
-                "nuner_4k",
                 "w2ner",
                 "gliner_multitask",
                 "gliner_pii",
             ]);
+            if anno::NuNER::local_4k_export_available() {
+                backends.push("nuner_4k");
+            }
             if anno::backends::gliner_poly::GLiNERPoly::local_export_available() {
                 backends.push("gliner_poly");
             }

@@ -3,7 +3,12 @@
 use anno::core::grounded::html_source::source_sha256;
 use anno_eval::eval::dataset_registry::DatasetId;
 use serde::Serialize;
-use std::{collections::HashSet, env, error::Error, fs};
+use std::{
+    collections::{BTreeMap, HashSet},
+    env,
+    error::Error,
+    fs,
+};
 
 const PREFIX: &str = "datasets/";
 const WIKIGOLD_SHA256: &str = "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
@@ -15,14 +20,18 @@ enum Object {
     Manifest,
 }
 
-fn classify(key: &str) -> Option<(DatasetId, Object)> {
-    let name = key.strip_prefix(PREFIX)?;
+fn snapshot_filename(path: &str) -> Option<&str> {
+    let (hash, file) = path.split_once('/')?;
+    (hash.len() == 64
+        && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        && !file.contains('/')
+        && file.ends_with(".cache"))
+    .then_some(file)
+}
+
+fn classify(name: &str) -> Option<(DatasetId, Object)> {
     let (file, kind) = if let Some(path) = name.strip_prefix("by-sha256/") {
-        let (hash, file) = path.split_once('/')?;
-        if hash.len() != 64 || !hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
-            return None;
-        }
-        (file, Object::Snapshot)
+        (snapshot_filename(path)?, Object::Snapshot)
     } else if let Some(file) = name.strip_suffix(".latest.json") {
         (file, Object::Pointer)
     } else if let Some(file) = name.strip_suffix(".manifest.json") {
@@ -33,6 +42,52 @@ fn classify(key: &str) -> Option<(DatasetId, Object)> {
     Some((DatasetId::from_cache_filename(file)?, kind))
 }
 
+// Fixed report labels keep keys and arbitrary extensions out of the summary.
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum KeyShape {
+    DirectoryMarkerName,
+    SnapshotUnregisteredCacheName,
+    OtherSnapshotLayout,
+    OtherNestedPath,
+    FlatSidecarName,
+    FlatCacheName,
+    FlatJson,
+    FlatSequenceLabels,
+    FlatTextOrDelimited,
+    FlatArchive,
+    OtherFlatName,
+}
+
+fn unrecognized_shape(name: &str) -> KeyShape {
+    if name.is_empty() || name.ends_with('/') {
+        return KeyShape::DirectoryMarkerName;
+    }
+    if let Some(path) = name.strip_prefix("by-sha256/") {
+        return if snapshot_filename(path).is_some() {
+            KeyShape::SnapshotUnregisteredCacheName
+        } else {
+            KeyShape::OtherSnapshotLayout
+        };
+    }
+    if name.contains('/') {
+        return KeyShape::OtherNestedPath;
+    }
+    if name.ends_with(".latest.json") || name.ends_with(".manifest.json") {
+        return KeyShape::FlatSidecarName;
+    }
+    match name.rsplit_once('.').map(|(_, extension)| extension) {
+        Some("cache") => KeyShape::FlatCacheName,
+        Some("json" | "jsonl" | "ndjson") => KeyShape::FlatJson,
+        Some("conll" | "conllu" | "bio" | "iob" | "iob2") => KeyShape::FlatSequenceLabels,
+        Some("txt" | "tsv" | "csv") => KeyShape::FlatTextOrDelimited,
+        Some("zip" | "gz" | "tgz" | "bz2" | "xz" | "zst" | "tar" | "rar" | "7z") => {
+            KeyShape::FlatArchive
+        }
+        _ => KeyShape::OtherFlatName,
+    }
+}
+
 #[derive(Default, Serialize)]
 struct Inventory {
     objects: usize,
@@ -41,6 +96,7 @@ struct Inventory {
     registered_pointers: usize,
     registered_manifests: usize,
     unrecognized_keys: usize,
+    unrecognized_key_shapes: BTreeMap<KeyShape, usize>,
     unrecognized_keys_matching_bulk_read_exclusions: usize,
     registry_ids_with_payload: usize,
     registry_ids_with_only_metadata: usize,
@@ -69,11 +125,15 @@ fn inventory(keys: &[String], sample: Option<(&str, &[u8])>) -> Result<Inventory
     let mut pointer_ids = HashSet::new();
     let mut metadata_ids = HashSet::new();
     for key in keys {
-        if !key.starts_with(PREFIX) {
-            return Err("unexpected object outside datasets/");
-        }
-        let Some((id, kind)) = classify(key) else {
+        let name = key
+            .strip_prefix(PREFIX)
+            .ok_or("unexpected object outside datasets/")?;
+        let Some((id, kind)) = classify(name) else {
             report.unrecognized_keys += 1;
+            *report
+                .unrecognized_key_shapes
+                .entry(unrecognized_shape(name))
+                .or_default() += 1;
             report.unrecognized_keys_matching_bulk_read_exclusions +=
                 usize::from(excluded_names.iter().any(|name| key.contains(name)));
             continue;
@@ -198,6 +258,54 @@ mod tests {
         );
         assert_eq!(r.unrecognized_keys_matching_bulk_read_exclusions, 1);
         assert_eq!(r.payloads_with_digest_matched_rights_evidence, 0);
+    }
+
+    #[test]
+    fn unknown_layout_counts_partition_keys_without_disclosing_names() {
+        let digest = "a".repeat(64);
+        let names: [String; 18] = [
+            "".into(),
+            "subdir/".into(),
+            "by-sha256/".into(),
+            format!("by-sha256/{digest}/unlisted.cache"),
+            format!("by-sha256/{digest}/nested/WikiGold.cache"),
+            format!("by-sha256/{digest}/unlisted.json"),
+            "by-sha256/short/WikiGold.cache".into(),
+            "nested/WikiGold.cache".into(),
+            "unlisted.cache.latest.json".into(),
+            "unlisted.cache.manifest.json".into(),
+            "unlisted.cache".into(),
+            "unlisted.json".into(),
+            "unlisted.jsonl".into(),
+            "unlisted.conllu".into(),
+            "unlisted.tsv".into(),
+            "unlisted.tar.gz".into(),
+            "unlisted.private".into(),
+            "WikiGold.cache".into(),
+        ];
+        let keys = names
+            .iter()
+            .map(|name| format!("{PREFIX}{name}"))
+            .collect::<Vec<_>>();
+        let report = inventory(&keys, None).unwrap();
+        let shapes = serde_json::to_value(&report.unrecognized_key_shapes).unwrap();
+        assert_eq!(
+            shapes,
+            serde_json::json!({
+                "directory_marker_name": 3, "snapshot_unregistered_cache_name": 1,
+                "other_snapshot_layout": 3, "other_nested_path": 1, "flat_sidecar_name": 2,
+                "flat_cache_name": 1, "flat_json": 2, "flat_sequence_labels": 1,
+                "flat_text_or_delimited": 1, "flat_archive": 1, "other_flat_name": 1
+            })
+        );
+        assert_eq!(
+            report.unrecognized_key_shapes.values().sum::<usize>(),
+            report.unrecognized_keys
+        );
+        assert_eq!(
+            report.unrecognized_keys + report.registered_legacy_payloads,
+            keys.len()
+        );
     }
 
     #[test]

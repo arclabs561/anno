@@ -321,3 +321,100 @@ fn delivery_manifests_scope_documents_and_replay_original_receipts_in_the_report
     assert!(String::from_utf8_lossy(&failed.stderr).contains("different bytes or intent"));
     assert!(!directory.join("unpublished.json").exists());
 }
+
+#[test]
+fn requested_cross_doc_sources_succeed_together_or_preserve_the_destination() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path();
+    fs::write(
+        dir.join("doc.json"),
+        serde_json::to_vec(&linked_doc("d", "a", "b")).unwrap(),
+    )
+    .unwrap();
+    fs::write(dir.join("out"), "prior output").unwrap();
+    for (sources, expected) in [
+        (vec![".", "--import", "doc.json"], "cannot be used with"),
+        (vec![".", "--stdin"], "cannot be used with"),
+        (
+            vec!["--import", "doc.json", "--import", "none-*.json"],
+            "none-*.json",
+        ),
+    ] {
+        let mut args = vec!["cross-doc", "--output", "out"];
+        args.extend(sources);
+        let result = anno(dir, &args);
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains(expected));
+        assert_eq!(fs::read(dir.join("out")).unwrap(), b"prior output");
+    }
+}
+
+#[test]
+fn trees_preserve_source_gaps_and_singletons_count_mentions() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path();
+    let mut doc = GroundedDocument::new("d", "À wrong 京. À wrong 京. Z");
+    let parts = |offset: usize| Location::Discontinuous {
+        segments: vec![(offset, offset + 1), (offset + 8, offset + 9)],
+    };
+    let first = doc.add_signal(Signal::new(0, parts(0), "À 京", "PER", 0.9));
+    let second = doc.add_signal(Signal::new(0, parts(11), "À 京", "PER", 0.9));
+    let track = doc
+        .create_track_from_signals("À 京", &[first, second])
+        .unwrap();
+    let identity = doc.add_identity(Identity::from_kb(0, "À 京", "people", "paired"));
+    doc.link_track_to_identity(track, identity);
+    let last = doc.add_signal(Signal::new(0, Location::text(22, 23), "Z", "ORG", 0.9));
+    let track = doc.create_track_from_signals("Z", &[last]).unwrap();
+    let identity = doc.add_identity(Identity::from_kb(1, "Z", "groups", "solo"));
+    doc.link_track_to_identity(track, identity);
+    fs::write(dir.join("doc.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
+    let display = |format| {
+        String::from_utf8(success(anno(
+            dir,
+            &[
+                "--color",
+                "never",
+                "cross-doc",
+                "--verbose",
+                "--import",
+                "doc.json",
+                "--format",
+                format,
+            ],
+        )))
+        .unwrap()
+    };
+    let tree = display("tree");
+    assert!(tree.contains("[À] wrong [京]"), "{tree}");
+    assert!(tree.contains("2 (0 cross-doc, 1 singleton)"), "{tree}");
+    assert!(display("summary").contains("Singleton clusters: 1"));
+}
+
+#[test]
+fn clustering_threshold_rejects_invalid_units_before_input() {
+    let root = tempfile::tempdir().unwrap();
+    for command in ["cross-doc", "pipeline"] {
+        for value in ["75", "-0.1", "NaN", "inf"] {
+            let result = anno(root.path(), &[command, &format!("--threshold={value}")]);
+            assert!(!result.status.success());
+            assert!(String::from_utf8_lossy(&result.stderr).contains("within 0..=1"));
+        }
+    }
+    fs::write(
+        root.path().join("doc.json"),
+        serde_json::to_vec(&linked_doc("d", "a", "b")).unwrap(),
+    )
+    .unwrap();
+    for value in ["0", "1"] {
+        let output = success(anno(
+            root.path(),
+            &["cross-doc", "--import", "doc.json", "--threshold", value],
+        ));
+        let report: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(
+            report["metadata"]["threshold"],
+            value.parse::<f64>().unwrap()
+        );
+    }
+}

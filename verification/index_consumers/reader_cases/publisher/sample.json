@@ -1,0 +1,669 @@
+{
+  "design_sha256": "349c0c50523f8d4ae58dffc917425d9ac9bbaddbbc778a9d2b59948e4dc51daf",
+  "revision": "68e2b8dcb1591b86bd58cbb85b0178fc9b68b9b6",
+  "registry_works": 1871,
+  "eligible": [
+    {
+      "day": "2023-01-03",
+      "notice": "85738",
+      "target": "70324"
+    },
+    {
+      "day": "2023-01-11",
+      "notice": "86017",
+      "target": "70062"
+    },
+    {
+      "day": "2023-02-09",
+      "notice": "86471",
+      "target": "59686"
+    },
+    {
+      "day": "2023-02-13",
+      "notice": "86472",
+      "target": "63509"
+    },
+    {
+      "day": "2023-02-23",
+      "notice": "86893",
+      "target": "58903"
+    },
+    {
+      "day": "2023-03-07",
+      "notice": "87504",
+      "target": "59045"
+    },
+    {
+      "day": "2023-03-13",
+      "notice": "87507",
+      "target": "63751"
+    },
+    {
+      "day": "2023-03-21",
+      "notice": "87888",
+      "target": "33478"
+    },
+    {
+      "day": "2023-03-22",
+      "notice": "87987",
+      "target": "83291"
+    },
+    {
+      "day": "2023-04-18",
+      "notice": "88586",
+      "target": "78430"
+    },
+    {
+      "day": "2023-04-19",
+      "notice": "88685",
+      "target": "75884"
+    },
+    {
+      "day": "2023-05-18",
+      "notice": "89419",
+      "target": "80820"
+    },
+    {
+      "day": "2023-06-12",
+      "notice": "90048",
+      "target": "74094"
+    },
+    {
+      "day": "2023-06-22",
+      "notice": "90007",
+      "target": "65092"
+    },
+    {
+      "day": "2023-07-25",
+      "notice": "91312",
+      "target": "85324"
+    },
+    {
+      "day": "2023-07-25",
+      "notice": "91314",
+      "target": "83149"
+    },
+    {
+      "day": "2023-08-01",
+      "notice": "91492",
+      "target": "82410"
+    },
+    {
+      "day": "2023-08-02",
+      "notice": "91539",
+      "target": "79863"
+    },
+    {
+      "day": "2023-08-08",
+      "notice": "90408",
+      "target": "21221"
+    },
+    {
+      "day": "2023-08-08",
+      "notice": "91529",
+      "target": "60563"
+    },
+    {
+      "day": "2023-08-09",
+      "notice": "91723",
+      "target": "66393"
+    },
+    {
+      "day": "2023-08-31",
+      "notice": "92367",
+      "target": "81453"
+    },
+    {
+      "day": "2023-10-13",
+      "notice": "92968",
+      "target": "64932"
+    },
+    {
+      "day": "2023-10-20",
+      "notice": "93253",
+      "target": "49503"
+    },
+    {
+      "day": "2023-11-01",
+      "notice": "93941",
+      "target": "80396"
+    },
+    {
+      "day": "2023-11-09",
+      "notice": "94305",
+      "target": "78649"
+    },
+    {
+      "day": "2023-11-14",
+      "notice": "94414",
+      "target": "80254"
+    },
+    {
+      "day": "2023-11-20",
+      "notice": "94481",
+      "target": "71802"
+    },
+    {
+      "day": "2023-12-20",
+      "notice": "95305",
+      "target": "86209"
+    }
+  ],
+  "cases": [
+    {
+      "day": "2023-01-03",
+      "notice": "85738",
+      "target": "70324",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "9a0c970fe1a6c9106108e9f1b66a20c7658a3c200671a036bd822393517470d0",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2021-09-14",
+        "xml_sha256": "406e8c7931a5292eb3d04271c959ec9ed79d93b76999a50086d988e2b6ff1c29",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 11,
+          "sha256": "771b4c9cc16d8546ab4db7b8b15fad1f92b8e77931c4918eebbb043fd76ad7de"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-01-03",
+        "xml_sha256": "0009c8f8503707505b2c403f5c58d2541f6ee963aed500af067dccc473eeab78",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 11,
+          "sha256": "771b4c9cc16d8546ab4db7b8b15fad1f92b8e77931c4918eebbb043fd76ad7de"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "c491db6c442aa5dd08be593a59c07114c921d529",
+        "committed": "2021-09-14T15:42:08Z",
+        "xml_sha256": "406e8c7931a5292eb3d04271c959ec9ed79d93b76999a50086d988e2b6ff1c29",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 11,
+          "sha256": "771b4c9cc16d8546ab4db7b8b15fad1f92b8e77931c4918eebbb043fd76ad7de"
+        }
+      }
+    },
+    {
+      "day": "2023-01-11",
+      "notice": "86017",
+      "target": "70062",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "a2069ae76b07958e90a3e82ab94295cde3db6a531b55678d28bed1a298466fea",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 4,
+        "day": "2022-01-10",
+        "xml_sha256": "9c0b90d5172053eca83e8e70759d9a4a3c564bdf33b182e6e60f6305cd0305ec",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 3,
+          "sha256": "bce19e4e5ce353c3abc53d0cc7c31c616915735fd4ccee4ab12865583fadc9d5"
+        }
+      },
+      "after": {
+        "version": 5,
+        "day": "2023-01-11",
+        "xml_sha256": "a7317ddbbfc699ef73bcc3f69042a7dc37b426ff86ca35ba34dc559cc68a6dc3",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 3,
+          "sha256": "676fe1c3c0b184932b723d9dc77f426323eb1ba926c64d760cb9d699e3d113f6"
+        }
+      },
+      "reference": {
+        "version": 4,
+        "revision": "362e995250af5f86b42eb924acb2c55d250ac76d",
+        "committed": "2022-01-10T15:04:47Z",
+        "xml_sha256": "9c0b90d5172053eca83e8e70759d9a4a3c564bdf33b182e6e60f6305cd0305ec",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 3,
+          "sha256": "bce19e4e5ce353c3abc53d0cc7c31c616915735fd4ccee4ab12865583fadc9d5"
+        }
+      }
+    },
+    {
+      "day": "2023-02-09",
+      "notice": "86471",
+      "target": "59686",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "15915cc12bfea7fdef7f88fdb848acfdab0cbc35174d935a30f4c2fcda545990",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 3,
+        "day": "2020-10-01",
+        "xml_sha256": "6beb632d2134cc0873db87573b85e2fca10dbfa0a6d911c68b2ce09a18b28dae",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 15,
+          "sha256": "c1a66476cf6183e8a84f22161b53f10c1c14b6b687d95412da7d7db313d3d9ce"
+        }
+      },
+      "after": {
+        "version": 4,
+        "day": "2023-02-09",
+        "xml_sha256": "98c8ae18ee90220f493b5aba6a44d8321b7b2633420636ab29abdaee41d02d32",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 15,
+          "sha256": "c1a66476cf6183e8a84f22161b53f10c1c14b6b687d95412da7d7db313d3d9ce"
+        }
+      },
+      "reference": {
+        "version": 3,
+        "revision": "ae5a00652a59d1dd8b19e18a4250c1df1ff9c68a",
+        "committed": "2020-10-02T17:16:57Z",
+        "xml_sha256": "6beb632d2134cc0873db87573b85e2fca10dbfa0a6d911c68b2ce09a18b28dae",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 15,
+          "sha256": "c1a66476cf6183e8a84f22161b53f10c1c14b6b687d95412da7d7db313d3d9ce"
+        }
+      }
+    },
+    {
+      "day": "2023-02-13",
+      "notice": "86472",
+      "target": "63509",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "ea9bc1b11ed73b93940941d925e6494c5ecb0238109de676b913b38469065073",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2021-02-08",
+        "xml_sha256": "d791acfcf2b297365cfb1e7c9328d05aeea4378548ae685685f471f89bb5e80b",
+        "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "fd29d5e710c4bd175938a49ed5799faf58c83407dc24f40c6ab68ba4dde27928"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-02-13",
+        "xml_sha256": "83b912b9520e45b554ec1dcc761d6a9e2237420fafe7e292bd9b183decebdca2",
+        "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "fd29d5e710c4bd175938a49ed5799faf58c83407dc24f40c6ab68ba4dde27928"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "ded6c9465ecf8686fca97cb345e973ad5590be95",
+        "committed": "2021-02-08T11:48:36Z",
+        "xml_sha256": "d791acfcf2b297365cfb1e7c9328d05aeea4378548ae685685f471f89bb5e80b",
+        "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "fd29d5e710c4bd175938a49ed5799faf58c83407dc24f40c6ab68ba4dde27928"
+        }
+      }
+    },
+    {
+      "day": "2023-02-23",
+      "notice": "86893",
+      "target": "58903",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "7de6ba36478a279c0cd2ba36251f792ee2c430c15e85c9020f685d928a2005a7",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2021-06-24",
+        "xml_sha256": "e1f86f65e731c99d092768382c503639b23ecb91630474eceafb9d113bce40c5",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 12,
+          "sha256": "14da3bbb636d3de85b42d5236bbe04b08cbab16d2874612349d078d2c778d3db"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-02-23",
+        "xml_sha256": "d55e2cefd73c825a8906e9f427d57333b889fa59d3ada68a90bd2d629c0d1ec1",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 12,
+          "sha256": "14da3bbb636d3de85b42d5236bbe04b08cbab16d2874612349d078d2c778d3db"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "b132856b78e19a6cfda9ef8414d85ec4c7947eeb",
+        "committed": "2021-06-24T13:25:21Z",
+        "xml_sha256": "e1f86f65e731c99d092768382c503639b23ecb91630474eceafb9d113bce40c5",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 12,
+          "sha256": "14da3bbb636d3de85b42d5236bbe04b08cbab16d2874612349d078d2c778d3db"
+        }
+      }
+    },
+    {
+      "day": "2023-03-07",
+      "notice": "87504",
+      "target": "59045",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "88a82859a6de6817b00c2c1b5e5ab5c94c74e267e6bc19abe0584341bbddcdee",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 1,
+        "day": "2020-11-26",
+        "xml_sha256": "524f7659456b1414b8ed662e2ae58342be2f20f43c16d85de3457cd0608bd306",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "55f7187a2b30a7cb9c4aef0fde20776df2a7e23cf2e25c3d5fec49f54a0e7a11"
+        }
+      },
+      "after": {
+        "version": 2,
+        "day": "2023-03-07",
+        "xml_sha256": "e23d6923765287aee6f76d84fe812a11bbe9e7b108707623caabb7b7f84c74ac",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "55f7187a2b30a7cb9c4aef0fde20776df2a7e23cf2e25c3d5fec49f54a0e7a11"
+        }
+      },
+      "reference": {
+        "version": 1,
+        "revision": "c5d7440f93ee71c0099b5bf42212662018a4f6ea",
+        "committed": "2020-11-26T16:55:49Z",
+        "xml_sha256": "524f7659456b1414b8ed662e2ae58342be2f20f43c16d85de3457cd0608bd306",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "55f7187a2b30a7cb9c4aef0fde20776df2a7e23cf2e25c3d5fec49f54a0e7a11"
+        }
+      }
+    },
+    {
+      "day": "2023-03-13",
+      "notice": "87507",
+      "target": "63751",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "7908098943412130cad4bb699590a1998db836431fc1ff24d4245fe5c9b058e7",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 1,
+        "day": "2021-03-18",
+        "xml_sha256": "917c4a335ef0fe924ec335afd08987f66740e2ca1c2b9812324bf31f0b93feb3",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 2,
+          "sha256": "cf8af2ec945318433766850c8cd621e54bdd52d42301bc247c63192c48a9ab26"
+        }
+      },
+      "after": {
+        "version": 2,
+        "day": "2023-03-13",
+        "xml_sha256": "87185543ca627913d4a031a18d04bf0f95b435926ee048adb4f21304a710ec14",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 2,
+          "sha256": "cf8af2ec945318433766850c8cd621e54bdd52d42301bc247c63192c48a9ab26"
+        }
+      },
+      "reference": {
+        "version": 1,
+        "revision": "4eb959ec36202781f455c1c78368924b497195f8",
+        "committed": "2021-03-18T12:24:42Z",
+        "xml_sha256": "917c4a335ef0fe924ec335afd08987f66740e2ca1c2b9812324bf31f0b93feb3",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 2,
+          "sha256": "cf8af2ec945318433766850c8cd621e54bdd52d42301bc247c63192c48a9ab26"
+        }
+      }
+    },
+    {
+      "day": "2023-03-21",
+      "notice": "87888",
+      "target": "33478",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "4d58b79f3912ca2a144e662835991a93b3ad5f2924299c441dfe0e05844cffa4",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2018-03-21",
+        "xml_sha256": "c5292f7db20cdd895cc74956b0df70ee05f34226aaff3e976d693fbd2b957f49",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 21,
+          "sha256": "6b0a8a4acdf5848736aa9a08e84e8503f9afc5294ba2ffaab7f3e0b9260f73a4"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-03-21",
+        "xml_sha256": "fc39d84c3119ab8ea9c1fb1919c6a63bf5a130382a22a6e3f75b36fe61278f59",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 21,
+          "sha256": "6b0a8a4acdf5848736aa9a08e84e8503f9afc5294ba2ffaab7f3e0b9260f73a4"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "3cbb27427b4b00ceebffac999b258e1da9ff9202",
+        "committed": "2020-08-11T23:21:25Z",
+        "xml_sha256": "c5292f7db20cdd895cc74956b0df70ee05f34226aaff3e976d693fbd2b957f49",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 21,
+          "sha256": "6b0a8a4acdf5848736aa9a08e84e8503f9afc5294ba2ffaab7f3e0b9260f73a4"
+        }
+      }
+    },
+    {
+      "day": "2023-03-22",
+      "notice": "87987",
+      "target": "83291",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "b0da6f2d72af725a1ee629f11e470e644bcf03147081ee3bd5d30d9c32f047a6",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 1,
+        "day": "2023-02-21",
+        "xml_sha256": "18f2dc91e4da819641d5f39731414912d1d133a2938805ab2e115bc737864e94",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 14,
+          "sha256": "12b885d99233f910b5aaf48167344fdef0d7142a4dcf0c4e6df75c32dad24409"
+        }
+      },
+      "after": {
+        "version": 2,
+        "day": "2023-03-22",
+        "xml_sha256": "570f6777ed23df4b3462f6f2eea8ab733ab3c8f9049269c3b2cf4055934b0dd7",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 14,
+          "sha256": "12b885d99233f910b5aaf48167344fdef0d7142a4dcf0c4e6df75c32dad24409"
+        }
+      },
+      "reference": {
+        "version": 1,
+        "revision": "b30ffc3fee818f3b234d2b63fc16826e17febc60",
+        "committed": "2023-02-21T12:30:44Z",
+        "xml_sha256": "18f2dc91e4da819641d5f39731414912d1d133a2938805ab2e115bc737864e94",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 14,
+          "sha256": "12b885d99233f910b5aaf48167344fdef0d7142a4dcf0c4e6df75c32dad24409"
+        }
+      }
+    },
+    {
+      "day": "2023-04-18",
+      "notice": "88586",
+      "target": "78430",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "9a16f364352f6897cb9f6c62e452ec5ca19a8d8d17c2fe8844f8fbce8edb0d1e",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 1,
+        "day": "2022-10-04",
+        "xml_sha256": "7beaeb39b49d7a89738c6f302eeec2a1d7d7225e078b60459dade98db57d270f",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "635a8a8a824e5689db16c8349b65833667123e02838bea2261b98827498fd064"
+        }
+      },
+      "after": {
+        "version": 2,
+        "day": "2023-04-18",
+        "xml_sha256": "acf45ef5cdd9d2ef509d534abf07f0a78fe782a6d1ff20057d9b1eec306bca56",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "635a8a8a824e5689db16c8349b65833667123e02838bea2261b98827498fd064"
+        }
+      },
+      "reference": {
+        "version": 1,
+        "revision": "4ccd37e7de0c2838ea97db4c39aa03e5bfd33528",
+        "committed": "2022-10-04T07:00:40Z",
+        "xml_sha256": "7beaeb39b49d7a89738c6f302eeec2a1d7d7225e078b60459dade98db57d270f",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 7,
+          "sha256": "635a8a8a824e5689db16c8349b65833667123e02838bea2261b98827498fd064"
+        }
+      }
+    },
+    {
+      "day": "2023-04-19",
+      "notice": "88685",
+      "target": "75884",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "a590804be6ed255846145fc5c29017baf830ff96af7f84651485dc8cb1ee3333",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2022-08-17",
+        "xml_sha256": "812699d584c9a82904b1413b8ecfa4e384a907aa3b1549b407c0363cb59fd85b",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "9a140f84cb4813ea76b9696f4fcb05640a7f46255cf26504109669fce6e90343"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-04-19",
+        "xml_sha256": "597a7587c15786f7b50de7dbf213d70e6cc6e89bca9a0832f426a61dffb0bd2d",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "9a140f84cb4813ea76b9696f4fcb05640a7f46255cf26504109669fce6e90343"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "415f8330b4d4ef4dff4af95fc7f73ffeeec011bc",
+        "committed": "2023-04-18T15:37:19Z",
+        "xml_sha256": "812699d584c9a82904b1413b8ecfa4e384a907aa3b1549b407c0363cb59fd85b",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "9a140f84cb4813ea76b9696f4fcb05640a7f46255cf26504109669fce6e90343"
+        }
+      }
+    },
+    {
+      "day": "2023-05-18",
+      "notice": "89419",
+      "target": "80820",
+      "notice_read": "other_correction_described",
+      "notice_source": {
+        "version": 1,
+        "xml_sha256": "19382db2828eb793d803a815580ba77064c243aa969d295b742015d463f0cf76",
+        "license": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      "before": {
+        "version": 2,
+        "day": "2022-10-03",
+        "xml_sha256": "248a3baa026d3e92925c8e7db64d1168dc532028a4490c9da648a0ef4af51f29",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "b0a2597c10d1cbf8b675533c724efe0ce2cfcc85030d24e9b4cf7b06edf6e282"
+        }
+      },
+      "after": {
+        "version": 3,
+        "day": "2023-05-18",
+        "xml_sha256": "a59e2d40b953b038dce2d50e41e0bb7caee5fb9a55b08ff576ef8b558ee727c1",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "b0a2597c10d1cbf8b675533c724efe0ce2cfcc85030d24e9b4cf7b06edf6e282"
+        }
+      },
+      "reference": {
+        "version": 2,
+        "revision": "87a0f51270a826e99b563ba46f13c21de8ad91e8",
+        "committed": "2022-10-03T13:56:53Z",
+        "xml_sha256": "248a3baa026d3e92925c8e7db64d1168dc532028a4490c9da648a0ef4af51f29",
+        "license": "http://creativecommons.org/licenses/by/4.0/",
+        "byline": {
+          "count": 5,
+          "sha256": "b0a2597c10d1cbf8b675533c724efe0ce2cfcc85030d24e9b4cf7b06edf6e282"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "queries": 12,
+    "works": 12,
+    "verified_reference": 12,
+    "mutable_answered": 12,
+    "mutable_scorable": 12,
+    "mutable_errors": 1,
+    "edition_answered": 12,
+    "edition_scorable": 12,
+    "edition_errors": 0
+  }
+}

@@ -6,6 +6,8 @@ This repo's dataset loader supports a tiered cache:
 - optional S3 cache (`ANNO_S3_CACHE=1`, `ANNO_S3_BUCKET=...`) via **AWS CLI** (`aws s3 cp`)
 - fallback URL download (last resort)
 
+Publisher downloads and dataset URL health checks verify HTTPS with bundled roots by default. To use a managed network’s certificate authorities, point `SSL_CERT_FILE` at its PEM trust bundle. An unreadable or empty bundle fails the request.
+
 When S3 is enabled, the loader invokes the AWS CLI using its normal credential chain, including a local AWS profile or short-lived role credentials. The GitHub workflow exchanges a job OIDC token for an AWS role session. Both the AWS trust policy and the workflow event/ref guard must allow the request. The example below grants access to read a dataset prefix. Actual access depends on the deployed IAM and bucket policies.
 
 ## Recommended: AWS OIDC role (no secrets)
@@ -108,7 +110,7 @@ Previously created Actions cache archives follow GitHub's existing access and ex
 
 Run `gh workflow run verify-dataset-cache.yml --ref main` for an authenticated check. The job reports the number of current objects under `datasets/`, including snapshots, pointers and sidecars. It then compares the WikiGold snapshot or legacy object with the pinned release SHA-256. The job summary retains the count if WikiGold is missing or fails verification. The count describes objects, so one dataset can contribute several. [Verification workflow](../.github/workflows/verify-dataset-cache.yml)
 
-The inventory resolves exact loader filenames against the compiled dataset registry. It counts legacy payloads, content-addressed snapshots, pointers and manifests separately. A dataset with only a sidecar contributes to the metadata-only count. A pointer with no listed snapshot for its registry ID warrants review. Detecting a pointer to the wrong version would also require reading the pointer. Unrecognized keys include other file layouts. The report counts legacy names matching the bulk exclusion rules without assigning them to a corpus. All public outputs are aggregate counts except for the reviewed WikiGold sample.
+The inventory resolves exact loader filenames against the compiled dataset registry. It counts legacy payloads, content-addressed snapshots, pointers and manifests separately. A dataset with only a sidecar contributes to the metadata-only count. A pointer with no listed snapshot for its registry ID warrants review. Detecting a pointer to the wrong version would also require reading the pointer. The `unrecognized_key_shapes` map partitions the unrecognized keys by path and case-sensitive suffix. Only observed categories appear. Flat names are grouped by cache, sidecar, JSON, sequence-label, text or delimited, archive, and other suffixes. Under `by-sha256/`, the report distinguishes a lowercase 64-hex directory with one unregistered `.cache` filename from other layouts. The remaining groups cover other nested paths and directory-marker names. These counts describe naming conventions. Corpus identity, file format and permissions require separate evidence. The bulk-exclusion count can overlap any shape. All public outputs are aggregate counts except for the reviewed WikiGold sample.
 
 The verified sample’s SHA-256 connects those exact bytes to the WikiGold annotation and source-text terms. Other objects remain unverified even when their keys contain a known name or digest. The publication count uses the registry’s shared-publication policy. [WikiGold source and rights](QA.md#run-a-check)
 
