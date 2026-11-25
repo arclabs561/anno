@@ -57,11 +57,9 @@ def export_windows(model):
         yield
 
 
-def reference_cases(model):
-    """Capture all native PyTorch logits before installing any export patches."""
-    import torch
-
-    cases = [
+def parity_cases():
+    """Texts and ordered prompt labels used to compare Zero-4k runtimes."""
+    return [
         ("Marie Curie worked in Paris.", ["person", "location"]),
         ("Éva joined Acme in Zürich.", ["organization", "location", "person"]),
         ("work " * 498 + "Marie Curie worked in Paris.", ["person", "location"]),
@@ -72,9 +70,15 @@ def reference_cases(model):
             ["person", "location"],
         ),
     ]
+
+
+def reference_cases(model):
+    """Capture all native PyTorch logits before installing any export patches."""
+    import torch
+
     references = []
     with torch.inference_mode():
-        for text, labels in cases:
+        for text, labels in parity_cases():
             wrapper, inputs, spec = model._prepare_export_graph(text=text, labels=labels)
             feed = {
                 key: value.numpy()

@@ -92,7 +92,11 @@ def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_
     if verify_only and not longformer:
         raise ValueError("--verify-only requires a NuNER Zero-4k checkpoint")
     if longformer and quantize:
-        raise ValueError("NuNER Zero-4k supports the parity-tested FP32 export")
+        raise ValueError(
+            "Use the FP32 export for NuNER Zero-4k parity. Dynamic QUInt8 changed "
+            "a 0.5-threshold decision in the 4096-token fixture; "
+            "scripts/qa/check_nuner_4k_quantization.py can reproduce the comparison."
+        )
 
     model = GLiNER.from_pretrained(model_id).eval()
     if not longformer:
