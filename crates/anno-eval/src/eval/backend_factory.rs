@@ -691,7 +691,6 @@ impl BackendFactory {
                 "gliner_onnx",
                 "nuner",
                 "nuner_4k",
-                "b2ner",
                 "w2ner",
                 "gliner_multitask",
                 "gliner_pii",
@@ -867,6 +866,15 @@ mod tests {
         assert!(backends.contains(&"pattern"));
         assert!(backends.contains(&"heuristic"));
         assert!(backends.contains(&"stacked"));
+    }
+
+    #[test]
+    fn b2ner_is_excluded_until_it_can_be_constructed() {
+        assert!(!BackendFactory::is_available("b2ner"));
+        assert!(matches!(
+            BackendFactory::create("b2ner"),
+            Err(anno::Error::FeatureNotAvailable(_))
+        ));
     }
 
     #[test]
