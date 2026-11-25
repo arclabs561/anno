@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if command -v opengrep >/dev/null; then
-    opengrep test -f .opengrep/rules/rust-validated.yaml .opengrep/fixtures/eval/graph.rs
+    python3 scripts/qa/opengrep_rules.py --fixtures
 else
     echo "WARNING: OpenGrep is unavailable; skipping its rule fixtures."
 fi

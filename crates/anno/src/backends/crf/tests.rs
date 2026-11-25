@@ -1,5 +1,13 @@
 use super::*;
 
+#[cfg(feature = "bundled-crf-weights")]
+#[test]
+fn bundled_weights_are_finite_coefficients() {
+    let weights = CrfNER::shipped_weights().expect("bundled CRF weights must parse");
+    assert!(!weights.is_empty());
+    assert!(weights.values().all(|weight| weight.is_finite()));
+}
+
 #[test]
 fn test_crf_basic() {
     let ner = CrfNER::new();
