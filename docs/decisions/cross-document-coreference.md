@@ -18,6 +18,23 @@ The native Rust default uses threshold 0.7 with type matching. Both CLI commands
 
 Raw directory mode selects exhaustive candidates through 100 documents and lexical locality-sensitive hashing (LSH) from 101. Two documents mentioning “Dr. Nara Pell” and “Dr. Pell” grouped with 98 empty-of-entities files. Adding one more such file split the pair. Pin `--candidates exhaustive` or `--candidates lsh` when comparing editions. JSON metadata records which resolver and candidate policy ran. Exhaustive generation compares all eligible pairs and can become expensive. The small Pell case measures a candidate miss, independently of how good a later scorer might be. [CLI regression](../../crates/anno-cli/tests/crossdoc_candidates.rs)
 
+## Looking for a predecessor in a prior edition
+
+A reviewer can ask which tracks in an earlier roster have names resembling a particular current track. Supply two complete membership-edition JSON files from the same publication stream. Use the document ID and submitted local track ID from the current edition. The prior sequence must be strictly earlier. The sequence describes publication order; a source can publish a correction long after the events it describes.
+
+```sh
+anno query predecessors current.json --prior previous.json --doc-id roster --track-id 7
+anno query predecessors current.json --prior previous.json --doc-id roster --track-id 7 --limit 5 --minimum-score 0
+```
+
+The default shows one candidate with a word-set Jaccard score of at least 0.5. Widening as in the second command shows up to five tracks with positive lexical overlap. The lookup compares nonblank canonical surfaces using anno's native word normalization (Unicode lowercase, whitespace-separated words, ASCII possessive suffixes). Catalog assignments, embeddings and type labels do not contribute to this name score. The lookup uses its own display threshold independently of the two editions' membership publication settings.
+
+Equal-score groups stay together. If a top tie exceeds the available slots, the reviewer gets an empty list and the size and score of that tie. If a lower tie exceeds the remaining slots, higher groups are retained. If the list is already full and further candidates qualify, `truncated` is true. The maximum limit is 128, so a top tie larger than 128 stays withheld.
+
+The response records the stream, both publication sequences, lookup settings, scorer, and the surface and source address of each displayed track. A text digest identifies the document text. An annotation can change a track's canonical surface without changing that digest. Retain the response to explain a displayed score, and retain the supplied editions to reproduce the ranking after a correction. Each lookup scans the prior tracks and sorts the qualifying matches; the display limit bounds the response size in candidates.
+
+This query reads the supplied editions and makes no assignments. To confirm a catalog binding, use the independently established catalog name and accession, obtain the current **live** document and track IDs from the receiving corpus, then use its journal preview and approval flow. Import can remap a submitted handle. A publication sequence and a journal head identify different states. [Reviewed corpus operations](index-consumers.md#keeping-a-reviewed-corpus-across-restarts)
+
 ## Which changes reach consumers?
 
 * **A source is corrected or withdrawn.** Within the same live corpus, a surviving resolver-owned identity can keep its number while its name, type, representative embedding and pair support change. The resolver preserves externally supplied representative metadata. Refresh a displayed identity when its evidence changes. [Lifecycle regressions](../../crates/anno/src/coalesce/resolver.rs)

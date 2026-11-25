@@ -99,6 +99,22 @@ impl MembershipEdition {
     }
 }
 
+pub(super) fn validate_source_tracks(doc: &GroundedDocument) -> Result<(), MembershipError> {
+    if let Some(error) = doc.validate().first() {
+        return Err(MembershipError::Invalid(format!(
+            "invalid source occurrence in {}: {error}",
+            doc.id()
+        )));
+    }
+    if let Some(error) = doc.validate_invariants().first() {
+        return Err(MembershipError::Invalid(format!(
+            "invalid tracks in {}: {error}",
+            doc.id()
+        )));
+    }
+    Ok(())
+}
+
 /// Resolve an existing corpus and publish membership with the same keys as a fresh edition.
 /// Unlike importing independent documents, this retains corpus-owned catalog and hybrid
 /// assignments. The caller scopes document IDs and the stream. Supply the original source
@@ -136,18 +152,7 @@ pub fn publish_memberships(
         if doc.id().trim().is_empty() {
             return Err(MembershipError::Invalid("empty document ID".into()));
         }
-        if let Some(error) = doc.validate().first() {
-            return Err(MembershipError::Invalid(format!(
-                "invalid source occurrence in {}: {error}",
-                doc.id()
-            )));
-        }
-        if let Some(error) = doc.validate_invariants().first() {
-            return Err(MembershipError::Invalid(format!(
-                "invalid tracks in {}: {error}",
-                doc.id()
-            )));
-        }
+        validate_source_tracks(doc)?;
         let mut prefix = vec![doc.id().to_owned(), source_sha256(doc.text())];
         prefix.extend(revisions.get(doc.id()).cloned());
         let mut submitted = std::collections::BTreeSet::new();

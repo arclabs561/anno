@@ -18,6 +18,7 @@
 #![warn(missing_docs)]
 
 pub mod memberships;
+mod predecessors;
 pub mod resolver;
 pub mod script;
 pub mod similarity;
@@ -26,6 +27,10 @@ pub mod similarity;
 // Public surface (keep small; the rest is reachable via submodules)
 // =============================================================================
 
+pub use predecessors::{
+    lookup_predecessors, PredecessorCandidate, PredecessorLookup, PredecessorOptions,
+    PredecessorScorer, PredecessorTrack, WithheldTie,
+};
 pub use resolver::Resolver;
 pub use similarity::{
     ChainedSynonyms, NoSynonyms, Script, Similarity, SimilarityConfig, SynonymMatch, SynonymSource,
