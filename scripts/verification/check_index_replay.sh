@@ -13,9 +13,13 @@ cargo run --quiet --locked -p anno --no-default-features --example index_publish
   | python3 verification/index_consumers/check_recovery.py
 python3 verification/temporal_identity/check_replay.py
 python3 verification/index_consumers/check_projection.py
+python3 verification/index_consumers/reader_cases/lineage/check.py
+python3 verification/index_consumers/reader_cases/publisher/check.py
+python3 -m unittest verification.index_consumers.reader_cases.test_ajmc
 python3 verification/index_consumers/congress/test_committee_pilot.py
 python3 verification/index_consumers/congress/test_cross_doc_partition.py
 python3 verification/index_consumers/congress/check_catalog_history.py
-python3 verification/index_consumers/check_editions.py
+python3 verification/index_consumers/check_editions.py --review-example
 python3 verification/index_consumers/credits/check_cases.py
 python3 verification/index_consumers/credits/check_search.py
+python3 verification/index_consumers/reader_cases/check.py --bounded

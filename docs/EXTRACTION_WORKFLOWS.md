@@ -43,6 +43,10 @@ stack returned it. The four counts distinguish retained, lost, gained, and
 missed mentions. The last line counts output surfaces that disagree with the
 original text at their reported offsets.
 
+## Caption playback links
+
+A caption editor can use FCoref to suggest which earlier mention a pronoun refers to. The adapter returns the original cue IDs, character ranges, and playback times in milliseconds. [Run the caption example](../crates/anno/examples/caption_links/README.md)
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,

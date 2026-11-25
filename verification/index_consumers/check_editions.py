@@ -34,10 +34,67 @@ class Client:
     def call(self, *args, error=None):
         result = subprocess.run([*self.command, *map(str, args)], capture_output=True, text=True)
         if error is not None:
-            assert result.returncode and error in result.stderr, (args, result)
+            assert result.returncode and error in result.stderr and result.stdout == "", (args, result)
             return
         assert result.returncode == 0, (args, result.stderr)
         return json.loads(result.stdout)
+
+
+def reviewed_catalog(binary, temp, client):
+    # Use the same saved editor decisions and source revision as the quickstart.
+    example = ["cargo", "run", "--quiet", "--locked", "-p", "anno", "--no-default-features",
+               "--example", "review_mention", "--"]
+    root = Path(__file__).resolve().parents[2]
+    inputs, evidence = {}, {}
+    for sequence, (choice, kind, target) in enumerate(
+        [("defer", "deferred", "musician"), ("apply", "applied", "clerk")], start=1
+    ):
+        archive = temp / f"quay-{choice}.json"
+        with archive.open("w", encoding="utf-8") as output:
+            subprocess.run([*example, "review"], input=f"{choice}\nChecked the signature.\n",
+                           text=True, stdout=output, stderr=subprocess.PIPE, cwd=root, check=True)
+        with archive.open(encoding="utf-8") as saved:
+            shown = subprocess.check_output([*example, "show"], stdin=saved, text=True, cwd=root)
+        assert f"Decision {kind}" in shown and f"Target in saved document quay-catalog/{target}" in shown
+        record = json.loads(archive.read_text(encoding="utf-8"))
+        evidence[choice] = record["evidence"]
+        inputs[choice] = save(temp / f"{choice}-publication.json", dict(
+            stream="quay", sequence=sequence, source_revision="log-edition-1", document=record["document"]))
+
+    anchor = evidence["apply"]
+    assert evidence["defer"] == anchor
+    selected = anchor["signal_id"]
+    for accession in ("musician", "clerk"):
+        key = ("quay-catalog", accession)
+        before = query(binary, inputs["defer"], record=key)
+        after = query(binary, inputs["apply"], record=key)
+        delta = query(binary, inputs["apply"], prior=inputs["defer"], record=key)
+        if accession == "musician":
+            retained, = after["rows"]
+            assert retained["surface"] == "Ora Venn" and retained["signal_id"] != selected
+            assert retained["location"]["Text"] == {"start": 11, "end": 19}
+            changed, = delta["removed"]
+            assert len(before["rows"]) == 2 and retained in before["rows"] and changed in before["rows"]
+            assert delta["upserted"] == []
+        else:
+            changed, = delta["upserted"]
+            assert before["rows"] == delta["removed"] == [] and after["rows"] == [changed]
+        assert changed["signal_id"] == selected and changed["surface"] == anchor["quote"]
+        assert changed["source_sha256"] == anchor["source_sha256"]
+        assert changed["source_revision"] == "log-edition-1"
+        assert changed["catalog_record"] == {"catalog": key[0], "accession": key[1]}
+        assert changed["location"]["Text"] == {"start": 36, "end": 44}
+        assert delta["base"] == before["checkpoint"] and delta["target"] == after["checkpoint"]
+
+        db = temp / f"{accession}.sqlite"
+        client.call("stage", db, save(temp / "initial.json", before))
+        receipt = save(temp / "change.json", delta)
+        manifest = save(temp / "quay-manifest.json", client.call(
+            "manifest", 2, save(temp / "current.json", after)))
+        for _ in range(2):
+            client.call("stage", db, receipt)
+            client.call("publish", db, manifest)
+            assert client.call("read", db)["members"] == [after]
 
 
 def prepare(binary, temp, client):
@@ -93,6 +150,74 @@ def schedules(client, temp, snapshots, deltas, manifests, bulk):
             reads += 1
     assert reads == 540
     return base
+
+
+def minimum_edition_reads(binary, client, temp, snapshots):
+    db = temp / "minimum.sqlite"
+    floor = 2**63 + 1
+    later = floor + 2
+    staff = Client(binary, "staff")
+    staff_manifest = staff.call("manifest", later)
+    staff.call("publish", db, save(temp / "staff-later", staff_manifest))
+    assert staff.call("read", db, "--min-edition", floor) == {"manifest": staff_manifest, "members": []}
+    client.call("read", db, "--min-edition", 0, error="unavailable")
+
+    old = snapshots[0, 0]
+    client.call("stage", db, old)
+    client.call("publish", db, save(temp / "public-first", client.call("manifest", 9, old)))
+    correction = snapshots[1, 1]
+    target = client.call("manifest", later, correction)
+    path = save(temp / "public-later", target)
+    assert client.call("publish", db, path)["status"] == "waiting"
+    client.call("stage", db, correction)
+    client.call("read", db, "--min-edition", 10, error="current edition 9")
+    client.call("read", db, "--min-edition", floor, error=f"requested minimum {floor}")
+
+    # A complete publication skips the floor. Read the newest release, including
+    # its exact rows; a retained snapshot or an unpublished member cannot substitute.
+    client.call("publish", db, path)
+    view = {"manifest": target, "members": [json.loads(correction.read_text())]}
+    assert client.call("read", db, "--min-edition", floor) == view
+    assert client.call("read", db, "--min-edition", later) == view
+    client.call("read", db, "--min-edition", later + 1, error=str(later + 1))
+    assert client.call("read", db, 9)["members"] == [json.loads(old.read_text())]
+    client.call("read", db, 9, "--min-edition", 0, error="cannot be used with")
+
+    empty = client.call("manifest", later + 1)
+    client.call("publish", db, save(temp / "public-empty", empty))
+    assert client.call("read", db, "--min-edition", floor) == {"manifest": empty, "members": []}
+    with sqlite3.connect(db) as writer:
+        writer.execute("DELETE FROM published_editions WHERE edition=?", (f"{later + 1:020d}",))
+    client.call("read", db, "--min-edition", floor, error="manifest body missing")
+
+
+def reissued_member(client, temp, snapshots):
+    """A newer collection can explicitly select an older member after a withdrawal."""
+    db = temp / "reissue.sqlite"
+    old, withdrawn = snapshots[0, 0], snapshots[0, 1]
+    old_body = json.loads(old.read_text())
+    empty_body = json.loads(withdrawn.read_text())
+    assert [row["surface"] for row in old_body["rows"]] == ["Arden"]
+    assert empty_body["rows"] == []
+    for snapshot in (old, withdrawn):
+        client.call("stage", db, snapshot)
+    for edition, members in [(10, [old]), (11, [withdrawn]), (12, [])]:
+        manifest = client.call("manifest", edition, *members)
+        assert client.call("publish", db, save(temp / f"release-{edition}", manifest))["status"] == "published"
+
+    checkpoint = save(temp / "reissue-checkpoint", old_body["checkpoint"])
+    assert client.call("evict", db, checkpoint)["evicted"]
+    client.call("read", db, 10, error="evicted member")
+    latest = client.call("read", db, "--min-edition", 11)
+    assert latest["manifest"]["edition"] == 12 and latest["members"] == []
+    release = client.call("manifest", 13, old)
+    manifest_path = save(temp / "reissue-release", release)
+    assert client.call("publish", db, manifest_path)["status"] == "waiting"
+    assert client.call("read", db, "--min-edition", 11) == latest
+    client.call("stage", db, old)
+    assert client.call("publish", db, manifest_path)["status"] == "published"
+    assert client.call("read", db, "--min-edition", 11) == {"manifest": release, "members": [old_body]}
+    assert client.call("read", db, 11)["members"] == [empty_body]
 
 
 def observe_pending(db):
@@ -283,11 +408,15 @@ def integrity_cases(client, temp, baseline, snapshots, manifests, bulk):
     client.call("publish", db, manifests[0], error="manifest body missing")
 
 
-def run(binary):
+def run(binary, review_example=False):
     with tempfile.TemporaryDirectory() as temp:
         directory = Path(temp)
         client = Client(binary)
+        if review_example:
+            reviewed_catalog(binary, directory, client)
         snapshots, deltas, manifests, bulk = prepare(binary, directory, client)
+        minimum_edition_reads(binary, client, directory, snapshots)
+        reissued_member(client, directory, snapshots)
         base = schedules(client, directory, snapshots, deltas, manifests, bulk)
         failure_cases(binary, client, directory, base, snapshots, deltas, manifests, bulk)
         integrity_cases(client, directory, base, snapshots, manifests, bulk)
@@ -347,6 +476,8 @@ def measure(binary, members, rows):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--anno", type=Path, help="use an existing anno executable")
+    parser.add_argument("--review-example", action="store_true",
+                        help="also run the Rust review_mention example and publish its saved decisions")
     parser.add_argument("--measure", action="store_true",
                         help="measure two synthetic corpus sizes instead of running the correctness gate")
     args = parser.parse_args()
@@ -355,4 +486,4 @@ if __name__ == "__main__":
         for size in (4, 24):
             print(json.dumps(measure(binary, size, 250)), flush=True)
     else:
-        run(binary)
+        run(binary, args.review_example)

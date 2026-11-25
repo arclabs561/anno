@@ -2,3 +2,4 @@
 scripts/qa/fixtures/matrix-smoke.conll text eol=lf
 scripts/qa/fixtures/matrix-smoke-timex.jsonl text eol=lf
 scripts/qa/fixtures/timex-contrast/rows.jsonl text eol=lf
+crates/anno-py/examples/bulletins/bulletin-edition-*.txt text eol=lf

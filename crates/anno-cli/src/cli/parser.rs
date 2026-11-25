@@ -42,9 +42,65 @@ pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_name = "WHEN")]
     pub color: ColorMode,
 
-    /// Text to extract entities from (shorthand for `anno extract`)
+    /// Text to extract entities from (shorthand for `anno extract`). Use `--` before command-like text.
     #[arg(trailing_var_arg = true)]
     pub text: Vec<String>,
+}
+
+/// The positional text shorthand also accepts command-looking words. Only claim
+/// calls with the shape of an unavailable command. An explicit `--` before
+/// the first word always leaves the remaining arguments to the text shorthand.
+#[cfg(not(feature = "eval"))]
+pub fn unavailable_eval_command(mut args: &[std::ffi::OsString]) -> Option<&str> {
+    // Skip the only global option that can precede the command.
+    while let Some(first) = args.first().and_then(|arg| arg.to_str()) {
+        let value = if first == "--color" {
+            let value = args.get(1)?.to_str()?;
+            args = &args[2..];
+            value
+        } else if let Some(value) = first.strip_prefix("--color=") {
+            args = &args[1..];
+            value
+        } else {
+            break;
+        };
+        ColorMode::from_str(value, false).ok()?;
+    }
+    let help = args.first().is_some_and(|arg| arg == "help");
+    if help {
+        args = &args[1..];
+    }
+    let (name, tail) = args.split_first()?;
+    let name = name.to_str()?;
+    let action = tail.first().and_then(|arg| arg.to_str());
+    let command_argument = match name {
+        "history" => matches!(
+            action,
+            Some(
+                "stats"
+                    | "recent"
+                    | "best"
+                    | "range"
+                    | "compare"
+                    | "backends"
+                    | "datasets"
+                    | "rebuild"
+            )
+        ),
+        "sampler" | "muxer" => matches!(
+            action,
+            Some("eligibility" | "stats" | "decisions" | "decide" | "run" | "regress")
+        ),
+        // A single positional argument to cross-doc names its input directory.
+        "cross-doc" | "coalesce" => tail.len() == 1,
+        "benchmark" | "bench" => false,
+        _ => return None,
+    };
+    let has_option = tail
+        .iter()
+        .any(|arg| arg.as_encoded_bytes().starts_with(b"-"));
+    (help || tail.is_empty() || has_option || command_argument || action == Some("help"))
+        .then_some(name)
 }
 
 /// When to colorize output.

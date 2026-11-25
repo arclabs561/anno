@@ -59,6 +59,16 @@ fn main() -> ExitCode {
     use crate::cli::CliError;
     use clap_complete::generate;
 
+    #[cfg(not(feature = "eval"))]
+    if let Some(command) = crate::cli::parser::unavailable_eval_command(
+        &std::env::args_os().skip(1).collect::<Vec<_>>(),
+    ) {
+        eprintln!(
+            "error: `anno {command}` requires the `eval` feature. Rebuild anno-cli with `--features eval`.\n\
+             To extract these words as text, use `anno -- {command} ...`."
+        );
+        return ExitCode::from(exit_codes::ERROR_ARGS);
+    }
     let cli = Cli::parse();
     crate::cli::output::set_color_mode(cli.color);
 
