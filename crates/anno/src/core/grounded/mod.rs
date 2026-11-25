@@ -108,6 +108,12 @@ pub use projection::EntityProjectionError;
 
 mod relation;
 pub use relation::{GroundedRelation, RelationEndpoint, RelationProjectionError};
+mod relation_evidence;
+use relation_evidence::RelationEvidence;
+pub use relation_evidence::{
+    ConceptEndpoint, ConceptMember, ConceptRelation, ConceptRelationProjection,
+    StoredMentionRelation,
+};
 
 use super::confidence::Confidence;
 #[cfg(test)]
@@ -1510,6 +1516,8 @@ struct GroundedDocumentWire {
     #[serde(default)]
     coref_run: Option<CorefRunReport>,
     signals: Vec<Signal<Location>>,
+    #[serde(default)]
+    relation_evidence: Option<RelationEvidence>,
     tracks: HashMap<TrackId, Track>,
     identities: HashMap<IdentityId, Identity>,
 }
@@ -1544,6 +1552,7 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
             coref_backend,
             coref_run: wire.coref_run,
             signals: wire.signals,
+            relation_evidence: wire.relation_evidence,
             tracks: wire.tracks,
             identities: wire.identities,
             signal_to_track: HashMap::new(),
@@ -1628,51 +1637,82 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
 ///
 /// Internal indexes (`signal_to_track`, `track_to_identity`, counter fields) are **not**
 /// serialized. They are rebuilt automatically on deserialization via [`rebuild_indexes`](Self::rebuild_indexes).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "GroundedDocumentWire")]
 pub struct GroundedDocument {
     /// Original UTF-8 HTML coordinates of spans projected at extraction time.
-    #[serde(skip_serializing_if = "Option::is_none")]
     html_source: Option<Box<HtmlSource>>,
     /// Document identifier
     id: String,
     /// Raw text content
     text: String,
     /// Most recent successful coreference backend recorded for this document.
-    #[serde(skip_serializing_if = "Option::is_none")]
     coref_backend: Option<String>,
     /// Most recent coreference invocation with a reported outcome.
-    #[serde(skip_serializing_if = "Option::is_none")]
     coref_run: Option<CorefRunReport>,
     /// Level 1: Raw signals (detections)
     signals: Vec<Signal<Location>>,
+    /// Observations made against this text edition. Track projections are computed on demand.
+    relation_evidence: Option<RelationEvidence>,
     /// Level 2: Tracks (within-document coreference chains)
     tracks: HashMap<TrackId, Track>,
     /// Level 3: Global identities (KB-linked entities)
     identities: HashMap<IdentityId, Identity>,
     /// Index: signal_id → track_id (for efficient lookup).
     /// Not serialized; rebuilt on deserialization.
-    #[serde(skip)]
     signal_to_track: HashMap<SignalId, TrackId>,
     /// Index: track_id → identity_id (for efficient lookup).
     /// Not serialized; rebuilt on deserialization.
-    #[serde(skip)]
     track_to_identity: HashMap<TrackId, IdentityId>,
     /// Next signal ID (for auto-incrementing).
     /// Not serialized; rebuilt on deserialization.
-    #[serde(skip)]
     next_signal_id: SignalId,
     /// Next track ID.
     /// Not serialized; rebuilt on deserialization.
-    #[serde(skip)]
     next_track_id: TrackId,
     /// Keep allocated track IDs retired while this document participates in a corpus.
-    #[serde(skip)]
     corpus_managed: bool,
     /// Next identity ID.
     /// Not serialized; rebuilt on deserialization.
-    #[serde(skip)]
     next_identity_id: IdentityId,
+}
+
+impl Serialize for GroundedDocument {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeStruct};
+        // Raw signal access can invalidate retained observations. Never publish
+        // stale endpoints even if the caller forgot to validate after editing.
+        if self.relation_evidence.is_some() {
+            let errors = self.validate_invariants();
+            if !errors.is_empty() {
+                return Err(S::Error::custom(errors.join("; ")));
+            }
+        }
+        let fields = 5
+            + usize::from(self.html_source.is_some())
+            + usize::from(self.coref_backend.is_some())
+            + usize::from(self.coref_run.is_some())
+            + usize::from(self.relation_evidence.is_some());
+        let mut wire = serializer.serialize_struct("GroundedDocument", fields)?;
+        if let Some(html) = &self.html_source {
+            wire.serialize_field("html_source", html)?;
+        }
+        wire.serialize_field("id", &self.id)?;
+        wire.serialize_field("text", &self.text)?;
+        if let Some(backend) = &self.coref_backend {
+            wire.serialize_field("coref_backend", backend)?;
+        }
+        if let Some(run) = &self.coref_run {
+            wire.serialize_field("coref_run", run)?;
+        }
+        wire.serialize_field("signals", &self.signals)?;
+        if let Some(evidence) = &self.relation_evidence {
+            wire.serialize_field("relation_evidence", evidence)?;
+        }
+        wire.serialize_field("tracks", &self.tracks)?;
+        wire.serialize_field("identities", &self.identities)?;
+        wire.end()
+    }
 }
 
 impl GroundedDocument {
@@ -1686,6 +1726,7 @@ impl GroundedDocument {
             coref_backend: None,
             coref_run: None,
             signals: Vec::new(),
+            relation_evidence: None,
             tracks: HashMap::new(),
             identities: HashMap::new(),
             signal_to_track: HashMap::new(),
@@ -2586,6 +2627,9 @@ impl GroundedDocument {
             }
         }
 
+        if let Err(error) = self.validate_relation_evidence() {
+            errors.push(error);
+        }
         errors
     }
 

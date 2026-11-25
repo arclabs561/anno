@@ -60,13 +60,46 @@ types and grounded labels normally serialize as strings. A custom spelling or
 category that would be lost uses the tagged form, for example
 `{"Custom":{"name":"DISEASE","category":"Agent"}}`. Existing string labels remain readable.
 
-A directed `Relation` keeps its supporting mentions, predicate, trigger and score.
-`GroundedDocument::project_relation` checks both mentions against source signals
-and exposes each signal’s current track when assigned. Coincident signals with the
-same coverage, surface and type are ambiguous. Producers that kept their signal
-IDs can use `project_relation_by_signal_ids` to select the intended endpoints.
-Both calls take optional provenance for the relation decision. Project again after
-regrouping to get the current track assignments.
+## Grounded relation evidence
+
+A mention-level relation keeps its original directed endpoints, predicate, trigger
+and extraction score. Call `record_relation` on the source document, or use
+`record_relation_by_signal_ids` when the producer selected known signals.
+Coincident signals with the same geometry, label and surface require the
+producer's IDs. Both calls accept provenance for the relation decision.
+
+Grounded JSON saves these observations in `relation_evidence.mentions`. The
+collection records the document ID and SHA-256 of its exact UTF-8 text.
+`project_recorded_relations` looks up the current track for each original
+signal, including after regrouping and reloading. An untracked signal still
+supplies a source highlight. Raw edits that invalidate an occurrence make
+projection and serialization fail. A file without `relation_evidence` reads
+with empty evidence collections.
+
+Use `record_concept_relation` for source annotations whose endpoints are
+concept IDs. A concept can have a supplied set of source signals, an explicitly
+empty set, or unspecified membership. Grounded JSON preserves these distinctions
+in `relation_evidence.concepts`. An endpoint projects onto a track only when the
+complete, nonempty member set exactly matches that track. A split or merge can
+change this projection. The concept edge persists without adding a mention pair
+or a score to a gold annotation.
+
+Given a DWIE annotation with its reconstructed article in `content`, these
+commands import and reopen the source concepts and their directed edges.
+
+```sh
+cargo run -p anno --no-default-features --example import_dwie_relations -- article.json > grounded.json
+anno query relations grounded.json
+```
+
+The example uses the supplied mention’s presence as a binary signal score of
+1.0 and labels it `mention`. DWIE's multi-label concept taxonomy and candidate
+link scores are outside this relation import. Concept-edge confidences are
+absent. Query output includes the source text digest, original endpoint
+observations, and current projected track IDs. On DWIE article `DW_1095032`,
+the import produces 37 source signals, 14 tracks and five source concept edges.
+The edge `(7, gpe0, 14)` survives reloading with an explicitly empty member set
+and no track for concept 14. [Original DWIE annotation](https://github.com/klimzaporojets/DWIE/blob/master/data/annos/DW_1095032.json)
 
 ## PII pattern limits
 

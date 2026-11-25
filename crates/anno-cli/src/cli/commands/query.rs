@@ -4,6 +4,7 @@ mod edition;
 mod memberships;
 mod predecessors;
 mod publication;
+mod relations;
 
 use clap::{Parser, Subcommand};
 use publication::CatalogRecord;
@@ -25,6 +26,8 @@ pub enum QueryCommand {
     Memberships(memberships::MembershipArgs),
     /// Find possible predecessors for one track in an earlier corpus edition.
     Predecessors(predecessors::PredecessorArgs),
+    /// Read saved mention and concept relations with current track assignments.
+    Relations(relations::RelationsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -144,6 +147,7 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             QueryCommand::Edition(args) => edition::run(args),
             QueryCommand::Memberships(args) => memberships::run(args),
             QueryCommand::Predecessors(args) => predecessors::run(args),
+            QueryCommand::Relations(args) => relations::run(args),
         };
     }
     let catalog = CatalogRecord::from_args(&args.catalog_record)?;
