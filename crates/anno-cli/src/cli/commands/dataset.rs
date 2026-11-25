@@ -904,6 +904,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 .map_err(|e| format!("Failed to load relation dataset: {}", e))?;
 
                             println!("  Documents: {}", gold_docs.len());
+                            if dataset_id == DatasetId::FewRel {
+                                println!("  FewRel labels one designated entity pair per example. This command scores open extraction. The publisher evaluates few-shot relation classification on the designated pair.");
+                            }
                             println!();
 
                             // Try to use RelationExtractor if available (e.g., GLiNERMultitask)
@@ -927,7 +930,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                             println!("  Entity types: {}", entity_types_vec.join(", "));
                             println!(
-                                "  Relation types: {} ({} total)",
+                                "  Relation types: {} (sample: {})",
                                 relation_types_vec.len(),
                                 relation_types_vec.iter().take(5).join(", ")
                             );

@@ -283,6 +283,7 @@ pub mod discontinuous;
 #[cfg(feature = "discourse")]
 pub mod discourse_deixis;
 pub mod evaluator;
+mod fewrel;
 pub mod harness;
 pub mod history;
 mod history_clock;

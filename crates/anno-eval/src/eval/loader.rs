@@ -146,6 +146,7 @@ enum DatasetParsePlan {
     Tacred,
     DocredJson,
     GoogleReCorpus,
+    FewRel,
     ChisiecJson,
     CadecHybrid,
     Bc5cdr,
@@ -380,7 +381,6 @@ impl LoadableDatasetId {
             | DatasetId::BookCoref
             | DatasetId::BookCorefSplit
             | DatasetId::WIESP2022NER
-            | DatasetId::FewRel
             | DatasetId::PIIMasking200k
             | DatasetId::B2NERD
             | DatasetId::OpenNER
@@ -517,6 +517,9 @@ impl LoadableDatasetId {
         ) {
             return Some(DatasetParsePlan::CadecHybrid);
         }
+        if id == DatasetId::FewRel {
+            return Some(DatasetParsePlan::FewRel);
+        }
         if id == DatasetId::GoogleRE {
             // The Google relation-extraction-corpus files are not DocRED/CrossRE.
             // They are JSONL records with fields like {pred, sub, obj, evidences[], judgments[]}.
@@ -623,7 +626,6 @@ impl LoadableDatasetId {
                 | DatasetId::BookCoref
                 | DatasetId::BookCorefSplit
                 | DatasetId::WIESP2022NER
-                | DatasetId::FewRel
                 | DatasetId::PIIMasking200k
                 | DatasetId::B2NERD
                 | DatasetId::OpenNER
@@ -3541,6 +3543,7 @@ impl DatasetLoader {
                 metadata: id.default_metadata(),
             }),
             DatasetParsePlan::DocredJson => self.parse_docred(content, id),
+            DatasetParsePlan::FewRel => self.parse_fewrel(content),
             DatasetParsePlan::GoogleReCorpus => self.parse_google_re_corpus(content, id),
             DatasetParsePlan::ChisiecJson => self.parse_chisiec(content, id),
             DatasetParsePlan::CadecHybrid => {
@@ -4847,6 +4850,28 @@ impl DatasetLoader {
         })
     }
 
+    fn parse_fewrel(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::FewRel;
+        let examples = match super::fewrel::read(content) {
+            Ok(examples) => examples,
+            // Older locally prepared BIO caches are valid for the generic sentence
+            // reader. They have no predicates for the relation reader.
+            Err(err) => return self.parse_jsonl_ner(content, id).map_err(|_| err),
+        };
+        Ok(LoadedDataset {
+            id,
+            sentences: examples
+                .into_iter()
+                .map(super::fewrel::Example::into_sentence)
+                .collect(),
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
     /// Parse Google's relation-extraction-corpus JSONL format.
     ///
     /// Example record (one per line):
@@ -5791,6 +5816,10 @@ impl DatasetLoader {
                 // All these datasets use the CrossRE sentence format
                 self.parse_docred_relations(content)
             }
+            DatasetId::FewRel => Ok(super::fewrel::read(content)?
+                .into_iter()
+                .map(super::fewrel::Example::into_document)
+                .collect()),
             DatasetId::CHisIEC => {
                 // CHisIEC uses a different JSON format with entity indices
                 self.parse_chisiec_relations(content)
@@ -10230,7 +10259,6 @@ CEO,O
             DatasetId::BookCoref,
             DatasetId::BookCorefSplit,
             DatasetId::WIESP2022NER,
-            DatasetId::FewRel,
             DatasetId::PIIMasking200k,
             DatasetId::B2NERD,
             DatasetId::OpenNER,
@@ -10300,13 +10328,12 @@ CEO,O
 
     #[test]
     fn test_fewrel_jsonl_parse() {
-        // FewRel has relation extraction in JSONL format. Tags use the
-        // documented JsonlNer shape (BIO strings); integer ids are only known
-        // for MultiNERD.
+        // Legacy, locally prepared BIO rows remain readable by the generic loader.
         let fewrel_sample = r#"{"tokens":["John","works","at","Google","."],"ner_tags":["B-PER","O","O","B-ORG","O"]}"#;
 
-        let loader = DatasetLoader::new().unwrap();
-        let result = loader.parse_jsonl_ner(fewrel_sample, DatasetId::FewRel);
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+        let result = loader.parse_content_str(fewrel_sample, DatasetId::FewRel);
         assert!(result.is_ok());
 
         let dataset = result.unwrap();

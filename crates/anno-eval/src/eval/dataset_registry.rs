@@ -3990,7 +3990,7 @@ define_datasets! {
     FewRel {
         name: "FewRel",
         description: "Few-shot relation classification benchmark. 100 relations from Wikidata.",
-        url: "https://raw.githubusercontent.com/thunlp/FewRel/master/data/val_wiki.json",
+        url: "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json",
         entity_types: ["head", "tail"],  // Relation endpoint markers
         language: "en",
         domain: "wikipedia",
@@ -3998,11 +3998,14 @@ define_datasets! {
         citation: "Han et al. (2018)",
         paper_url: "https://aclanthology.org/D18-1514/",
         year: 2018,
-        format: "JSONL",
-        size_hint: "70k instances, 100 relations",
-        notes: "N-way K-shot evaluation; Wikidata relations; FewRel 2.0 adds domain adaptation",
+        format: "JSON",
+        size_hint: "11,200 validation instances, 16 relations",
+        notes: "Publisher URL selects the Wikipedia validation split. Each example labels one directed head/tail pair. The role tags describe the first listed mention of each endpoint, following the publisher's encoder.",
+        splits: ["validation"],
+        tasks: ["re"],
+        expected_docs: 11200,
         hf_id: "few_rel",
-        access_status: HuggingFace,
+        access_status: Public,
         categories: [relation_extraction],
     },
     NYT10 {

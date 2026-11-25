@@ -298,9 +298,9 @@ DATASETS = {
     # Relation extraction
     "fewrel_val": {
         "group": "relations",
-        "url": "https://raw.githubusercontent.com/thunlp/FewRel/master/data/val_wiki.json",
+        "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json",
         "output": "fewrel_val.json",
-        "description": "FewRel validation set (100 relations)",
+        "description": "FewRel Wikipedia validation set (16 relations)",
     },
     "semeval2010_task8": {
         "group": "relations",
