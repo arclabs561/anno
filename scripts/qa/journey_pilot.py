@@ -31,12 +31,50 @@ OFFLINE = {"ANNO_NO_DOWNLOADS": "1", "ANNO_S3_CACHE": "0", "HF_HUB_OFFLINE": "1"
            "CARGO_NET_OFFLINE": "true", "RUST_BACKTRACE": "0"}
 
 
-def cohort():
-    files = [FIXTURE, QUERIES, Path("Cargo.lock"), Path("crates/anno-eval/examples/journey_pick.rs"), *(c.source for c in NATIVE.values())]
+SELECTOR_SOURCE = Path("crates/anno-eval/examples/journey_pick.rs")
+
+
+def cohort_inputs():
+    files = [FIXTURE, QUERIES, Path("Cargo.lock"), Path("Cargo.toml"),
+             Path("crates/anno-eval/Cargo.toml"), SELECTOR_SOURCE, *(c.source for c in NATIVE.values())]
     for filename in ("journey_pilot.py", "crossdoc_cases.py",
                      "crossdoc_query_checks.py", "replay_crossdoc_case.py", "replay_crossdoc_native.py"):
         files.append(Path("scripts/qa") / filename)
-    return hashlib.sha256(json.dumps([(str(p), native.digest(ROOT / p)) for p in files]).encode()).hexdigest()
+    return files
+
+
+def cohort():
+    return hashlib.sha256(json.dumps([(str(p), native.digest(ROOT / p)) for p in cohort_inputs()]).encode()).hexdigest()
+
+
+def checkout_provenance():
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+    return {"revision": git("rev-parse", "HEAD"),
+            "cohort_inputs_dirty": bool(git("status", "--porcelain", "--untracked-files=all", "--", *cohort_inputs()))}
+
+
+def built_selector(supplied):
+    # Re-resolve the example from the checked-out policy on every fresh round.
+    # Keeping this build separate leaves the CLI under test untouched.
+    command = ["cargo", "build", "--offline", "--locked", "-p", "anno-eval", "--no-default-features",
+               "--features", "eval", "--example", "journey_pick", "--message-format=json-render-diagnostics"]
+    messages = subprocess.check_output(command, cwd=ROOT, text=True)
+    candidates = []
+    for line in messages.splitlines():
+        record = json.loads(line)
+        if record.get("reason") != "compiler-artifact" or not record.get("executable"):
+            continue
+        target = record["target"]
+        if target["kind"] == ["example"] and Path(target["src_path"]) == ROOT / SELECTOR_SOURCE:
+            candidates.append(Path(record["executable"]))
+    if len(candidates) != 1:
+        raise ValueError("Cargo did not report exactly one journey selector")
+    selector, = candidates
+    digest = native.digest(selector)
+    if supplied is not None and native.digest(supplied) != digest:
+        raise ValueError("supplied selector differs from this checkout's locked Cargo build")
+    return selector, digest
 
 
 def failure(value):
@@ -152,8 +190,10 @@ def pilot(args):
     if state["last_run"] >= args.run_id:
         write_json(args.output / "report.json", {"status": "already-recorded-or-newer", "run": args.run_id})
         return 0
-    selected = picks(state, args.seed, args.selector)
-    plan = dict(schema=1, cohort=version, seed=args.seed, run=args.run_id,
+    selector, selector_hash = built_selector(args.selector)
+    source = checkout_provenance()
+    selected = picks(state, args.seed, selector)
+    plan = dict(schema=1, cohort=version, seed=args.seed, run=args.run_id, **source, selector_sha256=selector_hash,
                 previous_run=state["last_run"], previous_rounds=state["rounds"],
                 selections=selected, budget_per_policy=1, census_size=len(JOURNEYS))
     write_json(args.output / "plan.json", plan)
@@ -161,7 +201,8 @@ def pilot(args):
     binary = args.anno.resolve()
     producer = native.digest(binary)
     census = {name: confirmed(lambda: measure_case(name, binary)) for name in JOURNEYS}
-    if cohort() != version or native.digest(binary) != producer:
+    if (cohort() != version or native.digest(binary) != producer
+            or native.digest(selector) != selector_hash or checkout_provenance() != source):
         raise ValueError("source, oracle or producer changed during measurement")
     row = {name: result["observation"] for name, result in census.items()}
     results = {}
@@ -171,8 +212,9 @@ def pilot(args):
         results[policy] = dict(case=name, outcome="confirmed-failure" if is_hit else observed,
                                unseen_in_window=is_hit and all(prior[policy] != [name, observed] for prior in state["history"]))
     measured = sum(v != "unavailable" for v in row.values())
-    write_json(args.output / "report.json", {**plan, "revision": subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), "producer_sha256": producer,
+    random_hit_rate = sum(map(failure, row.values())) / len(JOURNEYS) if measured == len(JOURNEYS) else None
+    write_json(args.output / "report.json", {**plan, "producer_sha256": producer,
+        "uniform_random_expected_hit_rate": random_hit_rate,
         "census": census, "measured": measured, "policy_results": results})
     if measured == len(JOURNEYS):
         selections = {policy: [name, row[name]] for policy, name in selected.items()}
@@ -190,7 +232,8 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("cohort")
     run = sub.add_parser("run")
-    for arg in ("selector", "anno", "state", "output"):
+    run.add_argument("--selector", type=Path, help="Verify this executable against the checkout's locked Cargo build")
+    for arg in ("anno", "state", "output"):
         run.add_argument("--" + arg, type=Path, required=True)
     for arg in ("run-id", "seed"):
         run.add_argument("--" + arg, type=int, required=True)

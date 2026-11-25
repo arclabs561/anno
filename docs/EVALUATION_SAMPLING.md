@@ -526,15 +526,15 @@ Each round writes its picks before executing the panel. Balanced rotation, seede
 
 The trusted ledger stores the last 16 complete rounds of each policy's own selections. A policy never learns from a census case it did not pick. Invalid input, unavailable executables, inconsistent reruns, and unrecognized harness failures are inconclusive. An incomplete round exits 2, retains a diagnostic report, and leaves the prior checkpoint intact. Retrying a completed run ID leaves its observations intact. Failures confirmed by the oracle are valid measurements. The workflow uploads aggregate receipts separately from its 60-day ledger artifact. On the next run it verifies the source repository, workflow ID, default branch, successful scheduled or manual attempt and oracle fingerprint before downloading the matching ledger by artifact ID. The reader checks the canonical JSON, expected producing run, exact fields, and size bound. With no compatible unexpired artifact the log records a cold start. An API failure stops the run. Only the built-in read-only Actions token is used for the lookup and download. Private inputs, model calls, and credentials are unnecessary.
 
-To reproduce locally, use one writer per ledger and a fresh directory for each receipt. Fetch locked dependencies once before the offline run. The selector and both native harnesses must use the same feature configuration as the pilot.
+To reproduce locally, use one writer per ledger and a fresh directory for each receipt. Fetch locked dependencies once before the offline run. The pilot resolves the Muxer selector through a locked, offline Cargo build and records its executable digest, checkout revision and whether the panel or policy inputs are locally modified. For a complete census the report gives the uniform random expected hit rate across all journeys alongside the seeded pick.
 
 ```sh
 cargo fetch --locked
-cargo build --offline --locked -p anno-cli -p anno-eval --no-default-features \
-  --features 'anno-cli/eval anno-cli/extractor-readability anno-eval/eval' --bin anno --example journey_pick
+cargo build --offline --locked -p anno-cli --no-default-features \
+  --features 'eval extractor-readability' --bin anno
 cargo test --offline --locked --no-run -p anno-cli --no-default-features \
   --features 'eval extractor-readability' --test brat_dataset_roundtrip --test corpus_read_many
 out=$(mktemp -d)
-python3 scripts/qa/journey_pilot.py run --selector target/debug/examples/journey_pick \
+python3 scripts/qa/journey_pilot.py run \
   --anno target/debug/anno --state "$out/ledger.json" --output "$out/first" --run-id 1 --seed 41
 ```
