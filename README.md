@@ -14,7 +14,13 @@ Run the example with offline backends from the repository root.
 cargo run -p anno --no-default-features --example quickstart
 ```
 
-Run `cargo add anno` in your application to use the published Rust library.
+Run `cargo add anno` in your application to use the latest published Rust library.
+This checkout’s release line has the following manifest entry once published.
+
+```toml
+[dependencies]
+anno = "0.16"
+```
 
 ```rust,no_run
 fn main() -> anno::Result<()> {
