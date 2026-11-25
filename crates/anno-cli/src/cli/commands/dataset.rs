@@ -3499,7 +3499,11 @@ fn check_single_url(agent: &ureq::Agent, url: &str) -> URLHealthResult {
         };
     }
 
-    match agent.head(url).call() {
+    let response = match agent.head(url).call() {
+        Ok(resp) if resp.status() == 405 => agent.get(url).call(),
+        result => result,
+    };
+    match response {
         Ok(response) => {
             let status = response.status().as_u16();
             if status == 200 {
@@ -3520,20 +3524,6 @@ fn check_single_url(agent: &ureq::Agent, url: &str) -> URLHealthResult {
                             .and_then(|v| v.to_str().ok())
                             .unwrap_or("unknown")
                     ),
-                }
-            } else if status == 405 {
-                // HEAD not allowed, try GET
-                match agent.get(url).call() {
-                    Ok(resp) => URLHealthResult {
-                        status: "ok".to_string(),
-                        code: Some(resp.status().as_u16()),
-                        message: "OK (HEAD not allowed)".to_string(),
-                    },
-                    Err(e) => URLHealthResult {
-                        status: "error".to_string(),
-                        code: None,
-                        message: format!("GET failed: {}", e),
-                    },
                 }
             } else {
                 URLHealthResult {
@@ -3839,5 +3829,45 @@ mod oracle_mention_tests {
                 (16, 19, "COREF".into())
             ]
         );
+    }
+}
+
+#[cfg(all(test, feature = "eval"))]
+mod url_health_tests {
+    use super::*;
+    use std::io::{BufRead, BufReader, Write};
+    use std::{net::TcpListener, thread, time::Duration};
+
+    #[test]
+    fn head_not_allowed_uses_the_get_status() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/dataset", listener.local_addr().unwrap());
+        let server = thread::spawn(move || {
+            for (method, status) in [("HEAD", "405 Method Not Allowed"), ("GET", "404 Not Found")] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut lines = BufReader::new(&stream).lines();
+                assert!(lines.next().unwrap().unwrap().starts_with(method));
+                for line in lines {
+                    if line.unwrap().is_empty() {
+                        break;
+                    }
+                }
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+                )
+                .unwrap();
+            }
+        });
+        let agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(2)))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        let result = check_single_url(&agent, &url);
+        server.join().unwrap();
+        assert_eq!(result.code, Some(404));
+        assert_eq!(result.status, "error");
     }
 }
