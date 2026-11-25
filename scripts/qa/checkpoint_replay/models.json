@@ -1,0 +1,257 @@
+{
+  "modernbert": {
+    "repo": "onnx-community/modernbert-ner-conll2003-ONNX",
+    "revision": "feac2551592e650f9d952fe23839ca052b6fa096",
+    "backend": "bert-onnx",
+    "env": "BERT_ONNX_MODEL_PATH",
+    "files": {
+      "config.json": {
+        "remote": "config.json",
+        "sha256": "0ec300a15cafb7d78bd7a7352770b1a417640ec6c7ecf65aebda9bcb1d390369"
+      },
+      "model_quantized.onnx": {
+        "remote": "onnx/model_quantized.onnx",
+        "sha256": "8c59898f0778e8f5839438ebf0cde85cfc72dd6b008d523218aa4ce0ccdc1b52"
+      },
+      "tokenizer.json": {
+        "remote": "tokenizer.json",
+        "sha256": "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30"
+      }
+    },
+    "cases": [
+      {
+        "text": "Marie Curie worked in Paris.",
+        "labels": [],
+        "entities": [
+          [
+            0,
+            11,
+            "PER"
+          ],
+          [
+            22,
+            27,
+            "LOC"
+          ]
+        ]
+      }
+    ]
+  },
+  "bert-large": {
+    "repo": "protectai/bert-large-NER-onnx",
+    "revision": "b7e9629704356133c212014d9729639884ee6d56",
+    "backend": "bert-onnx",
+    "env": "BERT_ONNX_MODEL_PATH",
+    "files": {
+      "config.json": {
+        "remote": "config.json",
+        "sha256": "8a49cb91040a976d28ecff037cea4bc034b1ea689e9fa252ff5f7349a577fdb1"
+      },
+      "model.onnx": {
+        "remote": "model.onnx",
+        "sha256": "d12e5baedbbf6f7d403e026f4ac12d469c683e0e0c9a82a6c3ab3aa2b98ae8d8"
+      },
+      "tokenizer.json": {
+        "remote": "tokenizer.json",
+        "sha256": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34"
+      }
+    },
+    "cases": [
+      {
+        "text": "Marie Curie worked in Paris.",
+        "labels": [],
+        "entities": [
+          [
+            0,
+            11,
+            "PER"
+          ],
+          [
+            22,
+            27,
+            "LOC"
+          ]
+        ]
+      }
+    ]
+  },
+  "nuner-span": {
+    "repo": "onnx-community/NuNER_Zero-span",
+    "revision": "d1d6eec6228f60f75b3ffdea099b6841c0b16b56",
+    "backend": "nuner",
+    "env": "NUNER_MODEL_PATH",
+    "files": {
+      "gliner_config.json": {
+        "remote": "gliner_config.json",
+        "sha256": "8ae97b2564f99480473950d7a03e7d5426fea03dff812da9f521004359e71bcc"
+      },
+      "model.onnx": {
+        "remote": "onnx/model_int8.onnx",
+        "sha256": "57ee484e5f6d38e9a3432bb1b085ffdd56f67444f628c224187108dc542110f0"
+      },
+      "tokenizer.json": {
+        "remote": "tokenizer.json",
+        "sha256": "677203884d026e721115cf0daccf70ec4239545a13d6619e3e66d7151e0c9ce3"
+      }
+    },
+    "cases": [
+      {
+        "text": "Marie Curie worked in Paris.",
+        "labels": [
+          "person",
+          "location"
+        ],
+        "entities": [
+          [
+            0,
+            11,
+            "PER"
+          ],
+          [
+            22,
+            27,
+            "LOC"
+          ]
+        ]
+      }
+    ]
+  },
+  "gliner25": {
+    "repo": "jugaadsrl/gliner2.5-multi-v1-onnx",
+    "revision": "3de2c11f55853b7919f985a59bfc8df27b5ec991",
+    "backend": "gliner25",
+    "env": "GLINER25_MODEL_DIR",
+    "files": {
+      "boundary_head_L128_fp32.onnx": {
+        "remote": "fp32_25/boundary_head_L128_fp32.onnx",
+        "sha256": "c91dc84be821c1e398c9cc06aaa0b338c47d6600516418be4b1dd1d6195cf56e"
+      },
+      "boundary_head_L128_fp32.onnx.data": {
+        "remote": "fp32_25/boundary_head_L128_fp32.onnx.data",
+        "sha256": "ee5e988ab875ae9ad827aa06a5c7348ddac3f98e3ce1321bf56709d5a4377b22"
+      },
+      "boundary_head_L256_fp32.onnx": {
+        "remote": "fp32_25/boundary_head_L256_fp32.onnx",
+        "sha256": "d30977bddc299a6e9895ca4b1a90bf607f07c8ab48560cc37d0d973159ba9172"
+      },
+      "boundary_head_L256_fp32.onnx.data": {
+        "remote": "fp32_25/boundary_head_L256_fp32.onnx.data",
+        "sha256": "252d6be6d4ce8e7f74c3a7848b7f24a472bf42142911ead998f8bc503bb2550c"
+      },
+      "boundary_head_L512_fp32.onnx": {
+        "remote": "fp32_25/boundary_head_L512_fp32.onnx",
+        "sha256": "f7e2215a533d8bd0d189651b726394a8bd4301a3d434f5e31707b6665a1e50bd"
+      },
+      "boundary_head_L512_fp32.onnx.data": {
+        "remote": "fp32_25/boundary_head_L512_fp32.onnx.data",
+        "sha256": "2e4c8223a8c8b4973e54b1b078633bfc9047505efc76cb6644700e617ecc30b1"
+      },
+      "boundary_head_L64_fp32.onnx": {
+        "remote": "fp32_25/boundary_head_L64_fp32.onnx",
+        "sha256": "cecbefaa270613bd27f544c0a9396a5e093e63a248d707fe92394a659dd957de"
+      },
+      "boundary_head_L64_fp32.onnx.data": {
+        "remote": "fp32_25/boundary_head_L64_fp32.onnx.data",
+        "sha256": "a4007ba257c99ad3067f13ddb05a95d9f3738fc95760a3d186fc8d0efc26a239"
+      },
+      "boundary_manifest.json": {
+        "remote": "fp32_25/boundary_manifest.json",
+        "sha256": "961fc1564942247bf1c2e7cf3b2d57e244211151b91fc0102ef66d9d0461ff20"
+      },
+      "encoder_fp32.onnx": {
+        "remote": "fp32_25/encoder_fp32.onnx",
+        "sha256": "cba26576eef7e14eba87f3485395d5b24e5047f819c859a9d667a63915ed404f"
+      },
+      "tokenizer.json": {
+        "remote": "fp32_25/tokenizer.json",
+        "sha256": "c62446df87ae18ec98b133f8f84fc449a07cc89bbf8ef192a4cb5f9c53777a7a"
+      }
+    },
+    "cases": [
+      {
+        "text": "Éva works for Acme.",
+        "labels": [
+          "person",
+          "organization"
+        ],
+        "entities": [
+          [
+            0,
+            3,
+            "PER",
+            0.9982
+          ],
+          [
+            14,
+            18,
+            "ORG",
+            0.9899
+          ]
+        ]
+      },
+      {
+        "text": "Mario Rossi works at Apple in Cupertino",
+        "labels": [
+          "person",
+          "organization",
+          "location"
+        ],
+        "entities": [
+          [
+            0,
+            11,
+            "PER",
+            0.9982
+          ],
+          [
+            21,
+            26,
+            "ORG",
+            0.9912
+          ],
+          [
+            30,
+            39,
+            "LOC",
+            0.9982
+          ]
+        ]
+      },
+      {
+        "text": "Mario Rossi called Mario Rossi's office, then Mario Rossi left.",
+        "labels": [
+          "person"
+        ],
+        "entities": [
+          [
+            0,
+            11,
+            "PER",
+            0.9987
+          ],
+          [
+            19,
+            30,
+            "PER",
+            0.9963
+          ],
+          [
+            46,
+            57,
+            "PER",
+            0.9967
+          ]
+        ]
+      },
+      {
+        "text": "Éva works for Acme.",
+        "labels": [
+          "person",
+          "organization"
+        ],
+        "threshold": 1.0,
+        "entities": []
+      }
+    ]
+  }
+}
