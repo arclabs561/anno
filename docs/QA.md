@@ -11,6 +11,18 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Checks for silent data loss and false passes
+
+| Contract | Regression that exercises it |
+| --- | --- |
+| Import and export preserve the dataset or report an error | Put a malformed BRAT mention after a valid one and prefill the destination. Check the exit status and the destination bytes. Round-trip a mention with a word in the gap through each advertised format and compare the exact segments. |
+| Scores depend on the annotations | Permute predictions, reverse an undirected edge with differently typed endpoints, and include duplicate spans with different labels. Check one-to-one matches, both per-label denominators, and deterministic tied votes. |
+| A model result still points into the source | Pad the same token sequence or repeat whitespace between words while holding the model outputs fixed. Check the source spans and surfaces at the public interface. |
+| QA credits the implementation that ran | Give two requested backends the same reported runtime identity, replay with a different selector, or change the model inventory. Check the saved receipt and the downstream coverage decision. |
+| A release or cache can be verified by another job | Compare the tag, manifest version and registry checksum. Exercise duplicate uploads with mismatched bytes. Check the workflow’s saved paths against its retention policy. |
+
+A type can require a parsed span, a validated threshold or a resolved identity at an internal boundary. Comparing against the original input, running producer or registry still needs a behavioral check. Keep these small cases in the ordinary PR suites so they also run for contributors.
+
 ## Try a workflow as a new reader
 
 Start outside the checkout with a published package or a named build. Give a reader
