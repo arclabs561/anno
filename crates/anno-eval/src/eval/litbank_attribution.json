@@ -1,0 +1,27 @@
+{
+  "dataset": "LitBank",
+  "release_notice": "https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md",
+  "annotations": {
+    "title": "An Annotated Dataset of Coreference in English Literature",
+    "creators": ["David Bamman", "Olivia Lewke", "Anya Mansoor"],
+    "citation": "https://aclanthology.org/2020.lrec-1.6/",
+    "entity_layer": {
+      "title": "An Annotated Dataset of Literary Entities",
+      "creators": ["David Bamman", "Sejal Popat", "Sheng Shen"],
+      "citation": "https://aclanthology.org/N19-1220/"
+    },
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann",
+    "sha256": "a264db90a2f17d36ebe6082fcc9efc0e3a20b97066d07de48338579e5599e55c"
+  },
+  "text": {
+    "title": "Bleak House",
+    "creator": "Charles Dickens",
+    "edition": "https://www.gutenberg.org/ebooks/1023",
+    "rights": "LitBank selected Project Gutenberg texts under U.S. public-domain criteria. Check the edition and the law of the country of reuse.",
+    "source": "https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.txt",
+    "sha256": "6e18013c61bdac1c31109c9f2039f69b2200ecac9514ecd45175877a8fe5ab58"
+  },
+  "changes": "Anno packages the two upstream files as UTF-8 strings in JSON. Decoding the strings restores the original bytes."
+}
