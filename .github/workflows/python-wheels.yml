@@ -117,8 +117,8 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
-          # A version tag pushed after a dispatch-publish triggers a second
-          # run over the same artifacts; treat re-uploads as a no-op.
+          # A tag after a dispatch can rebuild an existing version. PyPI keeps
+          # the original bytes; verify-published checks each skipped filename.
           skip-existing: true
 
   # PyPI can accept a skipped upload; verify that every filename serves our bytes.
