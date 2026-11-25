@@ -82,10 +82,25 @@ BERT_ONNX_MODEL_PATH=onnx-community/modernbert-ner-conll2003-ONNX \
     anno extract --model bert-onnx 'Marie Curie worked in Paris.'
 ```
 
-The NuNER Zero-4k source checkpoint uses Longformer. The GLiNER 0.2.30
-export ran inference but disagreed with PyTorch: on “Marie Curie worked in
-Paris.” PyTorch scored “Paris” as a location at 0.968, while ONNX scored
-it at 0.137. The exporter rejects this conversion. The pinned PyTorch
+NuNER Zero-4k uses Longformer. In the standard GLiNER 0.2.30 export the
+first query projection matched PyTorch, but its first sliding attention window
+already differed. The TorchScript ONNX conversion flattened the projected heads
+before applying their original storage strides. Anno's exporter gathers query,
+key and value windows by logical token position and verifies every FP32 logit
+against unmodified PyTorch before installing the graph. Inputs of 14, 20,
+512, 895 and 4096 tokens matched every threshold decision, with a maximum
+absolute logit difference of 0.000299 on CPU. INT8 is unverified. The source checkpoint revision is
+`7a7cd8d65af2572c297054dbaf8f25c0d46da55d`.
+
+```sh
+uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k --output /tmp/nuner-4k
+NUNER_MODEL_PATH=/tmp/nuner-4k anno extract --model nuner \
+    --extract-types person,location 'Marie Curie worked in Paris.'
+uv run scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k --output /tmp/nuner-4k --verify-only
+```
+
+In the evaluation backend factory, select `nuner_4k` with
+`NUNER_4K_MODEL_PATH=/tmp/nuner-4k`. The pinned PyTorch
 adapter emits half-open character offsets and merges adjacent same-label
 words according to the checkpoint convention. Merged predictions omit
 confidence because the checkpoint only scores individual words.

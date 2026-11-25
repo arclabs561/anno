@@ -38,7 +38,8 @@ impl NuNER {
     /// reducing chunking overhead for long documents. Chunks at ~16000 chars
     /// instead of ~2000.
     ///
-    /// Call `from_pretrained("numind/NuNER_Zero-4k")` to load model weights.
+    /// Load the directory produced by `scripts/export_nuner_to_onnx.py` with
+    /// `from_pretrained` to run the 4k checkpoint.
     #[must_use]
     pub fn new_4k() -> Self {
         Self {

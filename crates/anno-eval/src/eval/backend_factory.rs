@@ -428,7 +428,9 @@ impl BackendFactory {
             "nuner" | "nunerzero" => {
                 use crate::backends::nuner::NuNER;
                 use crate::DEFAULT_NUNER_MODEL;
-                NuNER::from_pretrained(DEFAULT_NUNER_MODEL)
+                let checkpoint = std::env::var("NUNER_MODEL_PATH")
+                    .unwrap_or_else(|_| DEFAULT_NUNER_MODEL.to_owned());
+                NuNER::from_pretrained(&checkpoint)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
@@ -442,7 +444,12 @@ impl BackendFactory {
             #[cfg(feature = "onnx")]
             "nuner_4k" | "nunerzero4k" => {
                 use crate::backends::nuner::NuNER;
-                NuNER::from_pretrained("numind/NuNER_Zero-4k")
+                let checkpoint = std::env::var("NUNER_4K_MODEL_PATH").map_err(|_| {
+                    crate::Error::FeatureNotAvailable(
+                        "Set NUNER_4K_MODEL_PATH to an ONNX directory produced by scripts/export_nuner_to_onnx.py --model numind/NuNER_Zero-4k".to_owned(),
+                    )
+                })?;
+                NuNER::from_pretrained(&checkpoint)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(

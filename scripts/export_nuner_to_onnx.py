@@ -28,6 +28,7 @@ Usage:
 
 import argparse
 import os
+import tempfile
 from pathlib import Path
 
 
@@ -35,6 +36,8 @@ def is_gliner_model(model_id: str) -> bool:
     """Check if a HuggingFace model uses GLiNER architecture."""
     from huggingface_hub import list_repo_files
 
+    if Path(model_id).is_dir():
+        return (Path(model_id) / "gliner_config.json").is_file()
     return "gliner_config.json" in list_repo_files(model_id)
 
 
@@ -75,24 +78,45 @@ def export_token_classifier(model_id: str, output_dir: Path, quantize: bool):
     print(f"Verification passed: output shape {outputs.logits.shape}")
 
 
-def export_gliner_model(model_id: str, output_dir: Path, quantize: bool):
+def export_gliner_model(model_id: str, output_dir: Path, quantize: bool, verify_only: bool):
     """Export the trained shared encoder, prompt tokenizer and width metadata."""
     import json
     from gliner import GLiNER
     from huggingface_hub import hf_hub_download
 
-    config_file = hf_hub_download(model_id, filename="gliner_config.json")
-    config = json.loads(Path(config_file).read_text())
-    if config.get("model_name") == "allenai/longformer-large-4096":
-        raise ValueError(
-            "NuNER Zero-4k requires a parity-tested Longformer export. "
-            "GLiNER 0.2.30 exports a runnable graph with different predictions "
-            "from PyTorch on both short and long inputs. Use the upstream PyTorch "
-            "model for Zero-4k or onnx-community/NuNER_Zero-span for Anno."
-        )
-    model = GLiNER.from_pretrained(model_id)
-    model.eval()
-    model.export_to_onnx(save_dir=output_dir, quantize=quantize)
+    config_file = Path(model_id) / "gliner_config.json"
+    if not config_file.is_file():
+        config_file = Path(hf_hub_download(model_id, filename="gliner_config.json"))
+    config = json.loads(config_file.read_text())
+    longformer = config.get("model_name") == "allenai/longformer-large-4096"
+    if verify_only and not longformer:
+        raise ValueError("--verify-only requires a NuNER Zero-4k checkpoint")
+    if longformer and quantize:
+        raise ValueError("NuNER Zero-4k supports the parity-tested FP32 export")
+
+    model = GLiNER.from_pretrained(model_id).eval()
+    if not longformer:
+        model.export_to_onnx(save_dir=output_dir, quantize=quantize)
+        return
+
+    from nuner_longformer_onnx import export_windows, reference_cases, verify_logits
+
+    references = reference_cases(model)
+    if verify_only:
+        del model
+        verify_logits(output_dir / "model.onnx", references)
+        return
+
+    # Stage the graph alongside its destination so a failed parity check never
+    # replaces the caller's working export with a runnable but incorrect graph.
+    with tempfile.TemporaryDirectory(dir=output_dir.parent) as directory:
+        stage = Path(directory)
+        with export_windows(model):
+            model.export_to_onnx(save_dir=stage)
+        del model
+        verify_logits(stage / "model.onnx", references)
+        for artifact in sorted(stage.iterdir(), key=lambda p: p.name == "model.onnx"):
+            artifact.replace(output_dir / artifact.name)
 
 
 def main():
@@ -112,6 +136,11 @@ def main():
         action="store_true",
         help="Also export quantized (INT8) version",
     )
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Compare an existing Zero-4k graph to the source checkpoint",
+    )
     args = parser.parse_args()
 
     model_id = args.model
@@ -125,14 +154,29 @@ def main():
         )
         output_dir = cache_dir / "hub" / f"models--{safe_name}" / "onnx"
 
+    if args.verify_only and not (output_dir / "model.onnx").is_file():
+        parser.error("--verify-only requires an existing model.onnx in --output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    from nuner_4k_import import CHECKPOINT, REVISION
+
+    if model_id == CHECKPOINT:
+        from huggingface_hub import snapshot_download
+
+        model_id = snapshot_download(
+            CHECKPOINT,
+            revision=REVISION,
+            allow_patterns=["gliner_config.json", "pytorch_model.bin"],
+        )
+
     if is_gliner_model(model_id):
-        export_gliner_model(model_id, output_dir, args.quantize)
+        export_gliner_model(model_id, output_dir, args.quantize, args.verify_only)
     else:
+        if args.verify_only:
+            parser.error("--verify-only requires a NuNER Zero-4k checkpoint")
         export_token_classifier(model_id, output_dir, args.quantize)
 
-    print("Export complete.")
+    print("Verification complete." if args.verify_only else "Export complete.")
 
 
 if __name__ == "__main__":
