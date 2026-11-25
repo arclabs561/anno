@@ -16,12 +16,17 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import sys
 from tempfile import TemporaryDirectory
 
 from huggingface_hub import hf_hub_download
 
 ROOT = Path(__file__).resolve().parents[1]
-PINS = json.loads((ROOT / "scripts/qa/maverick/models.json").read_text())
+WORKER = ROOT / "crates/anno/src/backends/coref"
+sys.path.insert(0, str(WORKER))
+from maverick_worker import verify_encoder
+
+PINS = json.loads((WORKER / "maverick_models.json").read_text())
 MODELS = {
     "ontonotes": (PINS["MODEL"], PINS["MODEL_REVISION"], PINS["MODEL_SHA256"]),
     "litbank": ("sapienzanlp/maverick-mes-litbank", "2cd789680357a6c1cddd36c95e022c4fef7e867b",
@@ -52,6 +57,7 @@ def download_model(model_name: str, output_dir: Path, cache_dir: Path | None = N
     if digest.hexdigest() != expected_sha:
         raise ValueError(f"Checkpoint digest mismatch for {repo}@{revision}")
 
+    verify_encoder(PINS, cache_dir=cache_dir)
     output = directory / f"maverick-{model_name}.safetensors"
     with TemporaryDirectory(dir=directory) as scratch:
         prepared = Path(scratch) / output.name

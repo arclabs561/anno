@@ -5,9 +5,11 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+import runpy
+import os
 
 import torch
-from safetensors.torch import load_file
+from safetensors.torch import load_file, save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import convert_pytorch_to_safetensors as generic
@@ -32,7 +34,7 @@ class ConverterTests(unittest.TestCase):
                 self.assertEqual((repo_id, revision), info[:2])
                 return {"weights.ckpt": weights, "config.yaml": config}[filename]
 
-            with patch.dict(maverick.MODELS, {"ontonotes": info}), patch.object(
+            with patch.dict(maverick.MODELS, {"ontonotes": info}), patch.object(maverick, "verify_encoder"), patch.object(
                 maverick, "hf_hub_download", side_effect=download
             ):
                 output = maverick.download_model("ontonotes", root)
@@ -42,6 +44,66 @@ class ConverterTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "digest mismatch"):
                     maverick.download_model("ontonotes", root)
                 self.assertTrue(torch.equal(load_file(output)["encoder.layer"], tensor))
+
+    def test_worker_resolves_prepared_ids_and_rejects_unknown_architectures(self):
+        worker_path = Path(__file__).resolve().parents[3] / "crates/anno/src/backends/coref/maverick_worker.py"
+        resolve = runpy.run_path(str(worker_path))["prepared_checkpoint"]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"ANNO_CACHE_DIR": tmp}):
+            path = Path(tmp) / "models/maverick/maverick-ontonotes.safetensors"
+            path.parent.mkdir(parents=True)
+            with self.assertRaisesRegex(ValueError, "prepare"):
+                resolve("sapienzanlp/maverick-mes-ontonotes")
+            with self.assertRaisesRegex(ValueError, "prepared MES"):
+                resolve(str(Path(tmp) / "weights.ckpt"))
+            save_file({"fixture": torch.ones(1)}, path)
+            with self.assertRaisesRegex(ValueError, "expected prepared"):
+                resolve(str(path))
+            save_file({"fixture": torch.ones(1)}, path,
+                      metadata={"anno_architecture": "maverick-mes-deberta-v3-large-v1"})
+            self.assertEqual(resolve("sapienzanlp/maverick-mes-ontonotes"), path)
+            self.assertEqual(resolve(str(path)), path)
+
+    def test_encoder_isolation_and_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            allowed = root / "config.json"
+            allowed.write_bytes(b"fixture config")
+            (root / "model.safetensors").write_bytes(b"unreviewed optional file")
+            staged = root / "staged"
+            staged.mkdir()
+            pins = {"ENCODER": "test/encoder", "ENCODER_REVISION": "fixture-revision",
+                    "ENCODER_FILES": {allowed.name: hashlib.sha256(allowed.read_bytes()).hexdigest()}}
+            with patch("huggingface_hub.hf_hub_download", return_value=allowed) as fetch:
+                with patch.dict(os.environ, {"ANNO_NO_DOWNLOADS": "1"}):
+                    maverick.verify_encoder(pins, directory=staged)
+                fetch.assert_called_once_with("test/encoder", "config.json", revision="fixture-revision",
+                                              cache_dir=None, local_files_only=True)
+                self.assertEqual(list(staged.iterdir()), [staged / allowed.name])
+                self.assertEqual((staged / allowed.name).read_bytes(), allowed.read_bytes())
+                allowed.write_bytes(b"different bytes")
+                with self.assertRaisesRegex(ValueError, "digest mismatch"):
+                    maverick.verify_encoder(pins)
+
+    def test_panel_checks_prepared_weights_against_shared_pins(self):
+        panel = runpy.run_path(str(Path(__file__).resolve().parents[1] / "coref_gap.py"))
+        with patch.dict(os.environ, {"MAVERICK_PYTHON": "fixture", "MAVERICK_MODEL_PATH": "prepared",
+                                     "HF_HUB_CACHE": "fixture-hub", "TRANSFORMERS_CACHE": "fixture-hub"}):
+            # Reuse the frozen environment declarations from the panel recipe.
+            reqs = (Path(__file__).parent / "requirements-cpu-py312.txt").read_text().splitlines()
+            pinned = dict(line.split("==", 1) for line in reqs if "==" in line)
+            def versions(args, **kwargs):
+                from types import SimpleNamespace
+                import json
+                return SimpleNamespace(stdout=json.dumps({name: pinned[name] for name in args[3:]}))
+            from unittest.mock import Mock
+            checks = Mock()
+            with patch.dict(panel["model_identity"].__globals__, {"check_file": checks}), patch(
+                "subprocess.run", side_effect=versions
+            ):
+                identity = panel["model_identity"]("maverick", "predicted")
+            self.assertEqual(identity["source_sha256"], maverick.PINS["MODEL_SHA256"])
+            self.assertEqual(identity["sha256"], maverick.PINS["SAFETENSORS_SHA256"])
+            checks.assert_any_call("prepared", identity["sha256"])
 
     def test_restricted_loaders_refuse_object_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

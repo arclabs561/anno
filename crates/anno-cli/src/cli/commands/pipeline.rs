@@ -31,7 +31,7 @@ pub struct PipelineArgs {
     #[arg(long)]
     pub coref: bool,
 
-    /// Resolve with Maverick using prepared MES safetensors or a weights-only compatible checkpoint (optional Python runtime).
+    /// Resolve with Maverick using prepared MES safetensors or a locally prepared official model ID (optional Python runtime).
     /// Set MAVERICK_PYTHON to a Python executable with maverick-coref installed.
     #[arg(long, requires = "coref", value_name = "CHECKPOINT")]
     pub maverick_model: Option<String>,

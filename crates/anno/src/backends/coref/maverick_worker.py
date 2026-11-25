@@ -1,7 +1,11 @@
 """Line-delimited JSON bridge for the optional maverick-coref Python runtime."""
+import hashlib
 import json
 import os
+import shutil
 import sys
+import tempfile
+from pathlib import Path
 from contextlib import redirect_stdout
 
 
@@ -38,26 +42,73 @@ def resolve(model, tokenizer, text, mentions, singletons):
     return clusters
 
 
-def load_model(checkpoint):
-    from maverick import Maverick
-    if not checkpoint.endswith(".safetensors"):
-        return Maverick(hf_name_or_path=checkpoint, device="cpu")
+def prepared_checkpoint(checkpoint):
+    model_ids = {f"sapienzanlp/maverick-mes-{name}": name for name in ("ontonotes", "litbank", "preco")}
+    if checkpoint in model_ids:
+        cache = os.environ.get("ANNO_CACHE_DIR")
+        if not cache:
+            base = Path.home() / "Library/Caches" if sys.platform == "darwin" else Path(
+                os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+            cache = base / "anno"
+        name = model_ids[checkpoint]
+        path = Path(cache) / "models" / "maverick" / f"maverick-{name}.safetensors"
+        if not path.is_file():
+            raise ValueError(f"prepare {checkpoint} with scripts/download_maverick_weights.py --model {name}")
+    else:
+        path = Path(checkpoint)
+        if path.suffix != ".safetensors" or not path.is_file():
+            raise ValueError("Maverick needs a prepared MES safetensors file or a prepared official model ID")
+    from safetensors import safe_open
+    with safe_open(path, framework="pt", device="cpu") as archive:
+        if (archive.metadata() or {}).get("anno_architecture") != "maverick-mes-deberta-v3-large-v1":
+            raise ValueError("expected prepared Maverick MES DeBERTa-v3-large safetensors")
+    return path
 
+
+def verify_encoder(pins, *, cache_dir=None, directory=None):
+    from huggingface_hub import hf_hub_download
+    offline = os.environ.get("ANNO_NO_DOWNLOADS", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    for name, expected in pins["ENCODER_FILES"].items():
+        source = Path(hf_hub_download(pins["ENCODER"], name, revision=pins["ENCODER_REVISION"],
+                                      cache_dir=cache_dir, local_files_only=offline))
+        if directory is not None:
+            # AutoModel and AutoTokenizer inspect optional sibling files. Give them
+            # only the four reviewed files, even if the Hub cache also contains others.
+            destination = directory / name
+            try:
+                os.link(source.resolve(), destination)
+            except OSError:
+                shutil.copyfile(source, destination)
+            source = destination
+        digest = hashlib.sha256()
+        with source.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        if digest.hexdigest() != expected:
+            raise ValueError(f"encoder digest mismatch for {name}")
+
+
+def load_model(checkpoint, pins):
+    checkpoint = prepared_checkpoint(checkpoint)
+    from maverick import Maverick
     from maverick.models.model_mes import Maverick_mes
     from safetensors.torch import load_file
 
     class PreparedMES(Maverick):
-        def __init__(self):
+        def __init__(self, encoder_directory):
             # Fixed upstream MES/DeBERTa-large inference architecture.
             # Configuration and Python classes never come from the checkpoint.
             self.device = "cpu"
-            self.model = Maverick_mes(huggingface_model_name="microsoft/deberta-v3-large",
+            self.model = Maverick_mes(huggingface_model_name=str(encoder_directory),
                                       freeze_encoder=False, span_representation="concat_start_end")
             self.model.load_state_dict(load_file(checkpoint), strict=True)
             self.model.eval()
             self.tokenizer = self.__get_model_tokenizer__()
 
-    return PreparedMES()
+    with tempfile.TemporaryDirectory() as temporary:
+        encoder_directory = Path(temporary)
+        verify_encoder(pins, directory=encoder_directory)
+        return PreparedMES(encoder_directory)
 
 
 def main():
@@ -66,10 +117,10 @@ def main():
         if os.environ.get("ANNO_NO_DOWNLOADS", "").strip().lower() in {"1", "true", "yes", "y", "on"}:
             os.environ["HF_HUB_OFFLINE"] = "1"
             os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        # Applies to both the encoder and Lightning's legacy checkpoint loader.
+        # The fixed MES architecture also loads the pinned DeBERTa encoder.
         os.environ["TORCH_FORCE_WEIGHTS_ONLY_LOAD"] = "1"
         import spacy
-        model = load_model(sys.argv[1])
+        model = load_model(sys.argv[1], json.loads(sys.argv[2]))
         tokenizer = spacy.blank("en")
         tokenizer.add_pipe("sentencizer")
         print('"ready"', file=protocol, flush=True)
