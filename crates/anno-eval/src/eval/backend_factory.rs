@@ -348,9 +348,7 @@ impl BackendFactory {
             #[cfg(all(not(feature = "onnx"), feature = "candle"))]
             "gliner" => {
                 // Fallback alias: Candle implementation when ONNX isn't enabled.
-                use anno::backends::gliner_candle::GLiNERCandle;
-                use crate::DEFAULT_GLINER_CANDLE_MODEL;
-                GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
+                Self::load_gliner_candle()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -426,8 +424,7 @@ impl BackendFactory {
 
             #[cfg(feature = "onnx")]
             "nuner" | "nunerzero" => {
-                use crate::backends::nuner::NuNER;
-                NuNER::from_pretrained(&Self::nuner_checkpoint())
+                Self::load_nuner()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
@@ -553,9 +550,7 @@ impl BackendFactory {
 
             #[cfg(feature = "candle")]
             "gliner_candle" | "glinercandle" => {
-                use crate::backends::gliner_candle::GLiNERCandle;
-                use crate::DEFAULT_GLINER_CANDLE_MODEL;
-                GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
+                Self::load_gliner_candle()
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         model_load_error(&e, format!(
@@ -685,6 +680,19 @@ impl BackendFactory {
                 }
             ))),
         }
+    }
+
+    #[cfg(feature = "candle")]
+    pub(super) fn load_gliner_candle() -> anno::Result<anno::backends::gliner_candle::GLiNERCandle>
+    {
+        anno::backends::gliner_candle::GLiNERCandle::from_pretrained(
+            crate::DEFAULT_GLINER_CANDLE_MODEL,
+        )
+    }
+
+    #[cfg(feature = "onnx")]
+    pub(super) fn load_nuner() -> anno::Result<anno::NuNER> {
+        anno::NuNER::from_pretrained(&Self::nuner_checkpoint())
     }
 
     #[cfg(feature = "onnx")]

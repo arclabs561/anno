@@ -216,6 +216,8 @@ fn offline_matrix_selects_prepared_models_and_reports_explicit_failures() {
         fs::write(dir.join("vocab.txt"), []).unwrap();
         assert!(!CandleNER::hub_assets_available(model));
         fs::write(dir.join("config.json"), []).unwrap();
+        assert!(!CandleNER::hub_assets_available(model));
+        fs::write(dir.join("model_converted.safetensors"), []).unwrap();
         assert!(CandleNER::hub_assets_available(model));
         assert!(!GLiNERCandle::hub_assets_available(model));
         fs::write(dir.join("tokenizer.json"), []).unwrap();

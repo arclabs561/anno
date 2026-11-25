@@ -159,6 +159,10 @@ python3 scripts/qa/replay_matrix_cell.py ner AnnoNerSmoke heuristic --seed 42 --
 
 The helper stages checked-in controls in a fresh temporary cache. For an external cell, supply its authorized local dataset cache and any required model assets. The command fixes the measured task, backend, dataset, seed and example limit. A reported dataset digest checks the input version. For a WikiGold cache without a manifest, the loader recognizes the pinned public release by hashing the bytes it parsed. When CI has prepared that release, each scored WikiGold outcome must carry its digest. Without a digest or pinned model weights, a rerun can establish the cell’s current score but cannot establish identity with the original inputs.
 
+The optional ONNX matrix integration tests use synthetic graphs stored in
+the sibling `anno` crate. From a source checkout, run
+`cargo test -p anno-eval --features onnx,eval --test offline_gliner_selection --test nuner_4k_export`.
+
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the
 same seed, text, backend, and budget. Swapping which dataset scored zero must
@@ -177,8 +181,10 @@ Hub-backed models whose required files are present in the selected local
 revision. BERT requires a graph, tokenizer and label configuration on the Hub.
 Base NuNER uses the Hub ID or local export in `NUNER_MODEL_PATH` when set.
 Its Hub constructor accepts FP32 graph names. GLiNER multi-task also requires
-its configuration. Candle backends accept their supported tokenizer and weight
-variants. Fastino requires its pinned multi-graph export. A prepared W2NER
+its configuration. Candle needs native safetensors or the cached safetensors
+conversion beside its PyTorch checkpoint. Fastino requires its pinned multi-graph export. GLiNER 2.5 needs
+its manifest, tokenizer, encoder and every declared length-bucket head in
+`GLINER25_MODEL_DIR`. A prepared W2NER
 export runs without a Hub token. Stacked, ensemble and TPLinker can execute their local
 fallbacks. An explicit fixed replay can exercise construction and record
 missing or invalid model files.

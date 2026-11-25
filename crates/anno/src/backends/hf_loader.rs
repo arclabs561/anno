@@ -169,7 +169,12 @@ pub(crate) const FP32_ONNX_PATHS: &[&str] = &["onnx/model.onnx", "model.onnx"];
 #[cfg(feature = "candle")]
 pub(crate) const PYTORCH_WEIGHTS: &[&str] = &["pytorch_model.bin"];
 
-/// A native Candle model can also load a legacy checkpoint through conversion.
+#[cfg(feature = "candle")]
+pub(crate) fn converted_pytorch_weights(path: &std::path::Path) -> std::path::PathBuf {
+    path.with_file_name("model_converted.safetensors")
+}
+
+/// A native Candle model can also load a previously converted legacy checkpoint.
 #[cfg(feature = "candle")]
 pub(crate) fn candle_files_available(
     model: &str,
@@ -181,6 +186,16 @@ pub(crate) fn candle_files_available(
         return true;
     }
     let repo = hf_hub::Cache::from_env().model(model.to_owned());
+    cached_candle_files(&repo, config, tokenizer, weights)
+}
+
+#[cfg(feature = "candle")]
+fn cached_candle_files(
+    repo: &hf_hub::CacheRepo,
+    config: &[&str],
+    tokenizer: &[&str],
+    weights: &[&str],
+) -> bool {
     let any_present = |names: &[&str]| {
         names
             .iter()
@@ -188,7 +203,12 @@ pub(crate) fn candle_files_available(
     };
     any_present(config)
         && any_present(tokenizer)
-        && (any_present(weights) || any_present(PYTORCH_WEIGHTS))
+        && (any_present(weights)
+            || PYTORCH_WEIGHTS.iter().any(|name| {
+                repo.get(name).is_some_and(|path| {
+                    path.is_file() && converted_pytorch_weights(&path).is_file()
+                })
+            }))
 }
 
 /// Check exactly the graph variants the loader can use, without opening weights.
@@ -240,6 +260,34 @@ pub fn download_onnx_model(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "candle")]
+    #[test]
+    fn offline_candle_requires_preconverted_or_native_weights() {
+        let home = tempfile::tempdir().unwrap();
+        let repo = hf_hub::Cache::new(home.path().to_owned()).model("fixture/candle".into());
+        repo.create_ref("fixture").unwrap();
+        let snapshot = repo.pointer_path("fixture");
+        std::fs::create_dir_all(&snapshot).unwrap();
+        for name in ["config.json", "tokenizer.json", "pytorch_model.bin"] {
+            std::fs::write(snapshot.join(name), []).unwrap();
+        }
+        let available = || {
+            cached_candle_files(
+                &repo,
+                &["config.json"],
+                &["tokenizer.json"],
+                &["model.safetensors"],
+            )
+        };
+        assert!(!available());
+        std::fs::write(snapshot.join("model_converted.safetensors"), []).unwrap();
+        assert!(available());
+        std::fs::remove_file(snapshot.join("pytorch_model.bin")).unwrap();
+        assert!(!available());
+        std::fs::write(snapshot.join("model.safetensors"), []).unwrap();
+        assert!(available());
+    }
 
     #[test]
     fn immutable_snapshot_loads_without_a_ref_file() {

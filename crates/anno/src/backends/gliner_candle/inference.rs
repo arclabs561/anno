@@ -47,14 +47,10 @@ impl std::fmt::Debug for GLiNERCandle {
 /// but doesn't provide direct state dict -> safetensors conversion.
 #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<PathBuf> {
-    let cache_dir = pytorch_path
-        .parent()
-        .ok_or_else(|| Error::Retrieval("Invalid pytorch model path".to_string()))?;
-
-    let safetensors_path = cache_dir.join("model_converted.safetensors");
+    let safetensors_path = crate::backends::hf_loader::converted_pytorch_weights(pytorch_path);
 
     // Check if already converted
-    if safetensors_path.exists() {
+    if safetensors_path.is_file() {
         log::debug!("Using cached safetensors conversion");
         return Ok(safetensors_path);
     }
