@@ -9648,7 +9648,7 @@ impl DatasetId {
     pub(crate) fn checkout_fixture(self) -> Option<CheckoutFixture> {
         match self {
             Self::AnnoNerSmoke => Some(CheckoutFixture {
-                path: "scripts/qa/fixtures/matrix-smoke.conll",
+                path: "crates/anno-eval/fixtures/matrix-smoke.conll",
                 bytes: 97,
                 digest: "61f31304f1ba3c348e154f23930e436b84e0b58f437934db26858f4bfd79e479",
             }),

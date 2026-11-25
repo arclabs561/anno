@@ -2987,7 +2987,7 @@ fn temporal_fixture_ids_require_exact_local_content_and_distinct_cohorts() {
 fn ner_smoke_uses_its_checked_in_conll_source() {
     let id = DatasetId::AnnoNerSmoke;
     let wiki = DatasetId::WikiGold;
-    let rows = include_str!("../../../scripts/qa/fixtures/matrix-smoke.conll");
+    let rows = include_str!("../fixtures/matrix-smoke.conll");
     let dir = tempfile::tempdir().unwrap();
     let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
     let loadable = LoadableDatasetId::try_from(id).unwrap();

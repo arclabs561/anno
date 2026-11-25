@@ -74,7 +74,7 @@ def validate_pairs(picks, seeds):
 
 
 def compare(binary, root, output, seeds):
-    text = (ROOT / "scripts/qa/fixtures/matrix-smoke.conll").read_text()
+    text = (ROOT / "crates/anno-eval/fixtures/matrix-smoke.conll").read_text()
     cmd = [binary, TEST, "--exact", "--ignored", "--nocapture"]
     picks = []
     for low in DATASETS:

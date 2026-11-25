@@ -60,7 +60,7 @@ extern crate self as anno;
 
 // Compile and run the README's Rust examples as doctests.
 #[cfg(doctest)]
-#[doc = include_str!("../../../README.md")]
+#[doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", env!("CARGO_PKG_README")))]
 pub struct ReadmeDoctests;
 
 // Module declarations (standard Cargo layout under `src/`)
@@ -1264,9 +1264,3 @@ mod batch_tests {
         }
     }
 }
-
-/// Compiles the README's Rust examples in doctest builds so the quick-start
-/// cannot drift from the API. Never part of the public docs.
-#[cfg(doctest)]
-#[doc = include_str!("../../../README.md")]
-pub struct ReadmeExamples;
