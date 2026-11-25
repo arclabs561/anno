@@ -104,6 +104,28 @@ class RoundEvidenceTest(unittest.TestCase):
             self.assertIn("Reserve a labeled negative panel", brief(temporal))
             self.assertNotIn("gold-empty", brief({}))
 
+    def test_pattern_temporal_misses_nominate_an_existing_control(self):
+        counts = dict(gold_spans=16, matched_spans=4, predicted_spans=4, gold_empty_sentences=21,
+                      gold_empty_sentences_with_predictions=0, unmatched_predictions_overlapping_missed_gold=0)
+        row = dict(record_type="outcome", dataset="AnnoTimexContrast", backend="pattern", task="temporal",
+                   ok=True, cost_units=34, primary_f1=0.4, structural_counts=counts)
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "matrix.jsonl"
+
+            def brief(**changes):
+                path.write_text(json.dumps(dict(row, **changes)))
+                return evidence(path)
+
+            self.assertIn("Pattern missed 12/16 gold spans", brief())
+            fixture = "scripts/qa/fixtures/weekday-span-assertions.json"
+            self.assertIn(fixture, brief())
+            self.assertTrue((Path(__file__).resolve().parents[2] / fixture).is_file())
+            self.assertNotIn(fixture, brief(structural_counts=dict(counts, gold_spans=4)))
+            self.assertNotIn(fixture, brief(backend="other"))
+            self.assertNotIn(fixture, brief(primary_f1=None))
+            with self.assertRaisesRegex(ValueError, "inconsistent"):
+                brief(structural_counts=dict(counts, gold_spans=3))
+
     def test_crossdoc_handoff_accepts_only_consistent_bounded_assertion_counts(self):
         digests = {k + "_sha256": "a" * 64 for k in ("source", "oracle", "producer")}
         receipt = dict(digests, kind="anno.qa.crossdoc-case.v1", runner="cli",

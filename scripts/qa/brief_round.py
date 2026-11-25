@@ -94,6 +94,17 @@ def outcome_evidence(path):
                 near, matched, predicted, empty, alarms = temporal
                 if matched > predicted or near > predicted - matched or alarms > empty:
                     raise ValueError("inconsistent temporal span counts")
+                gold_count = measured_counts(counts, "gold_spans")
+                if gold_count is not None:
+                    gold, = gold_count
+                    if matched > gold:
+                        raise ValueError("inconsistent temporal span counts")
+                    if (row.get("task") == "temporal" and backend == "pattern"
+                            and gold > matched and predicted == matched and empty and not alarms):
+                        lines.append(f"  Pattern missed {gold-matched}/{gold} gold spans. "
+                                     "Probe weekday recall with an authored name, title and numeric-date control: "
+                                     "just qa-spans target/debug/anno pattern "
+                                     "scripts/qa/fixtures/weekday-span-assertions.json")
                 if near:
                     lines.append(f"  {near}/{predicted-matched} unmatched predictions overlap missed gold. "
                                  "Compare native and reference decoding on identical frozen model outputs.")
