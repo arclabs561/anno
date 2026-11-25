@@ -710,13 +710,11 @@ fn matrix_uses_gold_mentions() -> bool {
 }
 
 fn matrix_offline() -> bool {
-    ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"].iter().any(|key| {
-        std::env::var(key).is_ok_and(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "y" | "on"
-            )
-        })
+    std::env::var("ANNO_NO_DOWNLOADS").is_ok_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "y" | "on"
+        )
     })
 }
 
@@ -725,6 +723,9 @@ fn stages_from_s3(loader: &DatasetLoader) -> bool {
 }
 
 fn matrix_require_cached() -> bool {
+    if matrix_offline() {
+        return true;
+    }
     // Default:
     // - CI prefers cache; opt-in download fallback via `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY`
     // - local runs default to “try to fetch”

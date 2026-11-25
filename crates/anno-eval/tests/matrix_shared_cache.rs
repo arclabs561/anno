@@ -31,7 +31,7 @@ esac
     for (name, task, backend, staging, offline, selected) in [
         ("local", "ner", "heuristic", "0", "", 1),
         ("offline", "ner", "heuristic", "1", "ANNO_NO_DOWNLOADS", 1),
-        ("hub-offline", "ner", "heuristic", "1", "HF_HUB_OFFLINE", 1),
+        ("hub-offline", "ner", "heuristic", "1", "HF_HUB_OFFLINE", 2),
         (
             "empty-offline",
             "ner",
@@ -67,7 +67,13 @@ esac
         if !offline.is_empty() {
             cmd.env(offline, "1");
         }
+        if name == "offline" {
+            cmd.env("ANNO_MATRIX_REQUIRE_CACHED", "0");
+        } else if name != "empty-offline" {
+            cmd.arg("--require-cached");
+        }
         let result = cmd
+            .env_remove("GITHUB_ACTIONS") // Exercise the ordinary local default in CI as well.
             .current_dir(&cache)
             .env("PATH", &path)
             .env("CALLS", &calls)
@@ -91,7 +97,6 @@ esac
                 "1",
                 "--seed-base",
                 "729",
-                "--require-cached",
                 "--max-examples",
                 "1",
                 "--datasets-per-run",
@@ -125,15 +130,19 @@ esac
             selected,
             "{name}"
         );
-        assert_eq!(pool["stage_from_s3"], staging == "1" && offline.is_empty());
+        assert_eq!(pool["require_cached"], true);
+        assert_eq!(
+            pool["stage_from_s3"],
+            staging == "1" && offline != "ANNO_NO_DOWNLOADS"
+        );
         assert_eq!(pool["target_datasets"], 2);
         assert_eq!(rows.len(), selected, "{name}");
         assert!(rows
             .iter()
             .all(|r| r["cost_units"] == 1 && r["hard_junk"] == false));
         let reads = fs::read_to_string(calls).unwrap();
-        if name == "shared" || name == "coreference" {
-            let remote_dataset = if name == "shared" { "WikiGold" } else { "GAP" };
+        if staging == "1" && offline != "ANNO_NO_DOWNLOADS" {
+            let remote_dataset = if task == "ner" { "WikiGold" } else { "GAP" };
             assert_eq!(pool["pool"]["selected_sources"][remote_dataset], "S3Cache");
             assert!(reads.contains(&format!(
                 "s3 cp s3://fixture/datasets/{remote_dataset}.cache -"
