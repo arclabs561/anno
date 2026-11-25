@@ -41,6 +41,8 @@ def main():
         "MAVERICK_PYTHON": sys.executable,
         "MAVERICK_MODEL_PATH": str(checkpoint),
         "ANNO_NO_DOWNLOADS": "1",
+        # Apply restricted PyTorch loading to the checkpoint and its encoder.
+        "TORCH_FORCE_WEIGHTS_ONLY_LOAD": "1",
         "HF_HOME": str(root),
         "HF_HUB_CACHE": str(hub),
         "TRANSFORMERS_CACHE": str(hub),
