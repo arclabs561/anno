@@ -221,8 +221,22 @@ The DirectML registration fallback workflow loads a pinned Windows CPU runtime,
 checks 81 known logits from a synthetic ONNX fixture, then requests DirectML
 through the same Anno API. The job fails if that request silently returns a CPU
 session. Each run retains its runtime build, file hashes and registration result.
-Representative DirectML placement still needs a hardware-backed DX12 run.
-See [the hosted probe](../.github/workflows/directml-fallback.yml).
+For a Windows host with a DX12 GPU, point `ORT_DYLIB_PATH` at the DLL from
+[ONNX Runtime DirectML 1.24.4](https://pypi.org/project/onnxruntime-directml/1.24.4/#files)
+and use a local BERT NER export containing `model.onnx`,
+`tokenizer.json`, and `config.json`.
+
+```powershell
+cargo run --locked --release -p anno --no-default-features --features onnx-directml,ort/load-dynamic --example onnx_bert_provider_probe -- C:\models\bert C:\receipts\directml
+```
+
+The probe uses Anno’s session factory for CPU and DirectML. It saves both raw
+profiles and a receipt with the artifact hashes, node assignments, argmax
+agreement and maximum absolute logit difference. A passing receipt requires
+at least one DirectML node and agreement within `1e-4` for the fixed example.
+Record the DX12 adapter, driver, Anno commit and command alongside the receipt
+to identify the hardware that executed the graph. The [hosted CPU control](../.github/workflows/directml-fallback.yml)
+also records runner adapter inventory and verifies that profiling captured inference.
 
 On Windows with Cargo 1.100, set `__CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT=1`
 for the DirectML build. The pinned `ort-sys` 2.0.0-rc.12 copies `DirectML.dll`
@@ -231,8 +245,9 @@ using Cargo’s previous build directory layout. See [upstream issue #619](https
 The `onnx-rocm` feature is a legacy binding, not a supported AMD runtime path
 with the current dependency: `ort` targets ONNX Runtime 1.24, while the
 [ROCm provider was removed in 1.23](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html).
-Upstream recommends MIGraphX. Selecting and validating a compatible AMD
-provider is tracked in [issue #19](https://github.com/arclabs561/anno/issues/19).
+AMD distributes a separate MIGraphX plugin for ORT 1.29.0. That runtime
+exports API 24, but the plugin needs the matching ROCm libraries, explicit
+plugin registration and supported AMD hardware. [AMD installation instructions](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html) · [Compatibility evidence and outstanding device checks](https://github.com/arclabs561/anno/issues/19).
 
 For a cached BERT graph, `onnx_bert_cuda_provider_probe` retains CPU/CUDA
 profiles, artifact hashes, label agreement, and the strict logit comparison.

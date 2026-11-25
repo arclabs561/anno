@@ -1,10 +1,10 @@
-//! Profile a real cached BERT NER graph through CPU and CoreML execution providers.
+//! Profile a real cached BERT NER graph through CPU and the host accelerator (CoreML or DirectML).
 //!
 //! This probe is deliberately cache-only: it accepts a local model directory
 //! containing `model.onnx`, `tokenizer.json`, and `config.json`, and never
 //! invokes Hugging Face. It uses anno's BERT diagnostic trace for the exact
 //! tokenizer inputs and CPU decoding, then compares the same tokenized graph
-//! output under CPU and CoreML. ONNX Runtime profiling records the provider
+//! output under CPU and the accelerator. ONNX Runtime profiling records the provider
 //! named for every executed node, including CPU fallback nodes.
 //!
 //! ```text
@@ -13,27 +13,29 @@
 //!   /path/to/protectai-snapshot /tmp/anno-bert-provider-probe
 //! ```
 //!
+//! On Windows use `--features onnx-directml` with the same two arguments.
+//! The sessions use Anno’s explicit provider selection and profiling configuration.
+//!
 //! The JSON receipt is a diagnostic artifact, not a benchmark score. It
 //! records provider assignment and warm timings for one fixed input; repeat it
 //! on a representative workload before using it for a provider decision.
 
-#[cfg(not(all(feature = "onnx", feature = "onnx-coreml")))]
+#[cfg(not(any(feature = "onnx-coreml", feature = "onnx-directml")))]
 fn main() {
     eprintln!(
-        "onnx_bert_provider_probe requires --features onnx,onnx-coreml; run it on macOS with a local model directory"
+        "onnx_bert_provider_probe requires onnx-coreml on macOS or onnx-directml on Windows and a local model directory"
     );
     std::process::exit(2);
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::{
         fs,
         path::{Path, PathBuf},
     };
 
-    use anno::{BertNEROnnx, BertNerTrace};
-    use serde::Serialize;
+    use anno::{BertNEROnnx, OnnxExecutionProvider};
 
     const WARM_RUNS: usize = 3;
     const TIMED_RUNS: usize = 12;
@@ -42,9 +44,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const MAX_ABS_LOGIT_DELTA: f32 = 1e-4;
     const TEXT: &str = "Apple hired Alice Johnson in Paris on 12 September 2026.";
 
-    if !cfg!(target_os = "macos") {
-        return Err("onnx_bert_provider_probe requires macOS/CoreML".into());
-    }
+    let (provider, key, profile_ep) = match std::env::consts::OS {
+        "macos" => (
+            OnnxExecutionProvider::CoreMl,
+            "coreml",
+            "CoreMLExecutionProvider",
+        ),
+        "windows" => (
+            OnnxExecutionProvider::DirectMl,
+            "directml",
+            "DmlExecutionProvider",
+        ),
+        _ => return Err("expected a macOS/CoreML or Windows/DirectML host".into()),
+    };
 
     let mut args = std::env::args_os();
     let program = args.next().unwrap_or_default();
@@ -82,95 +94,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let graph = anno_model.artifact_paths().graph.clone();
 
     let cpu_profile_prefix = output_dir.join("bert-cpu-profile");
-    let coreml_profile_prefix = output_dir.join("bert-coreml-profile");
-    let mut cpu = build_session(&graph, &cpu_profile_prefix, false)?;
-    let mut coreml = build_session(&graph, &coreml_profile_prefix, true)?;
+    let accelerator_profile_prefix = output_dir.join(format!("bert-{key}-profile"));
+    let mut cpu = build_session(&graph, &cpu_profile_prefix, OnnxExecutionProvider::Cpu)?;
+    let mut accelerator = build_session(&graph, &accelerator_profile_prefix, provider)?;
 
     let cpu_logits = run_logits(&mut cpu, &trace)?;
-    let coreml_logits = run_logits(&mut coreml, &trace)?;
-    let max_abs_logit_delta = max_abs_delta(&cpu_logits, &coreml_logits)?;
+    let accelerator_logits = run_logits(&mut accelerator, &trace)?;
+    let max_abs_logit_delta = max_abs_delta(&cpu_logits, &accelerator_logits)?;
     let label_count = trace
         .logits
         .first()
         .map(Vec::len)
         .ok_or("anno BERT trace returned no logit rows")?;
     let argmax_labels_match =
-        argmaxes(&cpu_logits, label_count)? == argmaxes(&coreml_logits, label_count)?;
+        argmaxes(&cpu_logits, label_count)? == argmaxes(&accelerator_logits, label_count)?;
     let cpu_min_argmax_margin = min_argmax_margin(&cpu_logits, label_count)?;
-    let coreml_min_argmax_margin = min_argmax_margin(&coreml_logits, label_count)?;
+    let accelerator_min_argmax_margin = min_argmax_margin(&accelerator_logits, label_count)?;
 
     // Warm sessions independently before timing them. The comparison is
     // intentionally small and reports rather than asserts a speedup.
     for _ in 0..WARM_RUNS {
         let _ = run_logits(&mut cpu, &trace)?;
-        let _ = run_logits(&mut coreml, &trace)?;
+        let _ = run_logits(&mut accelerator, &trace)?;
     }
     let cpu_warm_ms = mean_run_ms(&mut cpu, &trace, TIMED_RUNS)?;
-    let coreml_warm_ms = mean_run_ms(&mut coreml, &trace, TIMED_RUNS)?;
+    let accelerator_warm_ms = mean_run_ms(&mut accelerator, &trace, TIMED_RUNS)?;
 
     let cpu_profile = PathBuf::from(cpu.end_profiling()?);
-    let coreml_profile = PathBuf::from(coreml.end_profiling()?);
+    let accelerator_profile = PathBuf::from(accelerator.end_profiling()?);
     let cpu_assignments = summarize_profile(&cpu_profile)?;
-    let coreml_assignments = summarize_profile(&coreml_profile)?;
-    let coreml_nodes = coreml_assignments
+    let accelerator_assignments = summarize_profile(&accelerator_profile)?;
+    let accelerator_nodes = accelerator_assignments
         .by_provider
-        .get("CoreMLExecutionProvider")
+        .get(profile_ep)
         .copied()
         .unwrap_or(0);
     let strict_logit_tolerance_pass = max_abs_logit_delta <= MAX_ABS_LOGIT_DELTA;
-    let provider_assignment_pass = coreml_nodes > 0;
-
-    #[derive(Serialize)]
-    struct Receipt {
-        schema_version: u32,
-        text: &'static str,
-        model_dir: PathBuf,
-        graph: PathBuf,
-        tokenizer: PathBuf,
-        config: Option<PathBuf>,
-        trace: BertNerTrace,
-        strict_logit_tolerance_pass: bool,
-        argmax_labels_match: bool,
-        cpu_min_argmax_margin: f32,
-        coreml_min_argmax_margin: f32,
-        provider_assignment_pass: bool,
-        max_abs_logit_delta: f32,
-        max_abs_logit_delta_limit: f32,
-        warm_runs: usize,
-        timed_runs: usize,
-        cpu_mean_ms: f64,
-        coreml_mean_ms: f64,
-        cpu_profile: PathBuf,
-        coreml_profile: PathBuf,
-        cpu_assignments: ProviderAssignments,
-        coreml_assignments: ProviderAssignments,
-    }
+    let provider_assignment_pass = accelerator_nodes > 0;
 
     let paths = anno_model.artifact_paths();
-    let receipt = Receipt {
-        schema_version: 1,
-        text: TEXT,
-        model_dir,
-        graph,
-        tokenizer: paths.tokenizer.clone(),
-        config: paths.config.clone(),
-        trace,
-        strict_logit_tolerance_pass,
-        argmax_labels_match,
-        cpu_min_argmax_margin,
-        coreml_min_argmax_margin,
-        provider_assignment_pass,
-        max_abs_logit_delta,
-        max_abs_logit_delta_limit: MAX_ABS_LOGIT_DELTA,
-        warm_runs: WARM_RUNS,
-        timed_runs: TIMED_RUNS,
-        cpu_mean_ms: cpu_warm_ms,
-        coreml_mean_ms: coreml_warm_ms,
-        cpu_profile,
-        coreml_profile,
-        cpu_assignments,
-        coreml_assignments,
-    };
+    // Keep provider-specific keys in existing CoreML receipts stable.
+    let receipt = serde_json::json!({
+        "schema_version": 1, "text": TEXT, "model_dir": model_dir, "graph": graph,
+        "tokenizer": paths.tokenizer, "config": paths.config, "trace": trace,
+        "runtime_build": ort::info(), "requested_provider": profile_ep,
+        "strict_logit_tolerance_pass": strict_logit_tolerance_pass,
+        "argmax_labels_match": argmax_labels_match,
+        "provider_assignment_pass": provider_assignment_pass,
+        "max_abs_logit_delta": max_abs_logit_delta,
+        "max_abs_logit_delta_limit": MAX_ABS_LOGIT_DELTA,
+        "warm_runs": WARM_RUNS, "timed_runs": TIMED_RUNS,
+        "cpu_min_argmax_margin": cpu_min_argmax_margin,
+        (format!("{key}_min_argmax_margin")): accelerator_min_argmax_margin,
+        "cpu_mean_ms": cpu_warm_ms, (format!("{key}_mean_ms")): accelerator_warm_ms,
+        "cpu_profile": cpu_profile, (format!("{key}_profile")): accelerator_profile,
+        "cpu_assignments": cpu_assignments, (format!("{key}_assignments")): accelerator_assignments,
+    });
     let receipt_path = output_dir.join("receipt.json");
     fs::write(&receipt_path, serde_json::to_vec_pretty(&receipt)?)?;
     println!("provider probe receipt: {}", receipt_path.display());
@@ -186,35 +165,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn build_session(
     graph: &std::path::Path,
     profile_prefix: &std::path::Path,
-    coreml: bool,
+    provider: anno::OnnxExecutionProvider,
 ) -> Result<ort::session::Session, Box<dyn std::error::Error>> {
-    use ort::{
-        execution_providers::{CPUExecutionProvider, CoreMLExecutionProvider},
-        session::{builder::GraphOptimizationLevel, Session},
-    };
-
-    let mut builder = Session::builder()?
-        .with_optimization_level(GraphOptimizationLevel::Level3)?
-        .with_intra_threads(1)?
-        .with_profiling(profile_prefix)?;
-    builder = if coreml {
-        builder.with_execution_providers([
-            CoreMLExecutionProvider::default()
-                .build()
-                .error_on_failure(),
-            CPUExecutionProvider::default().build(),
-        ])?
-    } else {
-        builder.with_execution_providers([CPUExecutionProvider::default().build()])?
-    };
-    Ok(builder.commit_from_file(graph)?)
+    let mut config = anno::OnnxSessionConfig::default();
+    config.num_threads = 1;
+    config.profile_prefix = Some(profile_prefix.into());
+    Ok(anno::create_onnx_session_with_provider(
+        graph, config, provider,
+    )?)
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn run_logits(
     session: &mut ort::session::Session,
     trace: &anno::BertNerTrace,
@@ -256,10 +221,13 @@ fn run_logits(
     let logits = outputs
         .get("logits")
         .ok_or("BERT graph did not produce a logits output")?;
-    Ok(logits.try_extract_tensor::<f32>()?.1.to_vec())
+    let (shape, values) = logits.try_extract_tensor::<f32>()?;
+    let label_count = trace.logits.first().ok_or("no CPU trace logits")?.len();
+    check_shape(shape, sequence_len, label_count)?;
+    Ok(values.to_vec())
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn mean_run_ms(
     session: &mut ort::session::Session,
     trace: &anno::BertNerTrace,
@@ -272,7 +240,19 @@ fn mean_run_ms(
     Ok(started.elapsed().as_secs_f64() * 1000.0 / runs as f64)
 }
 
-#[cfg(any(test, all(feature = "onnx", feature = "onnx-coreml")))]
+#[cfg(any(test, feature = "onnx-coreml", feature = "onnx-directml"))]
+fn check_shape(
+    shape: &[i64],
+    tokens: usize,
+    labels: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if tokens == 0 || labels == 0 || shape != [1, i64::try_from(tokens)?, i64::try_from(labels)?] {
+        return Err(format!("expected BERT logits [1, {tokens}, {labels}], got {shape:?}").into());
+    }
+    Ok(())
+}
+
+#[cfg(any(test, feature = "onnx-coreml", feature = "onnx-directml"))]
 fn max_abs_delta(left: &[f32], right: &[f32]) -> Result<f32, Box<dyn std::error::Error>> {
     if left.is_empty() || right.is_empty() {
         return Err("empty BERT logits".into());
@@ -290,7 +270,7 @@ fn max_abs_delta(left: &[f32], right: &[f32]) -> Result<f32, Box<dyn std::error:
         .fold(0.0_f32, f32::max))
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn argmaxes(logits: &[f32], label_count: usize) -> Result<Vec<usize>, Box<dyn std::error::Error>> {
     if label_count == 0 || !logits.len().is_multiple_of(label_count) {
         return Err(format!(
@@ -311,7 +291,7 @@ fn argmaxes(logits: &[f32], label_count: usize) -> Result<Vec<usize>, Box<dyn st
         .collect())
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn min_argmax_margin(
     logits: &[f32],
     label_count: usize,
@@ -342,7 +322,7 @@ fn min_argmax_margin(
         .ok_or_else(|| "cannot compute argmax margin for empty logits".into())
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 #[derive(Debug, serde::Serialize)]
 struct ProviderAssignments {
     total_node_events: usize,
@@ -350,7 +330,7 @@ struct ProviderAssignments {
     by_provider: std::collections::BTreeMap<String, usize>,
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(feature = "onnx-coreml", feature = "onnx-directml"))]
 fn summarize_profile(
     path: &std::path::Path,
 ) -> Result<ProviderAssignments, Box<dyn std::error::Error>> {
@@ -382,7 +362,15 @@ fn summarize_profile(
 
 #[cfg(test)]
 mod tests {
-    use super::max_abs_delta;
+    use super::{check_shape, max_abs_delta};
+
+    #[test]
+    fn numerical_gate_rejects_transposed_logits_of_the_same_length() {
+        assert!(check_shape(&[1, 12, 9], 12, 9).is_ok());
+        assert!(check_shape(&[1, 9, 12], 12, 9).is_err());
+        assert!(check_shape(&[12, 9], 12, 9).is_err());
+        assert!(check_shape(&[1, 0, 9], 0, 9).is_err());
+    }
 
     #[test]
     fn numerical_gate_rejects_invalid_logits() {
