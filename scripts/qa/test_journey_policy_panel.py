@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -47,6 +48,34 @@ class PanelTests(unittest.TestCase):
         with patch.object(panel, "observe", return_value={"failure": "unexpected"}):
             with self.assertRaisesRegex(ValueError, "expected None, observed 'unexpected'"):
                 panel.mutation_census(None, [])
+
+    def test_stale_probe_needs_an_advanced_head_and_a_specific_rejection(self):
+        def result(value):
+            return subprocess.CompletedProcess([], 0, json.dumps(value).encode(), b"")
+
+        before = {"head": "old", "documents": [{"id": "first", "text": "Reed"}]}
+        after = {**before, "head": "second"}
+        stale = subprocess.CompletedProcess([], 1, b"", b"corpus head changed or belongs to a different journal")
+        unrelated = subprocess.CompletedProcess([], 1, b"", b"error reading journal header")
+        for refreshed, rejection, diagnostic in [
+                (before, stale, "did not advance"),
+                ({"head": "second", "documents": []}, stale, "reviewed documents"),
+                (after, unrelated, "unexpected reason")]:
+            for mutate in (False, True):
+                with self.subTest(diagnostic=diagnostic, mutate=mutate), tempfile.TemporaryDirectory() as temp:
+                    deliveries = []
+
+                    def corpus(_dir, _bin, *args):
+                        if "apply" in args:
+                            deliveries.append(json.loads((Path(temp) / "doc").read_text())["id"])
+                            return result({"receipt": {"document_id": deliveries[-1]}})
+                        if len(deliveries) == 1:
+                            return result(before)
+                        return rejection if "--at-head" in args else result(refreshed)
+
+                    with patch.object(panel, "cli", side_effect=corpus):
+                        with self.assertRaisesRegex(ValueError, diagnostic):
+                            panel.stale(Path(temp), "anno", mutate)
 
     def test_schedule_checks_commitment_and_arm_set(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -87,17 +87,26 @@ def stale(directory, binary, mutate):
         return json_output(corpus("apply", "operation", "--document", "doc"))["receipt"]["document_id"]
 
     first = deliver("first")
-    head = json_output(corpus("read-many", first))["head"]
+    before = json_output(corpus("read-many", first))
+    documents = before["documents"]
+    if len(documents) != 1 or (documents[0]["id"], documents[0]["text"]) != (first, "Reed"):
+        raise ValueError("positive control did not return the delivered document")
+    head = before["head"]
     saved = corpus("read-many", "--at-head", head, first)
-    if json_output(saved)["head"] != head:
-        raise ValueError("pinned positive control returned another head")
+    if json_output(saved) != before:
+        raise ValueError("pinned positive control disagrees with the current read")
     deliver("second")
+    after = json_output(corpus("read-many", first))
+    if after["head"] == head:
+        raise ValueError("second delivery did not advance the journal head")
+    if after["documents"] != before["documents"]:
+        raise ValueError("unrelated delivery changed the reviewed documents")
     rejected = corpus("read-many", "--at-head", head, first)
+    if rejected.returncode and b"corpus head changed" not in rejected.stderr.lower():
+        raise ValueError("stale control failed for an unexpected reason")
     result = saved if mutate else rejected
     if result.returncode == 0 or result.stdout:
         return "journal-stale-pinned-response"
-    if b"head" not in result.stderr.lower():
-        raise ValueError("stale control failed for an unexpected reason")
 
 
 PROBES = dict(zip(pilot.JOURNEYS, (span, catalog, stale), strict=True))
