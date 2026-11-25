@@ -1,0 +1,680 @@
+{
+  "deliveries": {
+    "bulk": {
+      "arms": {
+        "dated": {
+          "all": {
+            "abstained": 0,
+            "answered": 51,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 51,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 51,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 51,
+            "joint_reference": 51,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 43,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 8,
+              "wrong": 8
+            },
+            "selected": 51
+          },
+          "first": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 9,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 8,
+              "wrong": 8
+            },
+            "selected": 17
+          },
+          "post": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          },
+          "pre": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          }
+        },
+        "mutable": {
+          "all": {
+            "abstained": 0,
+            "answered": 51,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 42,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 6,
+              "wrong": 9
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 34
+            },
+            "joint_correct": 17,
+            "joint_reference": 51,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 37,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 11,
+              "wrong": 14
+            },
+            "selected": 51
+          },
+          "first": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 11,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 6,
+              "wrong": 6
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 0,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 17
+            },
+            "joint_correct": 0,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 6,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 11,
+              "wrong": 11
+            },
+            "selected": 17
+          },
+          "post": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          },
+          "pre": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 14,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 3,
+              "wrong": 3
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 0,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 17
+            },
+            "joint_correct": 0,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 14,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 3,
+              "wrong": 3
+            },
+            "selected": 17
+          }
+        }
+      },
+      "notice_changes": {
+        "byline": {
+          "both_cuts_correct_on_changed": {
+            "dated": 3,
+            "mutable": 0
+          },
+          "changed_at_notice": 3,
+          "pre_post_known": 17
+        },
+        "printed_byline": {
+          "both_cuts_correct_on_changed": {
+            "dated": 3,
+            "mutable": 0
+          },
+          "changed_at_notice": 3,
+          "pre_post_known": 17
+        }
+      },
+      "paired_mutable_to_dated": {
+        "byline": {
+          "correct_to_correct": 42,
+          "wrong_to_correct": 9
+        },
+        "printed_byline": {
+          "correct_to_correct": 37,
+          "wrong_to_correct": 6,
+          "wrong_to_wrong": 8
+        }
+      }
+    },
+    "online": {
+      "arms": {
+        "dated": {
+          "all": {
+            "abstained": 0,
+            "answered": 51,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 51,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 51,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 51,
+            "joint_reference": 51,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 43,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 8,
+              "wrong": 8
+            },
+            "selected": 51
+          },
+          "first": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 9,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 8,
+              "wrong": 8
+            },
+            "selected": 17
+          },
+          "post": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          },
+          "pre": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          }
+        },
+        "mutable": {
+          "all": {
+            "abstained": 0,
+            "answered": 51,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 42,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 6,
+              "wrong": 9
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 34
+            },
+            "joint_correct": 17,
+            "joint_reference": 51,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 37,
+              "emitted_scorable": 51,
+              "reference_known": 51,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 11,
+              "wrong": 14
+            },
+            "selected": 51
+          },
+          "first": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 11,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 6,
+              "wrong": 6
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 0,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 17
+            },
+            "joint_correct": 0,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 6,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 11,
+              "wrong": 11
+            },
+            "selected": 17
+          },
+          "post": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "joint_correct": 17,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 17,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 0,
+              "wrong": 0
+            },
+            "selected": 17
+          },
+          "pre": {
+            "abstained": 0,
+            "answered": 17,
+            "byline": {
+              "abstained_known": 0,
+              "correct": 14,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 3,
+              "wrong": 3
+            },
+            "edition": {
+              "abstained_known": 0,
+              "correct": 0,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 17,
+              "wrong": 17
+            },
+            "joint_correct": 0,
+            "joint_reference": 17,
+            "printed_byline": {
+              "abstained_known": 0,
+              "correct": 14,
+              "emitted_scorable": 17,
+              "reference_known": 17,
+              "unjudged_abstained": 0,
+              "unjudged_answered": 0,
+              "works_with_wrong_answer": 3,
+              "wrong": 3
+            },
+            "selected": 17
+          }
+        }
+      },
+      "notice_changes": {
+        "byline": {
+          "both_cuts_correct_on_changed": {
+            "dated": 3,
+            "mutable": 0
+          },
+          "changed_at_notice": 3,
+          "pre_post_known": 17
+        },
+        "printed_byline": {
+          "both_cuts_correct_on_changed": {
+            "dated": 3,
+            "mutable": 0
+          },
+          "changed_at_notice": 3,
+          "pre_post_known": 17
+        }
+      },
+      "paired_mutable_to_dated": {
+        "byline": {
+          "correct_to_correct": 42,
+          "wrong_to_correct": 9
+        },
+        "printed_byline": {
+          "correct_to_correct": 37,
+          "wrong_to_correct": 6,
+          "wrong_to_wrong": 8
+        }
+      }
+    }
+  },
+  "delivery_mismatches": [],
+  "delivery_pairs": 102,
+  "notices": 17,
+  "prediction_lock_sha256": "6463b95febce6b63a3804d1c7b3d4642fa1751d5a2948cf0ab42887735ef1603",
+  "queries": 51,
+  "reference_sha256": "a85997443eca7a35c7ca3c56440aade47894d822b6ab66dddc4aa180edf022d5",
+  "reference_status": {
+    "verified": 51
+  },
+  "works": 17
+}
