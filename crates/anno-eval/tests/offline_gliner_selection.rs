@@ -15,7 +15,7 @@ fn offline_matrix_keeps_prepared_gliner_models_and_reports_explicit_failures() {
     fs::create_dir_all(root.join("datasets")).unwrap();
     fs::write(
         root.join("datasets/AnnoNerSmoke.cache"),
-        include_bytes!("../../../scripts/qa/fixtures/matrix-smoke.conll"),
+        include_bytes!("../fixtures/matrix-smoke.conll"),
     )
     .unwrap();
 
