@@ -7,9 +7,6 @@ import os
 from pathlib import Path
 import subprocess
 
-import pyarrow.parquet as pq
-from scipy.optimize import linear_sum_assignment
-
 from coref_gap import check_file
 
 REVISION = "58b5fdd88d139b17ffd75365a5e1ec5b53b8dd43"
@@ -18,6 +15,8 @@ TOKEN_BUDGET = 180
 
 
 def load(path):
+    import pyarrow.parquet as pq
+
     check_file(path, SHA256)
     docs = []
     for doc in pq.read_table(path).to_pylist():
@@ -102,7 +101,11 @@ def score_doc(gold, predicted):
         [2 * len(g & p) / (len(g) + len(p)) for p in predicted] for g in gold
     ]
     similarity = 0.0
-    if gold and predicted:
+    if min(len(gold), len(predicted)) == 1:
+        similarity = max(max(scores) for scores in similarities)
+    elif gold and predicted:
+        from scipy.optimize import linear_sum_assignment
+
         row, col = linear_sum_assignment(similarities, maximize=True)
         similarity = sum(similarities[i][j] for i, j in zip(row, col))
     return {
