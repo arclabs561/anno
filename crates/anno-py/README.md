@@ -35,6 +35,24 @@ extractor. It does not identify the requested extractor configuration or prove
 model artifact selection or device placement. `model_version` remains `None`
 when the backend did not record one; it is never inferred from a backend name.
 
+## Compare dates in two bulletins
+
+A harbor office extended its application deadline. From `crates/anno-py`, run
+the example with the Python environment you built above:
+
+```sh
+.venv/bin/python examples/bulletin_diff.py \
+  examples/bulletins/bulletin-edition-1.txt examples/bulletins/bulletin-edition-2.txt
+```
+
+The JSON shows December 4 removed and December 7 added. Each occurrence
+includes its source line, Unicode character ranges and detector. The source
+records identify each input by file name and SHA-256. You can substitute your
+own UTF-8 files. The example compares counts of detected date strings.
+Passing the same file twice gives an empty `date_count_changes` list, as does
+moving a date to another event while preserving its count.
+[Example source](examples/bulletin_diff.py) · [Notice license](examples/bulletins/LICENSE)
+
 ## Optional ONNX models
 
 Model-backed extraction is opt-in. Build the extension with the `onnx` Cargo
