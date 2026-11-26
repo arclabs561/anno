@@ -56,7 +56,7 @@ requests==2.34.2
 rich==15.0.0
 safetensors==0.8.0
 scipy==1.18.1
-sentencepiece==0.2.0
+sentencepiece==0.2.1
 setuptools==84.2.1
 shellingham==1.5.4
 smart-open==10.0.0
