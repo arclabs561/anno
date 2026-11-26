@@ -26,17 +26,22 @@ class BoundaryReplacementTests(unittest.TestCase):
         self.assertEqual(result["stock"]["all_output_spans"], result["candidate"]["all_output_spans"])
 
     def test_unique_target_and_global_collisions(self):
-        text = "John John. John John John. Dr John John left."
+        text = "John John. John John John. dr John John left."
         name = place(text, "John John")
         repeated = place(text, "John John John")
-        long = place(text, "Dr John John left")
-        overlapping = place(text, "Dr John John")
+        long = place(text, "dr John John left")
+        overlapping = place(text, "dr John John")
         groups = [{name, repeated, long, overlapping}]
         self.assertEqual(reshape(text, groups)[1], 0)
         target = place(text, "John John", long[0])
         self.assertEqual(reshape(text, [{name, long}, {target}])[1], 0)
         self.assertEqual(reshape(text, [{name}, {long}])[1], 0)
         self.assertEqual(reshape(text, [{name, long}])[1], 1)
+
+    def test_slice_start_inside_word_is_not_a_name_boundary(self):
+        text = "Ann Yu. JoAnn Yu of the council."
+        group = {place(text, "Ann Yu"), place(text, "Ann Yu of")}
+        self.assertEqual(reshape(text, [group])[1], 0)
 
     def test_two_different_names_keep_original_boundary(self):
         text = "Éva Wu. Kofi Day. Éva Wu met Kofi Day."

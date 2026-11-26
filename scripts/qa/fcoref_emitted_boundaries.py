@@ -54,6 +54,10 @@ def reshape(text, groups):
                 pattern = r'(?<!\w)(?=(' + re.escape(name) + r')(?!\w))'
                 for match in re.finditer(pattern, text[a:b]):
                     hit = a + match.start(1), a + match.end(1)
+                    left, right = hit
+                    if ((left and re.match(r"\w", text[left - 1])) or
+                            (right < len(text) and re.match(r"\w", text[right]))):
+                        continue
                     if hit != (a, b):
                         hits.add(hit)
             if len(hits) == 1:
