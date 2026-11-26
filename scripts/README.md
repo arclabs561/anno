@@ -23,17 +23,56 @@ the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.s
 
 ### Reproduce the dataset figures
 
-From the repository root, use Python with Matplotlib 3.6 or later. The first command surveys the registry's direct upstream links. The second plots the entries recorded in the resulting inventory. The last two commands read pinned WNUT-17 and GENIA inputs.
+Run from the repository root with Python 3 and Matplotlib 3.6 or later. The coverage, density and benchmark charts read checked-in ledgers and examples offline. Each registry ID counts once in the combined coverage chart even when several sources cover it. [Coverage findings and source ledgers](../docs/eval/dataset-coverage.md)
 
 ```sh
 out=.generated/dataset-figures
-python3 scripts/plot_datasets.py "$out"
-python3 scripts/plot_measurement_coverage.py "$out/anno-all.csv" "$out"
+ledgers=docs/eval
+mkdir -p "$out"
+python3 scripts/plot_measurement_coverage.py "$ledgers/dataset-figure-inventory.csv" "$out" \
+  --direct-files "$ledgers/dataset-direct-files.csv" \
+  --repo-files "$ledgers/dataset-repo-files.csv" \
+  --hf-splits "$ledgers/dataset-hf-splits.csv" \
+  --github-sources "$ledgers/dataset-github-sources.csv" \
+  --ci-prechecks "$ledgers/dataset-matrix-evidence.csv"
+python3 scripts/plot_density_ranges.py "$ledgers/dataset-figure-inventory.csv" "$out" \
+  --direct-files "$ledgers/dataset-direct-files.csv" \
+  --repo-files "$ledgers/dataset-repo-files.csv" \
+  --hf-splits "$ledgers/dataset-hf-splits.csv" \
+  --github-sources "$ledgers/dataset-github-sources.csv"
+python3 scripts/plot_benchmark_examples.py "$out"
+```
+
+The coverage generator writes `dataset-coverage.csv`, the combined `dataset-coverage` figure and the direct-reader `anno-selection` figure. The density generator writes `dataset-density-ranges.csv` and the `dataset-density` figure. The benchmark generator renders the JEREX benchmark chooser and the CrossRE prompt comparison. All three write PNG and SVG.
+
+**Annotation-level figures.** These commands read the pinned WNUT-17 and GENIA inputs. WNUT compares the development and registry-designated test mentions with training. GENIA verifies all three split files against their recorded SHA-256 digests.
+
+```sh
 python3 scripts/plot_wnut_novelty.py "$out"
 python3 scripts/plot_genia_nesting.py "$out"
 ```
 
-To reproduce the published coverage chart offline, pass `docs/eval/dataset-figure-inventory.csv` as the inventory. The WNUT script accepts `--data-dir` pointing to the pinned checkout, and the GENIA script accepts `--input` pointing to the pinned test file. Upstream file availability can change the coverage denominator on a fresh survey. When refreshing the guides, update the saved inventory and its caption together. Copy `anno-selection.png`, `wnut-novelty.png` and `anno-genia-nesting.png` from the output directory into `docs/eval/figures/`.
+For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE` for all three splits or `--input PATH_TO_GENIA_TEST_IOB2` for the original test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA file manifest](../docs/eval/dataset-repo-files.csv)
+
+**Refresh source measurements.** The direct survey also generates the task-tag, PII fixture, WikiGold/WNUT-16, token-density and MIT query figures. Install the system libarchive and the Python `libarchive-c` package to read the FINER RAR release. The Hugging Face scan requires `pyarrow`. The GitHub source and archived CI surveys use an authenticated `gh` CLI. Run the following with network access and the same `out` and `ledgers` variables as above.
+
+```sh
+python3 scripts/plot_datasets.py "$out"
+python3 scripts/survey_repo_files.py --manifest "$ledgers/dataset-repo-files.csv" \
+  --output "$out/dataset-repo-files.csv"
+python3 scripts/survey_hf_splits.py "$out/anno-all.csv" "$out/dataset-hf-splits.csv"
+python3 scripts/survey_github_sources.py --inventory "$out/anno-all.csv" \
+  --output "$out/dataset-github-sources.csv"
+python3 scripts/survey_matrix_evidence.py --limit 100 --output "$out/dataset-matrix-evidence.csv"
+```
+
+To rebuild coverage for this refresh, use `$out/anno-all.csv` as the inventory and the five new ledgers in `$out`. For replay, `survey_repo_files.py` already checks files against the supplied manifest. Add `--pins "$ledgers/dataset-github-sources.csv"` to the GitHub survey to select the recorded repository revisions. The following commands verify previously measured Hugging Face splits and rerun the recorded CI prechecks, subject to log availability.
+
+```sh
+python3 scripts/survey_hf_splits.py --replay "$ledgers/dataset-hf-splits.csv" "$out/hf-replay.csv"
+awk -F, 'NR > 1 && !seen[$1]++ {print "--run", $1}' "$ledgers/dataset-matrix-evidence.csv" | \
+  xargs python3 scripts/survey_matrix_evidence.py --output "$out/ci-replay.csv"
+```
 
 ### Official multilingual coreference scores
 

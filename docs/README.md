@@ -18,7 +18,8 @@ Run the [quickstart](QUICKSTART.md) for a first CLI or Rust extraction. Before s
 | Task | Guide |
 |---|---|
 | Choose a regression fixture, a labeled comparison or a live check | [Fixtures, datasets and QA](QA.md) |
-| Check which dataset formats and languages a measurement covers | [Registry and measured files](QA.md#which-datasets-do-the-token-counts-describe) |
+| Choose a benchmark for mention spans, clusters or directed relations | [Worked example](QA.md#find-a-dataset-or-add-a-case) |
+| Find the files and splits behind a figure and see which datasets were left out | [Dataset coverage and exclusions](eval/dataset-coverage.md) |
 | Compare extraction across labeled domains or test recognition of unfamiliar names | [Domain QA](DOMAIN_QA.md) · [WNUT-17 example](DOMAIN_QA.md#test-recognition-of-unfamiliar-names) |
 | Allocate evaluation runs under a fixed budget | [Evaluation sampling](EVALUATION_SAMPLING.md) |
 | Investigate a recurring failure or challenge a quality claim | [Adversarial QA runbook](ADVERSARIAL_QA.md) |

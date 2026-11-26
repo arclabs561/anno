@@ -2,6 +2,10 @@
 
 GLiNER-Relex received either a fixed vocabulary from the domain's 100 training sentences or the entity and relation labels occurring in each test sentence's gold relations. All four producer–prompt combinations predicted their own mention endpoints. Moving from the train vocabulary to the reference-conditioned prompt changed strict F1 by 32.2 percentage points on AI and 26.4 on literature. The comparison uses all 847 sentences and 2,787 gold relations in the two official test splits. [Measurements](crossre-full-prompt-comparison.json) · [Dataset paper](https://aclanthology.org/2022.findings-emnlp.263/)
 
+![GLiNER-Relex strict relation F1 rises from 24.1% to 56.3% on AI and from 32.3% to 58.7% on literature when the prompt receives the gold labels from each test sentence.](figures/crossre-prompts.png)
+
+Report the vocabulary available at prediction time when quoting a relation score. The fixed-prompt results are the relevant comparison for a caller who knows only the training labels.
+
 | Test domain | Producer | Prompt | Exact / predicted / gold | Strict P / R / F1 | Wall (s) | CPU (s) | Peak RSS (GiB) |
 |---|---|---|---:|---:|---:|---:|---:|
 | AI | GLiNER-Relex | Train inventory | 256 / 963 / 1164 | 26.6% / 22.0% / **24.1%** | 806.5 | 1323.7 | 2.80 |
@@ -25,6 +29,19 @@ The numerator is the count of one-to-one exact matches of directed head span, ta
 AI has 11 instances of `opposite` and one of `social` outside the train relation inventory. Literature has two of `usage`. A gold triplet with an unseen endpoint type can still match by its spans and relation label. GLiNER-Relex predicted 160 triplets on relation-free AI sentences and 181 on relation-free literature sentences with the fixed vocabulary. A document-gold prompt discloses that a sentence has no annotated relations. With an empty relation-label list, Relex emits no triplets. Removing only the gold-empty sentences from the fixed runs gives 26.0% strict F1 on AI and 34.0% on literature. This isolates the arithmetic effect of their false positives while leaving every gold triplet in the denominator.
 
 Neither domain has identical token sequences across its train and test files. AI contains one repeated test token sequence and one duplicate annotated triplet within a sentence. The full-split evaluation retains them. Both the native input/reference digest and the original file digests are recorded with the results. The native digest is identical across the four runs within each domain. [Pinned train and test files](https://github.com/mainlp/CrossRE/tree/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data)
+
+## Which other domains did the corpus survey cover?
+
+The corpus reader counted 5,265 sentences across train, development and test in all six CrossRE domains. Each token covered by one or more gold entity spans counts once. The news and music test files have nearly the same sentence count, yet music contains over five times as many entity-covered tokens. This changes the amount of annotated text a reviewer encounters. Estimating how the prompt affects relation F1 in the other four domains still requires paired predictions. [All 18 split files and SHA-256 digests](dataset-repo-files.csv)
+
+| Test domain | Sentences | Tokens inside gold entity spans / all tokens | Paired prompt scores |
+|---|---:|---:|---|
+| AI | 431 | 3,782 / 12,991 (29.1%) | Available above |
+| Literature | 416 | 5,318 / 16,157 (32.9%) | Available above |
+| Music | 399 | 6,870 / 17,099 (40.2%) | Unmeasured |
+| News | 400 | 1,344 / 5,134 (26.2%) | Unmeasured |
+| Politics | 400 | 6,156 / 16,531 (37.2%) | Unmeasured |
+| Science | 400 | 4,882 / 14,304 (34.1%) | Unmeasured |
 
 ## Reproduce the comparison
 

@@ -262,6 +262,10 @@ The candidate dropped 12 correct and nine wrong standalone highlights. In `posse
 
 ## Find a dataset or add a case
 
+Start with the output your application needs. A typed mention needs exact span and type labels. Resolving two mentions to the same person needs a gold mention cluster. Scoring a place-of-birth relation between people and places needs a directed predicate with both endpoints. The names in the figure are benchmarks for those three decisions. The passage itself comes from one checked-in Anno example. [JEREX fixture and predictions](../scripts/qa/joint_baseline) · [Joint extraction scoring](eval/joint-stage-baseline.md)
+
+![One JEREX example shows which typed mentions, mention cluster and directed relation WikiGold or WNUT-17, LitBank and DocRED can score respectively.](eval/figures/benchmark-chooser.png)
+
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
 
 ```sh
@@ -275,11 +279,11 @@ The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local pane
 
 ### Which datasets do the token counts describe?
 
-![Format and language shares across 462 registry entries, 43 entries with a readable upstream file, and 13 entries with token counts. Ten of the 13 measured entries use CoNLL.](eval/figures/anno-selection.png)
+The survey inventories every registered dataset and counts the records, tokens or annotations it could read. Use the first panel to see how many registry entries contribute. An entry can appear under several sources in the second panel. The [coverage report and exclusions](eval/dataset-coverage.md) identifies the files, languages and splits behind each count.
 
-Each bar counts dataset entries once, regardless of corpus size. The survey attempted 44 direct upstream links, read 43 files, and could count tokens from the BIO entity tags in 13. CoNLL accounts for 115 of the 462 registered entries and 10 of the 13 measured files. JSONL accounts for 127 registered entries and none of those 13. If your target corpus is among the JSONL entries, measure a labeled sample from it before using token density to estimate how many annotations a reviewer will see. [Per-entry inventory and token counts](eval/dataset-figure-inventory.csv)
+![All registry entries, entries with measured records and entries with tagged-token counts, followed by the contribution of each source.](eval/figures/dataset-coverage.png)
 
-The snapshot uses registry revision `d2e00aa`. To check which inputs your own evaluation can use, run `anno sampler eligibility --task ner --require-cached`. [Registry snapshot](https://github.com/arclabs561/anno/blob/d2e00aa/crates/anno-eval/src/eval/dataset_registry.rs) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
+Choose the split and annotation convention closest to your input before estimating review volume. For example, the WikiANN language and split measurements range from 9.1% of tokens marked as entities in Pashto training to 88.9% in Volapük test. The latter split has just 423 tokens. The report gives both endpoints and denominators for every measured entry. To see what the evaluator can load on your machine, run `anno sampler eligibility --task ner --require-cached`. [Annotation density by dataset](eval/dataset-coverage.md#how-much-of-the-text-carries-an-annotation) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
 
 ### Decide what to keep
 
