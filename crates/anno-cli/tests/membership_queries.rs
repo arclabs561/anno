@@ -27,7 +27,7 @@ fn explain_submitted_pair_from_cli() {
         sequence: 4,
         threshold: 0.7,
         require_type_match: true,
-        documents: ["a", "b"]
+        documents: ["-a", "b"]
             .into_iter()
             .map(|id| {
                 let mut document = GroundedDocument::new(id, "Kei");
@@ -58,7 +58,7 @@ fn explain_submitted_pair_from_cli() {
         serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap()
     };
     let full = json(&[]);
-    let result = json(&["--explain-pair", "b", "0", "a", "0"]);
+    let result = json(&["--explain-pair", "b", "0", "-a", "0"]);
     assert_eq!(result["checkpoint"], full["checkpoint"]);
     assert_eq!(result["left"]["key"], full["rows"][1][0]);
     assert_eq!(result["right"]["key"], full["rows"][0][0]);
@@ -71,20 +71,33 @@ fn explain_submitted_pair_from_cli() {
         result["decision"],
         json!({"outcome":"accepted", "basis":"word_jaccard", "similarity":1.0})
     );
+    assert_eq!(
+        json(&["--neighbors", "-a", "0"])["track"],
+        result["right"]["key"]
+    );
+    for repeated in [
+        vec!["--explain-pair", "-a", "0", "b", "0"],
+        vec!["--neighbors", "-a", "0"],
+    ] {
+        let output = query(&repeated.repeat(2));
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("cannot be used multiple times"));
+    }
     for args in [
-        vec!["--explain-pair", "a", "0", "b", "-1"],
-        vec!["--explain-pair", "a", "0", "b", "999"],
+        vec!["--explain-pair", "-a", "0", "b", "-1"],
+        vec!["--explain-pair", "-a", "0", "b", "999"],
         vec![
             "--explain-pair",
-            "a",
+            "-a",
             "0",
             "b",
             "0",
             "--neighbors",
-            "a",
+            "-a",
             "0",
         ],
-        vec!["--explain-pair", "a", "0", "b", "0", "--since", "-"],
+        vec!["--explain-pair", "-a", "0", "b", "0", "--since", "-"],
     ] {
         assert!(!query(&args).status.success(), "{args:?}");
     }
