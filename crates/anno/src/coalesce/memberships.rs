@@ -4,9 +4,12 @@
 //! denote current coreference membership, including transitive links. The catalog
 //! column is independently copied from each track's qualified assignment.
 
-use super::{resolver::PairMeasure, Resolver};
+use super::{
+    resolver::{compare_pair, CorefTrackType, PairDecision, PairMeasure},
+    Resolver,
+};
 use crate::core::grounded::html_source::source_sha256;
-use crate::publication::{IndexSnapshot, PublicationError};
+use crate::publication::{IndexCheckpoint, IndexSnapshot, PublicationError};
 use crate::{Corpus, GroundedDocument, Identity, TrackId, TrackRef};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -64,30 +67,8 @@ impl MembershipEdition {
     /// A merge, split or member-edition change invalidates every affected posting.
     /// Complete capture uses exhaustive native comparison. Applying a subsequent
     /// [delta](IndexSnapshot::changes_since) touches only removed or changed rows.
-    pub fn snapshot(mut self) -> Result<IndexSnapshot, MembershipError> {
-        let mut corpus = Corpus::new();
-        let mut revisions = BTreeMap::new();
-        self.documents
-            .sort_by(|a, b| a.document.id().cmp(b.document.id()));
-        for edition in self.documents {
-            let doc = edition.document;
-            if doc.id().trim().is_empty()
-                || corpus.get_document(doc.id()).is_some()
-                || edition
-                    .source_revision
-                    .as_ref()
-                    .is_some_and(|rev| rev.trim().is_empty())
-            {
-                return Err(MembershipError::Invalid(format!(
-                    "empty or duplicate document ID or empty revision for {:?}",
-                    doc.id()
-                )));
-            }
-            if let Some(revision) = edition.source_revision {
-                revisions.insert(doc.id().to_owned(), revision);
-            }
-            corpus.add_document(doc);
-        }
+    pub fn snapshot(self) -> Result<IndexSnapshot, MembershipError> {
+        let (mut corpus, revisions) = import_documents(self.documents)?;
         publish_memberships(
             &mut corpus,
             &self.stream,
@@ -97,6 +78,131 @@ impl MembershipEdition {
             &revisions,
         )
     }
+
+    /// Replay the direct decision for two distinct submitted tracks, and report whether
+    /// their final model component is shared. Evaluate against the full original edition.
+    pub fn explain_pair(
+        self,
+        left: &TrackRef,
+        right: &TrackRef,
+    ) -> Result<MembershipPair, MembershipError> {
+        if left == right {
+            return Err(MembershipError::Invalid(
+                "choose two distinct tracks".into(),
+            ));
+        }
+        let (mut corpus, revisions) = import_documents(self.documents)?;
+        // A fresh edition admits each document exactly once, so its submitted IDs are live.
+        let lookup = |r: &TrackRef| {
+            corpus
+                .get_document(&r.doc_id)
+                .and_then(|doc| doc.get_track(r.track_id).map(|t| (doc, t)))
+                .ok_or_else(|| {
+                    MembershipError::Invalid(format!(
+                        "unknown submitted track {} in {:?}",
+                        r.track_id, r.doc_id
+                    ))
+                })
+        };
+        let a = lookup(left)?;
+        let b = lookup(right)?;
+        let left_type = a.1.coref_type(a.0);
+        let right_type = b.1.coref_type(b.0);
+        let decision = compare_pair(a, b, self.threshold, self.require_type_match);
+        let snapshot = publish_memberships(
+            &mut corpus,
+            &self.stream,
+            self.sequence,
+            self.threshold,
+            self.require_type_match,
+            &revisions,
+        )?;
+        let row = |r: &TrackRef| {
+            let id = r.track_id.to_string();
+            snapshot
+                .rows()
+                .find(|(key, _)| key.first() == Some(&r.doc_id) && key.last() == Some(&id))
+                .ok_or_else(|| {
+                    MembershipError::Invalid(format!(
+                        "missing publication for track {} in {:?}",
+                        r.track_id, r.doc_id
+                    ))
+                })
+        };
+        let (left_key, a) = row(left)?;
+        let (right_key, b) = row(right)?;
+        Ok(MembershipPair {
+            checkpoint: snapshot.checkpoint().clone(),
+            left: MembershipPairTrack {
+                key: left_key.to_vec(),
+                entity_type: left_type,
+            },
+            right: MembershipPairTrack {
+                key: right_key.to_vec(),
+                entity_type: right_type,
+            },
+            threshold: self.threshold,
+            require_type_match: self.require_type_match,
+            decision,
+            same_component: a["component"].is_string() && a["component"] == b["component"],
+        })
+    }
+}
+
+/// One submitted track and the effective type available to the native resolver.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct MembershipPairTrack {
+    /// Full source address in the corresponding publication.
+    pub key: Vec<String>,
+    /// Known, unspecified or ambiguous track type.
+    pub entity_type: CorefTrackType,
+}
+
+/// An on-demand replay of one native direct pair and its resolved membership.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct MembershipPair {
+    /// Identifies the membership snapshot to which the answer applies.
+    pub checkpoint: IndexCheckpoint,
+    /// First submitted track.
+    pub left: MembershipPairTrack,
+    /// Second submitted track.
+    pub right: MembershipPairTrack,
+    /// Inclusive threshold for admission.
+    pub threshold: f32,
+    /// Whether effective track types must match.
+    pub require_type_match: bool,
+    /// Outcome of the direct comparison.
+    pub decision: PairDecision,
+    /// True if both source rows belong to the same non-null model component.
+    pub same_component: bool,
+}
+
+fn import_documents(
+    mut documents: Vec<MembershipDocument>,
+) -> Result<(Corpus, BTreeMap<String, String>), MembershipError> {
+    let mut corpus = Corpus::new();
+    let mut revisions = BTreeMap::new();
+    documents.sort_by(|a, b| a.document.id().cmp(b.document.id()));
+    for edition in documents {
+        let doc = edition.document;
+        if doc.id().trim().is_empty()
+            || corpus.get_document(doc.id()).is_some()
+            || edition
+                .source_revision
+                .as_ref()
+                .is_some_and(|rev| rev.trim().is_empty())
+        {
+            return Err(MembershipError::Invalid(format!(
+                "empty or duplicate document ID or empty revision for {:?}",
+                doc.id()
+            )));
+        }
+        if let Some(revision) = edition.source_revision {
+            revisions.insert(doc.id().to_owned(), revision);
+        }
+        corpus.add_document(doc);
+    }
+    Ok((corpus, revisions))
 }
 
 pub(super) fn validate_source_tracks(doc: &GroundedDocument) -> Result<(), MembershipError> {

@@ -114,3 +114,46 @@ fn repeated_segmented_mentions_keep_their_ranges_in_each_revision() {
         assert_eq!(read_rows(&temp.path().join(copy)), records);
     }
 }
+
+#[test]
+fn import_identifies_the_second_speaker_by_revision_and_offset() {
+    let tmp = tempfile::tempdir().unwrap();
+    for (revision, text, expected_start) in [
+        ("v1", "😀 Ada agreed.\nAda objected.", 14),
+        ("v2", "Ada objected.\n😀 Ada agreed.", 0),
+    ] {
+        let doc = tmp.path().join(revision);
+        fs::create_dir(&doc).unwrap();
+        fs::write(doc.join("source.txt"), text).unwrap();
+        let ann = format!("{revision}/source.ann");
+        fs::write(
+            tmp.path().join(&ann),
+            format!("T1\tPER {expected_start} {}\tAda\n", expected_start + 3),
+        )
+        .unwrap();
+        run(
+            tmp.path(),
+            &[
+                "dataset",
+                "import",
+                "--format",
+                "brat",
+                "--input",
+                &ann,
+                "--output",
+                "rows.jsonl",
+                "--include-text",
+            ],
+        );
+        let rows = read_rows(&tmp.path().join("rows.jsonl"));
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row["source"], ann);
+        assert_eq!(row["text"], "Ada");
+        let start = row["start"].as_u64().unwrap() as usize;
+        assert_eq!(
+            text.chars().skip(start).take(12).collect::<String>(),
+            "Ada objected"
+        );
+    }
+}
