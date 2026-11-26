@@ -77,7 +77,7 @@ AnatEM,disi-unibo-nlp/AnatEM,ee3afc2f987f46df29de26c75d3317d129d9776f,e6fb754c15
 AnatEM,disi-unibo-nlp/AnatEM,ee3afc2f987f46df29de26c75d3317d129d9776f,e6fb754c15db569bde7e08a37ec333e7c44799a9,default,train,scanned,5861,,,5861,153823,11828,,,,,
 AnatEM,disi-unibo-nlp/AnatEM,ee3afc2f987f46df29de26c75d3317d129d9776f,e6fb754c15db569bde7e08a37ec333e7c44799a9,default,validation,scanned,2118,,,2118,58785,3553,,,,,
 AstroBERTCorpus,https://huggingface.co/adsabs/astroBERT,,,,,excluded,,,,,,,Hub link identifies a model or organization,,,,
-B2NERD,Umean/B2NERD,290e7f34c3b7e13962765e1f7a0c777695c28f03,,,,unavailable,,,,,,,No provider split metadata,,,,
+B2NERD,Umean/B2NERD,290e7f34c3b7e13962765e1f7a0c777695c28f03,,,,unavailable,,,,,,,Incomplete provider info response,,,,
 BC2GM,spyysalo/bc2gm_corpus,dc0640510665bb3de7c88416ede4708cf6481b61,7b92e31bd2c66eb7cfcdc4fb58a9ea23805c26eb,bc2gm_corpus,test,scanned,5000,,,5000,143465,15101,,,,,
 BC2GM,spyysalo/bc2gm_corpus,dc0640510665bb3de7c88416ede4708cf6481b61,7b92e31bd2c66eb7cfcdc4fb58a9ea23805c26eb,bc2gm_corpus,train,scanned,12500,,,12500,355405,37301,,,,,
 BC2GM,spyysalo/bc2gm_corpus,dc0640510665bb3de7c88416ede4708cf6481b61,7b92e31bd2c66eb7cfcdc4fb58a9ea23805c26eb,bc2gm_corpus,validation,scanned,2500,,,2500,71042,7498,,,,,
