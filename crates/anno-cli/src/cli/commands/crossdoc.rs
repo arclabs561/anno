@@ -49,7 +49,7 @@ pub struct CrossDocArgs {
     #[arg(short, long, default_value = "0.6", value_parser = super::parse_similarity_threshold)]
     pub threshold: f64,
 
-    /// Raw directory candidate generation (default: exhaustive up to 100 documents, then lsh)
+    /// Raw directory candidate generation (default: exhaustive up to 100 extracted mentions, then lsh)
     #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
     pub candidates: Option<CandidateMode>,
 
@@ -393,6 +393,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
     let candidate_mode;
+    let doc_count;
+    let total_entities: usize;
     let mut delivery_outcomes = Vec::new();
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
@@ -408,7 +410,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 import_deliveries(&args.delivery_manifest, &mut corpus, &mut doc_paths)?;
         }
 
-        let doc_count = corpus.documents().count();
+        doc_count = corpus.documents().count();
+        total_entities = corpus.documents().map(|doc| doc.signals().len()).sum();
         if doc_count == 0 {
             return Err(
                 "No GroundedDocuments imported. Check import paths or stdin input.".to_string(),
@@ -416,11 +419,10 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         }
 
         if args.verbose {
-            let total_signals: usize = corpus.documents().map(|d| d.stats().signal_count).sum();
             let total_tracks: usize = corpus.documents().map(|d| d.stats().track_count).sum();
             eprintln!(
                 "Imported {} documents with {} signals, {} tracks",
-                doc_count, total_signals, total_tracks
+                doc_count, total_entities, total_tracks
             );
         }
 
@@ -545,19 +547,14 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             eprintln!("\r  Processed {} files successfully", total_files);
         }
 
+        doc_count = documents.len();
+        total_entities = documents.iter().map(|doc| doc.entities.len()).sum();
         if args.verbose {
-            eprintln!(
-                "Clustering {} entities across {} documents...",
-                documents
-                    .iter()
-                    .map(|doc| doc.entities.len())
-                    .sum::<usize>(),
-                documents.len()
-            );
+            eprintln!("Clustering {total_entities} entities across {doc_count} documents...");
         }
 
-        // Configure and run cross-doc coref using CDCRResolver (for raw text files)
-        candidate_mode = args.candidates.unwrap_or(if documents.len() > 100 {
+        // Exhaustive generation visits every mention pair, including within a document.
+        candidate_mode = args.candidates.unwrap_or(if total_entities > 100 {
             CandidateMode::Lsh
         } else {
             CandidateMode::Exhaustive
@@ -628,24 +625,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     // Use clusters from Corpus if available, otherwise use CDCR clusters
     let final_clusters: Vec<CrossDocCluster> = clusters_from_corpus
         .ok_or_else(|| "No clusters generated. This should not happen.".to_string())?;
-
-    let (doc_count, total_entities) = if use_corpus {
-        (
-            corpus.documents().count(),
-            corpus
-                .documents()
-                .map(|doc| doc.signals().len())
-                .sum::<usize>(),
-        )
-    } else {
-        (
-            documents.len(),
-            documents
-                .iter()
-                .map(|doc| doc.entities.len())
-                .sum::<usize>(),
-        )
-    };
 
     let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
     let singleton_clusters = || final_clusters.iter().filter(|c| c.len() == 1).count();

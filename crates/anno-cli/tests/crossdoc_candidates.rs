@@ -42,14 +42,7 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
             fs::write(dir.join("one-more.txt"), "quiet.").unwrap();
         }
         for (requested, actual) in [
-            (
-                None,
-                if doc_count == 100 {
-                    "exhaustive"
-                } else {
-                    "lsh"
-                },
-            ),
+            (None, "exhaustive"),
             (Some("exhaustive"), "exhaustive"),
             (Some("lsh"), "lsh"),
         ] {
@@ -77,6 +70,22 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
                     .all(|c| c["mentions"].as_array().unwrap().len() == 1));
             }
         }
+    }
+}
+
+#[test]
+fn raw_auto_mode_counts_mentions_in_a_single_document() {
+    let tmp = tempfile::tempdir().unwrap();
+    for (mentions, expected) in [(100, "exhaustive"), (101, "lsh")] {
+        fs::write(
+            tmp.path().join("contacts.txt"),
+            "reader@example.org\n".repeat(mentions),
+        )
+        .unwrap();
+        let result = report(tmp.path(), &[".", "--model", "pattern"]);
+        assert_eq!(result["metadata"]["documents_processed"], 1);
+        assert_eq!(result["metadata"]["total_entities"], mentions);
+        assert_eq!(result["metadata"]["candidate_mode"], expected);
     }
 }
 
