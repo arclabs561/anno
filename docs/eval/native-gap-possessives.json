@@ -1,0 +1,513 @@
+{
+  "revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "validation_sha256": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98",
+  "test_sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+  "removed_shared_test_url_rows": 0,
+  "distinct_urls": 328,
+  "ids_sha256": "ee20a391bbc3cc6e2665a2f838d7789667236d8e49a4d09f767aff46182a4eeb",
+  "baseline": {
+    "counts": {
+      "documents": 454,
+      "gold_links": 392,
+      "predicted_links": 67,
+      "tp": 27,
+      "fp": 40,
+      "fn": 365,
+      "tn": 476,
+      "exact_decisions": 80,
+      "gold_both_covered": 48,
+      "eligible_pairs": 111,
+      "all_output_spans": 2691,
+      "linked_output_span_coverage_pronoun_A_B": [
+        240,
+        48,
+        111
+      ],
+      "precision": 0.402985,
+      "recall": 0.068878,
+      "f1": 0.117647
+    },
+    "proposed_both_gold": 211
+  },
+  "candidate": {
+    "counts": {
+      "documents": 454,
+      "gold_links": 392,
+      "predicted_links": 68,
+      "tp": 27,
+      "fp": 41,
+      "fn": 365,
+      "tn": 475,
+      "exact_decisions": 80,
+      "gold_both_covered": 50,
+      "eligible_pairs": 118,
+      "all_output_spans": 2798,
+      "linked_output_span_coverage_pronoun_A_B": [
+        241,
+        58,
+        123
+      ],
+      "precision": 0.397059,
+      "recall": 0.068878,
+      "f1": 0.117391
+    },
+    "proposed_both_gold": 238
+  },
+  "changed_target_rows": [
+    {
+      "id": "validation-15",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-18",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10101",
+      "output_after": "10101"
+    },
+    {
+      "id": "validation-39",
+      "proposed_before": "100",
+      "proposed_after": "110",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-59",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-68",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10101"
+    },
+    {
+      "id": "validation-87",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-90",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-92",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "01000",
+      "output_after": "01100"
+    },
+    {
+      "id": "validation-104",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-105",
+      "proposed_before": "111",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "11000"
+    },
+    {
+      "id": "validation-106",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11000",
+      "output_after": "11000"
+    },
+    {
+      "id": "validation-116",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-118",
+      "proposed_before": "100",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-127",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11000",
+      "output_after": "11100"
+    },
+    {
+      "id": "validation-130",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "10101"
+    },
+    {
+      "id": "validation-137",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-141",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-142",
+      "proposed_before": "100",
+      "proposed_after": "110",
+      "output_before": "10000",
+      "output_after": "11000"
+    },
+    {
+      "id": "validation-143",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-147",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-153",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-154",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-161",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-165",
+      "proposed_before": "110",
+      "proposed_after": "110",
+      "output_before": "00000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-175",
+      "proposed_before": "101",
+      "proposed_after": "101",
+      "output_before": "10000",
+      "output_after": "10100"
+    },
+    {
+      "id": "validation-181",
+      "proposed_before": "101",
+      "proposed_after": "101",
+      "output_before": "10101",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-183",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11010",
+      "output_after": "11010"
+    },
+    {
+      "id": "validation-204",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-208",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-213",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-218",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-225",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-227",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "01000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-231",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10101",
+      "output_after": "10101"
+    },
+    {
+      "id": "validation-249",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10100",
+      "output_after": "11100"
+    },
+    {
+      "id": "validation-257",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-260",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10101",
+      "output_after": "10101"
+    },
+    {
+      "id": "validation-261",
+      "proposed_before": "100",
+      "proposed_after": "110",
+      "output_before": "00000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-264",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11000",
+      "output_after": "11000"
+    },
+    {
+      "id": "validation-266",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-275",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-290",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-296",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "00100",
+      "output_after": "01100"
+    },
+    {
+      "id": "validation-299",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-316",
+      "proposed_before": "100",
+      "proposed_after": "110",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-326",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-331",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-332",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11010",
+      "output_after": "11010"
+    },
+    {
+      "id": "validation-333",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-339",
+      "proposed_before": "100",
+      "proposed_after": "110",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-340",
+      "proposed_before": "101",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-342",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10100",
+      "output_after": "10100"
+    },
+    {
+      "id": "validation-370",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-374",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-376",
+      "proposed_before": "100",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-388",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-393",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-403",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00000"
+    },
+    {
+      "id": "validation-409",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10000"
+    },
+    {
+      "id": "validation-410",
+      "proposed_before": "111",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-434",
+      "proposed_before": "110",
+      "proposed_after": "111",
+      "output_before": "11000",
+      "output_after": "11000"
+    },
+    {
+      "id": "validation-438",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "00000",
+      "output_after": "01000"
+    },
+    {
+      "id": "validation-445",
+      "proposed_before": "100",
+      "proposed_after": "101",
+      "output_before": "00000",
+      "output_after": "00100"
+    },
+    {
+      "id": "validation-448",
+      "proposed_before": "101",
+      "proposed_after": "111",
+      "output_before": "00100",
+      "output_after": "01100"
+    },
+    {
+      "id": "validation-450",
+      "proposed_before": "111",
+      "proposed_after": "111",
+      "output_before": "10000",
+      "output_after": "10100"
+    }
+  ]
+}

@@ -16,6 +16,8 @@ The published GAP test split contains Wikipedia excerpts annotated for two decis
 
 On the same GAP excerpts, raw Maverick got both decisions right on 7 cases where FCoref missed at least one. FCoref got both right on 2 cases where Maverick missed. They both got the two decisions right on 80 cases. Coverage explains most of the missed links. Maverick linked 76 of the 77 true pairs whose exact endpoints appeared in its raw output. FCoref linked 73 of 76. Native raw mention-ranking returned both endpoints of only eight true pairs and linked six.
 
+A native stage replay distinguishes exact proposal misses from ranking and cluster output, and reconciles the observable errors for each neural arm. [GAP loss attribution](native-gap-loss.md)
+
 ## LitBank cluster quality
 
 The panel uses all ten works in the public fold-0 test partition. Each excerpt begins at the start of the annotated passage and ends at the last complete sentence within 180 source tokens. We chose that cap before model inference to keep the English documents inside the short-context comparison. Every token is matched against the original source in order. Only intervening whitespace may be skipped. The raw source prefix, including line breaks and punctuation, is the actual model input. No prose is redistributed in the receipt. [Pinned test split](https://huggingface.co/datasets/coref-data/litbank_indiscrim/tree/58b5fdd88d139b17ffd75365a5e1ec5b53b8dd43/split_0) · [Bamman, Lewke and Mansoor, LitBank annotations and CC BY 4.0 terms](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8)
