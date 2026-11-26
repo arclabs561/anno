@@ -407,7 +407,7 @@ pub(crate) fn relation_iri(base_uri: &str, label: &str) -> String {
 /// A relation owns cloned endpoint entities, so pointer identity is unavailable.
 /// Match the stable mention identity instead. When duplicate entities still share
 /// that identity, omit the relation rather than binding it arbitrarily.
-pub(crate) fn resolved_relations<'a>(
+pub fn resolved_relations<'a>(
     entities: &'a [Entity],
     relations: &'a [Relation],
 ) -> impl Iterator<Item = (&'a Relation, usize, usize)> {
@@ -625,6 +625,26 @@ pub fn to_graph_csv(
     source_label: &str,
     include_confidence: bool,
 ) -> (String, String) {
+    graph_csv(entities, relations, source_label, include_confidence, true)
+}
+
+/// Write recorded edges only, including a header-only edge table when none were recorded.
+pub fn to_recorded_graph_csv(
+    entities: &[Entity],
+    relations: &[Relation],
+    source_label: &str,
+    include_confidence: bool,
+) -> (String, String) {
+    graph_csv(entities, relations, source_label, include_confidence, false)
+}
+
+fn graph_csv(
+    entities: &[Entity],
+    relations: &[Relation],
+    source_label: &str,
+    include_confidence: bool,
+    cooccurrence: bool,
+) -> (String, String) {
     let entity_ids: Vec<String> = entities
         .iter()
         .enumerate()
@@ -673,7 +693,7 @@ pub fn to_graph_csv(
                 rel.confidence,
             ));
         }
-    } else {
+    } else if cooccurrence {
         const COOCCUR_WINDOW: usize = 200;
         for (i, a) in entities.iter().enumerate() {
             for (j, b) in entities.iter().enumerate().skip(i + 1) {

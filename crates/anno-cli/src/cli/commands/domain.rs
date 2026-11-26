@@ -12,6 +12,7 @@ use super::super::parser::ModelBackend;
 
 /// Analyze text for potential domain shift
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "input"])))]
 pub struct DomainArgs {
     /// Input file or text
     #[arg(short, long)]
@@ -26,7 +27,7 @@ pub struct DomainArgs {
     pub model: ModelBackend,
 
     /// Output format (human, json)
-    #[arg(long, default_value = "human")]
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     pub format: String,
 
     /// Quiet mode

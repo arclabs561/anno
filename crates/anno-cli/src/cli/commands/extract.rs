@@ -4,7 +4,8 @@ mod html_source;
 mod input_map;
 use html_source::MappedHtml;
 
-use clap::Parser;
+use super::export::ExportFormat;
+use clap::{Parser, ValueEnum};
 use std::fs;
 use std::time::Instant;
 
@@ -28,6 +29,7 @@ use xxhash_rust::xxh3::{xxh3_64, Xxh3Default};
 
 /// Extract entities from text
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "file", "positional", "url"]).multiple(false)))]
 pub struct ExtractArgs {
     /// Input text to process
     #[arg(short, long)]
@@ -88,7 +90,7 @@ pub struct ExtractArgs {
     pub expected_types: Option<String>,
 
     /// Output format
-    #[arg(long, value_name = "FORMAT")]
+    #[arg(long, value_name = "FORMAT", value_parser = super::super::parser::output_formats(&["human", "json", "jsonl", "tsv", "inline", "grounded", "brat"]))]
     pub format: Option<OutputFormat>,
 
     /// Include a character context window around each extracted entity (adds `context_before` / `context_after`)
@@ -99,7 +101,7 @@ pub struct ExtractArgs {
     #[arg(long)]
     pub include_sentence: bool,
 
-    /// Export GroundedDocument JSON to file
+    /// Destination file for document JSON, or directory for interchange formats
     #[arg(long, value_name = "PATH")]
     pub export: Option<String>,
 
@@ -128,7 +130,7 @@ pub struct ExtractArgs {
     #[arg(long)]
     pub detect_lang: bool,
 
-    /// Export format when using --export (full, signals, minimal)
+    /// Saved document layout (full, signals, minimal) or interchange writer (brat, conll, jsonl, graph-csv, ntriples, jsonld)
     #[arg(long, default_value = "full", value_name = "FORMAT")]
     pub export_format: String,
 
@@ -148,7 +150,6 @@ pub struct ExtractArgs {
     #[arg(short, long)]
     pub quiet: bool,
 
-    /// Positional text argument
     /// Positional text input (alternative to --text or --file)
     pub positional: Vec<String>,
 }
@@ -175,12 +176,33 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     } else {
         args.format.unwrap_or_default()
     };
+    if matches!(
+        format,
+        OutputFormat::Html | OutputFormat::Tree | OutputFormat::Summary
+    ) {
+        return Err(CliError::from("Unsupported extraction format in profile. Override --format or use anno debug --html for an HTML report."));
+    }
     // Level 1 (Signal): Raw entity extraction from single document
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
     // - `debug --link-kb` attaches demo identities (debug-only; offline)
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
+    let interchange = if matches!(format, OutputFormat::Brat) {
+        if args.export.is_none() || !matches!(args.export_format.as_str(), "full" | "brat") {
+            return Err(CliError::from(
+                "--format brat requires --export DIR and the brat writer",
+            ));
+        }
+        Some(ExportFormat::Brat)
+    } else if matches!(args.export_format.as_str(), "full" | "signals" | "minimal") {
+        None
+    } else {
+        Some(ExportFormat::from_str(&args.export_format, false).map_err(CliError::from)?)
+    };
+    if args.export.is_none() && args.export_format != "full" {
+        return Err(CliError::from("--export-format requires --export PATH"));
+    }
     // Resolve input: URL, file, text, or stdin
     let needs_source_map = matches!(
         format,
@@ -714,21 +736,15 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 )));
             }
         }
+        OutputFormat::Brat => {} // Published below alongside the other interchange formats.
         OutputFormat::Grounded => {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&doc).map_err(CliError::from)?
             );
         }
-        OutputFormat::Html => {
-            return Err(CliError::from(
-                "HTML format not supported for extract command. Use 'debug --format html' instead.",
-            ));
-        }
-        OutputFormat::Tree | OutputFormat::Summary => {
-            return Err(CliError::from(
-                "Tree/Summary formats are only available for cross-doc command.",
-            ));
+        OutputFormat::Html | OutputFormat::Tree | OutputFormat::Summary => {
+            unreachable!("format was validated before extraction")
         }
         OutputFormat::Inline => {
             print_annotated_signals(&text, doc.signals());
@@ -806,7 +822,9 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     }
 
     // Export to file if requested
-    if let Some(export_path) = &args.export {
+    if let (Some(directory), Some(writer)) = (&args.export, interchange) {
+        super::export::write_extraction(&doc, args.file.as_deref(), directory.as_ref(), writer)?;
+    } else if let Some(export_path) = &args.export {
         let export_data = match args.export_format.as_str() {
             "full" => serde_json::to_value(&doc).map_err(CliError::from)?,
             "signals" => {
@@ -1130,13 +1148,13 @@ fn get_sentence_for_span(text: &str, start: usize, end: usize) -> String {
         .to_string()
 }
 
-fn entity_id_prefix(text: &str) -> Xxh3Default {
+pub(super) fn entity_id_prefix(text: &str) -> Xxh3Default {
     let mut prefix = Xxh3Default::new();
     prefix.update(text.as_bytes());
     prefix
 }
 
-fn compute_entity_id(
+pub(super) fn compute_entity_id(
     prefix: &Xxh3Default,
     surface: &str,
     label: &str,

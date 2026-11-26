@@ -15,6 +15,7 @@ use super::super::parser::ModelBackend;
 
 /// Export entities with context windows
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "input"])))]
 pub struct ContextArgs {
     /// Input file or text
     #[arg(short, long)]

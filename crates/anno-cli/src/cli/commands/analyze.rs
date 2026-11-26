@@ -10,6 +10,7 @@ use std::time::Instant;
 
 /// Deep analysis with multiple models
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "file", "positional"]).multiple(false)))]
 pub struct AnalyzeArgs {
     /// Input text to process
     #[arg(short, long)]
@@ -19,7 +20,6 @@ pub struct AnalyzeArgs {
     #[arg(short, long, value_name = "PATH")]
     pub file: Option<String>,
 
-    /// Positional text argument
     /// Positional text input
     pub positional: Vec<String>,
 }
@@ -64,7 +64,9 @@ pub fn run(args: AnalyzeArgs) -> Result<(), String> {
     for backend in &backends {
         let model = backend.create_model()?;
         let start = Instant::now();
-        let entities = model.extract_entities(&text, None).unwrap_or_default();
+        let entities = model
+            .extract_entities(&text, None)
+            .map_err(|e| format!("{} extraction failed: {e}", model.name()))?;
         let elapsed = start.elapsed();
 
         println!("{}:", color("1;33", backend.name()));

@@ -56,48 +56,14 @@ pub enum ModelsAction {
 
 fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
     use super::super::parser::ModelBackend;
-    match s.to_lowercase().as_str() {
-        "pattern" | "regex" => Some(ModelBackend::Pattern),
-        "heuristic" | "statistical" => Some(ModelBackend::Heuristic),
-        "minimal" => Some(ModelBackend::Minimal),
-        "auto" => Some(ModelBackend::Auto),
-        "stacked" => Some(ModelBackend::Stacked),
-        "crf" => Some(ModelBackend::Crf),
-        "hmm" => Some(ModelBackend::Hmm),
-        "ensemble" => Some(ModelBackend::Ensemble),
-        "heuristic-crf" | "heuristic_crf" => Some(ModelBackend::HeuristicCrf),
-        #[cfg(feature = "heuristic-fr")]
-        "heuristic-fr" | "heuristic_fr" => Some(ModelBackend::HeuristicFr),
-        "tplinker" | "tplink" => Some(ModelBackend::Tplinker),
-        "universal-ner" | "universal_ner" | "universalner" => Some(ModelBackend::UniversalNer),
-        #[cfg(feature = "onnx")]
-        "gliner" | "gliner_onnx" => Some(ModelBackend::Gliner),
-        #[cfg(feature = "onnx")]
-        "gliner_multitask" => Some(ModelBackend::GlinerMultitask),
-        #[cfg(feature = "gliner2-fastino")]
-        "gliner25" => Some(ModelBackend::Gliner25),
-        #[cfg(feature = "onnx")]
-        "nuner" => Some(ModelBackend::Nuner),
-        #[cfg(feature = "onnx")]
-        "w2ner" => Some(ModelBackend::W2ner),
-        #[cfg(feature = "onnx")]
-        "bert-onnx" | "bert_onnx" | "bert" => Some(ModelBackend::BertOnnx),
-        #[cfg(feature = "onnx")]
-        "deberta-v3" | "deberta_v3" | "deberta" => Some(ModelBackend::DebertaV3),
-        #[cfg(feature = "onnx")]
-        "biomedical" | "biomedical-ner" | "biomedical_ner" => Some(ModelBackend::Biomedical),
-        #[cfg(feature = "onnx")]
-        "gliner-pii" | "gliner_pii" | "pii" => Some(ModelBackend::GlinerPii),
-        #[cfg(feature = "onnx")]
-        "gliner-relex" | "gliner_relex" | "relex" => Some(ModelBackend::GlinerRelex),
-        #[cfg(feature = "onnx")]
-        "gliner-poly" | "gliner_poly" => Some(ModelBackend::GlinerPoly),
-        #[cfg(feature = "candle")]
-        "gliner-candle" | "gliner_candle" => Some(ModelBackend::GlinerCandle),
-        #[cfg(feature = "candle")]
-        "candle-ner" | "candle_ner" => Some(ModelBackend::CandleNer),
-        _ => None,
-    }
+    use clap::ValueEnum;
+    let normalized = s.to_ascii_lowercase().replace('_', "-");
+    let cli_name = match normalized.as_str() {
+        "universalner" => "universal-ner",
+        "gliner-onnx" => "gliner",
+        other => other,
+    };
+    ModelBackend::from_str(cli_name, true).ok()
 }
 
 /// Resolve a CLI spelling to the catalog entry used for informational output.

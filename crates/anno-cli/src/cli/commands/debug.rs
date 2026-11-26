@@ -16,6 +16,7 @@ use anno::ingest::DocumentPreprocessor;
 
 /// Generate HTML debug visualization
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "file", "positional", "url"]).multiple(false)))]
 pub struct DebugArgs {
     /// Input text to process
     #[arg(short, long)]
@@ -65,7 +66,7 @@ pub struct DebugArgs {
     #[arg(long, default_value = "full", value_name = "FORMAT")]
     pub export_format: String,
 
-    /// Write output to file (default: stdout)
+    /// Write the HTML report to this file (--html or a .html filename)
     #[arg(short, long, value_name = "PATH")]
     pub output: Option<String>,
 
@@ -100,6 +101,13 @@ pub struct DebugArgs {
 
 /// Execute the debug command.
 pub fn run(args: DebugArgs) -> Result<(), String> {
+    if args
+        .output
+        .as_ref()
+        .is_some_and(|p| !args.html && !p.ends_with(".html"))
+    {
+        return Err("--output writes HTML. Use --html or a destination ending in .html".into());
+    }
     // Level 1 + 2 (Signal → Track): Entity extraction + within-document coreference
     // With --link-kb: attach demo identities to tracks (debug-only, offline).
 

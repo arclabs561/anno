@@ -35,7 +35,7 @@ pub struct EnhanceArgs {
     pub export_format: String,
 
     /// Output format for display
-    #[arg(long, default_value = "human")]
+    #[arg(long, default_value = "human", value_parser = super::super::parser::output_formats(&["human", "json", "grounded"]))]
     pub format: OutputFormat,
 
     /// Suppress status messages
@@ -49,6 +49,12 @@ pub struct EnhanceArgs {
 
 /// Execute the enhance command.
 pub fn run(args: EnhanceArgs) -> Result<(), String> {
+    if !matches!(
+        args.format,
+        OutputFormat::Human | OutputFormat::Json | OutputFormat::Grounded
+    ) {
+        return Err("enhance supports --format human, json, grounded".into());
+    }
     // Load GroundedDocument from file or stdin
     let json_content = if args.input == "-" {
         let mut buf = String::new();
