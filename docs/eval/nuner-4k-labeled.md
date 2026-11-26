@@ -34,6 +34,30 @@ At threshold 0.5, 27 of 8,412 word–label decisions changed. The largest absolu
 
 Paired sentence bootstrap intervals (10,000 resamples, 95% percentile, QUInt8 minus FP32 in F1 points) span -2.7 to +3.0 on the ordinary English panel and +0.0 to +10.8 on the non-ASCII English panel. Each packed group has only one constructed input. These panels cannot establish a population-wide accuracy ranking.
 
+## Where the remaining errors come from
+
+At threshold 0.5, both graphs missed the **same 50 labeled mentions**. FP32 alone missed two others and QUInt8 alone missed one. Both graphs also produced 32 identical extra span–label triples. Another 17 extras were unique to FP32 and 13 to QUInt8. Changing one boundary can remove one arm's extra and add a different extra to the other arm.
+
+| Disagreement against the three reference classes | FP32 extras | QUInt8 extras | FP32 misses | QUInt8 misses |
+|---|---:|---:|---:|---:|
+| Exact boundaries, different type | 2 | 5 | 2 | 5 |
+| Overlap, same type, different boundaries | 18 | 15 | 18 | 15 |
+| Overlap, different boundaries and type | 4 | 2 | 2 | 1 |
+| No overlap | 25 | 23 | 30 | 30 |
+| Total | 49 | 45 | 52 | 51 |
+
+Each extra is classified against all reference spans in its input. Each miss is classified independently against all predictions. The rows above give the order of precedence when multiple spans overlap. This counts split predictions individually and keeps the published precision and recall denominators. Of the 30 no-overlap misses in each arm, 28 came from the out-of-language Russian pack.
+
+Inspection of the original English BIO rows explains several distinct cases. Row IDs below are zero-based.
+
+- **A boundary convention affected both arms.** At row 8179 both returned “Maestro Ryan Cayabyab” for the reference person “Ryan Cayabyab”. Exact scoring charges one extra and one miss even though both graphs located the person.
+- **Several extras are generic mentions.** At row 1103 both graphs labeled “cyclists” and “men” as people. Row 4443 has the FP32-only “He”. These mentions can refer to people, but they are outside this named-entity task.
+- **An exact surface can still have the wrong type.** At row 2006 FP32 correctly labeled “Tropicana” as an organization in a sentence about competing juice brands. QUInt8 kept the span and labeled it as a location. At row 736 both called “Valencia” a location. The reference labels it an organization in a football match, where a team and its home city share a name.
+- **An overlap can hide a split.** Both arms split the location “San Pablo Bay National Wildlife Refuge” at row 12680. Each produced a shorter location and a separate organization. A one-to-one alignment alone would hide the second extra.
+- **Reference scope limits interpretation.** At row 2050 the reference marks “Lydbrook”, while both arms predict “Lydbrook valley” as a location. The ledger establishes a boundary disagreement. Deciding which span is preferable for a geographic index requires an annotation rule for physical features. The benchmark contains no adjudication for that downstream purpose. We retained its labels and scores.
+
+Reproduce every cell and its per-group, per-arm breakdown with `python scripts/qa/nuner_error_analysis.py docs/eval/nuner-4k-labeled.json`. The script checks its FP and FN totals against all eight group/model ledgers. [Paired ledger](nuner-4k-labeled.json) · [MultiNERD test files](https://huggingface.co/datasets/Babelscape/multinerd/tree/2814b78e7af4b5a1f1886fe7ad49632de4d9dd25/test)
+
 ## Resource measurements
 
 | Graph | ONNX file (MiB) | Session load (s) | Process peak RSS (MiB) | Median English sentence (s) | English pack (s) | Russian pack (s) |
