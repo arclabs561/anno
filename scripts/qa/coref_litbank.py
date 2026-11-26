@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from coref_gap import check_file, index_partition
+from coref_gap import check_file, decode_clusters, index_partition
 
 REVISION = "58b5fdd88d139b17ffd75365a5e1ec5b53b8dd43"
 SHA256 = "eeda5569e3d86bb46e0bf867603b0ea0061c02792c07ca185f8dc3431b4bbb43"
@@ -169,13 +169,9 @@ def main():
         docs, raw.splitlines(), strict=True
     ):
         r = json.loads(record)
-        if r["id"] != k or r["producer"] != args.backend:
-            raise ValueError("producer/document mismatch")
-        if (
-            r.get("unsupported") == "supplied_span_splits_token"
-            and args.mode == "supplied"
-            and args.backend == "maverick"
-        ):
+        supplied = index_partition(gold) if args.mode == "supplied" else None
+        predicted = decode_clusters(r, k, text, args.backend, supplied)
+        if predicted is None:
             per_doc.append(
                 dict(
                     id=k,
@@ -187,9 +183,6 @@ def main():
                 )
             )
             continue
-        predicted = [set(map(tuple, c)) for c in r["clusters"]]
-        if any(not 0 <= a < b <= len(text) for a, b in index_partition(predicted)):
-            raise ValueError("invalid predicted offsets")
         stats = score_doc(gold, predicted)
         for metric, values in stats.items():
             before = totals.get(metric, [0] * len(values))
