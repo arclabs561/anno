@@ -1,0 +1,12 @@
+{
+  "documents": 32,
+  "full_receipt_sha256": "afcf2fe5a0786ce93e5ced71a6a5132364eb68c172c622f4be58628409b98db4",
+  "outcomes": {
+    "different_predicate_on_annotated_pair": 2,
+    "directed_pair_unannotated": 81,
+    "endpoint_has_no_exact_cluster": 121,
+    "matched": 140
+  },
+  "source_sha256": "f7872af697e8a887efcf2f3381bb815e791e9488186dd17167894808c89385ed",
+  "study": "jerex-predictions"
+}

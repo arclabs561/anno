@@ -177,9 +177,13 @@ back to patterns and heuristics.
 ## CLI JSON provenance
 
 `anno extract --format json` and `--format jsonl` retain the requested CLI backend in
-top-level `provenance.model`. Each emitted entity that carries library provenance also has a
+top-level `provenance.model`. The instantiated backend reports its own name in
+`provenance.runtime_model`. For example, an offline stacked run may report
+`stacked(regex+heuristic)`. Each emitted entity that carries library provenance also has a
 nested `provenance` object with its actual `source`, extraction `method`, and available
-pattern, raw-confidence, model-version, and timestamp metadata.
+pattern, raw-confidence, model-version, and timestamp metadata. A relation row
+includes its scorer’s reported provenance when available. For example, a
+`tplinker` run may report `tplinker-heuristic` as the relation producer.
 
 With `--detect-lang`, a fetched HTML page's recognized language declaration
 supplies `provenance.language` (its primary language code) and

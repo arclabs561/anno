@@ -600,7 +600,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .filter_map(|r| {
                 let head = entities.get(r.head_idx)?;
                 let tail = entities.get(r.tail_idx)?;
-                Some(serde_json::json!({
+                let mut row = serde_json::json!({
                     "head": {
                         "text": head.text,
                         "type": head.entity_type.as_label(),
@@ -617,7 +617,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                     },
                     "type": r.relation_type,
                     "confidence": r.confidence,
-                }))
+                });
+                if let Some(producer) = &relation_provenance {
+                    row["provenance"] = serde_json::json!(producer);
+                }
+                Some(row)
             })
             .collect()
     } else {

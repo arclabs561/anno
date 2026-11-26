@@ -1,0 +1,32 @@
+{
+  "documents": 64,
+  "full_receipt_sha256": "64cce04e654c5d564959480b4a89a68521456b24e79c48037a5e3f556f81cd33",
+  "model_sha256": "4ee982787ace270d4bf15dbcb28ced38e0aa201372347114ceedd6336055de2b",
+  "overlap_words": 64,
+  "source_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+  "study": "jointie",
+  "totals": {
+    "actual_scored_edges": 400036,
+    "decoded_edges": 2,
+    "decoded_mentions": 179,
+    "feasible_documents": 64,
+    "first_loss_edge_cap": 17,
+    "first_loss_not_in_sparse_edge_output": 137,
+    "first_loss_optimizer_did_not_select": 5,
+    "first_loss_predicate_outside_schema": 2,
+    "gold_directed_pairs": 155,
+    "gold_directed_pairs_co_window": 155,
+    "gold_edges": 161,
+    "gold_edges_both_mentions_scored": 160,
+    "gold_edges_co_window": 161,
+    "gold_edges_decoded": 0,
+    "gold_edges_scored": 22,
+    "gold_mentions": 245,
+    "gold_mentions_decoded": 64,
+    "gold_mentions_scored": 244,
+    "scored_mentions": 155260,
+    "scored_windows": 64,
+    "sparse_directed_predicate_span_pairs": 2041
+  },
+  "window_words": 384
+}

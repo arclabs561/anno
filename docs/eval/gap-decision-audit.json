@@ -1,0 +1,232 @@
+{
+  "input_sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+  "binary_sha256": "36f5f0a463e0a9de22d6c91685de823295ff2ce9ae87b04bb890d168500711ee",
+  "holdout_checkpoints": {
+    "fcoref/predicted": {
+      "backend": "fcoref",
+      "repo": "biu-nlp/f-coref",
+      "revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
+      "files": {
+        "encoder.onnx": "74b98b0f03b27154065d0918a566ed5968d14665e601ecaea6905014bfe6f065",
+        "scorer_weights.safetensors": "54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7",
+        "tokenizer.json": "5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1",
+        "config.json": "12361347b196a78de4fad99045cd127c19baa55590fc7885f84a89a7a785bfbf"
+      }
+    }
+  },
+  "panels": {
+    "published": {
+      "article_count": 127,
+      "id_list_sha256": "606c82d6fb056415fef8592321de299b7c2c151668d51dedaa043b13e32e15e5",
+      "gold_pairs_sha256": "25cf729bce2e2e527b158e4509d15bbd035703a65fd1b9c2bd40c67974aa3fc5",
+      "arms": {
+        "mention-ranking/predicted": {
+          "evidence": "replayed_clusters",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 117,
+            "returned_gold_pairs": 8,
+            "all_gold_links": 117,
+            "tp": 6,
+            "fp": 4,
+            "fn": 111,
+            "tn": 135,
+            "both_decisions_correct": 16
+          },
+          "empty_successes": 8,
+          "observations_sha256": "f72d06c81d82f1f3d2fc5469eb8625d0d29695b161c8c5690aff185cbb92e430"
+        },
+        "mention-ranking/supplied": {
+          "evidence": "replayed_clusters",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 117,
+            "returned_gold_pairs": 117,
+            "all_gold_links": 117,
+            "tp": 0,
+            "fp": 1,
+            "fn": 117,
+            "tn": 138,
+            "both_decisions_correct": 11
+          },
+          "empty_successes": 0,
+          "observations_sha256": "eb8262b7400c4ebe11920db3808f224e92944805d076111a7561184ac2fafdc0"
+        },
+        "fcoref/predicted": {
+          "evidence": "saved_target_decisions",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 117,
+            "returned_gold_pairs": 76,
+            "all_gold_links": 117,
+            "tp": 73,
+            "fp": 6,
+            "fn": 44,
+            "tn": 133,
+            "both_decisions_correct": 82
+          }
+        },
+        "maverick/predicted": {
+          "evidence": "saved_target_decisions",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 117,
+            "returned_gold_pairs": 77,
+            "all_gold_links": 117,
+            "tp": 76,
+            "fp": 1,
+            "fn": 41,
+            "tn": 138,
+            "both_decisions_correct": 87
+          }
+        },
+        "maverick/supplied": {
+          "evidence": "saved_target_decisions",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 117,
+            "returned_gold_pairs": 113,
+            "all_gold_links": 117,
+            "tp": 113,
+            "fp": 13,
+            "fn": 4,
+            "tn": 126,
+            "both_decisions_correct": 114
+          }
+        }
+      }
+    },
+    "article_holdout": {
+      "article_count": 128,
+      "id_list_sha256": "88e5cb4d4c26c1eb5bdd91bc7bddf3f9cc74ce0410395fa97213fe61122af41e",
+      "gold_pairs_sha256": "77695082e3bf4cbf81d117e873186cd966d4207eaaa75569365b0aef88bd71c3",
+      "arms": {
+        "mention-ranking/predicted": {
+          "evidence": "replayed_clusters",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 118,
+            "returned_gold_pairs": 11,
+            "all_gold_links": 118,
+            "tp": 7,
+            "fp": 2,
+            "fn": 111,
+            "tn": 136,
+            "both_decisions_correct": 16
+          },
+          "empty_successes": 9,
+          "observations_sha256": "c6cb972efaf0644e4a9c720e6b9aca7f3510472f8efc6b11acc6e144e57447d5"
+        },
+        "mention-ranking/supplied": {
+          "evidence": "replayed_clusters",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 118,
+            "returned_gold_pairs": 118,
+            "all_gold_links": 118,
+            "tp": 1,
+            "fp": 1,
+            "fn": 117,
+            "tn": 137,
+            "both_decisions_correct": 11
+          },
+          "empty_successes": 0,
+          "observations_sha256": "27fcba438c9c2bb992ae247f8d50275b39adafe142ddcfb11365efaeba173857"
+        },
+        "fcoref/predicted": {
+          "evidence": "replayed_clusters",
+          "counts": {
+            "attempted": 128,
+            "scored": 128,
+            "refused": 0,
+            "gold_links": 118,
+            "returned_gold_pairs": 73,
+            "all_gold_links": 118,
+            "tp": 68,
+            "fp": 3,
+            "fn": 50,
+            "tn": 135,
+            "both_decisions_correct": 78
+          },
+          "empty_successes": 0,
+          "observations_sha256": "aed4539782fe6f81e84eff85436736a915bca2f72aea880318c233865f53b343"
+        }
+      }
+    }
+  },
+  "article_holdout_candidate": {
+    "binary_sha256": "125edcf657dd95c909979201136829a2577df70f270a17c07fec8f200e05765f",
+    "arms": {
+      "predicted": {
+        "counts": {
+          "attempted": 128,
+          "scored": 128,
+          "refused": 0,
+          "gold_links": 118,
+          "returned_gold_pairs": 14,
+          "all_gold_links": 118,
+          "tp": 8,
+          "fp": 2,
+          "fn": 110,
+          "tn": 136,
+          "both_decisions_correct": 17
+        },
+        "coverage_pronoun_A_B": [
+          62,
+          19,
+          21
+        ],
+        "paired_exact_decisions": {
+          "both_correct": 16,
+          "won": 1,
+          "lost": 0,
+          "both_wrong": 111
+        },
+        "changed_rows": 7,
+        "changed_observations_sha256": "ac785ec36286bf0e2662171a69e0acabde70c48b70a734475f45f1fbe85ec109"
+      },
+      "supplied": {
+        "counts": {
+          "attempted": 128,
+          "scored": 128,
+          "refused": 0,
+          "gold_links": 118,
+          "returned_gold_pairs": 118,
+          "all_gold_links": 118,
+          "tp": 1,
+          "fp": 1,
+          "fn": 117,
+          "tn": 137,
+          "both_decisions_correct": 11
+        },
+        "coverage_pronoun_A_B": [
+          128,
+          128,
+          128
+        ],
+        "paired_exact_decisions": {
+          "both_correct": 11,
+          "won": 0,
+          "lost": 0,
+          "both_wrong": 117
+        },
+        "changed_rows": 0,
+        "changed_observations_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    }
+  }
+}
