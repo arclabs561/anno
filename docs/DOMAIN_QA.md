@@ -14,6 +14,14 @@ The [source catalog](../scripts/qa/domain-sources.json) lists exact upstream fil
 
 The Atticus Project licenses CUAD under CC BY 4.0 and disclaims warranties on the underlying third-party agreements. Its source is SEC EDGAR. The CUAD manifest credits the dataset and describes how the labels were adapted. Keep contract windows and predictions that reproduce them in local replay. Sharing complete passages requires a separate basis for the underlying contract and a check for incidental names, signatures, addresses or contact details. [CUAD v1](https://doi.org/10.5281/zenodo.4595826) · [Publisher’s terms](https://huggingface.co/datasets/theatticusproject/cuad-qa#licensing-information)
 
+## Test recognition of unfamiliar names
+
+If your application needs to recognize a person or product the first time someone mentions it, WNUT-17 gives you a way to test that ability. The figure compares all six entity types in the full `emerging.test.annotated` file with the names annotated in `wnut17train.conll`. The social-posts panel above samples three of those types.
+
+![Share of test mentions whose names are absent from WNUT-17 training annotations, by label. Overall, 1,055 of 1,079 are unseen even when case is ignored.](eval/figures/wnut-novelty.png)
+
+A dictionary built from the annotated training names could match zero test mentions exactly. Ignoring case raises its ceiling to 24 of 1,079, even with perfect span boundaries and any training label accepted. For a backend comparison, count how many of the remaining 1,055 mentions each backend finds with the correct span and label. Also report false positives on the full test file. “Unseen” here refers to the WNUT training annotations. A pretrained model may have encountered the name elsewhere. [WNUT-17, Derczynski et al. (2017)](https://aclanthology.org/W17-4418/) · [Dataset snapshot](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
+
 ## Run the hosted panel locally
 
 The weekly/manual job uses the Snips publisher’s two validation files for weather and restaurant queries (100 queries each). These have distinct catalog IDs from the lowercased third-party SNIPS BIO split. Preserve the original case, punctuation and spaces; map the publisher’s city, state and country slots to exact LOC assertions. Both intents come from the same English query benchmark. The receipt records the source pins, authors, license, adaptation and split sizes. [Dataset and citation request](https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/2017-06-custom-intent-engines/README.md) · [CC0 1.0](https://github.com/sonos/nlu-benchmark/blob/b86ac7f1577868c42158d0dec77db50956046696/LICENSE)

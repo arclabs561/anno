@@ -271,6 +271,14 @@ anno dataset info --dataset WikiGold
 
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
+### Which datasets do the token counts describe?
+
+![Format and language shares across 462 registry entries, 43 entries with a readable upstream file, and 13 entries with token counts. Ten of the 13 measured entries use CoNLL.](eval/figures/anno-selection.png)
+
+Each bar counts dataset entries once, regardless of corpus size. The survey attempted 44 direct upstream links, read 43 files, and could count tokens from the BIO entity tags in 13. CoNLL accounts for 115 of the 462 registered entries and 10 of the 13 measured files. JSONL accounts for 127 registered entries and none of those 13. If your target corpus is among the JSONL entries, measure a labeled sample from it before using token density to estimate how many annotations a reviewer will see. [Per-entry inventory and token counts](eval/dataset-figure-inventory.csv)
+
+The snapshot uses registry revision `d2e00aa`. To check which inputs your own evaluation can use, run `anno sampler eligibility --task ner --require-cached`. [Registry snapshot](https://github.com/arclabs561/anno/blob/d2e00aa/crates/anno-eval/src/eval/dataset_registry.rs) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
+
 ### Decide what to keep
 
 Promote a discovery when a small input and an independent expected result reproduce the behavior. For a repair, run both revisions and include a neighboring case the change could break. Preserve the offset units. Once a patch author or agent has seen a holdout, count it as exposed in future comparisons. [Source and offset contract](CONTRACT.md)

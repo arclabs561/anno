@@ -40,7 +40,7 @@ def extract_spans(tags):
 def plot(data, output):
     depths = Counter()
     pairs = Counter()
-    nested_mentions = total_mentions = 0
+    nested_mentions = total_mentions = html_highlights = 0
     for sentence in data.decode().strip().split("\n\n"):
         rows = [line.split()[1:] for line in sentence.splitlines() if line.strip()]
         if not all(len(row) == 4 for row in rows):
@@ -48,6 +48,13 @@ def plot(data, output):
         depths.update(sum(tag != "O" for tag in row) for row in rows)
         spans = [span for column in zip(*rows) for span in extract_spans(column)]
         total_mentions += len(spans)
+        # The HTML exporter takes the longest span at a shared start, then skips
+        # overlaps. Token intervals have the same ordering as their text spans.
+        highlight_end = 0
+        for start, end, _ in sorted(spans, key=lambda span: (span[0], -span[1])):
+            if start >= highlight_end:
+                html_highlights += 1
+                highlight_end = end
         contained = set()
         for first, second in combinations(enumerate(spans), 2):
             # Sort the longer span first. Equal intervals are not strict containment.
@@ -72,20 +79,23 @@ def plot(data, output):
     depth_ax.bar_label(bars, labels=[f"{p:.1f}%" for p in shares], padding=4)
     depth_ax.invert_yaxis()
     depth_ax.set(xlim=(0, 101), xlabel=f"Share of {active:,} annotated tokens", ylabel="Active layers")
-    depth_ax.set_title("How often do layers overlap?", loc="left")
+    depth_ax.set_title("How many labels share a tagged token?", loc="left")
     common = pairs.most_common(7)
     bars = pair_ax.barh([f"{a} → {b}" for (a, b), _ in common], [n for _, n in common], color="#476585")
     pair_ax.bar_label(bars, padding=4)
     pair_ax.invert_yaxis()
     pair_ax.margins(x=.15)
     pair_ax.set_xlabel("Strict containment pairs (outer → inner)")
-    pair_ax.set_title("Most frequent label combinations", loc="left")
-    fig.suptitle("Nested entity annotations in the GENIA test file", fontsize=16)
+    pair_ax.set_title("Which mentions sit inside others?", loc="left")
+    fig.suptitle(
+        f"Anno’s HTML preview would show {html_highlights:,} of {total_mentions:,} GENIA mentions",
+        fontsize=15,
+    )
     output.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "svg"):
         fig.savefig(output / f"anno-genia-nesting.{ext}", dpi=160)
     plt.close(fig)
-    print(f"{total_mentions=} {nested_mentions=} {depths=} {pairs=}")
+    print(f"{total_mentions=} {nested_mentions=} {html_highlights=} {depths=} {pairs=}")
 
 
 if __name__ == "__main__":

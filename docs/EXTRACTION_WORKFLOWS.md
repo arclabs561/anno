@@ -129,6 +129,14 @@ for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
 
+## Review overlapping highlights
+
+In the GENIA test file, “cyclophilin gene” is a DNA mention and “cyclophilin” inside it is a protein mention. Given both spans, the Rust function `anno::export::to_html` highlights the whole phrase once. It processes earlier starts first, prefers the longer span at a shared start, and skips later overlaps. A reviewer looking for the protein would miss a correct extraction.
+
+![GENIA test annotations by number of active layers and by nested label pair. The most frequent pair is a protein mention inside a DNA mention, with 190 occurrences.](eval/figures/anno-genia-nesting.png)
+
+Applying that display rule to the 5,474 reference mentions would show 4,883 highlights and hide 591 mentions. When reviewing a suspected miss, inspect the original entity list or pass it to `anno::export::to_jsonl`, which writes one row per entity. Use those spans to calculate recall. [Export functions](../crates/anno/src/export.rs) · [Annotated test file](https://github.com/thecharm/boundary-aware-nested-ner/blob/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.test.iob2) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
+
 ## Comparing contract passage suggestions
 
 Use the CUAD retrieval example's `matched_passages_per_question` field to

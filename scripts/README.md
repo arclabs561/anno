@@ -21,6 +21,20 @@ These scripts are not part of a Python package. Many are intended to be run with
 When a script needs extra dependencies, prefer using `uv`’s inline metadata format (see
 the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.sh`).
 
+### Reproduce the dataset figures
+
+From the repository root, use Python with Matplotlib 3.6 or later. The first command surveys the registry's direct upstream links. The second plots the entries recorded in the resulting inventory. The last two commands read pinned WNUT-17 and GENIA inputs.
+
+```sh
+out=.generated/dataset-figures
+python3 scripts/plot_datasets.py "$out"
+python3 scripts/plot_measurement_coverage.py "$out/anno-all.csv" "$out"
+python3 scripts/plot_wnut_novelty.py "$out"
+python3 scripts/plot_genia_nesting.py "$out"
+```
+
+To reproduce the published coverage chart offline, pass `docs/eval/dataset-figure-inventory.csv` as the inventory. The WNUT script accepts `--data-dir` pointing to the pinned checkout, and the GENIA script accepts `--input` pointing to the pinned test file. Upstream file availability can change the coverage denominator on a fresh survey. When refreshing the guides, update the saved inventory and its caption together. Copy `anno-selection.png`, `wnut-novelty.png` and `anno-genia-nesting.png` from the output directory into `docs/eval/figures/`.
+
 ### Official multilingual coreference scores
 
 For one aligned CorefUD key/response dataset, run the [CRAC 2026 scorer](https://ufal.mff.cuni.cz/corefud/shared-task/2026#unconstr-evaluation) on the original CoNLL-U files. This preserves mention heads, discontinuous spans and empty-node identities. The local clone supplies the [pinned scorer and its fixtures](https://github.com/ufal/corefud-scorer/tree/4fd7b0e0c661aeeff88bc60c19ef507b84d1b590).
