@@ -2,6 +2,13 @@
 
 Run the [quickstart](QUICKSTART.md) for a first CLI or Rust extraction. Before saving annotations or highlighting a result, check which source text and offset units the caller must retain. [Source text and offsets](CONTRACT.md#source-text-and-offsets)
 
+## Verify a user-visible result
+
+| Goal | Replay and expected result |
+|---|---|
+| Highlight the correct occurrence in the original HTML | Follow the [two-address replay](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html). Both occurrences display the same address. Their `@` characters point to different source bytes, one encoded and one literal. |
+| Render a saved constituency parse | From the checkout root, run `anno parse --input testdata/constituency/benepar_en3.json`. It prints two trees, one for “Mira builds small robots.” and one for “She smiles.” [Parser interchange](CONSTITUENCY.md) · [Fixture](../testdata/constituency/README.md) |
+
 ## Integrate extraction
 
 | Task | Guide |
