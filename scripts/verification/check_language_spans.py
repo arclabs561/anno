@@ -13,8 +13,8 @@ from pathlib import Path
 
 PREFIX = {
     "ar": "وصلت ليلى", "ca": "La Mercè arriba", "cs": "Přišla Věra",
-    "cu": "Въ начѧло", "de": "Grüße aus Köln", "en": "A note from Zoë",
-    "es": "Mañana en León", "fr": "À côté de Léa", "grc": "Ἐν Ἀθήναις",
+    "cu": "Въ начѧло", "de": "Grüße aus Köln", "en": "Zoë met John Smith at Microsoft",
+    "es": "Mañana en León", "fr": "À Lyon, Acme Tech SAS est ici.", "grc": "Ἐν Ἀθήναις",
     "hbo": "בְּרֵאשִׁית", "he": "שלום מיעל", "hi": "दिल्ली में",
     "hu": "Győr városa", "ja": "東京から", "ko": "서울에서",
     "la": "Rōmae", "lt": "Žinutė iš Šiaulių", "nl": "Groet uit België",
