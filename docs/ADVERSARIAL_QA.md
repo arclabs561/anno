@@ -4,6 +4,8 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 For a dated bibliography export, generate an original edition history, replay its frozen answers, or shrink a failing cut with the [bibliography challenge](../verification/index_consumers/reader_cases/bibliography/README.md#challenge-a-date-cut). Local histories can be passed to the same command by a developer, a headless harness or an agent.
 
+For an unchanged byline reassigned between namesakes, run `ANNO_BIN=target/debug/anno just qa-replay bibliography attribution-correction`. The replay checks forward and reverse credit, dated names and affiliations, earlier editions, and duplicate delivery. The receipt identifies the authored inputs, checker and selected readers. [Bibliography correction replay](../verification/index_consumers/credits/check_attribution_history.py)
+
 Use the [coreference corpus guide](eval/coref-corpus-qa.md) to replay a pinned nested-mention, pronoun or abstention case with the local model and feed a confirmed outcome to the replay ledger.
 
 ## Coordinator prompt
