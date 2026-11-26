@@ -1,6 +1,9 @@
 """Regression for threshold/cap ordering and separately observed optimizer rejection."""
 
+import json
 import unittest
+from collections import Counter
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 from jointie_coverage import attribute_schema
@@ -8,6 +11,38 @@ from jointie_loss import DecoderTrace
 
 
 class TraceTests(unittest.TestCase):
+    def test_published_jerex_prefix_and_edge_outcomes(self):
+        receipts = Path(__file__).parent / "receipts"
+        earlier = json.loads((receipts / "jerex.json").read_bytes())
+        expanded = json.loads((receipts / "jerex_docred32.json").read_bytes())
+        docs = expanded["documents"]
+        self.assertEqual(len(docs), expanded["enrolled_documents"])
+        self.assertEqual(len(docs), expanded["scored_documents"])
+        prefix = docs[: len(earlier["titles"])]
+        self.assertEqual([doc["document"] for doc in prefix], earlier["titles"])
+        for metric, expected in earlier["stages"].items():
+            aggregate = Counter()
+            for doc in prefix:
+                aggregate.update(doc["stages"][metric])
+            self.assertEqual(aggregate, expected)
+        for doc in docs:
+            with self.subTest(document=doc["document"]):
+                trace = doc["edge_trace"]
+                labeled = doc["stages"]["labeled_relations"]
+                self.assertEqual(
+                    len({(e["head"], e["predicate"], e["tail"]) for e in trace}),
+                    labeled["gold"],
+                )
+                losses = Counter(e["first_loss"] for e in trace)
+                self.assertEqual(losses, doc["first_loss"])
+                self.assertEqual(losses["matched"], labeled["matched"])
+                for e in trace:
+                    if "predicate_probability" in e:
+                        self.assertEqual(
+                            e["predicate_probability"] >= doc["relation_threshold"],
+                            e["first_loss"] == "matched",
+                        )
+
     def test_cap_and_solver_are_distinct_and_exhaustive(self):
         h, t = ("a", 0, 1), ("b", 1, 2)
 

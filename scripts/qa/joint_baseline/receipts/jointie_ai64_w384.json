@@ -1,0 +1,6742 @@
+{
+  "dataset": "CrossRE AI test",
+  "dataset_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+  "selection": "first N in source order",
+  "vocabulary_sha256": "f67a35c0f8551cce648fd979c14c54277573ae505c0c5a43a06e4a8cae50acc7",
+  "checkpoint": "fastino/gliner2.5-small-v1",
+  "checkpoint_revision": "b5d42bf7dc7d01c40304ae4ed43c2f13c325a75b",
+  "checkpoint_files": {
+    "config.json": "1b4e63ac964dc4204165bd1420735cd4c2e4bce97394d0b69fa3f7ea192a8e97",
+    "encoder_config/config.json": "db837d0dc587f5858687ef860c1f400de10f3c3e44f88daef8cbda80d74e4c9c",
+    "model.safetensors": "4ee982787ace270d4bf15dbcb28ced38e0aa201372347114ceedd6336055de2b",
+    "tokenizer.json": "cbc8ae6037812709c9c26f2a160f8dc48b0440bcb79c8141804259ae2d6adac3",
+    "tokenizer_config.json": "0bf3ea0873234bd9bfdd3853c440395009ac6365a925b91654daed5396d655e1"
+  },
+  "gliner2": "2.2.0",
+  "torch": "2.15.0+cpu",
+  "window_words": 384,
+  "overlap_words": 64,
+  "totals": {
+    "scored_windows": 64,
+    "gold_mentions": 245,
+    "scored_mentions": 155260,
+    "gold_mentions_scored": 244,
+    "decoded_mentions": 179,
+    "gold_mentions_decoded": 64,
+    "gold_directed_pairs": 155,
+    "gold_directed_pairs_co_window": 155,
+    "gold_edges": 161,
+    "gold_edges_co_window": 161,
+    "gold_edges_both_mentions_scored": 160,
+    "actual_scored_edges": 400036,
+    "gold_edges_scored": 22,
+    "decoded_edges": 2,
+    "gold_edges_decoded": 0,
+    "sparse_directed_predicate_span_pairs": 2041,
+    "feasible_documents": 64,
+    "first_loss_not_in_sparse_edge_output": 137,
+    "first_loss_optimizer_did_not_select": 5,
+    "first_loss_edge_cap": 17,
+    "first_loss_predicate_outside_schema": 2
+  },
+  "documents": [
+    {
+      "document": "ai-test-1",
+      "source_sha256": "38c36182c979e9bc2f34fae5e67b0551abb5d90588c3ba0402cb07a1e1d4074a",
+      "windows": [
+        {
+          "start": 0,
+          "end": 135
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 3136,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 16,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          50,
+          68
+        ],
+        [
+          "algorithm",
+          71,
+          95
+        ],
+        [
+          "algorithm",
+          98,
+          122
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-2",
+      "source_sha256": "14b0771427605d943a39f6a4b3d79d7d4769e386782ca8898c1558adc0159ab6",
+      "windows": [
+        {
+          "start": 0,
+          "end": 134
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 3136,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 16,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            74,
+            132
+          ],
+          "predicate": "named",
+          "tail": [
+            "conference",
+            63,
+            67
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            29,
+            33
+          ],
+          "predicate": "role",
+          "tail": [
+            "conference",
+            63,
+            67
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          63,
+          67
+        ],
+        [
+          "country",
+          29,
+          33
+        ],
+        [
+          "field",
+          74,
+          106
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-3",
+      "source_sha256": "f2dd88d52dbd8d297f0cee24979b6491e15f4bc2caf914c7c45c512ba94919c5",
+      "windows": [
+        {
+          "start": 0,
+          "end": 122
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 1568,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 8,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          87,
+          90
+        ],
+        [
+          "task",
+          34,
+          61
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-4",
+      "source_sha256": "774488f83b389ebc32dd2f795149b6fa1adc946f00634bfbcdc8e9e1eb2b8e2b",
+      "windows": [
+        {
+          "start": 0,
+          "end": 274
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 8820,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 45,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            7,
+            21
+          ],
+          "predicate": "compare",
+          "tail": [
+            "algorithm",
+            57,
+            65
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            28,
+            50
+          ],
+          "predicate": "compare",
+          "tail": [
+            "algorithm",
+            57,
+            65
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          7,
+          23
+        ],
+        [
+          "algorithm",
+          28,
+          50
+        ],
+        [
+          "algorithm",
+          57,
+          65
+        ],
+        [
+          "metrics",
+          173,
+          187
+        ],
+        [
+          "metrics",
+          214,
+          228
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-5",
+      "source_sha256": "6d259fdc9233151acdcd490a81b779e11e9b1333e31d01583a716ce2e1e195b1",
+      "windows": [
+        {
+          "start": 0,
+          "end": 107
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2660,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 4508,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 23,
+        "feasible_documents": 1,
+        "first_loss_optimizer_did_not_select": 1,
+        "first_loss_edge_cap": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "misc",
+            0,
+            9
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            65,
+            81
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.19192097243488207,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 91,
+          "optimizer_edge_utility": -1.437576174736023,
+          "first_loss": "optimizer_did_not_select",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            65,
+            81
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            89,
+            105
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.14843233156848895,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 486,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          9
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-6",
+      "source_sha256": "51c83e681a99a625805ac9ed8bf0ed9868c47331d322aaea9e97fca76cf78fd7",
+      "windows": [
+        {
+          "start": 0,
+          "end": 95
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 1470,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 2940,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 15,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            42,
+            66
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            70,
+            93
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          2,
+          16
+        ],
+        [
+          "field",
+          70,
+          93
+        ],
+        [
+          "task",
+          42,
+          66
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-7",
+      "source_sha256": "96b8e5018f086013894514095a4483f7b2712f03201c130654b56f71c66f9a11",
+      "windows": [
+        {
+          "start": 0,
+          "end": 188
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 3724,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 19,
+        "feasible_documents": 1,
+        "first_loss_optimizer_did_not_select": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "metrics",
+            0,
+            4
+          ],
+          "predicate": "compare",
+          "tail": [
+            "metrics",
+            23,
+            54
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.36236370701820997,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 76,
+          "optimizer_edge_utility": -0.5651196241378784,
+          "first_loss": "optimizer_did_not_select",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          4
+        ],
+        [
+          "metrics",
+          128,
+          146
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-8",
+      "source_sha256": "d3e1a98472024dfe6ab2903cc95e398049e0b36fd97b569f3adbf1d35bfdf089",
+      "windows": [
+        {
+          "start": 0,
+          "end": 279
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 4,
+        "gold_directed_pairs_co_window": 4,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 6272,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 32,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 4
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            70,
+            80
+          ],
+          "predicate": "usage",
+          "tail": [
+            "field",
+            154,
+            173
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            86,
+            108
+          ],
+          "predicate": "usage",
+          "tail": [
+            "field",
+            154,
+            173
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            230,
+            246
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "field",
+            154,
+            173
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            250,
+            277
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "field",
+            154,
+            173
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          4,
+          9
+        ],
+        [
+          "algorithm",
+          55,
+          60
+        ],
+        [
+          "algorithm",
+          70,
+          80
+        ],
+        [
+          "algorithm",
+          92,
+          108
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-9",
+      "source_sha256": "8ca1be99438ecf888c8425b29c957bb1a478b3ee60a4949b36648d4b01ee4037",
+      "windows": [
+        {
+          "start": 0,
+          "end": 203
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 6,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 6,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 3,
+        "gold_directed_pairs": 5,
+        "gold_directed_pairs_co_window": 5,
+        "gold_edges": 5,
+        "gold_edges_co_window": 5,
+        "gold_edges_both_mentions_scored": 5,
+        "actual_scored_edges": 2744,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 14,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 5
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            44,
+            62
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            0,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            65,
+            77
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            0,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            80,
+            110
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            0,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            117,
+            139
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            0,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            173,
+            195
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            0,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          8
+        ],
+        [
+          "task",
+          44,
+          62
+        ],
+        [
+          "task",
+          65,
+          77
+        ],
+        [
+          "task",
+          117,
+          139
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-10",
+      "source_sha256": "79cc118e9706223fdabb0d46a2e5ce51708723650219a80baefaf0dc9a2570e8",
+      "windows": [
+        {
+          "start": 0,
+          "end": 300
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 14,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 14,
+        "decoded_mentions": 0,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 8,
+        "gold_directed_pairs_co_window": 8,
+        "gold_edges": 8,
+        "gold_edges_co_window": 8,
+        "gold_edges_both_mentions_scored": 8,
+        "actual_scored_edges": 56840,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 290,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 8
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "product",
+            93,
+            98
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            73,
+            85
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            120,
+            126
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            103,
+            112
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            159,
+            162
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "field",
+            131,
+            151
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            201,
+            204
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "misc",
+            167,
+            193
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            207,
+            214
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "misc",
+            167,
+            193
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            217,
+            220
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "misc",
+            167,
+            193
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            254,
+            269
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            225,
+            246
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            274,
+            290
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            225,
+            246
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-11",
+      "source_sha256": "7a7bea5f09a1b53f148eac1fc808d956f9c1f5b5122a6d39fcace7d2d5f79890",
+      "windows": [
+        {
+          "start": 0,
+          "end": 242
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 4,
+        "gold_directed_pairs_co_window": 4,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 3528,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 18,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 2,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "organisation",
+            0,
+            16
+          ],
+          "predicate": "origin",
+          "tail": [
+            "researcher",
+            30,
+            43
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.26901509328323175,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 306,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            82,
+            88
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "product",
+            115,
+            131
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.21944101149198392,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 136,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            115,
+            131
+          ],
+          "predicate": "origin",
+          "tail": [
+            "researcher",
+            30,
+            43
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            30,
+            43
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            62,
+            68
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "organisation",
+          62,
+          68
+        ],
+        [
+          "person",
+          30,
+          43
+        ],
+        [
+          "product",
+          82,
+          88
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-12",
+      "source_sha256": "c7a919cffdf555f1d8df7bfe1dbc803e3b8cb8e9803777606ed566d6b2c67b94",
+      "windows": [
+        {
+          "start": 0,
+          "end": 279
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 9,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 9,
+        "decoded_mentions": 7,
+        "gold_mentions_decoded": 7,
+        "gold_directed_pairs": 8,
+        "gold_directed_pairs_co_window": 8,
+        "gold_edges": 8,
+        "gold_edges_co_window": 8,
+        "gold_edges_both_mentions_scored": 8,
+        "actual_scored_edges": 1764,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 9,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 8
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            34,
+            53
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            56,
+            71
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            74,
+            101
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            104,
+            137
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            140,
+            158
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            161,
+            183
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            190,
+            214
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            251,
+            275
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            8,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "task",
+          34,
+          53
+        ],
+        [
+          "task",
+          56,
+          71
+        ],
+        [
+          "task",
+          74,
+          101
+        ],
+        [
+          "task",
+          104,
+          137
+        ],
+        [
+          "task",
+          140,
+          158
+        ],
+        [
+          "task",
+          161,
+          183
+        ],
+        [
+          "task",
+          190,
+          214
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-13",
+      "source_sha256": "1fb7a4939d94993acec95dc0565f9b8087607c44fc6a80c70219ec74b7e803f4",
+      "windows": [
+        {
+          "start": 0,
+          "end": 85
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 1680,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 1568,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 8,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "metrics",
+          31,
+          40
+        ],
+        [
+          "metrics",
+          51,
+          64
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-14",
+      "source_sha256": "0913e844c6d4f42e64e8eb72cc1282bee023db4afe370e16f227b132fad14e43",
+      "windows": [
+        {
+          "start": 0,
+          "end": 179
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 4,
+        "gold_directed_pairs_co_window": 4,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 2352,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 12,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 4
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "misc",
+            38,
+            47
+          ],
+          "predicate": "temporal",
+          "tail": [
+            "task",
+            18,
+            34
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            62,
+            70
+          ],
+          "predicate": "named",
+          "tail": [
+            "misc",
+            38,
+            47
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            127,
+            132
+          ],
+          "predicate": "usage",
+          "tail": [
+            "misc",
+            38,
+            47
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            136,
+            140
+          ],
+          "predicate": "usage",
+          "tail": [
+            "misc",
+            38,
+            47
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          38,
+          47
+        ],
+        [
+          "algorithm",
+          62,
+          70
+        ],
+        [
+          "person",
+          127,
+          132
+        ],
+        [
+          "person",
+          136,
+          140
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-15",
+      "source_sha256": "5cc49e8fa388eea1938a42d44e610dc9acb2047b0589fd4d8095e7d837401422",
+      "windows": [
+        {
+          "start": 0,
+          "end": 77
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 1274,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 5880,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 30,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "programlang",
+            59,
+            65
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "programlang",
+            0,
+            5
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "programlang",
+            71,
+            75
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "programlang",
+            0,
+            5
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          24,
+          44
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-16",
+      "source_sha256": "ca1b2ceb0b2eb5d8be991bc5fc37062ffc093123e3ed5afa8bf6a8cdf4a1fbe9",
+      "windows": [
+        {
+          "start": 0,
+          "end": 275
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 6,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 4508,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 23,
+        "feasible_documents": 1,
+        "first_loss_optimizer_did_not_select": 1,
+        "first_loss_not_in_sparse_edge_output": 2,
+        "first_loss_predicate_outside_schema": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "organisation",
+            10,
+            25
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "organisation",
+            44,
+            51
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.254039069645566,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 106,
+          "optimizer_edge_utility": -1.0771851539611816,
+          "first_loss": "optimizer_did_not_select",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            10,
+            25
+          ],
+          "predicate": "role",
+          "tail": [
+            "country",
+            156,
+            168
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            10,
+            25
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            44,
+            51
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            189,
+            194
+          ],
+          "predicate": "opposite",
+          "tail": [
+            "misc",
+            256,
+            263
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [],
+          "first_loss": "predicate_outside_schema",
+          "schema_allows_gold_types": false
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          10,
+          25
+        ],
+        [
+          "country",
+          156,
+          168
+        ],
+        [
+          "organisation",
+          44,
+          51
+        ],
+        [
+          "product",
+          128,
+          148
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-17",
+      "source_sha256": "884e717264ed0778b84132aee893cdd80a8b0a948941589e9e0251693e76fe79",
+      "windows": [
+        {
+          "start": 0,
+          "end": 146
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 1764,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 9,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "product",
+            46,
+            76
+          ],
+          "predicate": "artifact",
+          "tail": [
+            "researcher",
+            0,
+            11
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            46,
+            76
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            118,
+            136
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          118,
+          136
+        ],
+        [
+          "person",
+          0,
+          11
+        ],
+        [
+          "product",
+          46,
+          76
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-18",
+      "source_sha256": "d588903b34c4226685c71ab9c610c229dc88d92be41f7e4fd3096e2dc94924a5",
+      "windows": [
+        {
+          "start": 0,
+          "end": 173
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 1372,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 7,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 3
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "field",
+            102,
+            119
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "programlang",
+            120,
+            124
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            26,
+            37
+          ],
+          "predicate": "usage",
+          "tail": [
+            "misc",
+            54,
+            57
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "person",
+            68,
+            74
+          ],
+          "predicate": "role",
+          "tail": [
+            "field",
+            102,
+            119
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          54,
+          57
+        ],
+        [
+          "person",
+          68,
+          74
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-19",
+      "source_sha256": "e0cd528c7493c1ee41f1fac57059d05f1fc8af09ffd6358d83710ca1bd58ddda",
+      "windows": [
+        {
+          "start": 0,
+          "end": 186
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 3724,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 19,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1,
+        "first_loss_edge_cap": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            149,
+            153
+          ],
+          "predicate": "named",
+          "tail": [
+            "conference",
+            171,
+            175
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            32,
+            49
+          ],
+          "predicate": "origin",
+          "tail": [
+            "organisation",
+            77,
+            80
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.15888566205995666,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 176,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          149,
+          165
+        ],
+        [
+          "country",
+          77,
+          80
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-20",
+      "source_sha256": "9c75bbe5cf13bc7e548d8d9e892ceb22d5786bf6d2f88d48976b367cbb058830",
+      "windows": [
+        {
+          "start": 0,
+          "end": 112
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 8624,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 44,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "metrics",
+            78,
+            86
+          ],
+          "predicate": "related-to",
+          "tail": [
+            "algorithm",
+            90,
+            110
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "metrics",
+            78,
+            86
+          ],
+          "predicate": "usage",
+          "tail": [
+            "metrics",
+            2,
+            18
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          2,
+          18
+        ],
+        [
+          "algorithm",
+          22,
+          37
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-21",
+      "source_sha256": "a1e39906d6dae02e13e22e40b67bbda5b4100fc99bfaa1384a328181168e2a46",
+      "windows": [
+        {
+          "start": 0,
+          "end": 123
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 3,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 6076,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 31,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 3
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            0,
+            13
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            76,
+            86
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            0,
+            13
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            89,
+            100
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            0,
+            13
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            105,
+            121
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          22
+        ],
+        [
+          "field",
+          76,
+          86
+        ],
+        [
+          "field",
+          89,
+          100
+        ],
+        [
+          "field",
+          105,
+          121
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-22",
+      "source_sha256": "7153c3c78f874b3aa796a8cf02f620d69b41458db8a69bf8477b32db97abd69a",
+      "windows": [
+        {
+          "start": 0,
+          "end": 166
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2646,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 980,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 5,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 3
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            134,
+            158
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "field",
+            97,
+            114
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            161,
+            166
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "field",
+            97,
+            114
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            24,
+            31
+          ],
+          "predicate": "related-to",
+          "tail": [
+            "field",
+            97,
+            114
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "metrics",
+          71,
+          84
+        ],
+        [
+          "organisation",
+          161,
+          166
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-23",
+      "source_sha256": "44daa13b13d487fa0a6e404b7f58c176ee781605ee9a7fad4bcee35f479af034",
+      "windows": [
+        {
+          "start": 0,
+          "end": 149
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 6664,
+        "gold_edges_scored": 0,
+        "decoded_edges": 1,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 34,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            133,
+            147
+          ],
+          "predicate": "usage",
+          "tail": [
+            "field",
+            23,
+            46
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            133,
+            147
+          ],
+          "predicate": "usage",
+          "tail": [
+            "field",
+            51,
+            67
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          23,
+          46
+        ],
+        [
+          "algorithm",
+          51,
+          67
+        ],
+        [
+          "person",
+          77,
+          88
+        ]
+      ],
+      "decoded_edge_keys": [
+        [
+          [
+            "person",
+            77,
+            88
+          ],
+          "usage",
+          [
+            "algorithm",
+            23,
+            46
+          ]
+        ]
+      ],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-24",
+      "source_sha256": "89653037bb034aef689c5795617a62391340fa6ed32cf95c2f3a022c5bed103e",
+      "windows": [
+        {
+          "start": 0,
+          "end": 222
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 6,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 6,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 3,
+        "gold_directed_pairs": 7,
+        "gold_directed_pairs_co_window": 7,
+        "gold_edges": 7,
+        "gold_edges_co_window": 7,
+        "gold_edges_both_mentions_scored": 7,
+        "actual_scored_edges": 8036,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 41,
+        "feasible_documents": 1,
+        "first_loss_optimizer_did_not_select": 1,
+        "first_loss_not_in_sparse_edge_output": 6
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            22,
+            46
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            3,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.2481839141489098,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 4,
+          "optimizer_edge_utility": -1.1083216667175293,
+          "first_loss": "optimizer_did_not_select",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            22,
+            46
+          ],
+          "predicate": "topic",
+          "tail": [
+            "task",
+            77,
+            96
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "field",
+            152,
+            175
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            3,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "field",
+            152,
+            175
+          ],
+          "predicate": "topic",
+          "tail": [
+            "algorithm",
+            22,
+            46
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "field",
+            180,
+            194
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            3,
+            19
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "field",
+            180,
+            194
+          ],
+          "predicate": "topic",
+          "tail": [
+            "algorithm",
+            22,
+            46
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            77,
+            96
+          ],
+          "predicate": "origin",
+          "tail": [
+            "misc",
+            109,
+            129
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          22,
+          46
+        ],
+        [
+          "field",
+          152,
+          175
+        ],
+        [
+          "field",
+          180,
+          194
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-25",
+      "source_sha256": "4d2ea2975ce5bd88d6e55966a6b41cdf067ee90c80b6385bff5268403bcd2bad",
+      "windows": [
+        {
+          "start": 0,
+          "end": 165
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 2940,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 15,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          57,
+          73
+        ],
+        [
+          "metrics",
+          83,
+          101
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-26",
+      "source_sha256": "5ee594a381f93b14302e0606c6474762df4ec62dfd53dccbf83b3b06c035d344",
+      "windows": [
+        {
+          "start": 0,
+          "end": 99
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2394,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 14308,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 73,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "product",
+            32,
+            46
+          ],
+          "predicate": "named",
+          "tail": [
+            "product",
+            89,
+            97
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.1824212922895468,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 528,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            32,
+            46
+          ],
+          "predicate": "origin",
+          "tail": [
+            "researcher",
+            60,
+            67
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.19337041089581575,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 922,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          32,
+          40
+        ],
+        [
+          "algorithm",
+          89,
+          97
+        ],
+        [
+          "researcher",
+          60,
+          73
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-27",
+      "source_sha256": "96ee2199917f5d047730a5b9798f7b7ba1e025b71f5efda46416d62f164ef58b",
+      "windows": [
+        {
+          "start": 0,
+          "end": 146
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 4116,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 21,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            138,
+            142
+          ],
+          "predicate": "named",
+          "tail": [
+            "conference",
+            92,
+            135
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          92,
+          116
+        ],
+        [
+          "field",
+          120,
+          135
+        ],
+        [
+          "organisation",
+          79,
+          83
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-28",
+      "source_sha256": "5c9427e1f09609817f071d86b0f3ea39bd4e288ab9213379131cb4967697ac54",
+      "windows": [
+        {
+          "start": 0,
+          "end": 237
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 8624,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 44,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1,
+        "first_loss_edge_cap": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "field",
+            139,
+            154
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            4,
+            8
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            4,
+            8
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "field",
+            58,
+            81
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.17930446608540912,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 130,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          4,
+          8
+        ],
+        [
+          "field",
+          58,
+          81
+        ],
+        [
+          "field",
+          139,
+          154
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-29",
+      "source_sha256": "4cbb60ed2fb874a99aa3770c6b14737ad704aa61a000b9ccb64df1716680ff63",
+      "windows": [
+        {
+          "start": 0,
+          "end": 81
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 1274,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 2744,
+        "gold_edges_scored": 0,
+        "decoded_edges": 1,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 14,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          31,
+          55
+        ],
+        [
+          "field",
+          59,
+          74
+        ],
+        [
+          "person",
+          0,
+          3
+        ]
+      ],
+      "decoded_edge_keys": [
+        [
+          [
+            "person",
+            0,
+            3
+          ],
+          "role",
+          [
+            "conference",
+            31,
+            55
+          ]
+        ]
+      ],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-30",
+      "source_sha256": "15301935dce5c0b274cb683c58bbb43f3bcc953f7dcb1e6c92b6cb4bf26adac0",
+      "windows": [
+        {
+          "start": 0,
+          "end": 256
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 6,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 6,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 3,
+        "gold_directed_pairs": 5,
+        "gold_directed_pairs_co_window": 5,
+        "gold_edges": 5,
+        "gold_edges_co_window": 5,
+        "gold_edges_both_mentions_scored": 5,
+        "actual_scored_edges": 11368,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 58,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 5
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "organisation",
+            103,
+            112
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            158,
+            172
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            202,
+            245
+          ],
+          "predicate": "artifact",
+          "tail": [
+            "organisation",
+            103,
+            112
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            248,
+            252
+          ],
+          "predicate": "named",
+          "tail": [
+            "product",
+            202,
+            245
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            9
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            46,
+            55
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            9
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            103,
+            112
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "organisation",
+          46,
+          55
+        ],
+        [
+          "organisation",
+          103,
+          112
+        ],
+        [
+          "organisation",
+          158,
+          172
+        ],
+        [
+          "person",
+          0,
+          9
+        ],
+        [
+          "product",
+          202,
+          232
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-31",
+      "source_sha256": "bae0f9f1f2deccb0d28ae590d94dd756ec00d60b4181dca955b8829fdd62a2b8",
+      "windows": [
+        {
+          "start": 0,
+          "end": 138
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2576,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 5880,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 30,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "researcher",
+            124,
+            129
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "task",
+            39,
+            60
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            124,
+            129
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "task",
+            65,
+            111
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          39,
+          60
+        ],
+        [
+          "field",
+          65,
+          90
+        ],
+        [
+          "person",
+          124,
+          129
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-32",
+      "source_sha256": "f44d12e087fb51e333d911a6c6fc84060581d3b29dd0e1b85f050aefc1f0bb63",
+      "windows": [
+        {
+          "start": 0,
+          "end": 161
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 13524,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 69,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            65,
+            68
+          ],
+          "predicate": "named",
+          "tail": [
+            "task",
+            33,
+            62
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          33,
+          62
+        ],
+        [
+          "field",
+          73,
+          89
+        ],
+        [
+          "field",
+          92,
+          121
+        ],
+        [
+          "field",
+          128,
+          159
+        ],
+        [
+          "person",
+          0,
+          2
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-33",
+      "source_sha256": "d9ad3fb6a905bc71bdea3a781ab54604a3b2080c0f188629473597081dd74ed7",
+      "windows": [
+        {
+          "start": 0,
+          "end": 77
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 1274,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 784,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 4,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          50,
+          63
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-34",
+      "source_sha256": "819675cbc7326eda6ffcba1ead8cd9e9861ee0ae0cb219fd2b05cc4d6ccfe406",
+      "windows": [
+        {
+          "start": 0,
+          "end": 249
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 7,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 7,
+        "decoded_mentions": 6,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 5,
+        "gold_directed_pairs_co_window": 5,
+        "gold_edges": 5,
+        "gold_edges_co_window": 5,
+        "gold_edges_both_mentions_scored": 5,
+        "actual_scored_edges": 7840,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 40,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 5
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "researcher",
+            0,
+            13
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            33,
+            63
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            13
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            82,
+            95
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            13
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            114,
+            129
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            13
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            162,
+            199
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            13
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            222,
+            247
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          82,
+          95
+        ],
+        [
+          "country",
+          33,
+          41
+        ],
+        [
+          "country",
+          114,
+          121
+        ],
+        [
+          "field",
+          178,
+          199
+        ],
+        [
+          "field",
+          222,
+          239
+        ],
+        [
+          "person",
+          0,
+          13
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-35",
+      "source_sha256": "cb556a93cc9f4feb3c7380f0c9412f91042ac2f38f21c34e84b425fbef296dc0",
+      "windows": [
+        {
+          "start": 0,
+          "end": 188
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 7,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 7,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 6,
+        "gold_directed_pairs_co_window": 6,
+        "gold_edges": 9,
+        "gold_edges_co_window": 9,
+        "gold_edges_both_mentions_scored": 9,
+        "actual_scored_edges": 9212,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 47,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 9
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            123,
+            137
+          ],
+          "predicate": "role",
+          "tail": [
+            "researcher",
+            94,
+            109
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            67,
+            73
+          ],
+          "predicate": "physical",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            67,
+            73
+          ],
+          "predicate": "temporal",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            76,
+            87
+          ],
+          "predicate": "physical",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            76,
+            87
+          ],
+          "predicate": "temporal",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            94,
+            109
+          ],
+          "predicate": "physical",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            94,
+            109
+          ],
+          "predicate": "temporal",
+          "tail": [
+            "conference",
+            7,
+            56
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            149,
+            177
+          ],
+          "predicate": "role",
+          "tail": [
+            "researcher",
+            94,
+            109
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            180,
+            184
+          ],
+          "predicate": "named",
+          "tail": [
+            "task",
+            149,
+            177
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          7,
+          36
+        ],
+        [
+          "field",
+          40,
+          56
+        ],
+        [
+          "person",
+          67,
+          73
+        ],
+        [
+          "person",
+          76,
+          87
+        ],
+        [
+          "person",
+          94,
+          109
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-36",
+      "source_sha256": "7977acbde863a63ad83b5de3ee5924f49a834f1a1203cdfd81a57de99769a523",
+      "windows": [
+        {
+          "start": 0,
+          "end": 115
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2142,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 5096,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 26,
+        "feasible_documents": 1,
+        "first_loss_optimizer_did_not_select": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "metrics",
+            0,
+            4
+          ],
+          "predicate": "usage",
+          "tail": [
+            "metrics",
+            29,
+            38
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.24631551698389323,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 76,
+          "optimizer_edge_utility": -1.1183605194091797,
+          "first_loss": "optimizer_did_not_select",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "person",
+          0,
+          4
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-37",
+      "source_sha256": "fc756c138cd45d9d528dc37b76b7da244d7cd8ee2f5c75b69d37a3b3e22d1bf5",
+      "windows": [
+        {
+          "start": 0,
+          "end": 173
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 392,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 2,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "task",
+          155,
+          171
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-38",
+      "source_sha256": "cd43b045368af18952f58de98c006ec569e68919e89f5477662ac72cc2c16e73",
+      "windows": [
+        {
+          "start": 0,
+          "end": 296
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 12,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 12,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 4,
+        "gold_directed_pairs": 7,
+        "gold_directed_pairs_co_window": 7,
+        "gold_edges": 7,
+        "gold_edges_co_window": 7,
+        "gold_edges_both_mentions_scored": 7,
+        "actual_scored_edges": 3528,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 18,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 7
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "misc",
+            283,
+            288
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            289,
+            296
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            80,
+            101
+          ],
+          "predicate": "physical",
+          "tail": [
+            "country",
+            64,
+            77
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            104,
+            107
+          ],
+          "predicate": "named",
+          "tail": [
+            "organisation",
+            80,
+            101
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            134,
+            151
+          ],
+          "predicate": "physical",
+          "tail": [
+            "country",
+            116,
+            130
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            154,
+            156
+          ],
+          "predicate": "named",
+          "tail": [
+            "organisation",
+            134,
+            151
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            198,
+            243
+          ],
+          "predicate": "physical",
+          "tail": [
+            "country",
+            188,
+            194
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "organisation",
+            246,
+            250
+          ],
+          "predicate": "named",
+          "tail": [
+            "organisation",
+            198,
+            243
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          283,
+          288
+        ],
+        [
+          "country",
+          64,
+          77
+        ],
+        [
+          "country",
+          116,
+          130
+        ],
+        [
+          "country",
+          188,
+          194
+        ],
+        [
+          "organisation",
+          161,
+          181
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-39",
+      "source_sha256": "bf6aa70bdedd5c2ad2da86c62af6340ddc15143dc791d1b73e75623d815a5142",
+      "windows": [
+        {
+          "start": 0,
+          "end": 102
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2142,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 4,
+        "gold_directed_pairs_co_window": 4,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 6468,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 33,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 2,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            0,
+            11
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            72,
+            78
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.10153405776357,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 206,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            0,
+            11
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            81,
+            87
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.09566346797343654,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 598,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            72,
+            78
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "field",
+            34,
+            50
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            81,
+            87
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "field",
+            34,
+            50
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          11
+        ],
+        [
+          "field",
+          34,
+          50
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-40",
+      "source_sha256": "7333ec81ce4c213445fc54ddb4ff5de710676f8a4fcd29a137457372d40bb61e",
+      "windows": [
+        {
+          "start": 0,
+          "end": 153
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 5,
+        "gold_directed_pairs_co_window": 5,
+        "gold_edges": 5,
+        "gold_edges_co_window": 5,
+        "gold_edges_both_mentions_scored": 5,
+        "actual_scored_edges": 5488,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 28,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 5
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            124,
+            151
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            70,
+            85
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "location",
+            70,
+            85
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            88,
+            96
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "location",
+            88,
+            96
+          ],
+          "predicate": "physical",
+          "tail": [
+            "country",
+            97,
+            99
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            9,
+            34
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            70,
+            85
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "misc",
+            9,
+            34
+          ],
+          "predicate": "temporal",
+          "tail": [
+            "conference",
+            124,
+            151
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          124,
+          151
+        ],
+        [
+          "country",
+          88,
+          99
+        ],
+        [
+          "location",
+          70,
+          85
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-41",
+      "source_sha256": "6eff3d308e3c0b500429211427a41bb5535bc204d0618b69d9ff0b32de56eead",
+      "windows": [
+        {
+          "start": 0,
+          "end": 120
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 4312,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 22,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 3
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "product",
+            94,
+            118
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "product",
+            87,
+            93
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            94,
+            118
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            13,
+            23
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            94,
+            118
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "product",
+            57,
+            61
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          13,
+          23
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-42",
+      "source_sha256": "180f0d6e0c3edc486a49114cc747491546b17ef86336d04729e9252012d5b24d",
+      "windows": [
+        {
+          "start": 0,
+          "end": 95
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 1470,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 2548,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 13,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            36,
+            40
+          ],
+          "predicate": "cause-effect",
+          "tail": [
+            "misc",
+            0,
+            16
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            65,
+            83
+          ],
+          "predicate": "origin",
+          "tail": [
+            "misc",
+            0,
+            16
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          0,
+          16
+        ],
+        [
+          "metrics",
+          65,
+          93
+        ],
+        [
+          "organisation",
+          36,
+          40
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-43",
+      "source_sha256": "2034c6557b339dc4d3f3deb7037d5a60bf1486aa9ad3904533eefaa003179f26",
+      "windows": [
+        {
+          "start": 0,
+          "end": 196
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 5880,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 30,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1,
+        "first_loss_edge_cap": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "product",
+            0,
+            16
+          ],
+          "predicate": "artifact",
+          "tail": [
+            "product",
+            124,
+            130
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            0,
+            16
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "task",
+            27,
+            71
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.13385151037678564,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 1,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 1119,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "product",
+            0,
+            16
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "task",
+            76,
+            102
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.14642826771617803,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 727,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          40,
+          71
+        ],
+        [
+          "organisation",
+          0,
+          6
+        ],
+        [
+          "organisation",
+          124,
+          130
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-44",
+      "source_sha256": "558ea39f153e5c4814ae2aefc373f1476246d84c769621717ccff2f06482fc92",
+      "windows": [
+        {
+          "start": 0,
+          "end": 226
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 7,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 7,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 4,
+        "gold_directed_pairs": 9,
+        "gold_directed_pairs_co_window": 9,
+        "gold_edges": 9,
+        "gold_edges_co_window": 9,
+        "gold_edges_both_mentions_scored": 9,
+        "actual_scored_edges": 9800,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 50,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 9
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            134,
+            163
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            29,
+            44
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            134,
+            163
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            47,
+            61
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            134,
+            163
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            64,
+            83
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            166,
+            189
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            29,
+            44
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            166,
+            189
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            47,
+            61
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            166,
+            189
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            64,
+            83
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            192,
+            224
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            29,
+            44
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            192,
+            224
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            47,
+            61
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            192,
+            224
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "field",
+            64,
+            83
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          29,
+          44
+        ],
+        [
+          "field",
+          47,
+          61
+        ],
+        [
+          "field",
+          64,
+          83
+        ],
+        [
+          "field",
+          88,
+          112
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-45",
+      "source_sha256": "72916164f6c7a5db42db5b0bcb499f0d79938726f670bbfbf06a1d93795c8aa4",
+      "windows": [
+        {
+          "start": 0,
+          "end": 166
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 6272,
+        "gold_edges_scored": 1,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 32,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            4,
+            53
+          ],
+          "predicate": "topic",
+          "tail": [
+            "task",
+            72,
+            107
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.18134373465869727,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 223,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          4,
+          12
+        ],
+        [
+          "field",
+          72,
+          93
+        ],
+        [
+          "field",
+          98,
+          107
+        ],
+        [
+          "metrics",
+          127,
+          133
+        ],
+        [
+          "metrics",
+          150,
+          164
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-46",
+      "source_sha256": "71ecff2b80ae956828cbfc1f3e797ae53a2671f9d6276540802be5680c576967",
+      "windows": [
+        {
+          "start": 0,
+          "end": 137
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 5,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 6,
+        "gold_directed_pairs_co_window": 6,
+        "gold_edges": 6,
+        "gold_edges_co_window": 6,
+        "gold_edges_both_mentions_scored": 6,
+        "actual_scored_edges": 7252,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 37,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 6
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "researcher",
+            0,
+            6
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            87,
+            103
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            0,
+            6
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            108,
+            135
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            23,
+            38
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            87,
+            103
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            23,
+            38
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            108,
+            135
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            43,
+            53
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            87,
+            103
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            43,
+            53
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "misc",
+            108,
+            135
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          101,
+          103
+        ],
+        [
+          "field",
+          122,
+          135
+        ],
+        [
+          "person",
+          0,
+          6
+        ],
+        [
+          "person",
+          23,
+          38
+        ],
+        [
+          "person",
+          43,
+          53
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-47",
+      "source_sha256": "4e0efe99658e6c28a951d48cc28aa109b82f42a8bed6354a362fe3df7c0677d9",
+      "windows": [
+        {
+          "start": 0,
+          "end": 29
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 504,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 2156,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 11,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "organisation",
+          23,
+          27
+        ],
+        [
+          "person",
+          0,
+          2
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-48",
+      "source_sha256": "d0df05333b5c1e8dce310e17f1e1ad04f77b32c4db50bef4d76d617f0d43be84",
+      "windows": [
+        {
+          "start": 0,
+          "end": 130
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 2352,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 12,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "organisation",
+            0,
+            12
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            84,
+            128
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "organisation",
+          0,
+          12
+        ],
+        [
+          "task",
+          32,
+          56
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-49",
+      "source_sha256": "319b62baeab4d65e5b24c31ba8748cc35228b64c2534ebad07a78fbadf9e30bb",
+      "windows": [
+        {
+          "start": 0,
+          "end": 111
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 1680,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 0,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 7056,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 36,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-50",
+      "source_sha256": "dd6de82b6a8259e6d98c69629a750e02739370284cc6a13d9c82461635ffd81c",
+      "windows": [
+        {
+          "start": 0,
+          "end": 213
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 7,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 7,
+        "decoded_mentions": 0,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 36652,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 187,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-51",
+      "source_sha256": "cfb4c2fc84ae54094e3f8f362da9100a57e4fae815b41c32e52ce494305d0631",
+      "windows": [
+        {
+          "start": 0,
+          "end": 129
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 3528,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 18,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "field",
+          77,
+          100
+        ],
+        [
+          "person",
+          8,
+          10
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-52",
+      "source_sha256": "da00d7ba3fe51f22b8cf1a1ec518317d1e669e9c13f1b3b339a273ac80caf64d",
+      "windows": [
+        {
+          "start": 0,
+          "end": 196
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 3,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 3332,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 17,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          58,
+          73
+        ],
+        [
+          "algorithm",
+          84,
+          102
+        ],
+        [
+          "metrics",
+          167,
+          185
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-53",
+      "source_sha256": "50caed2975eba5953f9084d48b3a5cd792410a4f2260e2cc15a7d4efca23b0b2",
+      "windows": [
+        {
+          "start": 0,
+          "end": 111
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 4508,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 23,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "conference",
+            17,
+            51
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            72,
+            97
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "location",
+            72,
+            97
+          ],
+          "predicate": "physical",
+          "tail": [
+            "location",
+            101,
+            109
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "conference",
+          33,
+          45
+        ],
+        [
+          "country",
+          46,
+          51
+        ],
+        [
+          "location",
+          72,
+          97
+        ],
+        [
+          "location",
+          101,
+          109
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-54",
+      "source_sha256": "c87867511f463ee7786dbbeff5e90cf1faca4c98862689d31c2d9d829239aa28",
+      "windows": [
+        {
+          "start": 0,
+          "end": 357
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 4704,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 24,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "metrics",
+          250,
+          263
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-55",
+      "source_sha256": "c482281325b179f3c2a43a961ac8bf6e3b13668a43fed490936696045d8a7754",
+      "windows": [
+        {
+          "start": 0,
+          "end": 225
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 4,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 4,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 3,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 3,
+        "gold_edges_co_window": 3,
+        "gold_edges_both_mentions_scored": 3,
+        "actual_scored_edges": 12936,
+        "gold_edges_scored": 2,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 66,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 2,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "algorithm",
+            27,
+            50
+          ],
+          "predicate": "compare",
+          "tail": [
+            "algorithm",
+            139,
+            159
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.11900408286230311,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 1569,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            27,
+            50
+          ],
+          "predicate": "compare",
+          "tail": [
+            "algorithm",
+            162,
+            184
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "algorithm",
+            27,
+            50
+          ],
+          "predicate": "compare",
+          "tail": [
+            "algorithm",
+            189,
+            217
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.1108507539938166,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 2745,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          27,
+          50
+        ],
+        [
+          "algorithm",
+          139,
+          159
+        ],
+        [
+          "algorithm",
+          162,
+          186
+        ],
+        [
+          "algorithm",
+          189,
+          217
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-56",
+      "source_sha256": "d0e084cbbda8e85418c48ed51eb77da352cef20aef969842568e9f0630e60a86",
+      "windows": [
+        {
+          "start": 0,
+          "end": 56
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 392,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 1372,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 7,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "field",
+          16,
+          41
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-57",
+      "source_sha256": "a17f3fec60ff8832039b6457755b3ddbd11710a941be7a53370c64a9283bd5f4",
+      "windows": [
+        {
+          "start": 0,
+          "end": 104
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 2394,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 196,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 1,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          3,
+          41
+        ],
+        [
+          "metrics",
+          90,
+          102
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-58",
+      "source_sha256": "9b3a2f44b94fde9a1a12c9b62ed8abb1c7d8c30daaf2eadd4465bf08f13bb54e",
+      "windows": [
+        {
+          "start": 0,
+          "end": 226
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 5,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 5,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 3,
+        "gold_directed_pairs_co_window": 3,
+        "gold_edges": 4,
+        "gold_edges_co_window": 4,
+        "gold_edges_both_mentions_scored": 4,
+        "actual_scored_edges": 15876,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 81,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 4
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "person",
+            20,
+            32
+          ],
+          "predicate": "physical",
+          "tail": [
+            "country",
+            114,
+            122
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "person",
+            20,
+            32
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            64,
+            83
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "person",
+            133,
+            138
+          ],
+          "predicate": "origin",
+          "tail": [
+            "organisation",
+            201,
+            224
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "person",
+            133,
+            138
+          ],
+          "predicate": "role",
+          "tail": [
+            "organisation",
+            201,
+            224
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "country",
+          114,
+          122
+        ],
+        [
+          "field",
+          64,
+          83
+        ],
+        [
+          "person",
+          20,
+          32
+        ],
+        [
+          "person",
+          201,
+          213
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-59",
+      "source_sha256": "3e72e884679952982a313bd936e474a92965eda34eac1bf505ce927b1679d85f",
+      "windows": [
+        {
+          "start": 0,
+          "end": 128
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 2,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 2548,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 13,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "organisation",
+            18,
+            44
+          ],
+          "predicate": "role",
+          "tail": [
+            "person",
+            115,
+            126
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "organisation",
+          18,
+          44
+        ],
+        [
+          "person",
+          115,
+          126
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-60",
+      "source_sha256": "d35512398e21924ed34e760bdd1ab61098889dce377f4f830098a85a9a46e8e6",
+      "windows": [
+        {
+          "start": 0,
+          "end": 70
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 1,
+        "scored_mentions": 1274,
+        "gold_mentions_scored": 1,
+        "decoded_mentions": 1,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 2548,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 13,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "country",
+          37,
+          43
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-61",
+      "source_sha256": "7fe9b87de68937593e68ca794732575043f8eb337c9f386712c5fe29ac7d070c",
+      "windows": [
+        {
+          "start": 0,
+          "end": 143
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 0,
+        "gold_directed_pairs_co_window": 0,
+        "gold_edges": 0,
+        "gold_edges_co_window": 0,
+        "gold_edges_both_mentions_scored": 0,
+        "actual_scored_edges": 2156,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 11,
+        "feasible_documents": 1
+      },
+      "edge_trace": [],
+      "decoded_mention_keys": [
+        [
+          "field",
+          89,
+          112
+        ],
+        [
+          "field",
+          117,
+          141
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-62",
+      "source_sha256": "5768a34ccdfdedf244e01b50e5dcb5a9cb579cf5e25ebea698a0daca60993831",
+      "windows": [
+        {
+          "start": 0,
+          "end": 337
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 7,
+        "scored_mentions": 2688,
+        "gold_mentions_scored": 7,
+        "decoded_mentions": 4,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 7,
+        "gold_directed_pairs_co_window": 7,
+        "gold_edges": 8,
+        "gold_edges_co_window": 8,
+        "gold_edges_both_mentions_scored": 8,
+        "actual_scored_edges": 4312,
+        "gold_edges_scored": 3,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 22,
+        "feasible_documents": 1,
+        "first_loss_edge_cap": 3,
+        "first_loss_predicate_outside_schema": 1,
+        "first_loss_not_in_sparse_edge_output": 4
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "task",
+            24,
+            50
+          ],
+          "predicate": "compare",
+          "tail": [
+            "task",
+            296,
+            327
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.16922657958599086,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 1,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 181,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            24,
+            50
+          ],
+          "predicate": "opposite",
+          "tail": [
+            "task",
+            296,
+            327
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "predicate_outside_schema",
+          "schema_allows_gold_types": false
+        },
+        {
+          "head": [
+            "task",
+            24,
+            50
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "task",
+            118,
+            137
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            53,
+            56
+          ],
+          "predicate": "named",
+          "tail": [
+            "task",
+            24,
+            50
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            242,
+            256
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "task",
+            296,
+            327
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.15448699501284263,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 377,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            261,
+            278
+          ],
+          "predicate": "part-of",
+          "tail": [
+            "task",
+            296,
+            327
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "probability": 0.15531158517568533,
+          "candidate_threshold": 0.05,
+          "optimizer_endpoint_count": 2,
+          "per_predicate_cap": 128,
+          "rank_after_gate": 181,
+          "first_loss": "edge_cap",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            296,
+            327
+          ],
+          "predicate": "type-of",
+          "tail": [
+            "task",
+            118,
+            137
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "task",
+            330,
+            333
+          ],
+          "predicate": "named",
+          "tail": [
+            "task",
+            296,
+            327
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "field",
+          118,
+          137
+        ],
+        [
+          "field",
+          308,
+          327
+        ],
+        [
+          "metrics",
+          242,
+          256
+        ],
+        [
+          "metrics",
+          261,
+          278
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-63",
+      "source_sha256": "17e111ff531299743d78ab8dc7c62376768d182177d9e947c139cbbf9ca84065",
+      "windows": [
+        {
+          "start": 0,
+          "end": 100
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 2,
+        "scored_mentions": 2660,
+        "gold_mentions_scored": 2,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 1,
+        "gold_directed_pairs": 1,
+        "gold_directed_pairs_co_window": 1,
+        "gold_edges": 1,
+        "gold_edges_co_window": 1,
+        "gold_edges_both_mentions_scored": 1,
+        "actual_scored_edges": 3332,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 17,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 1
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "field",
+            30,
+            33
+          ],
+          "predicate": "usage",
+          "tail": [
+            "product",
+            56,
+            63
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "algorithm",
+          56,
+          63
+        ],
+        [
+          "field",
+          30,
+          33
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    },
+    {
+      "document": "ai-test-64",
+      "source_sha256": "e2e2829d3885432d57e2277f6f3c488112d52bf4d6241f48d069ac8b6e2e5a96",
+      "windows": [
+        {
+          "start": 0,
+          "end": 119
+        }
+      ],
+      "counts": {
+        "scored_windows": 1,
+        "gold_mentions": 3,
+        "scored_mentions": 2394,
+        "gold_mentions_scored": 3,
+        "decoded_mentions": 2,
+        "gold_mentions_decoded": 0,
+        "gold_directed_pairs": 2,
+        "gold_directed_pairs_co_window": 2,
+        "gold_edges": 2,
+        "gold_edges_co_window": 2,
+        "gold_edges_both_mentions_scored": 2,
+        "actual_scored_edges": 1568,
+        "gold_edges_scored": 0,
+        "decoded_edges": 0,
+        "gold_edges_decoded": 0,
+        "sparse_directed_predicate_span_pairs": 8,
+        "feasible_documents": 1,
+        "first_loss_not_in_sparse_edge_output": 2
+      },
+      "edge_trace": [
+        {
+          "head": [
+            "researcher",
+            80,
+            93
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            15,
+            18
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        },
+        {
+          "head": [
+            "researcher",
+            100,
+            117
+          ],
+          "predicate": "general-affiliation",
+          "tail": [
+            "misc",
+            15,
+            18
+          ],
+          "co_windows": [
+            0
+          ],
+          "joint_mention_windows": [
+            0
+          ],
+          "first_loss": "not_in_sparse_edge_output",
+          "schema_allows_gold_types": true
+        }
+      ],
+      "decoded_mention_keys": [
+        [
+          "person",
+          80,
+          93
+        ],
+        [
+          "person",
+          100,
+          117
+        ]
+      ],
+      "decoded_edge_keys": [],
+      "feasible": true
+    }
+  ],
+  "enrolled_documents": 64,
+  "scored_documents": 64
+}
