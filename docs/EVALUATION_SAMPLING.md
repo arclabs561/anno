@@ -648,3 +648,22 @@ git worktree remove "$out/after"
 Both schedule files contain only project-authored journey names under the
 repository license. Future blinded trials need fresh independently authored
 schedules and commitments recorded before policy selection.
+
+### Multilingual plain-text source coordinates
+
+The minimal CI job publishes a `language-spans` artifact. It records the CLI
+executable digest, the backend inventory, and one outcome per backend and input
+language. The synthetic panel includes combining marks, a supplementary-plane
+character, and two occurrences of the same email. For every emitted entity it
+checks the character slice and its exact UTF-8 byte range against the original
+input. Pattern and stacked extraction must return both email occurrences.
+
+An empty prediction is recorded separately. A build-time exclusion and a
+compiled backend outside the local CPU panel are also distinct outcomes.
+Language tags describe fixture text. To estimate extraction quality, use a
+labeled corpus and the checkpoint-specific evaluation procedures above.
+
+```sh
+cargo build --locked -p anno-cli --no-default-features --features 'eval extractor-readability heuristic-fr'
+python3 scripts/verification/check_language_spans.py target/debug/anno language-spans.json
+```

@@ -1,15 +1,20 @@
 use serde_json::Value;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
-fn stdout(cache: &Path, args: &[&str]) -> Vec<u8> {
-    let output = Command::new(env!("CARGO_BIN_EXE_anno"))
+fn invoke(cache: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_anno"))
         .env("ANNO_NO_DOWNLOADS", "1")
         .env("XDG_CACHE_HOME", cache)
         .env("HF_HOME", cache)
+        .env("HF_HUB_CACHE", cache.join("hub"))
         .args(args)
         .output()
-        .expect("run anno");
+        .expect("run anno")
+}
+
+fn stdout(cache: &Path, args: &[&str]) -> Vec<u8> {
+    let output = invoke(cache, args);
     assert!(
         output.status.success(),
         "{}",
@@ -22,29 +27,33 @@ fn run(cache: &Path, args: &[&str]) -> Value {
     serde_json::from_slice(&stdout(cache, args)).unwrap()
 }
 
+fn extract_args<'a>(model: &'a str, relation: &'a str, format: &'a str) -> Vec<&'a str> {
+    vec![
+        "extract",
+        "--model",
+        model,
+        "--text",
+        "Marie works for Acme Inc.",
+        "--extract-relations",
+        "--relation-types",
+        relation,
+        "--threshold",
+        "0.1",
+        "--format",
+        format,
+        "--quiet",
+    ]
+}
+
 #[test]
 fn extract_and_enhance_preserve_edge_endpoints_and_scorer() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("grounded.json");
     let path_str = path.to_str().unwrap();
-    let extract = [
-        "extract",
-        "--model",
-        "tplinker",
-        "--text",
-        "Marie works for Acme Inc.",
-        "--extract-relations",
-        "--relation-types",
-        "WORKS_FOR",
-        "--threshold",
-        "0.1",
-        "--quiet",
-    ];
-    let mut flat_args = extract.to_vec();
-    flat_args.extend(["--format", "json", "--export", path_str]);
+    let mut flat_args = extract_args("tplinker", "WORKS_FOR", "json");
+    flat_args.extend(["--export", path_str]);
     let flat = run(temp.path(), &flat_args);
-    let mut stream_args = extract.to_vec();
-    stream_args.extend(["--format", "jsonl"]);
+    let stream_args = extract_args("tplinker", "WORKS_FOR", "jsonl");
     let stream = stdout(temp.path(), &stream_args);
     let streamed_edge = serde_json::Deserializer::from_slice(&stream)
         .into_iter::<Value>()
@@ -107,6 +116,37 @@ fn extract_and_enhance_preserve_edge_endpoints_and_scorer() {
     assert_eq!(loaded["relation_evidence"], saved["relation_evidence"]);
     let queried = run(temp.path(), &["query", "relations", path_str]);
     assert_eq!(queried["mentions"][0]["evidence"], *edge);
+}
+
+#[test]
+fn unmatched_relation_returns_entities_and_an_empty_list() {
+    let cache = tempfile::tempdir().unwrap();
+    let result = run(
+        cache.path(),
+        &extract_args("tplinker", "LOCATED_IN", "json"),
+    );
+    assert_eq!(result["relations"], serde_json::json!([]));
+    let entities = result["entities"].as_array().unwrap();
+    for name in ["Marie", "Acme Inc"] {
+        assert!(entities.iter().any(|entity| entity["text"] == name));
+    }
+}
+
+#[cfg(feature = "onnx")]
+#[test]
+fn missing_explicit_relex_export_fails_without_emitting_predictions() {
+    let cache = tempfile::tempdir().unwrap();
+    let result = invoke(
+        cache.path(),
+        &extract_args("gliner-relex", "WORKS_FOR", "json"),
+    );
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty(), "failed extraction emitted output");
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stderr.contains("GLiNER-RelEx") && stderr.contains("export"),
+        "{stderr}"
+    );
 }
 
 #[test]

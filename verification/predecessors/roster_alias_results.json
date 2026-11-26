@@ -1,0 +1,33 @@
+{
+  "editions": 80,
+  "start": "2021-01-20T15:43:50Z",
+  "end": "2025-12-05T21:02:36Z",
+  "paired": {
+    "gained": 0,
+    "lost": 0
+  },
+  "policies": {
+    "default": {
+      "absent": 173,
+      "correct": 46,
+      "wrong": 5,
+      "wrong_on_absent": 3,
+      "withheld_tie": 0,
+      "eligible_comparisons": 129451,
+      "present": 68,
+      "median_ms": 14.98,
+      "p95_ms": 24.48
+    },
+    "aliases": {
+      "absent": 173,
+      "correct": 46,
+      "wrong": 5,
+      "wrong_on_absent": 3,
+      "withheld_tie": 0,
+      "eligible_comparisons": 131133,
+      "present": 68,
+      "median_ms": 15.09,
+      "p95_ms": 25.39
+    }
+  }
+}

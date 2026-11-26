@@ -298,3 +298,14 @@ complete character reference, such as `&#64;`. `whitespace_collapsed`,
 an entire text run or tag. For a gap in the renderer map, `unmapped` has a rendered byte
 range and `null` source bytes. Check the source digest before using these byte ranges. Direct
 fragments can be compared byte for byte with the rendered text.
+
+To verify which of two identical email addresses a highlight refers to, run this in a scratch directory with the checkout's CLI:
+
+```sh
+printf '<p>🦊 al<b>ice</b>&#64;example.org</p><p>alice@example.org</p>' > page.html
+anno extract --file page.html --model pattern --html-source-spans --clean --format grounded > doc.json
+anno query source-span doc.json 7 8 --original page.html
+anno query source-span doc.json 25 26 --original page.html
+```
+
+Both queries select an analyzed `@`. The first returns a transformed fragment covering original bytes `[20, 25)` (the full `&#64;` reference). The second returns a direct fragment covering `[48, 49)` (the literal `@` in the second paragraph).

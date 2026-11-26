@@ -17,10 +17,11 @@ class ResidualLedgers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             path = Path(work)
             sample = {"unit_count": 1, "sample_sha256": "a" * 64}
-            metrics = {"num_gold_relations": 2, "num_predicted_relations": 1, "strict_relation_matches": 1}
+            metrics = {"num_gold_relations": 3, "num_predicted_relations": 1, "strict_relation_matches": 1}
             edge = [[0, 1], [2, 3], "r"]
+            second_edge = [edge[0], edge[1], "also-r"]
             row = {"index": 0, "text_sha256": "b" * 64, "sample_sha256": sample["sample_sha256"],
-                   "gold": [edge, edge], "predicted": [edge]}
+                   "gold": [edge, edge, second_edge], "predicted": [edge]}
             domains = {}
             for domain in ("ai", "literature"):
                 arms = []
@@ -31,7 +32,7 @@ class ResidualLedgers(unittest.TestCase):
                         arms.append({"backend": backend, "prompt": policy, "sample": sample, "metrics": metrics})
                         result = {"success": True, "metrics": metrics, "provenance": {"evaluated_sample": sample}}
                         (path / (name + ".json")).write_text(json.dumps({"results": [result]}))
-                        (path / (name + ".rows")).write_text(json.dumps(row))
+                        (path / (name + ".rows")).write_text(json.dumps({**row, "gold": list(reversed(row["gold"]))} if policy == "oracle" else row))
             baseline = path / "baseline.json"
             baseline.write_text(json.dumps({"domains": domains}))
             out = path / "errors.json"
@@ -39,8 +40,28 @@ class ResidualLedgers(unittest.TestCase):
             subprocess.run(cmd, check=True, capture_output=True)
             result = json.loads(out.read_bytes())
             self.assertEqual(len(result), 8)
-            self.assertTrue(all(arm["missed"] == {"duplicate_beyond_opposite_multiplicity": 1}
+            self.assertTrue(all(arm["missed"] == {"duplicate_beyond_opposite_multiplicity": 1,
+                                                   "forward_exact_pair_other_predicate": 1}
                                 for arm in result.values()))
+            # Keep the sample fingerprint, matched count, FP and FN unchanged.
+            # Both altered inventories retain the original aggregate scores.
+            arm_path = path / "ai-gliner_relex-fixed.rows"
+            reversed_edge = [edge[1], edge[0], edge[2]]
+            for replacement in (
+                {"text_sha256": "c" * 64},
+                {"gold": [reversed_edge, reversed_edge, second_edge], "predicted": [reversed_edge]},
+            ):
+                with self.subTest(replacement=replacement):
+                    arm_path.write_text(json.dumps({**row, **replacement}))
+                    out.unlink(missing_ok=True)
+                    rejected = subprocess.run(
+                        cmd,
+                        capture_output=True, text=True,
+                    )
+                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertIn("source or gold relations differ across arms", rejected.stderr)
+                    self.assertFalse(out.exists())
+            arm_path.write_text(json.dumps(row))
             row["sample_sha256"] = "c" * 64
             (path / "ai-tplinker-fixed.rows").write_text(json.dumps(row))
             self.assertIn("wrong row order or source identity", subprocess.run(cmd, capture_output=True, text=True).stderr)

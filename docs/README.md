@@ -2,6 +2,23 @@
 
 Run the [quickstart](QUICKSTART.md) for a first CLI or Rust extraction. Before saving annotations or highlighting a result, check which source text and offset units the caller must retain. [Source text and offsets](CONTRACT.md#source-text-and-offsets)
 
+## Use Anno with an agent
+
+For clients that load a local Agent Plugins package, select the checkout’s `.agents/` directory. Choose a skill by the result you need.
+
+| Goal | Skill |
+|---|---|
+| Run an operation with the installed binary and inspect its output | [Anno CLI](../.agents/skills/anno-cli/SKILL.md) |
+| Use Anno from Rust or Python, highlight a source occurrence or exchange annotations | [Integrate Anno](../.agents/skills/anno-integrate/SKILL.md) |
+| Reproduce a failure or compare two backend or scorer revisions | [Anno QA](../.agents/skills/anno-qa/SKILL.md) |
+
+## Verify a user-visible result
+
+| Goal | Replay and expected result |
+|---|---|
+| Highlight the correct occurrence in the original HTML | Follow the [two-address replay](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html). Both occurrences display the same address. Their `@` characters point to different source bytes, one encoded and one literal. |
+| Render a saved constituency parse | From the checkout root, run `anno parse --input testdata/constituency/benepar_en3.json`. It prints two trees, one for “Mira builds small robots.” and one for “She smiles.” [Parser interchange](CONSTITUENCY.md) · [Fixture](../testdata/constituency/README.md) |
+
 ## Integrate extraction
 
 | Task | Guide |

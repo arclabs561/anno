@@ -1,7 +1,9 @@
 """Synthetic regressions for the dataset-independent NuNER scoring and public summary."""
 
+import json
 import unittest
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -11,7 +13,7 @@ except ModuleNotFoundError:
     np = None
 
 if np is not None:
-    from audit_nuner_spans import predictions
+    from audit_nuner_spans import predictions, run as audit_spans
     from nuner_error_analysis import checked_errors, public_summary
     from nuner_labeled import (
         CHECKPOINT, CHECKPOINT_REVISION, case_files_digest, check_graph_identity, check_run_artifacts,
@@ -62,6 +64,53 @@ class NuNERScoringTests(unittest.TestCase):
         expected = {(0, 1, 0), (2, 3, 1)}
         self.assertEqual(set(map(tuple, decode(scores, words, "A B C", 0.5))), expected)
         self.assertEqual(predictions(scores, words, "A B C", 0.5), expected)
+
+    def test_paired_audit_rejects_count_preserving_receipt_changes(self):
+        with TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            rows = [{"tokens": ["Åda", "Éva"], "ner_tags": [1, 0]},
+                    {"tokens": ["Bea", "Lee"], "ner_tags": [0, 1]}]
+            source = work / "test_en.jsonl"
+            source.write_text("".join(json.dumps(row) + "\n" for row in rows))
+            cases, saved_cases = [], []
+            for i, row in enumerate(rows):
+                case = {"group": "toy", "language": "en", "test_rows_zero_based": [i],
+                        "words": [[0, 3], [4, 7]]}
+                cases.append(case)
+                scores = np.array([[4, -0.3, -3], [-2, -2, -2]], dtype=np.float32)
+                np.save(work / f"fp32-{i}.npy", scores)
+                if i == 0:
+                    # A nonwinning label reaches exactly 0.5. The emitted span stays put.
+                    scores[0, 1] = 0
+                np.save(work / f"u8-{i}.npy", scores)
+                saved_cases.append({
+                    **case, "text_sha256": sha256(" ".join(row["tokens"]).encode()).hexdigest(),
+                    "gold": [[0, 3, 0]] if i == 0 else [[4, 7, 0]],
+                    "fp32": [[0, 3, 0]], "u8": [[0, 3, 0]],
+                    "threshold_crossings": {"0.3": 0, "0.5": int(i == 0), "0.7": 0},
+                })
+            (work / "panel.json").write_text(json.dumps(cases))
+            counts = {"tp": 1, "fp": 1, "fn": 1}
+            group = {"n": 2, "thresholds": {key: counts for key in ("0.3", "0.5", "0.7")}}
+            receipt = {"test_file_sha256": {"en": digest(source)}, "cases": saved_cases,
+                       "labels_by_index": ["person", "organization", "location"],
+                       "models": {arm: {"groups": {"toy": group}} for arm in ("fp32", "u8")}}
+            self.assertEqual(audit_spans(work, receipt), {arm: {"toy": counts} for arm in ("fp32", "u8")})
+
+            # Assign the same total number of crossings to the wrong case.
+            altered = deepcopy(receipt)
+            altered["cases"][0]["threshold_crossings"]["0.5"] = 0
+            altered["cases"][1]["threshold_crossings"]["0.5"] = 1
+            with self.assertRaisesRegex(ValueError, "threshold crossings differ on case 0"):
+                audit_spans(work, altered)
+
+            # A different false-positive boundary or type leaves both arms' TP/FP/FN unchanged.
+            for replacement in ([1, 3, 0], [0, 3, 1]):
+                with self.subTest(replacement=replacement):
+                    altered = deepcopy(receipt)
+                    altered["cases"][1]["u8"] = [replacement]
+                    with self.assertRaisesRegex(ValueError, "u8: different span inventory on case 1"):
+                        audit_spans(work, altered)
 
     def test_undefined_micro_f1(self):
         interval = paired_interval([{"gold": [], "fp32": [], "u8": []}])

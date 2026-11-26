@@ -1,10 +1,18 @@
 """Regression checks for targeted GAP decisions and LitBank corpus scoring."""
 
+import json
 import math
 import os
 import random
 import runpy
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
+
+import coref_litbank
 from coref_gap import check_file, index_partition, measure
 from coref_litbank import score_doc, summarize
 from native_gap_loss import output_errors
@@ -81,6 +89,56 @@ class PanelScores(unittest.TestCase):
         for row, mode in [(refused, "predicted"), ({**refused, "clusters": []}, "supplied")]:
             with self.assertRaisesRegex(ValueError, "invalid refusal"):
                 measure([doc], [row], "maverick", mode)
+
+    def test_gap_rejects_aggregate_preserving_cluster_corruption(self):
+        p, a, b, extra = ((i, i + 1) for i in (0, 2, 4, 6))
+        doc = ("t", "P A B X", [p, a, b], [True, False])
+        record = {"id": "t", "producer": "maverick"}
+
+        def score(clusters, mode="supplied"):
+            return measure([doc], [{**record, "clusters": clusters}], "maverick", mode)
+
+        valid = score([[p, a], [b]])
+        self.assertEqual(valid["per_id"], ["11110"])
+        self.assertEqual(valid, score([[b], [a, p]]))
+        # Set conversion used to hide the repeated identity even from per-ID receipts.
+        with self.assertRaisesRegex(ValueError, "overlapping cluster assignment"):
+            score([[p, a, a], [b]])
+        with self.assertRaisesRegex(ValueError, "invalid returned character offsets"):
+            score([[(False, 1), a], [b]])
+        # Both predictions get the correct labeled link and emit three mentions.
+        # Discovery may return X; a supplied-only resolver never received X.
+        discovered = score([[p, a], [extra]], "predicted")
+        for key in ("tp", "fp", "fn", "tn", "all_output_spans", "f1"):
+            self.assertEqual(discovered["counts"][key], valid["counts"][key])
+        with self.assertRaisesRegex(ValueError, "outside supplied spans"):
+            score([[p, a], [extra]])
+
+    def test_litbank_runner_refusal_cannot_hide_successful_clusters(self):
+        doc = ("d", "P A X", 3, 1, [{(0, 1), (2, 3)}])
+        second = ("e", *doc[1:])
+        record = {"id": "d", "producer": "maverick", "clusters": [[[2, 3], [0, 1]]]}
+        refused = {"id": "e", "producer": "maverick", "unsupported": "supplied_span_splits_token"}
+        with TemporaryDirectory() as tmp:
+            output = Path(tmp) / "receipt.json"
+            argv = ["coref_litbank", "input", "binary", "maverick", "supplied", str(output)]
+
+            def run(records):
+                rows = "\n".join(map(json.dumps, records))
+                with (patch.object(sys, "argv", argv),
+                      patch("coref_gap.model_identity", return_value={"backend": "maverick"}),
+                      patch.object(coref_litbank, "load", return_value=[doc, second]),
+                      patch.object(coref_litbank.subprocess, "run", return_value=SimpleNamespace(stdout=rows))):
+                    coref_litbank.main()
+
+            run([record, refused])
+            good = json.loads(output.read_text())
+            self.assertEqual(good["scores"]["conll_f1"], 1)
+            self.assertEqual(good["documents"][1]["unsupported"], refused["unsupported"])
+            with self.assertRaisesRegex(ValueError, "invalid refusal"):
+                run([record, {**refused, "clusters": []}])
+            with self.assertRaisesRegex(ValueError, "outside supplied spans"):
+                run([{**record, "clusters": [[[0, 1], [4, 5]]]}, refused])
 
     def test_gap_with_no_gold_or_predicted_links(self):
         doc = ("t", "P A B", [(0, 1), (2, 3), (4, 5)], [False, False])

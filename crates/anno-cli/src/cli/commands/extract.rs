@@ -371,7 +371,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         let entities = backend
             .extract_entities(&text, None)
             .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
-        Ok((entities, backend.name()))
+        Ok((entities, backend.runtime_name()))
     };
     let mut ran_joint = false;
     let mut relation_provenance = None;
@@ -391,7 +391,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 .map_err(|e| CliError::from(format!("Relation extraction failed: {e}")))?;
             ran_joint = true;
             relation_provenance = producer;
-            (out.entities, out.relations, backend.name())
+            (out.entities, out.relations, backend.runtime_name())
         } else {
             #[cfg(feature = "onnx")]
             if matches!(model, ModelBackend::GlinerRelex) {
@@ -414,7 +414,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 }
             }
             .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
-            (entities, Vec::new(), backend.name())
+            (entities, Vec::new(), backend.runtime_name())
         }
     } else {
         let (entities, runtime) = standard_extraction()?;
@@ -1014,7 +1014,7 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(e.to_string()))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
                     .map_err(|e| CliError::from(e.to_string()));
             }
             ModelBackend::GlinerPoly => {
@@ -1023,7 +1023,7 @@ fn extract_with_custom_types(
                         .map_err(|e| CliError::from(format!("Failed to create GLiNER Poly: {e}")))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {e}")));
             }
             ModelBackend::Gliner | ModelBackend::GlinerRelex => {
@@ -1036,7 +1036,7 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Failed to create GLiNER model: {}", e)))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::GlinerMultitask => {
@@ -1048,7 +1048,7 @@ fn extract_with_custom_types(
                 })?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::name(&model)))
+                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Nuner => {
@@ -1058,7 +1058,7 @@ fn extract_with_custom_types(
                     .ok_or_else(|| CliError::from("NuNER does not expose zero-shot extraction"))?;
                 return ner
                     .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, model.name()))
+                    .map(|entities| (entities, model.runtime_name()))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             _ => {}
@@ -1076,7 +1076,7 @@ fn extract_with_custom_types(
     let model = backend.create_model().map_err(CliError::from)?;
     model
         .extract_entities(text, None)
-        .map(|entities| (entities, model.name()))
+        .map(|entities| (entities, model.runtime_name()))
         .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))
 }
 

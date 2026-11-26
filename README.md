@@ -106,6 +106,7 @@ limits it to available local models, patterns and heuristics.
 Anno supports Rust 1.91 and later.
 
 - [Quickstart and examples](docs/QUICKSTART.md)
+- [Use Anno with an agent](docs/README.md#use-anno-with-an-agent)
 - [Compare two editions of a harbor bulletin with the published Python wheel](crates/anno-py/README.md#compare-dates-in-two-bulletins)
 - [Source text, offsets and provenance](docs/CONTRACT.md)
 - [Backends and feature flags](docs/BACKENDS.md)

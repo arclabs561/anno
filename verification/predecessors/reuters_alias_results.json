@@ -1,0 +1,62 @@
+{
+  "held_out_documents": 157,
+  "policies": {
+    "default": {
+      "absent_from_catalog": 264,
+      "abstentions": 257,
+      "below_threshold": 1,
+      "cards": 62,
+      "eligible_track_comparisons_per_mention_summed": 95700,
+      "explicit_nil": 159,
+      "first_correct": 46,
+      "first_wrong": 16,
+      "gold_gained_vs_default": 0,
+      "gold_lost_vs_default": 0,
+      "gold_shown": 46,
+      "in_catalog": 55,
+      "no_positive_overlap": 3,
+      "nonempty": 62,
+      "nongold_cards": 16,
+      "rank_or_tie_limit": 5,
+      "shown_on_absent": 16,
+      "shown_on_explicit_nil": 7
+    },
+    "observed_aliases": {
+      "absent_from_catalog": 264,
+      "abstentions": 253,
+      "cards": 66,
+      "eligible_track_comparisons_per_mention_summed": 101442,
+      "explicit_nil": 159,
+      "first_correct": 48,
+      "first_wrong": 18,
+      "gold_gained_vs_default": 2,
+      "gold_lost_vs_default": 0,
+      "gold_shown": 48,
+      "in_catalog": 55,
+      "nonempty": 66,
+      "nongold_cards": 18,
+      "shown_on_absent": 18,
+      "shown_on_explicit_nil": 7
+    },
+    "wide": {
+      "absent_from_catalog": 264,
+      "abstentions": 197,
+      "cards": 182,
+      "eligible_track_comparisons_per_mention_summed": 95700,
+      "explicit_nil": 159,
+      "first_correct": 46,
+      "first_wrong": 76,
+      "gold_gained_vs_default": 6,
+      "gold_lost_vs_default": 0,
+      "gold_shown": 52,
+      "in_catalog": 55,
+      "nonempty": 122,
+      "nongold_cards": 130,
+      "shown_on_absent": 68,
+      "shown_on_explicit_nil": 37
+    }
+  },
+  "prior_documents": 331,
+  "prior_identities": 300,
+  "test_mentions": 319
+}

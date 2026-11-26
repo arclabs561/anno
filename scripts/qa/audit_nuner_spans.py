@@ -35,11 +35,18 @@ def reference(rows):
     return "\n".join(parts), spans
 
 
-def predictions(scores, words, text, threshold):
+def word_probabilities(scores, words):
     if scores.shape != (len(words), 3) or not np.isfinite(scores).all():
         raise ValueError("non-finite scores or different word count")
     with np.errstate(over="ignore"):
-        probabilities = 1 / (1 + np.exp(-scores.astype(np.float32)))
+        return np.float32(1) / (np.float32(1) + np.exp(-scores.astype(np.float32)))
+
+
+def predictions(scores, words, text, threshold):
+    return predicted_spans(word_probabilities(scores, words), words, text, threshold)
+
+
+def predicted_spans(probabilities, words, text, threshold):
     labels = np.where(probabilities.max(axis=1) >= np.float32(threshold), probabilities.argmax(axis=1), -1)
     entities = set()
     for label, entries in groupby(zip(labels, words, strict=True), key=lambda entry: entry[0]):
@@ -64,32 +71,43 @@ def run(directory, receipt):
         if sha256(data).hexdigest() != checksum:
             raise ValueError("source hash mismatch")
         sources[lang] = list(map(json.loads, data.splitlines()))
-    output = {}
-    for graph in ["fp32", "u8"]:
-        results = defaultdict(Counter)
-        for i, (case, saved) in enumerate(zip(cases, receipt["cases"], strict=True)):
-            if any(case[key] != saved[key] for key in ("group", "language", "test_rows_zero_based")):
-                raise ValueError(f"panel membership changed at case {i}")
-            rows = [sources[case["language"]][j] for j in case["test_rows_zero_based"]]
-            text, gold = reference(rows)
-            if sha256(text.encode()).hexdigest() != saved["text_sha256"] or gold != set(map(tuple, saved["gold"])):
-                raise ValueError(f"source mismatch in case {i}")
+    results = {graph: defaultdict(Counter) for graph in ("fp32", "u8")}
+    thresholds = (0.3, 0.5, 0.7)
+    for i, (case, saved) in enumerate(zip(cases, receipt["cases"], strict=True)):
+        if any(case[key] != saved[key] for key in ("group", "language", "test_rows_zero_based")):
+            raise ValueError(f"panel membership changed at case {i}")
+        rows = [sources[case["language"]][j] for j in case["test_rows_zero_based"]]
+        text, gold = reference(rows)
+        if sha256(text.encode()).hexdigest() != saved["text_sha256"] or gold != set(map(tuple, saved["gold"])):
+            raise ValueError(f"source mismatch in case {i}")
+        probabilities = {}
+        for graph in results:
             scores = np.load(directory / f"{graph}-{i}.npy", allow_pickle=False)
-            for t in (0.3, 0.5, 0.7):
-                pred = predictions(scores, case["words"], text, t)
+            probabilities[graph] = word_probabilities(scores, case["words"])
+            for t in thresholds:
+                pred = predicted_spans(probabilities[graph], case["words"], text, t)
                 if t == 0.5 and pred != set(map(tuple, saved[graph])):
                     raise ValueError(f"{graph}: different span inventory on case {i}")
-                stats = results[case["group"], str(t)]
+                stats = results[graph][case["group"], str(t)]
                 stats.update(tp=len(gold & pred), fp=len(pred - gold), fn=len(gold - pred))
-        group_sizes = Counter(case["group"] for case in cases)
+        crossings = {
+            str(t): int(np.count_nonzero((probabilities["fp32"] >= t) != (probabilities["u8"] >= t)))
+            for t in thresholds
+        }
+        if crossings != saved["threshold_crossings"]:
+            raise ValueError(f"paired threshold crossings differ on case {i}")
+
+    group_sizes = Counter(case["group"] for case in cases)
+    output = {}
+    for graph, graph_results in results.items():
         reported_groups = receipt["models"][graph]["groups"]
         if group_sizes != {group: entry["n"] for group, entry in reported_groups.items()}:
             raise ValueError(f"panel size mismatch for {graph}")
-        for (group, t), stats in results.items():
+        for (group, t), stats in graph_results.items():
             reported = receipt["models"][graph]["groups"][group]["thresholds"][t]
             if any(reported[k] != n for k, n in stats.items()):
                 raise ValueError(f"count mismatch for {graph}/{group}/{t}")
-        output[graph] = {group: stats for (group, t), stats in results.items() if t == "0.5"}
+        output[graph] = {group: stats for (group, t), stats in graph_results.items() if t == "0.5"}
     return output
 
 
