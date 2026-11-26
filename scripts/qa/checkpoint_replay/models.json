@@ -3,6 +3,7 @@
     "repo": "onnx-community/modernbert-ner-conll2003-ONNX",
     "revision": "feac2551592e650f9d952fe23839ca052b6fa096",
     "backend": "bert-onnx",
+    "runtime_model": "bert-onnx",
     "env": "BERT_ONNX_MODEL_PATH",
     "files": {
       "config.json": {
@@ -41,6 +42,7 @@
     "repo": "protectai/bert-large-NER-onnx",
     "revision": "b7e9629704356133c212014d9729639884ee6d56",
     "backend": "bert-onnx",
+    "runtime_model": "bert-onnx",
     "env": "BERT_ONNX_MODEL_PATH",
     "files": {
       "config.json": {
@@ -79,6 +81,7 @@
     "repo": "onnx-community/NuNER_Zero-span",
     "revision": "d1d6eec6228f60f75b3ffdea099b6841c0b16b56",
     "backend": "nuner",
+    "runtime_model": "nuner",
     "env": "NUNER_MODEL_PATH",
     "files": {
       "gliner_config.json": {
@@ -120,6 +123,7 @@
     "repo": "jugaadsrl/gliner2.5-multi-v1-onnx",
     "revision": "3de2c11f55853b7919f985a59bfc8df27b5ec991",
     "backend": "gliner25",
+    "runtime_model": "GLiNER2.5",
     "env": "GLINER25_MODEL_DIR",
     "files": {
       "boundary_head_L128_fp32.onnx": {

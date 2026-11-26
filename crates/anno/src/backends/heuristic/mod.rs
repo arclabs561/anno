@@ -460,6 +460,43 @@ const KNOWN_PERSONS: &[&str] = &[
     "angela", "hillary", "nancy", "kamala", "michelle", "melania", "jill", "theresa", "ursula",
 ];
 
+/// Start offsets after Unicode sentence terminals, including surrounding closing quotes.
+fn non_ascii_sentence_starts(text: &str) -> Vec<usize> {
+    static TERMINAL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#"[[^\x00-\x7f]&&\p{Sentence_Terminal}][\p{Pe}\p{Pf}"']*\z"#).unwrap()
+    });
+    if text.is_ascii() {
+        return Vec::new();
+    }
+    textprep::segment::sentence_byte_ranges(text)
+        .windows(2)
+        .filter(|pair| {
+            let previous = &text[pair[0].clone()];
+            let next = &text[pair[1].clone()];
+            if !TERMINAL.is_match(previous) {
+                return false;
+            }
+            // Preserve the existing legal-designator convention in names like Yahoo！ Inc.
+            let first = next
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_matches(|ch: char| !ch.is_alphanumeric())
+                .to_lowercase();
+            if ORG_SUFFIX.contains(&first.as_str()) {
+                return false;
+            }
+            // An exclamation mark can be part of an unspaced brand (Yahoo！Japan).
+            let internal_exclamation = previous.strip_suffix('！').is_some_and(|prefix| {
+                prefix.ends_with(|ch: char| ch.is_ascii_alphabetic())
+                    && next.starts_with(|ch: char| ch.is_ascii_alphabetic())
+            });
+            pair[0].end != pair[1].start || !internal_exclamation
+        })
+        .map(|pair| pair[1].start)
+        .collect()
+}
+
 impl Model for HeuristicNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if text.is_empty() {
@@ -551,21 +588,23 @@ impl Model for HeuristicNER {
         // `text[start..end]` whatever whitespace separates the words.
         let mut word_byte_starts: Vec<usize> = Vec::new();
 
+        // Capitalized words may abut a new sentence without intervening whitespace.
+        // Preserve the existing abbreviation handling for ASCII periods.
+        let sentence_starts = non_ascii_sentence_starts(text);
+        let mut next_sentence = sentence_starts.iter().copied().peekable();
         let mut in_word = false;
         let mut word_start_byte = 0;
         let mut word_start_char = 0;
         let mut char_pos = 0;
 
         for (i, c) in text.char_indices() {
-            if c.is_whitespace() {
-                if in_word {
-                    // Word ended
-                    let word = &text[word_start_byte..i];
-                    words_with_pos.push((word, word_start_char, char_pos));
-                    word_byte_starts.push(word_start_byte);
-                    in_word = false;
-                }
-            } else if !in_word {
+            let boundary = next_sentence.next_if_eq(&i).is_some();
+            if in_word && (boundary || c.is_whitespace()) {
+                words_with_pos.push((&text[word_start_byte..i], word_start_char, char_pos));
+                word_byte_starts.push(word_start_byte);
+                in_word = false;
+            }
+            if !in_word && !c.is_whitespace() {
                 in_word = true;
                 word_start_byte = i;
                 word_start_char = char_pos;
@@ -628,7 +667,10 @@ impl Model for HeuristicNER {
 
             let mut repeats_organization = false;
             while i < words.len() {
-                if i > start_idx && starts_sms_channel_definition(&words[i..]) {
+                if i > start_idx
+                    && (starts_sms_channel_definition(&words[i..])
+                        || sentence_starts.binary_search(&word_byte_starts[i]).is_ok())
+                {
                     break;
                 }
                 let w = words[i];

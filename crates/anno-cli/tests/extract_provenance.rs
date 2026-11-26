@@ -348,3 +348,86 @@ fn mapped_html_rejects_incompatible_inputs_and_output_formats() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("UTF-8"));
 }
+
+#[test]
+fn offline_backends_ground_occurrences_in_the_same_multiscript_document() {
+    let cache = tempfile::tempdir().unwrap();
+    let email = "mail@example.org";
+    let blocks = ["اَلْعَرَبِيَّة", "東京", "नमस्ते", "A\u{30a}", "🧑🏽‍💻"];
+    let text = blocks
+        .iter()
+        .map(|prefix| format!("{prefix} {email}"))
+        .collect::<Vec<_>>()
+        .join("\r\n");
+    let expected: Vec<_> = text.match_indices(email).map(|(byte, _)| byte).collect();
+
+    for model in [
+        "pattern",
+        "heuristic",
+        "stacked",
+        "crf",
+        "hmm",
+        "heuristic-crf",
+        "ensemble",
+        "tplinker",
+    ] {
+        let output = anno()
+            .args([
+                "extract", "--model", model, "--format", "json", "--text", &text,
+            ])
+            .env("ANNO_NO_DOWNLOADS", "1")
+            .env("XDG_CACHE_HOME", cache.path())
+            .env("HF_HOME", cache.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{model}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["provenance"]["model"], model);
+        let runtime = report["provenance"]["runtime_model"].as_str().unwrap();
+        assert!(!runtime.is_empty() && runtime != "unknown", "{model}");
+        assert!(report["provenance"].get("relation_producer").is_none());
+        let mut observed = Vec::new();
+        let mut ids = std::collections::HashSet::new();
+        for entity in report["entities"].as_array().unwrap() {
+            let start = entity["start"].as_u64().unwrap() as usize;
+            let end = entity["end"].as_u64().unwrap() as usize;
+            let surface = entity["text"].as_str().unwrap();
+            assert!(
+                start < end && end <= text.chars().count(),
+                "{model}: {entity}"
+            );
+            assert_eq!(
+                text.chars()
+                    .skip(start)
+                    .take(end - start)
+                    .collect::<String>(),
+                surface,
+                "{model}: {entity}"
+            );
+            let ranges = entity["analyzed_byte_ranges"].as_array().unwrap();
+            assert_eq!(ranges.len(), 1, "{model}: {entity}");
+            let byte_start = ranges[0]["start"].as_u64().unwrap() as usize;
+            let byte_end = ranges[0]["end"].as_u64().unwrap() as usize;
+            assert_eq!(
+                text.get(byte_start..byte_end),
+                Some(surface),
+                "{model}: {entity}"
+            );
+            if surface == email {
+                assert!(
+                    ids.insert(entity["id"].as_str().unwrap()),
+                    "{model}: {entity}"
+                );
+                observed.push(byte_start);
+            }
+        }
+        if model == "pattern" || model == "stacked" {
+            observed.sort_unstable();
+            assert_eq!(observed, expected, "{model}");
+        }
+    }
+}

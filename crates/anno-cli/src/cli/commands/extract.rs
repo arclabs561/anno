@@ -381,11 +381,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         if let Some(extractor) = backend.as_relation_extractor() {
             let rel_schema: Vec<&str> = relation_types.iter().map(String::as_str).collect();
             let (out, producer) = extractor
-                .extract_with_relation_provenance(
+                .extract_with_heuristic_distance(
                     &text,
                     &entity_schema,
                     &rel_schema,
                     relation_threshold,
+                    args.relation_max_span_distance,
                 )
                 .map_err(|e| CliError::from(format!("Relation extraction failed: {e}")))?;
             ran_joint = true;
@@ -647,10 +648,9 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Output
     match format {
-        OutputFormat::Json => {
+        OutputFormat::Json | OutputFormat::Jsonl => {
             let entities_out = render_entities()?;
-
-            let provenance = build_provenance(
+            let mut provenance = build_provenance(
                 &text,
                 model,
                 runtime_model,
@@ -659,41 +659,31 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 language,
                 source_url.as_deref(),
             );
-            let output = serde_json::json!({
-                "provenance": provenance,
-                "source_map": doc.source_map(),
-                "entities": entities_out,
-                "relations": relations_out,
-            });
-
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        }
-        OutputFormat::Jsonl => {
-            let entities_out = render_entities()?;
-
-            let provenance = build_provenance(
-                &text,
-                model,
-                runtime_model,
-                &entities_out,
-                elapsed,
-                language,
-                source_url.as_deref(),
-            );
-            println!(
-                "{}",
-                serde_json::json!({
+            if let Some(producer) = &relation_provenance {
+                provenance["relation_producer"] = serde_json::json!(producer);
+            }
+            if matches!(format, OutputFormat::Json) {
+                let output = serde_json::json!({
                     "provenance": provenance,
                     "source_map": doc.source_map(),
-                })
-            );
-            for obj in entities_out {
-                println!("{}", obj);
-            }
-            if !relations_out.is_empty() {
+                    "entities": entities_out,
+                    "relations": relations_out,
+                });
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).map_err(CliError::from)?
+                );
+            } else {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "provenance": provenance,
+                        "source_map": doc.source_map(),
+                    })
+                );
+                for obj in entities_out {
+                    println!("{}", obj);
+                }
                 for obj in relations_out {
                     println!("{}", serde_json::json!({ "relation": obj }));
                 }
