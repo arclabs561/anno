@@ -64,7 +64,7 @@ def index_partition(clusters):
     return index
 
 
-def measure(docs, records, backend):
+def measure(docs, records, backend, mode="predicted"):
     counts = dict.fromkeys(
         [
             "documents",
@@ -83,9 +83,19 @@ def measure(docs, records, backend):
     )
     coverage = [0, 0, 0]
     observations = []
+    refused_gold_links = 0
+    refusals = 0
     for (doc_id, text, targets, gold), record in zip(docs, records, strict=True):
         if record["id"] != doc_id or record["producer"] != backend:
             raise ValueError("resolver or document mismatch")
+        if "unsupported" in record:
+            if (backend != "maverick" or mode != "supplied" or "clusters" in record
+                    or record["unsupported"] != "supplied_span_splits_token"):
+                raise ValueError(f"invalid refusal on {doc_id}")
+            refusals += 1
+            refused_gold_links += sum(gold)
+            observations.append({"unsupported": record["unsupported"]})
+            continue
         groups = [set(map(tuple, c)) for c in record["clusters"]]
         seen = index_partition(groups)
         if any(not 0 <= start < end <= len(text) for start, end in seen):
@@ -114,6 +124,10 @@ def measure(docs, records, backend):
     counts["recall"] = round(tp / (tp + fn), 6) if tp + fn else None
     denominator = 2 * tp + fp + fn
     counts["f1"] = round(2 * tp / denominator, 6) if denominator else None
+    if refusals:
+        # Keep the scored confusion matrix distinct from attempted gold coverage.
+        counts.update(attempted_documents=counts["documents"] + refusals,
+                      refused_documents=refusals, refused_gold_links=refused_gold_links)
     return {"counts": counts, "per_id": observations}
 
 
@@ -210,7 +224,7 @@ def main():
         stdout=subprocess.PIPE,
     )
     result = measure(
-        docs, [json.loads(x) for x in io.StringIO(run.stdout)], args.backend
+        docs, [json.loads(x) for x in io.StringIO(run.stdout)], args.backend, args.mode
     )
     result.update(
         model=model,

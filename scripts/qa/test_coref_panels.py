@@ -7,6 +7,7 @@ import runpy
 import unittest
 from coref_gap import check_file, index_partition, measure
 from coref_litbank import score_doc, summarize
+from native_gap_loss import output_errors
 
 
 class PanelScores(unittest.TestCase):
@@ -60,6 +61,26 @@ class PanelScores(unittest.TestCase):
         out = {"id": "t", "producer": "fixture", "clusters": [[p, a], [p, b]]}
         with self.assertRaisesRegex(ValueError, "overlapping cluster assignment"):
             measure([doc], [out], "fixture")
+
+    def test_gap_supplied_refusal_keeps_attempt_outside_scored_confusion_matrix(self):
+        doc = ("t", "P A B", [(0, 1), (2, 3), (4, 5)], [True, False])
+        empty = {"id": "t", "producer": "maverick", "clusters": []}
+        refused = {"id": "t", "producer": "maverick", "unsupported": "supplied_span_splits_token"}
+        result = measure([doc, doc], [refused, empty], "maverick", "supplied")
+        audit = output_errors({"arms": {"maverick/supplied": result}, "gold_pairs": ["10", "10"]})
+        self.assertEqual(audit["maverick/supplied"], {
+            "missed": {"both_absent": 1}, "spurious": {},
+            "refused_documents": 1, "refused_gold_links": 1,
+        })
+        with self.assertRaisesRegex(ValueError, "unexpected refusal"):
+            output_errors({"arms": {"maverick/predicted": result}, "gold_pairs": ["10", "10"]})
+        counts = result["counts"]
+        self.assertEqual((counts["attempted_documents"], counts["documents"], counts["refused_documents"]), (2, 1, 1))
+        self.assertEqual((counts["gold_links"], counts["refused_gold_links"], counts["fn"], counts["tn"]), (1, 1, 1, 1))
+        self.assertEqual(result["per_id"], [{"unsupported": "supplied_span_splits_token"}, "00000"])
+        for row, mode in [(refused, "predicted"), ({**refused, "clusters": []}, "supplied")]:
+            with self.assertRaisesRegex(ValueError, "invalid refusal"):
+                measure([doc], [row], "maverick", mode)
 
     def test_gap_with_no_gold_or_predicted_links(self):
         doc = ("t", "P A B", [(0, 1), (2, 3), (4, 5)], [False, False])

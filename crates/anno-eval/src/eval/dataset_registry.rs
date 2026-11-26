@@ -1317,7 +1317,7 @@ define_datasets! {
         entity_types: ["PER", "LOC", "ORG", "ANIM", "BIO", "CEL", "DIS", "EVE", "FOOD", "INST", "MEDIA", "MYTH", "PLANT", "TIME", "VEHI"],
         language: "en",
         domain: "wikipedia",
-        license: "CC-BY-SA-4.0",
+        license: "CC-BY-NC-SA-4.0",
         citation: "Tedeschi & Navigli (2022)",
         paper_url: "https://aclanthology.org/2022.findings-naacl.60/",
         year: 2022,

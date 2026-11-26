@@ -1,0 +1,98 @@
+"""Regression for threshold/cap ordering and separately observed optimizer rejection."""
+
+import json
+import unittest
+from copy import deepcopy
+from pathlib import Path
+from types import SimpleNamespace as NS
+
+from aggregate_receipt import external_output, project
+from jerex_stages import SPLIT
+from jointie_coverage import attribute_schema
+from jointie_loss import DecoderTrace
+
+
+class TraceTests(unittest.TestCase):
+    def test_public_reports_have_only_counts_settings_and_hashes(self):
+        receipts = Path(__file__).parent / "receipts"
+        for pattern in ("jointie_ai64*.json", "jerex*32.json"):
+            for path in receipts.glob(pattern):
+                summary = json.loads(path.read_bytes())
+                keys = {"study", "documents", "full_receipt_sha256", "source_sha256"}
+                keys.update({
+                    "jerex-stages": {"first_loss", "stages", "model_sha256"},
+                    "jerex-predictions": {"outcomes"},
+                    "jointie": {"window_words", "overlap_words", "model_sha256", "totals"},
+                }[summary["study"]])
+                if path.name == "jointie_ai64_training_routes.json":
+                    keys.add("training_sha256")
+                self.assertEqual(set(summary), keys)
+                self.assertIs(type(summary["documents"]), int)
+                self.assertRegex(summary["full_receipt_sha256"], r"^[a-f0-9]{64}$")
+
+    def test_projection_excludes_annotation_values_and_commits_to_their_identity(self):
+        row = {"document": "private title", "predictions": [{"head": 1, "predicate": "private relation",
+               "tail": 2, "outcome": "matched"}], "outcomes": {"matched": 1}}
+        report = {"documents": [row], "source_sha256": SPLIT, "outcomes": {"matched": 1}}
+        expected = project(report, "jerex-predictions")
+        self.assertNotIn("private", json.dumps(expected))
+        other = deepcopy(report)
+        other["documents"][0]["predictions"][0]["tail"] += 1
+        self.assertNotEqual(expected["full_receipt_sha256"], project(other, "jerex-predictions")["full_receipt_sha256"])
+        report["outcomes"]["matched"] += 1
+        with self.assertRaisesRegex(ValueError, "totals differ"):
+            project(report, "jerex-predictions")
+        with self.assertRaisesRegex(ValueError, "outside"):
+            external_output(Path(__file__).parent / "receipts/raw.json")
+
+    def test_cap_and_solver_are_distinct_and_exhaustive(self):
+        h, t = ("a", 0, 1), ("b", 1, 2)
+
+        def edge(head, tail, logit):
+            return NS(
+                head=head,
+                tail=tail,
+                relation_type="r",
+                candidate_threshold=None,
+                probability=0.2,
+                logit=logit,
+                score=logit,
+            )
+
+        weak, strong = edge(h, t, -2), edge(t, h, -1)
+        scores = NS(
+            start_mappings=[0, 2],
+            end_mappings=[1, 3],
+            edges=[weak, strong],
+            mentions=[NS(key=h), NS(key=t)],
+        )
+        trace = DecoderTrace()
+        trace.windows = [scores]
+        trace.problem = NS(
+            nodes=[NS(candidate_id=h), NS(candidate_id=t)], edges=[strong]
+        )
+        trace.solution = NS(edges=[])
+        config = NS(
+            relation_role_threshold=0.05, relation_pair_cap=1, max_edges_per_type=4
+        )
+        a, b = ("a", 0, 1), ("b", 2, 3)
+        gold = [(a, "r", b), (b, "r", a)]
+        outcome = trace.losses(gold, scores, config, [{"start": 0, "end": 3}], set())
+        self.assertEqual(
+            [(e["first_loss"], e["rank_after_gate"]) for e in outcome],
+            [("edge_cap", 2), ("optimizer_did_not_select", 1)],
+        )
+        row = {"edge_trace": outcome, "counts": {"gold_edges": 2}}
+        attribute_schema([row], {"r": (["a"], ["b"])})
+        self.assertEqual(
+            row["counts"],
+            {
+                "gold_edges": 2,
+                "first_loss_edge_cap": 1,
+                "first_loss_endpoint_types_outside_schema": 1,
+            },
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

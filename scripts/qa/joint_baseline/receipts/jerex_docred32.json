@@ -1,0 +1,54 @@
+{
+  "documents": 32,
+  "first_loss": {
+    "below_relation_threshold": 99,
+    "cluster_membership_mismatch": 110,
+    "endpoint_mention_below_threshold": 56,
+    "endpoint_mention_not_enumerated": 1,
+    "matched": 140
+  },
+  "full_receipt_sha256": "8176334c7b30f5a4121c47bf0088260594c0f130967645d30476e32f19f6dc22",
+  "model_sha256": "55bf677bcdfa66973a4e22859051327dd63bfd7a249e5b3e34cd08b95681d4c2",
+  "source_sha256": "f7872af697e8a887efcf2f3381bb815e791e9488186dd17167894808c89385ed",
+  "stages": {
+    "directed_cluster_pairs": {
+      "gold": 383,
+      "matched": 135,
+      "matched_upper_bound": 135,
+      "predicted": 331
+    },
+    "exact_clusters": {
+      "gold": 686,
+      "matched": 584,
+      "predicted": 696
+    },
+    "exact_typed_clusters": {
+      "gold": 686,
+      "matched": 562,
+      "predicted": 696
+    },
+    "labeled_relations": {
+      "gold": 406,
+      "matched": 140,
+      "matched_upper_bound": 140,
+      "predicted": 344
+    },
+    "labeled_relations_typed_endpoints": {
+      "gold": 406,
+      "matched": 139,
+      "matched_upper_bound": 139,
+      "predicted": 344
+    },
+    "mention_spans": {
+      "gold": 891,
+      "matched": 831,
+      "predicted": 899
+    },
+    "within_cluster_mention_pairs": {
+      "gold": 378,
+      "matched": 315,
+      "predicted": 383
+    }
+  },
+  "study": "jerex-stages"
+}

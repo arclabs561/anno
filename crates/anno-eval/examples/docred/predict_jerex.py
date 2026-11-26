@@ -24,7 +24,7 @@ class CheckpointMetadata:
     """Passive replacement for a Lightning callback type stored as a dict key."""
 
 
-def predict(model_dir, documents, output, include_mention_scores=False):
+def predict(model_dir, documents, output, include_mention_scores=False, observer=None):
     metadata = (CheckpointMetadata, "pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint")
     with torch.serialization.safe_globals([metadata, EntityType, RelationType]):
         checkpoint = torch.load(model_dir / "model.ckpt", weights_only=True, map_location="cpu")
@@ -51,6 +51,8 @@ def predict(model_dir, documents, output, include_mention_scores=False):
     # Keep the default token-type buffer aligned with JEREX's extended positions.
     model.bert.embeddings.register_buffer("token_type_ids", torch.zeros_like(position_ids), persistent=False)
     model.eval()
+    if observer is not None:
+        observer.attach(model)
     evaluator = cls.EVALUATOR(hp["entity_types"], hp["relation_types"], tokenizer)
     with TemporaryDirectory() as temporary:
         inputs = Path(temporary) / "input.json"
@@ -71,6 +73,9 @@ def predict(model_dir, documents, output, include_mention_scores=False):
                 raise ValueError(f"{documents[index]['title']}: {encoded_length} wordpieces exceed "
                                  f"checkpoint capacity {position_ids.shape[-1]}")
             result = model(**batch, inference=True, max_spans=32, max_coref_pairs=128, max_rel_pairs=64)
+            if observer is not None:
+                # Diagnostics see annotations only after the unmodified forward pass.
+                observer.record(documents[index], batch, result, hp)
             predictions.extend(evaluator.convert_batch(**result, batch=batch))
             if include_mention_scores:
                 # The joint model returns masked sigmoid probabilities at this stage.
