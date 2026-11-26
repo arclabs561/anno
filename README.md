@@ -106,7 +106,7 @@ limits it to available local models, patterns and heuristics.
 Anno supports Rust 1.91 and later.
 
 - [Quickstart and examples](docs/QUICKSTART.md)
-- For agent clients that load local plugins, select `.agents/` from this checkout. [CLI skill](.agents/skills/anno-cli/SKILL.md) · [QA skill](.agents/skills/anno-qa/SKILL.md)
+- For agent clients that load local plugins, select `.agents/` from this checkout. [CLI skill](.agents/skills/anno-cli/SKILL.md) · [Integration skill](.agents/skills/anno-integrate/SKILL.md) · [QA skill](.agents/skills/anno-qa/SKILL.md)
 - [Compare two editions of a harbor bulletin with the published Python wheel](crates/anno-py/README.md#compare-dates-in-two-bulletins)
 - [Source text, offsets and provenance](docs/CONTRACT.md)
 - [Backends and feature flags](docs/BACKENDS.md)
