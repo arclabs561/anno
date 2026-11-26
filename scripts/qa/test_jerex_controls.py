@@ -105,5 +105,54 @@ class JerexControlsTests(unittest.TestCase):
             classify(original, [edge], revised)
 
 
+class CheckpointCompatibilityTests(unittest.TestCase):
+    def test_assignment_and_copy_preserve_inference_representation(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("requires optional CPU PyTorch")
+        from importlib.util import module_from_spec, spec_from_file_location
+        bridge = Path(__file__).resolve().parents[2] / "crates/anno-eval/examples/docred/predict_jerex.py"
+        spec = spec_from_file_location("jerex_checkpoint_bridge", bridge)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        def head():
+            model = torch.nn.Linear(2, 2, bias=False)
+            model.register_buffer("cutoffs", torch.ones(2))
+            return model
+
+        # A dtype mismatch in either parameters or persistent buffers invokes
+        # the regular copy for the whole model, preserving FP32 CPU inference.
+        for changed in ("weight", "cutoffs"):
+            model = head()
+            source = {k: t.clone() for k, t in model.state_dict().items()}
+            source[changed] = source[changed].half()
+            module.load_inference_state(model, source)
+            for name, current in model.state_dict().items():
+                self.assertEqual(current.dtype, torch.float32)
+                self.assertNotEqual(current.data_ptr(), source[name].data_ptr())
+                torch.testing.assert_close(current, source[name].float())
+
+        model = head()
+        source = {k: t.clone() for k, t in model.state_dict().items()}
+        module.load_inference_state(model, source)
+        for name, current in model.state_dict().items():
+            self.assertEqual(current.data_ptr(), source[name].data_ptr())
+
+        model = head()
+        model.register_buffer("same_cutoffs", model.cutoffs)
+        source = {k: t.clone() for k, t in model.state_dict().items()}
+        module.load_inference_state(model, source)
+        self.assertEqual(model.cutoffs.data_ptr(), model.same_cutoffs.data_ptr())
+
+        model = head()
+        model.register_buffer("other_cutoffs", model.cutoffs.clone())
+        source = {k: t.clone() for k, t in model.state_dict().items()}
+        source["other_cutoffs"] = source["cutoffs"]
+        module.load_inference_state(model, source)
+        self.assertNotEqual(model.cutoffs.data_ptr(), model.other_cutoffs.data_ptr())
+
+
 if __name__ == "__main__":
     unittest.main()

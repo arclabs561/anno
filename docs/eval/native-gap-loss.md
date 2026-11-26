@@ -103,3 +103,39 @@ used the stock null and union-find decisions for both budgets. The separate
 [public runner comparison](../../scripts/qa/fcoref_proposal_budget.py)
 uses `ceil(tokens / 2)` on different articles. That differs from exactly
 twice the rounded stock count by at most one candidate.
+
+### Reproduce the boundary-rank table
+
+The external inputs are GAP's original test and validation TSV files, the
+local FP32 export identified above (including its tokenizer and scorer), and a
+plain-text list of the ordered GAP IDs. Create that list from the two number
+blocks in the [frozen cohort](https://github.com/arclabs561/anno/issues/288#issuecomment-7176979503):
+start with `test-1845`, prefix each of the next 96 numbers with `validation-`,
+then prefix the final 160 with `test-`. Whitespace separates IDs. The replay
+checks both TSV digests and the digest of the ordered IDs. It omits the first
+case, which was used to form the hypothesis.
+
+In a disposable checkout at this revision, apply the [study readout patch](../../scripts/qa/fixtures/fcoref-boundary-ranks.patch)
+and build the normal Rust example. The patch exposes the pre-pruning rank
+table and permits doubling the integer candidate budget. Store input, logits
+and output clusters in an external private directory. The final scorer reads
+these local files and prints aggregate counts, verifying a commitment to the
+256 stock partitions archived in the original run. Install Python
+`tokenizers` for the final tokenizer-offset projection.
+
+```sh
+git apply scripts/qa/fixtures/fcoref-boundary-ranks.patch
+cargo build --locked -p anno --features onnx --example coref_gap_panel
+export FCOREF_MODEL_PATH=/path/to/the/verified/fp32/export
+qa=scripts/qa/fcoref_boundary_ranks.py
+private=/path/to/external/private/replay
+runner=target/debug/examples/coref_gap_panel
+python3 "$qa" "$private/ids.txt" "$private/test.tsv" "$private/validation.tsv" \
+    --prepare-input "$private/input.jsonl"
+ANNO_FCOREF_BOUNDARY_RANKS=1 "$runner" fcoref < "$private/input.jsonl" \
+    > "$private/stock.jsonl" 2> "$private/ranks.log"
+ANNO_FCOREF_DOUBLE_K=1 "$runner" fcoref < "$private/input.jsonl" > "$private/double.jsonl"
+python3 "$qa" "$private/ids.txt" "$private/test.tsv" "$private/validation.tsv" \
+    --stock "$private/stock.jsonl" --double "$private/double.jsonl" \
+    --trace "$private/ranks.log" --tokenizer "$FCOREF_MODEL_PATH/tokenizer.json"
+```

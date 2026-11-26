@@ -13,19 +13,48 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import is_zipfile
 
-import torch
-from jerex import models
-from jerex.datasets import DocREDDataset
-from jerex.entities import EntityType, RelationType
-from jerex.sampling.sampling_common import collate_fn_padding
-from transformers import BertConfig, BertTokenizer
-
 
 class CheckpointMetadata:
     """Passive replacement for a Lightning callback type stored as a dict key."""
 
 
+def load_inference_state(model, state):
+    """Keep the module's parameter and buffer representations on CPU."""
+    import torch
+
+    expected = model.state_dict()
+    # Assignment can reuse mmap-backed tensors. A regular copy casts and
+    # transfers into the model and preserves non-contiguous or tied buffers.
+    can_assign = expected.keys() == state.keys()
+    destinations, sources = set(), set()
+    if can_assign:
+        for name, target in expected.items():
+            source = state[name]
+            if not (isinstance(target, torch.Tensor) and isinstance(source, torch.Tensor)
+                    and source.dtype == target.dtype and source.device == target.device
+                    and source.shape == target.shape and source.layout == target.layout == torch.strided
+                    and not source.is_quantized and source.stride() == target.stride()):
+                can_assign = False
+                break
+            if target.numel():
+                dest_storage = target.untyped_storage().data_ptr()
+                source_storage = source.untyped_storage().data_ptr()
+                if dest_storage in destinations or source_storage in sources:
+                    can_assign = False
+                    break
+                destinations.add(dest_storage)
+                sources.add(source_storage)
+    model.load_state_dict(state, strict=True, assign=can_assign)
+
+
 def predict(model_dir, documents, output, include_mention_scores=False, observer=None, relation_threshold=None):
+    import torch
+    from jerex import models
+    from jerex.datasets import DocREDDataset
+    from jerex.entities import EntityType, RelationType
+    from jerex.sampling.sampling_common import collate_fn_padding
+    from transformers import BertConfig, BertTokenizer
+
     if relation_threshold is not None and not 0 <= relation_threshold <= 1:
         raise ValueError("relation threshold must be a probability in [0, 1]")
     metadata = (CheckpointMetadata, "pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint")
@@ -53,8 +82,7 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
         raise ValueError("Checkpoint and encoder position indices differ")
     if "bert.embeddings.position_ids" in model.state_dict():
         state["bert.embeddings.position_ids"] = position_ids
-    # Inference can use checkpoint tensors directly, including file-backed weights on the pinned release.
-    model.load_state_dict(state, strict=True, assign=True)
+    load_inference_state(model, state)
     del state, checkpoint
     # Keep the default token-type buffer aligned with JEREX's extended positions.
     model.bert.embeddings.register_buffer("token_type_ids", torch.zeros_like(position_ids), persistent=False)

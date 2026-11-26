@@ -1,0 +1,28 @@
+--- a/crates/anno/src/backends/coref/fcoref/mod.rs
++++ b/crates/anno/src/backends/coref/fcoref/mod.rs
+@@ -351,6 +351,12 @@
+             * self.config.top_lambda)
+             .ceil() as usize)
+             .max(1);
++        // Optional research build for the fixed 2K intervention.
++        let max_candidates = if std::env::var_os("ANNO_FCOREF_DOUBLE_K").is_some() {
++            2 * max_candidates
++        } else {
++            max_candidates
++        };
+         let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
+
+         // 5. Map token indices to character offsets
+--- a/crates/anno/src/backends/coref/fcoref/scoring.rs
++++ b/crates/anno/src/backends/coref/fcoref/scoring.rs
+@@ -231,6 +231,10 @@
+
+     // Top-k selection
+     candidates.sort_by(|a, b| b.2.total_cmp(&a.2));
++    if std::env::var_os("ANNO_FCOREF_BOUNDARY_RANKS").is_some() {
++        // Only token indices, ordered scores and the stock cutoff reach stderr.
++        eprintln!("FCOREF_RANKS {}", serde_json::json!([max_candidates, &candidates]));
++    }
+     candidates.truncate(max_candidates);
+     // Re-sort by position for deterministic ordering
+     candidates.sort_by_key(|&(start, end, _)| (start, end));
