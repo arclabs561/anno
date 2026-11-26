@@ -88,6 +88,18 @@ limits it to available local models, patterns and heuristics.
 - [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.
 - [Use your own tokenizer](crates/anno/examples/fcoref_word_spans.rs) or [process a directory of documents](docs/QUICKSTART.md#cli-batch-processing).
 
+<details>
+<summary>Cargo dependency for the 0.16 release line</summary>
+
+Once published, this checkout’s release line can be selected in `Cargo.toml`:
+
+```toml
+[dependencies]
+anno = "0.16"
+```
+
+</details>
+
 ## Documentation
 
 [Quickstart](docs/QUICKSTART.md) · [Agent guide](docs/README.md#use-anno-with-an-agent) · [Source text and offsets](docs/CONTRACT.md) · [Backends and features](docs/BACKENDS.md)
