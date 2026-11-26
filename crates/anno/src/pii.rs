@@ -27,6 +27,7 @@
 //! ```
 
 mod grouped_iban;
+mod span_union;
 
 use crate::Entity;
 use regex::Regex;
@@ -342,14 +343,12 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     let mut merged: Vec<(usize, usize, &str)> = Vec::with_capacity(sorted.len());
     for entity in sorted {
         assert!(entity.start <= entity.end, "PII span ends before it starts");
-        match merged.last_mut() {
-            Some((_, end, _)) if entity.start < *end => {
-                if entity.end > *end {
-                    *end = entity.end;
-                }
+        if let Some((_, end, _)) = merged.last_mut() {
+            if span_union::absorb(end, entity.start, entity.end) {
+                continue;
             }
-            _ => merged.push((entity.start, entity.end, entity.pii_type.as_str())),
         }
+        merged.push((entity.start, entity.end, entity.pii_type.as_str()));
     }
     // Count down to preserve the historical right-to-left token numbering.
     let mut type_counts = HashMap::<&str, usize>::new();
@@ -575,19 +574,20 @@ fn dedup_overlapping(text: &str, entities: &mut Vec<PiiEntity>) {
     // unredacted. The merged span keeps the type of the earliest-starting span.
     let mut merged: Vec<PiiEntity> = Vec::with_capacity(entities.len());
     for entity in entities.drain(..) {
-        match merged.last_mut() {
-            Some(last) if entity.start < last.end => {
-                if entity.end > last.end {
-                    last.end = entity.end;
+        if let Some(last) = merged.last_mut() {
+            let previous_end = last.end;
+            if span_union::absorb(&mut last.end, entity.start, entity.end) {
+                if last.end != previous_end {
                     last.text = text
                         .chars()
                         .skip(last.start)
                         .take(last.end - last.start)
                         .collect();
                 }
+                continue;
             }
-            _ => merged.push(entity),
         }
+        merged.push(entity);
     }
     *entities = merged;
 }
@@ -698,6 +698,54 @@ mod tests {
 
     /// The phone pattern needs a word boundary before a leading digit, so it
     /// does not match the tail of a longer digit run (order ids, timestamps).
+    #[test]
+    fn unicode_transforms_preserve_exact_coverage_for_three_spans() {
+        // Every ordered triple includes duplicates, nested spans, adjacent spans,
+        // empty spans and chains whose union requires two extensions.
+        let text = "aé水🙂";
+        let length = text.chars().count();
+        let spans: Vec<_> = (0..=length)
+            .flat_map(|start| (start..=length).map(move |end| (start, end)))
+            .collect();
+        for &first in &spans {
+            for &second in &spans {
+                for &third in &spans {
+                    let ranges = [first, second, third];
+                    let entities = ranges.map(|(start, end)| PiiEntity {
+                        text: text.chars().skip(start).take(end - start).collect(),
+                        pii_type: "ID".into(),
+                        risk_level: "HIGH".into(),
+                        start,
+                        end,
+                    });
+                    let expected: String = text
+                        .chars()
+                        .enumerate()
+                        .map(|(i, c)| {
+                            if ranges.iter().any(|&(s, e)| (s..e).contains(&i)) {
+                                '*'
+                            } else {
+                                c
+                            }
+                        })
+                        .collect();
+                    assert_eq!(mask(text, &entities, '*'), expected, "{ranges:?}");
+                    let survivors = expected.replace('*', "");
+                    let redacted: String = redact(text, &entities)
+                        .chars()
+                        .filter(|&c| text.contains(c))
+                        .collect();
+                    assert_eq!(redacted, survivors, "{ranges:?}");
+                    assert_eq!(
+                        replace(text, &entities, |_| String::new()),
+                        survivors,
+                        "{ranges:?}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn phone_pattern_does_not_match_inside_long_digit_runs() {
         for text in ["Order 12345678901234 shipped", "ts=1700000000000"] {

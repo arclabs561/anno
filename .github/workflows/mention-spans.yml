@@ -1,9 +1,12 @@
-name: Verify mention overlap
+name: Verify span operations
 on:
   pull_request:
     paths:
       - crates/anno/src/core/coref.rs
       - crates/anno/src/core/coref/**
+      - crates/anno/src/pii.rs
+      - crates/anno/src/pii/span_union.rs
+      - verification/pii/**
       - verification/mention_spans/**
       - .github/workflows/mention-spans.yml
   push:
@@ -11,6 +14,9 @@ on:
     paths:
       - crates/anno/src/core/coref.rs
       - crates/anno/src/core/coref/**
+      - crates/anno/src/pii.rs
+      - crates/anno/src/pii/span_union.rs
+      - verification/pii/**
       - verification/mention_spans/**
       - .github/workflows/mention-spans.yml
   workflow_dispatch:
@@ -32,6 +38,8 @@ jobs:
           cargo kani setup
       - name: Verify the production overlap predicate
         run: kani verification/mention_spans/check.rs
+      - name: Verify exact coverage when merging privacy spans
+        run: kani verification/pii/check.rs
       - name: Check the mathematical span specification
         run: |
           sudo apt-get update
