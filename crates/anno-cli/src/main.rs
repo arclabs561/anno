@@ -33,7 +33,7 @@ mod cli;
 use std::io;
 use std::process::ExitCode;
 
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, FromArgMatches, Parser};
 
 fn main() -> ExitCode {
     // Load workspace `.env` (idempotent, does not override existing env vars).
@@ -56,7 +56,7 @@ fn main() -> ExitCode {
     use crate::cli::commands::*;
     use crate::cli::exit_codes;
     use crate::cli::output::color;
-    use crate::cli::parser::{Cli, Commands, ModelBackend, OutputFormat};
+    use crate::cli::parser::{Cli, Commands};
     use crate::cli::CliError;
     use clap_complete::generate;
 
@@ -70,16 +70,25 @@ fn main() -> ExitCode {
         );
         return ExitCode::from(exit_codes::ERROR_ARGS);
     }
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+    if cli.command.is_none() && !cli.text.is_empty() {
+        let mut args = ExtractArgs::parse_from(["extract"]);
+        args.text = Some(cli.text.join(" "));
+        cli.command = Some(Commands::Extract(args));
+    }
     crate::cli::output::set_color_mode(cli.color);
 
+    if let Some(name) = &cli.config {
+        if let Err(err) = crate::cli::config::apply(name, cli.command.as_mut(), &matches) {
+            eprintln!("error: {err}");
+            return ExitCode::from(exit_codes::ERROR_ARGS);
+        }
+    }
+
     let result: Result<(), CliError> = match cli.command {
-        Some(Commands::Extract(args)) => crate::cli::config::apply_to_extract(args)
-            .map_err(CliError::from)
-            .and_then(extract::run),
-        Some(Commands::Debug(args)) => crate::cli::config::apply_to_debug(args)
-            .map_err(CliError::from)
-            .and_then(|args| debug::run(args).map_err(CliError::from)),
+        Some(Commands::Extract(args)) => extract::run(args),
+        Some(Commands::Debug(args)) => debug::run(args).map_err(CliError::from),
         Some(Commands::Eval(args)) => eval::run(args).map_err(CliError::from),
         Some(Commands::Joint(args)) => joint::run(args),
         Some(Commands::Validate(args)) => validate::run(args).map_err(CliError::from),
@@ -116,43 +125,8 @@ fn main() -> ExitCode {
         }
         None => {
             // No subcommand: treat positional args as text to extract
-            if cli.text.is_empty() {
-                eprintln!("No input provided. Run `anno --help` for usage.");
-                return ExitCode::from(exit_codes::ERROR_ARGS);
-            }
-            let text = cli.text.join(" ");
-            extract::run(crate::cli::commands::ExtractArgs {
-                input_source_map: None,
-                url: None,
-                html_source_spans: false,
-                clean: false,
-                normalize: false,
-                detect_lang: false,
-                export_graph: None,
-                text: Some(text),
-                file: None,
-                model: Some(ModelBackend::default()),
-                config: None,
-                labels: vec![],
-                types: None,
-                extract_types: None,
-                extract_relations: false,
-                relation_types: None,
-                relation_threshold: None,
-                relation_max_span_distance: 120,
-                threshold: None,
-                expected_types: None,
-                format: Some(OutputFormat::default()),
-                context_window: None,
-                include_sentence: false,
-                export: None,
-                export_format: "full".to_string(),
-                negation: false,
-                quantifiers: false,
-                verbose: 0,
-                quiet: false,
-                positional: vec![],
-            })
+            eprintln!("No input provided. Run `anno --help` for usage.");
+            return ExitCode::from(exit_codes::ERROR_ARGS);
         }
     };
 

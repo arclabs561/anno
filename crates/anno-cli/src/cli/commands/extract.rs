@@ -45,10 +45,6 @@ pub struct ExtractArgs {
     #[arg(short, long, value_name = "MODEL")]
     pub model: Option<ModelBackend>,
 
-    /// Saved workflow configuration to apply before execution
-    #[arg(long, value_name = "NAME")]
-    pub config: Option<String>,
-
     /// Filter to specific entity types (repeatable)
     #[arg(short, long = "label", value_name = "TYPE")]
     pub labels: Vec<String>,

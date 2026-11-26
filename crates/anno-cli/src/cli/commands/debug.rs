@@ -53,10 +53,6 @@ pub struct DebugArgs {
     #[arg(short, long, value_name = "MODEL")]
     pub model: Option<ModelBackend>,
 
-    /// Saved workflow configuration to apply before execution
-    #[arg(long, value_name = "NAME")]
-    pub config: Option<String>,
-
     /// Output as HTML (default: text)
     #[arg(long)]
     pub html: bool,
