@@ -25,6 +25,7 @@ For clients that load a local Agent Plugins package, select the checkout’s `.a
 |---|---|
 | Select a model, feature flags and runtime | [Backends](BACKENDS.md) |
 | Reuse a model across documents and interpret a measured extraction profile | [Extraction workflows](EXTRACTION_WORKFLOWS.md) |
+| Check why an HTML highlight is missing for a nested mention | [Review overlapping highlights](EXTRACTION_WORKFLOWS.md#review-overlapping-highlights) |
 | Work with entities, signals, tracks and identities | [Architecture](ARCHITECTURE.md) · [Public contract](CONTRACT.md) |
 | Represent text and other media locations | [Location model](LOCATION.md) |
 | Exchange constituency trees with an external parser | [Constituency parsing](CONSTITUENCY.md) |
@@ -34,7 +35,9 @@ For clients that load a local Agent Plugins package, select the checkout’s `.a
 | Task | Guide |
 |---|---|
 | Choose a regression fixture, a labeled comparison or a live check | [Fixtures, datasets and QA](QA.md) |
-| Compare extraction across labeled domains | [Domain QA](DOMAIN_QA.md) |
+| Choose a benchmark for mention spans, clusters or directed relations | [Worked example](QA.md#find-a-dataset-or-add-a-case) |
+| Find the files and splits behind a figure and see which datasets were left out | [Dataset coverage and exclusions](eval/dataset-coverage.md) |
+| Compare extraction across labeled domains or test recognition of unfamiliar names | [Domain QA](DOMAIN_QA.md) · [WNUT-17 example](DOMAIN_QA.md#test-recognition-of-unfamiliar-names) |
 | Allocate evaluation runs under a fixed budget | [Evaluation sampling](EVALUATION_SAMPLING.md) |
 | Investigate a recurring failure or challenge a quality claim | [Adversarial QA runbook](ADVERSARIAL_QA.md) |
 | Interpret a worked example of redaction scoring | [PII character-masking evaluation](eval/pii-char-masking.md) |
