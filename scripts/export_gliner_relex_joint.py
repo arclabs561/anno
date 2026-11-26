@@ -12,7 +12,6 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
-import onnxruntime as ort
 import torch
 from torch import nn
 
@@ -186,6 +185,8 @@ def reference_output(model, wrapper, case, prepared):
 
 
 def verify_joint(graph, references):
+    import onnxruntime as ort
+
     opts = ort.SessionOptions()
     opts.intra_op_num_threads = 2
     session = ort.InferenceSession(

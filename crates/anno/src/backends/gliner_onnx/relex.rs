@@ -6,6 +6,9 @@ use ort::value::Tensor;
 use regex::Regex;
 use std::sync::LazyLock;
 
+// Candidate-level diagnostics are opt-in. Emit indices and scores, never source text.
+const CANDIDATE_LOG: &str = "anno::relex_candidates";
+
 static WORDS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S").expect("valid upstream word splitter")
 });
@@ -160,6 +163,14 @@ impl GLiNEROnnx {
                 "unexpected entity logits shape {dims:?}"
             )));
         }
+        let trace = log::log_enabled!(target: CANDIDATE_LOG, log::Level::Trace);
+        let offsets = SpanConverter::new(text);
+        if trace {
+            log::trace!(target: CANDIDATE_LOG, "grid width={MAX_SPAN_WIDTH} threshold={threshold} words={count} entity_labels={} relation_labels={}", entity_types.len(), relation_types.len());
+            for (word, token) in words.iter().enumerate() {
+                log::trace!(target: CANDIDATE_LOG, "word index={word} start={} end={}", offsets.byte_to_char(token.start()), offsets.byte_to_char(token.end()));
+            }
+        }
         let mut candidates = Vec::new();
         for (slot, classes) in logits.chunks_exact(entity_types.len()).enumerate() {
             let start = slot / MAX_SPAN_WIDTH;
@@ -169,6 +180,9 @@ impl GLiNEROnnx {
             }
             for (class, &logit) in classes.iter().enumerate() {
                 let score = 1.0 / (1.0 + (-logit).exp());
+                if trace {
+                    log::trace!(target: CANDIDATE_LOG, "mention slot={slot} label={class} score={score}");
+                }
                 if score > threshold {
                     candidates.push((slot, class, score));
                 }
@@ -178,17 +192,20 @@ impl GLiNEROnnx {
         // original grid slot so relation endpoints survive reordering and NMS.
         candidates.sort_by(|a, b| b.2.total_cmp(&a.2));
         let mut occupied = vec![false; count];
-        candidates.retain(|&(slot, _, _)| {
+        candidates.retain(|&(slot, class, _)| {
             let start = slot / MAX_SPAN_WIDTH;
             let end = start + slot % MAX_SPAN_WIDTH;
-            if occupied[start..=end].contains(&true) {
+            let overlap = occupied[start..=end].contains(&true);
+            if trace {
+                log::trace!(target: CANDIDATE_LOG, "flat slot={slot} label={class} kept={}", !overlap);
+            }
+            if overlap {
                 return false;
             }
             occupied[start..=end].fill(true);
             true
         });
         candidates.sort_by_key(|v| v.0);
-        let offsets = SpanConverter::new(text);
         let mut slot_to_entity = vec![None; slots];
         let mut entities = Vec::new();
         for (slot, label, score) in candidates {
@@ -229,8 +246,16 @@ impl GLiNEROnnx {
                         .copied()
                         .ok_or_else(|| inference_error("relation endpoint outside the span grid"))
                 };
-                let (Some(head_idx), Some(tail_idx)) = (endpoint(pair[0])?, endpoint(pair[1])?)
-                else {
+                let head = endpoint(pair[0])?;
+                let tail = endpoint(pair[1])?;
+                if trace {
+                    for (predicate, score) in row.iter().enumerate() {
+                        log::trace!(target: CANDIDATE_LOG,
+                            "relation head={} tail={} predicate={predicate} score={score} head_kept={} tail_kept={}",
+                            pair[0], pair[1], head.is_some(), tail.is_some());
+                    }
+                }
+                let (Some(head_idx), Some(tail_idx)) = (head, tail) else {
                     continue;
                 };
                 for (&score, &label) in row.iter().zip(relation_types) {
