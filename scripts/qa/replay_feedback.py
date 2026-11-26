@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 
+import replay_bibliography
 import replay_coref_corpus
 import replay_crossdoc_case
 import replay_crossdoc_native
@@ -23,6 +24,7 @@ import replay_wikigold
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS = {
+    "bibliography": replay_bibliography,
     "coref_corpus": replay_coref_corpus,
     "crossdoc_cases": replay_crossdoc_case, "crossdoc_native": replay_crossdoc_native,
     "document_delivery": replay_document_delivery,

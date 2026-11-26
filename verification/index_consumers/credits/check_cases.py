@@ -36,6 +36,20 @@ def native_rows(items):
     return rows
 
 
+def apply_delta(old, checkpoint, delta):
+    if delta is None or delta["base"] != old.checkpoint or delta["target"] != checkpoint:
+        raise ValueError("mismatched native delta endpoints")
+    rows = old.rows.copy()
+    for key, old_value in native_rows(delta["removed"]).items():
+        if rows.pop(key) != old_value:
+            raise ValueError("invalid native removal")
+    for key, new_value in native_rows(delta["upserted"]).items():
+        if key in rows:
+            raise ValueError("upsert without retraction")
+        rows[key] = new_value
+    return rows
+
+
 def publish(cli, scenario):
     publications = {}
     for source, states in scenario["sources"].items():
@@ -103,16 +117,7 @@ class Reader:
             self.heads[source] = pub
         else:
             delta = pub.delta
-            if delta is None or delta["base"] != old.checkpoint or delta["target"] != pub.checkpoint:
-                raise ValueError("mismatched native delta endpoints")
-            rows = old.rows.copy()
-            for key, old_value in native_rows(delta["removed"]).items():
-                if rows.pop(key) != old_value:
-                    raise ValueError("invalid native removal")
-            for key, new_value in native_rows(delta["upserted"]).items():
-                if key in rows:
-                    raise ValueError("upsert without retraction")
-                rows[key] = new_value
+            rows = apply_delta(old, pub.checkpoint, delta)
             if rows != pub.rows:
                 raise ValueError("applied native delta differs from full snapshot")
             self.heads[source] = Publication(pub.checkpoint, rows, pub.manifest, delta)

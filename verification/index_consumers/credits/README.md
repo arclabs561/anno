@@ -24,6 +24,22 @@ The consumer supplies the work, relationship and audience for each source row. T
 
 A separate SQLite reader installs the ledger editions and reopens the database before each observation. It checks exact search, the count of credited works, autocomplete and the printed byline. Its negative control retains an obsolete autocomplete entry after revocation. Exact search and counts still pass in that faulty reader. Both readers run against a private local database with two simulated audiences. [SQLite search check](check_search.py)
 
+## Correct a bibliography at a retained edition
+
+Two authored articles credit “Rowan Mire”. Their catalog records initially assign both articles to the same person. A correction moves one credit to a namesake with the same accession in a different namespace. The article and its printed affiliation are unchanged. A third index edition receives another affiliation that already applied on the original publication day, a later name, and an affiliation with unknown dates. [Articles and catalog receipts](bibliography/)
+
+| Reader edition | Person credited on the tide paper | Affiliations supported for its publication day |
+|---|---|---|
+| 1, initial import | archive / 17 | Quay Archive |
+| 2, corrected attribution | university / 17 | Harbor Institute |
+| 3, additional authority evidence | university / 17 | Harbor Institute and Reed Observatory. The date of the Marsh Library affiliation is undetermined. |
+
+The [replay](check_attribution_history.py) reads the authored JATS through the bibliography byline reader and verifies each projected byline using `anno query publication`. It also asks `anno query memberships` to publish the qualified assignments. The online reader starts from one complete native snapshot and receives subsequent native row deltas alongside the application's complete credit and dated-claim manifest. At each delivery the test reopens every retained view in memory and compares its answers with a fresh full native publication and hand-labeled expectations. It checks both authors’ work lists, source locators, half-open interval boundaries and duplicate delivery. The third native delta has no changed rows. The additional authority evidence still changes the historical-day answer in that reader edition.
+
+The article’s affiliation comes from its contributor reference. Dated institutional claims have independent evidence. The reference reader keeps an undated affiliation visible as undetermined for the requested day. Its edition counter orders what the application learned. The fixture treats a stated period as nonempty and uses whole days, with an exclusive end. A known start confirms that day. A known end confirms the previous day. It assumes trusted native CLI output; the reader checks the scope, transition, and the person named by each authority decision. Each claim is public in this fixture. Each retained view occupies memory. [JATS affiliations](https://jats.nlm.nih.gov/publishing/tag-library/1.4/chapter/tag-affiliations.html) · [ORCID affiliation dates and overlapping roles](https://info.orcid.org/documentation/integration-guide/admin-guide-to-affiliations/) · [Example of a publisher changing an author list](https://elifesciences.org/articles/90408)
+
+Run `python3 verification/index_consumers/credits/check_attribution_history.py --anno target/debug/anno`. All article text, example dates, authority decisions and expected answers for this case were written for anno under MIT OR Apache-2.0.
+
 ## Provenance and reuse
 
 The fictional records, expected answers, scripts and original research annotations are available under the repository's `MIT OR Apache-2.0` license. The source register links public decisions, studies, policies and catalog records. Its entries describe the evidence and its limits. The fixtures borrow decision patterns and use invented works, names, catalogs and source events. No source passages, scans or third-party record dumps are included. Each linked work retains its own terms. These shared examples are regression seeds. A model evaluated on them after seeing them would need a separate held-out corpus for a performance claim. [Source register](sources.json) · [Repository license](../../../LICENSE) · [Source rights and regression seeds](../../source_rights/README.md)
