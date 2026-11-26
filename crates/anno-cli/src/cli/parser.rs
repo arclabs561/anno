@@ -22,11 +22,11 @@ EXAMPLES:
     --text "Steve Jobs founded Apple in 1976."
   anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
   anno batch --dir ./docs --output ./results --format json
-  anno models download ...
+  anno models list
   anno info
 
 OFFLINE:
-  anno models download ...          # prefetch weights
+  anno models download gliner       # prefetch weights in an ONNX build
   ANNO_NO_DOWNLOADS=1 anno ...      # cached-only mode
 
 Run `anno help <command>` for details on any subcommand.
@@ -38,7 +38,7 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Named workflow profile (see anno config show NAME). Explicit command options win.
+    /// Named profile for compatible workflow commands. Explicit flags win. See anno config show NAME.
     #[arg(long, global = true, value_name = "NAME")]
     pub config: Option<String>,
 
@@ -152,7 +152,6 @@ pub enum Commands {
 
     /// Deep analysis with multiple models
     #[command(visible_alias = "a")]
-    #[command(hide = true)]
     Analyze(commands::AnalyzeArgs),
 
     /// Deliver and review grounded documents in a durable local corpus
@@ -160,18 +159,15 @@ pub enum Commands {
 
     /// Work with NER datasets
     #[command(visible_alias = "ds")]
-    #[command(hide = true)]
     Dataset(commands::DatasetArgs),
 
     /// Comprehensive evaluation across all task-dataset-backend combinations
     #[command(visible_alias = "bench")]
     #[cfg(feature = "eval")]
-    #[command(hide = true)]
     Benchmark(commands::BenchmarkArgs),
 
     /// Inspect sampler history from the randomized matrix sampler harness
     #[cfg(feature = "eval")]
-    #[command(hide = true)]
     #[command(name = "sampler", visible_alias = "muxer")]
     Muxer(commands::MuxerArgs),
 
@@ -188,34 +184,27 @@ pub enum Commands {
     /// Cross-document entity coalescing: cluster entities across multiple documents
     #[command(visible_alias = "coalesce")]
     #[cfg(feature = "eval")]
-    #[command(hide = true)]
     CrossDoc(commands::CrossDocArgs),
 
     /// Enhance entities with additional metadata
-    #[command(hide = true)]
     Enhance(commands::EnhanceArgs),
 
     /// Full processing pipeline
     #[command(visible_alias = "p")]
-    #[command(hide = true)]
     Pipeline(commands::PipelineArgs),
 
     /// Query and filter entities/clusters
     #[command(visible_alias = "q")]
-    #[command(hide = true)]
     Query(commands::QueryArgs),
 
     /// Compare documents, models, or clusters
-    #[command(hide = true)]
     Compare(commands::CompareArgs),
 
     /// Manage cache for extraction results
-    #[command(hide = true)]
     Cache(commands::CacheArgs),
 
     /// Query evaluation history
     #[cfg(feature = "eval")]
-    #[command(hide = true)]
     History(commands::HistoryArgs),
 
     /// Save, list and inspect named workflow profiles
@@ -223,34 +212,27 @@ pub enum Commands {
 
     /// Batch process multiple documents efficiently
     #[command(visible_alias = "b")]
-    #[command(hide = true)]
     Batch(commands::BatchArgs),
 
     /// Privacy: detect and redact PII
     #[command(visible_alias = "priv")]
-    #[command(hide = true)]
     Privacy(commands::PrivacyArgs),
 
     /// Watch directory for incremental processing
     #[command(visible_alias = "w")]
-    #[command(hide = true)]
     Watch(commands::WatchArgs),
 
     /// Domain shift detection
-    #[command(hide = true)]
     Domain(commands::DomainArgs),
 
     /// Explain why entities were extracted
-    #[command(hide = true)]
     Explain(commands::ExplainArgs),
 
     /// Analyze singleton coreference clusters
-    #[command(hide = true)]
     Singleton(commands::SingletonArgs),
 
     /// Export annotations to different formats (brat, CoNLL, JSONL, etc.)
     #[command(visible_alias = "ex")]
-    #[command(hide = true)]
     Export(commands::ExportArgs),
 
     /// Generate shell completions
@@ -273,7 +255,7 @@ pub enum ModelBackend {
     Heuristic,
     /// Minimal heuristic (low complexity experiment)
     Minimal,
-    /// Automatic (Language-detected routing)
+    /// Automatic backend selection (currently stacked)
     Auto,
     /// Stacked: Pattern + Heuristic (default)
     #[default]
@@ -676,10 +658,12 @@ pub enum OutputFormat {
     /// Human-readable colored output (default)
     #[default]
     Human,
-    /// JSON object with provenance and entities: `{ "provenance": ..., "entities": [...] }`
+    /// JSON result for the selected command
     Json,
-    /// JSON lines: first line is provenance, then one entity per line
+    /// JSON Lines (record schema depends on the command)
     Jsonl,
+    /// brat standoff files (extract --export DIR)
+    Brat,
     /// Tab-separated values
     Tsv,
     /// Inline annotations in text
@@ -692,6 +676,15 @@ pub enum OutputFormat {
     Tree,
     /// Summary statistics only (for cross-doc command)
     Summary,
+}
+
+/// Restrict help and argument validation to the writers the command actually implements.
+pub fn output_formats(
+    names: &'static [&'static str],
+) -> impl clap::builder::TypedValueParser<Value = OutputFormat> {
+    use clap::builder::{PossibleValuesParser, TypedValueParser};
+    PossibleValuesParser::new(names.iter().copied())
+        .map(|name| OutputFormat::from_str(&name, false).expect("declared output format"))
 }
 
 /// Evaluation task type
@@ -709,6 +702,41 @@ pub enum EvalTask {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_public_route_and_visible_alias_reaches_its_own_help() {
+        use clap::{error::ErrorKind, CommandFactory};
+        fn walk(command: &clap::Command, path: &[String]) {
+            for child in command
+                .get_subcommands()
+                .filter(|c| c.get_name() != "help" && !c.is_hide_set())
+            {
+                let mut canonical = path.to_vec();
+                canonical.push(child.get_name().into());
+                for flag in ["--help", "-h"] {
+                    let help = |args: &[String]| {
+                        let error =
+                            Cli::try_parse_from(args.iter().map(String::as_str).chain([flag]))
+                                .err()
+                                .expect("help exits before dispatch");
+                        assert_eq!(error.kind(), ErrorKind::DisplayHelp, "{args:?} {flag}");
+                        error.to_string()
+                    };
+                    let expected = help(&canonical);
+                    assert!(expected.contains("Usage: anno"), "{canonical:?}");
+                    for alias in child.get_visible_aliases() {
+                        let mut spelling = path.to_vec();
+                        spelling.push(alias.into());
+                        assert_eq!(help(&spelling), expected, "{spelling:?} {flag}");
+                    }
+                }
+                walk(child, &canonical);
+            }
+        }
+        let command = Cli::command();
+        command.clone().debug_assert();
+        walk(&command, &["anno".to_owned()]);
+    }
 
     #[test]
     fn test_model_backend_names() {

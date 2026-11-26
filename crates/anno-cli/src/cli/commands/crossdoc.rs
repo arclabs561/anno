@@ -63,7 +63,7 @@ pub struct CrossDocArgs {
     pub require_type_match: bool,
 
     /// Output format
-    #[arg(short, long, default_value = "json")]
+    #[arg(short, long, default_value = "json", value_parser = super::super::parser::output_formats(&["json", "jsonl", "tree", "summary", "human"]))]
     pub format: OutputFormat,
 
     /// Import a GroundedDocument or JSON array of documents per file, in argument order.
@@ -355,6 +355,16 @@ fn import_deliveries(
 #[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
+    if !matches!(
+        args.format,
+        OutputFormat::Human
+            | OutputFormat::Json
+            | OutputFormat::Jsonl
+            | OutputFormat::Tree
+            | OutputFormat::Summary
+    ) {
+        return Err("crossdoc supports --format human, json, jsonl, tree, summary".into());
+    }
     let requested_pair = match args.explain_pair.as_slice() {
         [] => None,
         [left, i, right, j] => {

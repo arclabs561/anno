@@ -6,7 +6,11 @@ use clap::ValueEnum;
 use serde::Deserialize;
 
 use crate::cli::{
-    commands::dataset::{DatasetAction, DatasetArgs},
+    commands::{
+        context::ContextArgs,
+        dataset::{DatasetAction, DatasetArgs},
+        export::ExportArgs,
+    },
     parser::{Commands, ModelBackend, OutputFormat},
     utils::{get_config_dir, validate_path_component},
 };
@@ -105,7 +109,10 @@ fn apply_selected(
         Some(Commands::CrossDoc(a)) => inherit!(a, model, format),
         Some(Commands::Eval(a)) if a.predictions.is_none() => inherit!(a, model),
         Some(Commands::Dataset(DatasetArgs {
-            action: DatasetAction::Eval { model, .. },
+            action:
+                DatasetAction::Eval { model, .. }
+                | DatasetAction::Export(ExportArgs { model, .. })
+                | DatasetAction::Context(ContextArgs { model, .. }),
         })) => {
             let action = matches.and_then(|m| m.subcommand()).map(|(_, m)| m);
             inherit(action, "model", config.model, model);
@@ -115,7 +122,7 @@ fn apply_selected(
         Some(Commands::Privacy(a)) => inherit!(a, model),
         Some(Commands::Singleton(a)) => inherit!(a, model),
         Some(Commands::Domain(a)) => inherit!(a, model),
-        Some(Commands::Watch(a)) => inherit!(a, model),
+        Some(Commands::Watch(a)) => inherit!(a, model, format),
         _ => return Err("This operation has no saved workflow settings. Omit --config.".into()),
     }
     Ok(())

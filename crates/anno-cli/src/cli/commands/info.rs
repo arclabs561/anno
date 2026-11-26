@@ -27,7 +27,7 @@ pub fn run() -> Result<(), String> {
             // We can't cheaply check if the model exists, so note the requirement.
             (
                 color("33", "~"),
-                " (needs model download -- run: anno models download)",
+                " (may require weights; see anno models download --help)",
             )
         } else {
             (color("32", "✓"), "")

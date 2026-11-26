@@ -3,6 +3,27 @@
 This page separates a deterministic local check from an evaluation that can
 support a deployment decision.
 
+## Saving and converting annotations
+
+For a BRAT annotation project, extract directly into a directory. To keep a
+reviewable intermediate document, save grounded JSON. Subsequent exports read
+the saved text, spans and recorded relations without loading a backend.
+
+```sh
+anno extract --model pattern --file notice.txt --format brat --export annotations
+anno extract --model pattern --file notice.txt --format grounded > reviewed.json
+anno export --input reviewed.json --output graph --format graph-csv
+anno pipeline --model pattern --files notice.txt --format jsonl --output documents.jsonl
+anno export --input documents.jsonl --output annotations-from-pipeline --format brat
+```
+
+Compact extraction JSON omits the complete source text. Grounded JSON retains
+it, so conversion can reproduce whitespace and character offsets. Pipeline
+JSONL contains one grounded document per line in document mode. With multiple
+saved documents in one file, export numbers artifacts in input order starting
+at one. Graph CSV preserves an empty recorded edge set. Exporting raw text can
+generate co-occurrence edges when extraction yields no semantic relations.
+
 ## Offline deterministic profile
 
 Run the built-in profile without downloading a model or dataset:

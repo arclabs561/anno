@@ -78,6 +78,9 @@ pub fn run(args: ConfigArgs) -> Result<(), String> {
             threshold,
         } => {
             validate_path_component(&name, "config name")?;
+            if threshold.is_some_and(|value| !(0.0..=1.0).contains(&value)) {
+                return Err("--threshold must be a finite value between 0.0 and 1.0".into());
+            }
             use toml::Value;
 
             let mut config = toml::map::Map::new();

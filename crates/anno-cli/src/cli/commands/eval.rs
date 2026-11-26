@@ -41,6 +41,7 @@ impl MetricKind {
 
 /// Evaluate predictions against gold annotations
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "file", "positional"]).multiple(false)))]
 pub struct EvalArgs {
     /// Input text to process
     #[arg(short, long)]
@@ -84,7 +85,7 @@ pub struct EvalArgs {
     pub json: bool,
 
     /// Output format (overrides default text output)
-    #[arg(long)]
+    #[arg(long, conflicts_with = "json")]
     pub html: bool,
 
     /// Verbose output (repeat for more detail: -v, -vv, -vvv)
@@ -95,7 +96,6 @@ pub struct EvalArgs {
     #[arg(short, long)]
     pub quiet: bool,
 
-    /// Positional text argument
     /// Positional text input
     pub positional: Vec<String>,
 }
@@ -113,6 +113,9 @@ enum PredictionSource {
 
 /// Execute the eval command.
 pub fn run(args: EvalArgs) -> Result<(), String> {
+    if args.output.is_some() && !(args.html || args.json) {
+        return Err("--output requires --json or --html".into());
+    }
     let text = get_input_text(&args.text, args.file.as_deref(), &args.positional)?;
 
     // Load gold from file or args
@@ -346,10 +349,12 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 serde_json::to_value(char_metrics).unwrap_or(serde_json::Value::Null);
         }
 
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
+        let json = serde_json::to_string_pretty(&output).map_err(|e| e.to_string())?;
+        if let Some(path) = &args.output {
+            fs::write(path, json).map_err(|e| format!("Failed to write {path}: {e}"))?;
+        } else {
+            println!("{json}");
+        }
     } else if args.html {
         let html = render_eval_html(&cmp);
         if let Some(path) = &args.output {

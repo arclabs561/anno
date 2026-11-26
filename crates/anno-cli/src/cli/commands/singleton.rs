@@ -14,6 +14,7 @@ use anno::backends::coref::SimpleCorefResolver;
 
 /// Analyze singleton clusters using local heuristic coreference
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "input"])))]
 pub struct SingletonArgs {
     /// Input file or text
     #[arg(short, long)]
@@ -28,7 +29,7 @@ pub struct SingletonArgs {
     pub model: ModelBackend,
 
     /// Output format (human, json, tsv)
-    #[arg(long, default_value = "human")]
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "tsv"])]
     pub format: String,
 
     /// Show detailed analysis
