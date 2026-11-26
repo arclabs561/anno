@@ -3,6 +3,7 @@
 
 import tempfile
 
+from commitments.check import check as check_affiliation_commitments
 from context.check import check as check_affiliation_context
 from evaluate import Record
 from ngram_retrieval import Query, compiled_index, decision, lookup, outcome, release_queries
@@ -71,4 +72,5 @@ if __name__ == "__main__":
         binary = compiled_index(directory)
         check(binary)
         check_affiliation_context(binary)
+        check_affiliation_commitments(binary)
     print("ROR candidate controls passed")
