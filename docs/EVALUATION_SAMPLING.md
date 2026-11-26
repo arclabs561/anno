@@ -29,6 +29,8 @@ Estimate counts completed cells from the observed language in the result or its 
 
 ## Inspect dataset eligibility
 
+To see which sources the documentation figures actually read, look up a registry ID in the survey. It records file and split measurements alongside the source observed in trusted CI. The cache inventory and its limits are documented separately. [Figure inputs](eval/dataset-coverage.md) · [S3 evidence](eval/dataset-coverage.md#what-the-s3-cache-establishes)
+
 Run `anno sampler eligibility --task ner --require-cached` before comparing policies on a local panel. Its JSON lists each registered dataset for that task, whether the standard loader sees a local cache hit, and the first policy exclusion. For a compact list of locally cached sources and why each will or will not enter selection:
 
 ```bash
