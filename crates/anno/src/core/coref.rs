@@ -24,6 +24,8 @@
 //! assert!(!chain.is_singleton());
 //! ```
 
+mod span;
+
 use super::Entity;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -157,7 +159,7 @@ impl Mention {
     /// True if spans share any characters: `[0,5)` overlaps `[3,8)`.
     #[must_use]
     pub fn overlaps(&self, other: &Mention) -> bool {
-        self.start < other.end && other.start < self.end
+        span::overlaps(self.start, self.end, other.start, other.end)
     }
 
     /// True if spans are identical: same start AND end.
@@ -997,6 +999,16 @@ mod proptests {
             let m1 = Mention::new("a", s1, s1 + len1);
             let m2 = Mention::new("b", s2, s2 + len2);
             prop_assert_eq!(m1.overlaps(&m2), m2.overlaps(&m1));
+        }
+
+        /// Check the public method on raw offsets, including empty and reversed spans.
+        #[test]
+        fn mention_overlap_matches_shared_character(
+            a in 0usize..8, b in 0usize..8, c in 0usize..8, d in 0usize..8,
+        ) {
+            let left = Mention::new("a", a, b);
+            let right = Mention::new("b", c, d);
+            prop_assert_eq!(left.overlaps(&right), (a..b).any(|i| (c..d).contains(&i)));
         }
 
         /// Mention serde roundtrip preserves all fields.
