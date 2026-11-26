@@ -38,6 +38,10 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
+    /// Named workflow profile (see anno config show NAME). Explicit command options win.
+    #[arg(long, global = true, value_name = "NAME")]
+    pub config: Option<String>,
+
     /// Color output mode
     #[arg(long, global = true, default_value = "auto", value_name = "WHEN")]
     pub color: ColorMode,
@@ -52,8 +56,17 @@ pub struct Cli {
 /// the first word always leaves the remaining arguments to the text shorthand.
 #[cfg(not(feature = "eval"))]
 pub fn unavailable_eval_command(mut args: &[std::ffi::OsString]) -> Option<&str> {
-    // Skip the only global option that can precede the command.
+    // Skip global options before checking the command name.
     while let Some(first) = args.first().and_then(|arg| arg.to_str()) {
+        if first == "--config" {
+            args.get(1)?;
+            args = &args[2..];
+            continue;
+        }
+        if first.starts_with("--config=") {
+            args = &args[1..];
+            continue;
+        }
         let value = if first == "--color" {
             let value = args.get(1)?.to_str()?;
             args = &args[2..];
@@ -205,8 +218,7 @@ pub enum Commands {
     #[command(hide = true)]
     History(commands::HistoryArgs),
 
-    /// Manage configuration files for workflows
-    #[command(hide = true)]
+    /// Save, list and inspect named workflow profiles
     Config(commands::ConfigArgs),
 
     /// Batch process multiple documents efficiently

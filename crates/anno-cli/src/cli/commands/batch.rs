@@ -38,11 +38,11 @@ pub struct BatchArgs {
     pub model: ModelBackend,
 
     /// Run coreference resolution on each document
-    #[arg(long)]
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value = "false", require_equals = true)]
     pub coref: bool,
 
     /// Link tracks to KB identities
-    #[arg(long)]
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value = "false", require_equals = true)]
     pub link_kb: bool,
 
     /// Number of parallel batch and enrichment workers (1 = sequential)

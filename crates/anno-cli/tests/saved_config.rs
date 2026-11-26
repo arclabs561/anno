@@ -181,3 +181,57 @@ fn explicit_false_debug_flags_override_saved_true_values() {
     assert_eq!(document["tracks"], serde_json::json!({}));
     assert_eq!(document["identities"], serde_json::json!({}));
 }
+
+#[test]
+fn profile_works_for_positional_text_and_a_directory_batch() {
+    let temp = tempfile::tempdir().unwrap();
+    let inputs = temp.path().join("inputs");
+    std::fs::create_dir(&inputs).unwrap();
+    let text = "Mail alice@example.com";
+    std::fs::write(inputs.join("one.txt"), text).unwrap();
+    std::fs::write(
+        temp.path().join("workflow.toml"),
+        "model = 'pattern'\nformat = 'json'\ncoref = true\nlink_kb = true\n",
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        let output = anno()
+            .args(args)
+            .env("ANNO_CONFIG_DIR", temp.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap()
+    };
+    let single = run(&["--config", "workflow", "--", text]);
+    assert_eq!(single["provenance"]["model"], "pattern");
+    let directory = inputs.to_str().unwrap();
+    let batch = run(&[
+        "batch",
+        "--config",
+        "workflow",
+        "--dir",
+        directory,
+        "--quiet",
+        "--coref=false",
+        "--link-kb=false",
+    ]);
+    assert_eq!(batch[0]["model"], "pattern");
+    assert_eq!(batch[0]["entities"][0]["text"], "alice@example.com");
+    let overridden = run(&[
+        "--config=workflow",
+        "b",
+        "--dir",
+        directory,
+        "--quiet",
+        "--model",
+        "stacked",
+        "--coref=false",
+        "--link-kb=false",
+    ]);
+    assert_eq!(overridden[0]["model"], "stacked");
+}
