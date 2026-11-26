@@ -194,13 +194,32 @@ TPLinker and GLiNER multitask heuristic fallbacks apply this limit when scoring.
 On 24 authored documents containing repeated names in two English statements and
 six Unicode prefix/separator variants, the heuristic and TPLinker fallback agreed.
 At relation threshold 0.1, reducing the limit from 120 to 12 characters cut
-unmatched predictions from 56 to 20 and correct matches from 16 to 14 out of 36.
-A match requires the full source span and type of both endpoints in the annotated
-direction, together with the exact predicate.
-Of those unmatched predictions, 36 and 12 respectively crossed the statement
-boundary. At threshold 0.55 neither route emitted any relations. These fixtures
-measure sensitivity to the control; corpus-level thresholds require held-out data.
-[Reproduce with `--binary PATH`](../scripts/qa/relation_distance_trial.py).
+unmatched predictions from 60 to 24 and correct matches from 36 to 30 out of 36.
+Of those unmatched predictions, 48 and 24 respectively crossed the statement
+boundary. A match requires the full span and type of each endpoint in the annotated
+direction, together with the exact predicate. At threshold 0.55 neither route
+emitted any relations. [Reproduce with `--binary PATH`](../scripts/qa/relation_distance_trial.py).
+
+The capitalization heuristic respects Unicode sentence boundaries in multiword
+names. For example, it returns separate occurrences for “Acme Inc？Marie” and
+preserves internal punctuation in “Yahoo！ Inc.” The comparison used 568 held-out
+RED-FM paragraphs in German, English, Spanish, French and Italian with 2,729
+annotated person, organization and location spans. The two versions emitted the
+same sets on the original paragraphs. After replacing 672 punctuation marks
+immediately following annotated spans and preceding uppercase words with Unicode
+sentence terminals, correct matches increased from 532 to 829, with 297 recovered
+and zero lost. Unmatched predictions increased from 4,986 to 5,139.
+The following counts describe only the edited punctuation cases.
+
+| Language | Paragraphs | Recovered exact matches | Lost exact matches | Change in unmatched predictions |
+|---|---:|---:|---:|---:|
+| German | 82 | 26 | 0 | +58 |
+| English | 188 | 118 | 0 | -35 |
+| Spanish | 100 | 55 | 0 | +44 |
+| French | 113 | 46 | 0 | +52 |
+| Italian | 85 | 52 | 0 | +34 |
+
+The comparison procedure takes authorized local RED-FM inputs. [Companion evaluation](https://github.com/arclabs561/anno/pull/397)
 
 With `--detect-lang`, a fetched HTML page's recognized language declaration
 supplies `provenance.language` (its primary language code) and
