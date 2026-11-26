@@ -1,5 +1,7 @@
 # Joint extraction stage replay
 
+The expanded held-out study traces each annotated edge to a model stage and tests a separate training-derived endpoint schema. [Joint edge-loss study](joint-edge-loss.md)
+
 ## JEREX on annotated documents
 
 The CPU replay uses the first three records in published order from the authors’ DocRED joint test split. Model input consists only of sentence tokens. Predicted mention and entity indices are local to each document. Gold annotation enters only during scoring. The three documents are “Jeff Prosserman”, “Pettigrew State Park” and “Homi Wadia”. [Source test split](https://lavis.cs.hs-rm.de/storage/jerex/public/datasets/docred_joint/test_joint.json) · [Checkpoint and split digests](../../scripts/qa/joint_baseline/receipts/jerex.json)
