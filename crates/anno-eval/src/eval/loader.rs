@@ -1285,6 +1285,28 @@ pub struct DatasetLoadReceipt {
     pub s3_fallback: Option<S3FallbackReason>,
 }
 
+impl DatasetLoadReceipt {
+    fn new(
+        mut dataset: LoadedDataset,
+        content_sha256: String,
+        s3_fallback: Option<S3FallbackReason>,
+    ) -> Self {
+        // The matrix can stage this release without a manifest. Recognize the same
+        // public bytes independently of whether they came from a file, S3 or the publisher.
+        const WIKIGOLD_SHA256: &str =
+            "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
+        if dataset.id == DatasetId::WikiGold && content_sha256 == WIKIGOLD_SHA256 {
+            dataset.metadata.observed_language = Some("en".into());
+            dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
+        }
+        Self {
+            dataset,
+            content_sha256,
+            s3_fallback,
+        }
+    }
+}
+
 /// A loaded dataset with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedDataset {
@@ -1730,11 +1752,11 @@ impl DatasetLoader {
         let dataset_id = id.0;
         if let Some(fixture) = dataset_id.checkout_fixture() {
             let content = self.read_checkout_fixture(dataset_id, &fixture)?;
-            return Ok(DatasetLoadReceipt {
-                dataset: self.parse_content_impl(&content, dataset_id)?,
-                content_sha256: fixture.digest.to_string(),
-                s3_fallback: None,
-            });
+            return Ok(DatasetLoadReceipt::new(
+                self.parse_content_impl(&content, dataset_id)?,
+                fixture.digest.to_string(),
+                None,
+            ));
         }
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
@@ -1779,21 +1801,7 @@ impl DatasetLoader {
         if matches!(parse_content, std::borrow::Cow::Owned(_)) {
             dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
         }
-        // The matrix stages the verified WikiGold release without a cache manifest.
-        // Only identify these public bytes; other bare WikiGold caches may be local fixtures.
-        if dataset_id == DatasetId::WikiGold {
-            const RELEASE_SHA256: &str =
-                "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
-            if content_sha256 == RELEASE_SHA256 {
-                dataset.metadata.version = Some(format!("sha256:{RELEASE_SHA256}"));
-                dataset.metadata.observed_language = Some("en".into());
-            }
-        }
-        Ok(DatasetLoadReceipt {
-            dataset,
-            content_sha256,
-            s3_fallback: None,
-        })
+        Ok(DatasetLoadReceipt::new(dataset, content_sha256, None))
     }
 
     /// Load or download a dataset.
@@ -1916,11 +1924,7 @@ impl DatasetLoader {
                             manifest.save(&self.cache_dir)?;
                         }
                     }
-                    return Ok(DatasetLoadReceipt {
-                        dataset,
-                        content_sha256,
-                        s3_fallback: None,
-                    });
+                    return Ok(DatasetLoadReceipt::new(dataset, content_sha256, None));
                 }
                 Err((reason, error)) => {
                     if publisher == PublisherFallback::Forbid {
@@ -1979,11 +1983,7 @@ impl DatasetLoader {
             let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
         }
 
-        Ok(DatasetLoadReceipt {
-            dataset,
-            content_sha256: sha256,
-            s3_fallback,
-        })
+        Ok(DatasetLoadReceipt::new(dataset, sha256, s3_fallback))
     }
 
     #[cfg(not(feature = "eval"))]
