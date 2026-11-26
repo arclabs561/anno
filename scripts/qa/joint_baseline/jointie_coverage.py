@@ -5,8 +5,12 @@ from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
-from aggregate_receipt import external_output
+import os
 import runpy
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend_residuals"))
+from private_ledger import external_path, save_new
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKER = ROOT / "crates/anno-cli/src/cli/commands/joint.py"
@@ -43,13 +47,13 @@ def gold_graph(doc):
     return text, nodes, edges
 
 
-def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace=False):
+def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace=False, sparse_roles=False, rank_trial=False):
     text, gold_mentions, gold = gold_graph(doc)
     original_decode = model._decode
     captured = []
 
     def decode(candidates, *args):
-        captured.append((candidates, args[-1]))
+        captured.append((candidates, args))
         return original_decode(candidates, *args)
 
     model._decode = decode
@@ -59,10 +63,15 @@ def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace
                 from jointie_loss import DecoderTrace
                 trace = DecoderTrace()
                 trace.watch(stack, model)
+            if sparse_roles:
+                from jointie_roles import RoleTrace
+                roles = RoleTrace()
+                roles.watch(stack, model)
             result, windows = worker["extract_document"](model, schema, text, window, overlap, token_limit)
     finally:
         model._decode = original_decode
-    (scores, config), = captured
+    (scores, decode_args), = captured
+    config = decode_args[-1]
 
     def occurrence(key):
         label, start, end = key
@@ -97,6 +106,9 @@ def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace
             "windows": windows, "counts": counts}
     if loss_trace:
         row["edge_trace"] = trace.losses(gold, scores, config, windows, decoded)
+        if sparse_roles:
+            for edge in row["edge_trace"]:
+                edge["sparse_role_stages"] = roles.classify(edge, windows)
         row["decoded_mention_keys"] = sorted(selected.values())
         row["decoded_edge_keys"] = sorted(decoded)
         counts["sparse_directed_predicate_span_pairs"] = len({(h[1:], p, t[1:]) for h,p,t in scored})
@@ -106,6 +118,9 @@ def measure(doc, model, schema, worker, token_limit, window, overlap, loss_trace
         if sum(reasons.values()) != len(gold) or reasons["matched"] != len(gold & decoded):
             raise ValueError("gold edge outcomes do not reconcile with the model output")
         counts.update({"first_loss_" + reason: n for reason,n in sorted(reasons.items())})
+    if rank_trial:
+        from jointie_ranking import trial
+        row["ranking_trial"] = trial(scores, config, gold, decoded, original_decode, decode_args)
     return row
 
 
@@ -141,17 +156,30 @@ def main():
     parser.add_argument("--check", type=Path, help="Require identical document identities, candidates, window coverage and decoded counts")
     parser.add_argument("--training-routes", type=Path, help="Restrict allowed head and tail types per predicate to their observed CrossRE AI training types")
     parser.add_argument("--loss-trace", action="store_true", help="Retain one observed outcome per gold directed typed edge")
+    parser.add_argument("--first-index", type=int, default=0, help="Start of the contiguous evaluation slice (zero-based)")
+    parser.add_argument("--argument-threshold", type=float, help="Experimental boundary argument gate; all other model and optimizer settings stay fixed")
+    parser.add_argument("--rank-typed-alternatives", action="store_true", help="Also compare type-supported span-pair ranking at the unchanged per-predicate cap")
+    parser.add_argument("--sparse-roles", action="store_true", help="Also observe routed role candidates and the actual ordered pair generator")
     parser.add_argument("--documents", type=int, default=8)
     parser.add_argument("--window-words", type=int, default=16)
     parser.add_argument("--overlap-words", type=int, default=4)
     args = parser.parse_args()
-    if args.loss_trace or args.training_routes:
-        external_output(args.output)
+    if args.sparse_roles or args.rank_typed_alternatives or args.argument_threshold is not None:
+        args.loss_trace = True
+    private = bool(args.loss_trace or args.training_routes)
+    destination = external_path(args.output) if private else args.output
+    if os.path.lexists(args.output) or destination.exists():
+        parser.error("output already exists; choose a new filename")
+    if not destination.parent.is_dir():
+        parser.error("output directory does not exist")
     import torch
     import gliner2
     from gliner2.joint_ie import JointIE, JointSchema
 
-    if args.documents < 1 or not 0 <= args.overlap_words < args.window_words:
+    if args.sparse_roles and gliner2.__version__ != "2.2.0":
+        raise ValueError("role instrumentation is verified for gliner2==2.2.0")
+
+    if args.first_index < 0 or args.documents < 1 or not 0 <= args.overlap_words < args.window_words:
         parser.error("expected a positive document count and window larger than overlap")
     data = args.crossre_test.read_bytes()
     if hashlib.sha256(data).hexdigest() != TEST_SHA:
@@ -180,16 +208,22 @@ def main():
     for relation, (heads, tails) in routes.items():
         schema.relation(relation, heads, tails)
     model = JointIE.from_pretrained(str(args.checkpoint), device="cpu", local_files_only=True)
+    if args.argument_threshold is not None:
+        from dataclasses import replace
+        if not 0 <= args.argument_threshold <= 1:
+            parser.error("argument threshold must be between zero and one")
+        generator = model.scorer.model.relation_pair_generator
+        generator.settings = replace(generator.settings, argument_threshold=args.argument_threshold)
     schema = model.compile_schema(schema)
     limit = json.loads((args.checkpoint / "encoder_config/config.json").read_bytes())["max_position_embeddings"]
     lines = data.splitlines()
-    if args.documents > len(lines):
+    if args.first_index + args.documents > len(lines):
         parser.error("requested document count exceeds the source split")
-    rows = [json.loads(s) for s in lines[:args.documents]]
+    rows = [json.loads(s) for s in lines[args.first_index:args.first_index + args.documents]]
     results = []
     with torch.inference_mode():
         for row in rows:
-            results.append(measure(row, model, schema, worker, limit, args.window_words, args.overlap_words, args.loss_trace))
+            results.append(measure(row, model, schema, worker, limit, args.window_words, args.overlap_words, args.loss_trace, args.sparse_roles, args.rank_typed_alternatives))
     if args.loss_trace:
         attribute_schema(results, routes)
     totals = Counter()
@@ -200,6 +234,10 @@ def main():
               "checkpoint_revision": "b5d42bf7dc7d01c40304ae4ed43c2f13c325a75b", "checkpoint_files": hashes,
               "gliner2": gliner2.__version__, "torch": torch.__version__, "window_words": args.window_words,
               "overlap_words": args.overlap_words, "totals": dict(totals), "documents": results}
+    if args.first_index:
+        report.update(selection="contiguous slice in source order", first_index=args.first_index)
+    if args.argument_threshold is not None:
+        report["argument_threshold"] = args.argument_threshold
     if args.loss_trace:
         report.update(enrolled_documents=args.documents, scored_documents=len(results))
     if args.training_routes:
@@ -208,12 +246,21 @@ def main():
         expected = json.loads(args.check.read_bytes())
         fields = ["dataset_sha256", "checkpoint_files", "vocabulary_sha256", "window_words",
                   "overlap_words", "totals", "documents"]
+        for field in ("first_index", "argument_threshold"):
+            if report.get(field) != expected.get(field):
+                raise ValueError(f"coverage replay differs for {field}")
         if args.training_routes:
             fields.extend(["training_sha256", "allowed_endpoint_types"])
         for key in fields:
             if report[key] != expected[key]:
                 raise ValueError(f"coverage replay differs for {key}")
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    if private:
+        save_new(args.output, report)
+    else:
+        # Exclusive creation also protects a concurrent run that finished during inference.
+        with destination.open("x", encoding="utf-8") as stream:
+            json.dump(report, stream, indent=2, allow_nan=False)
+            stream.write("\n")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,37 @@ fn email_entity(entities: &[serde_json::Value]) -> &serde_json::Value {
         .expect("pattern extraction should emit the email")
 }
 
+#[cfg(all(feature = "instrument", feature = "onnx"))]
+#[test]
+fn opted_in_model_logs_keep_json_stdout_parseable() {
+    let empty_cache = tempfile::tempdir().unwrap();
+    let output = anno()
+        .current_dir(empty_cache.path())
+        .env("HF_HOME", empty_cache.path())
+        .env("HF_HUB_CACHE", empty_cache.path())
+        .env("ANNO_NO_DOWNLOADS", "1")
+        .env("RUST_LOG", "anno::backends::stacked=warn")
+        .args([
+            "extract",
+            "--model",
+            "stacked",
+            "--format",
+            "json",
+            "--text",
+            "alice@example.com",
+        ])
+        .output()
+        .unwrap();
+    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{diagnostics}");
+    assert!(
+        diagnostics.contains("anno::backends::stacked"),
+        "{diagnostics}"
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(document["entities"].is_array());
+}
+
 #[test]
 fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
     let text = "🧪\r\nalice@example.com";

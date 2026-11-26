@@ -1,0 +1,76 @@
+{
+  "checkpoint_revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
+  "model_files": {
+    "encoder.onnx": "190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4",
+    "scorer_weights.safetensors": "54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7",
+    "tokenizer.json": "5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1",
+    "config.json": "2d96a29d2ebd497d34580594f40ded241440411bcd83885b89d8fbb86189bc3b"
+  },
+  "development_sha256": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+  "binary_sha256": "f1aa5efcfc7db961ebe1071a65436c2892b53ab0ce1eda6ac8cc895bd3b38d06",
+  "ordered_ids_sha256": "a6b8de82d095c9099c102858b0c44583689148359e6fe9edfc6703eccdf3ada6",
+  "comparison": {
+    "gold_links_recovered": 0,
+    "gold_links_lost": 0,
+    "unmatched_links_added": 0,
+    "unmatched_links_removed": 0,
+    "exact_document_wins": 0,
+    "exact_document_losses": 0,
+    "exact_document_delta_ci95": [
+      0,
+      0
+    ]
+  },
+  "arms": [
+    {
+      "top_lambda": 0.25,
+      "counts": {
+        "documents": 128,
+        "gold_links": 111,
+        "predicted_links": 79,
+        "tp": 75,
+        "fp": 4,
+        "fn": 36,
+        "tn": 141,
+        "exact_decisions": 91,
+        "gold_both_covered": 76,
+        "eligible_pairs": 102,
+        "all_output_spans": 1078,
+        "linked_output_span_coverage_pronoun_A_B": [
+          119,
+          58,
+          46
+        ],
+        "precision": 0.949367,
+        "recall": 0.675676,
+        "f1": 0.789474
+      },
+      "warm_p95_ms": 5114.96
+    },
+    {
+      "top_lambda": 0.5,
+      "counts": {
+        "documents": 128,
+        "gold_links": 111,
+        "predicted_links": 79,
+        "tp": 75,
+        "fp": 4,
+        "fn": 36,
+        "tn": 141,
+        "exact_decisions": 91,
+        "gold_both_covered": 76,
+        "eligible_pairs": 102,
+        "all_output_spans": 1090,
+        "linked_output_span_coverage_pronoun_A_B": [
+          119,
+          58,
+          46
+        ],
+        "precision": 0.949367,
+        "recall": 0.675676,
+        "f1": 0.789474
+      },
+      "warm_p95_ms": 4214.93
+    }
+  ]
+}

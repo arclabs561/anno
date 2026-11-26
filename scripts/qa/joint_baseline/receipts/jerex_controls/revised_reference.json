@@ -1,0 +1,15 @@
+{
+  "source_sha256": "f7872af697e8a887efcf2f3381bb815e791e9488186dd17167894808c89385ed",
+  "revised_revision": "ccfb54f5ddf5836027c87badda10f6dfc56efaac",
+  "documents_by_revised_split": {
+    "train_revised.json": 25,
+    "test_revised.json": 4,
+    "dev_revised.json": 3
+  },
+  "aligned_predictions": 81,
+  "outcomes": {
+    "exact_directed_predicate_added": 65,
+    "directed_pair_still_unannotated": 14,
+    "another_predicate_on_revised_pair": 2
+  }
+}

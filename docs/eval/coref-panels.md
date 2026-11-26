@@ -66,3 +66,33 @@ python scripts/qa/summarize_coref_panels.py "$out" "$out/coref-panels.json"
 ```
 
 The receipt lists model identities, corpus digests, GAP IDs and decisions, and per-excerpt counts and source digests for LitBank. Each GAP observation contains five bits. The first three record output coverage of the pronoun, A and B. The last two are the predicted links to A and B. Gold pairs have two bits in A, B order. LitBank's three-component counts are exact matches, predictions and gold mentions. Its four-component counts are the precision numerator and denominator followed by the recall numerator and denominator. [Machine-readable receipt](coref-panels.json)
+
+## Doubling the FCoref mention budget
+
+On 128 English GAP development excerpts from distinct articles, doubling the fraction of
+tokens retained as mention candidates from 0.25 to 0.50 increased returned linked spans
+from 1,078 to 1,090. Both arms returned the same decisions on every marked pair.
+Each recovered 75 of 111 gold pronoun links, emitted four unmatched links, and got
+both candidate decisions right on 91 articles. This supports keeping the shipped budget.
+GAP labels two possible antecedents per excerpt, so it cannot tell whether the 12
+additional returned spans improve unmarked clusters. [Aggregate receipt](fcoref-proposal-budget.json)
+
+The sampler excludes all URLs and verbatim excerpts occurring in the official test and
+validation splits, then takes one excerpt per unique development article in a fixed
+hash order. The input to the resolver contains only ID and text. Both arms used the
+same raw-text Rust example, FP32 export, scorer and tokenizer. Each arm ran one
+warm process. Local warm p95 was 5.11 s and 4.21 s, respectively, under concurrent
+CPU load with stock run first. Those timings cannot establish a speed improvement.
+[Selection and paired scorer](../../scripts/qa/fcoref_proposal_budget.py)
+
+Run on locally authorized GAP inputs with a prepared CPU export. The runner accepts
+the pinned official export and the separately fingerprinted FP32 export used in issue
+288. It verifies the input and model hashes and prints only aggregates and digests.
+[GAP source and terms](https://github.com/google-research-datasets/gap-coreference/tree/83135f26025cdd705c04f77e940d0c9201116b80)
+
+```bash
+cargo build --locked -p anno --features onnx --example coref_gap_panel
+python3 scripts/qa/fcoref_proposal_budget.py \
+  "$GAP/gap-development.tsv" "$GAP/gap-test.tsv" "$GAP/gap-validation.tsv" \
+  "$FCOREF_MODEL_PATH" target/debug/examples/coref_gap_panel
+```

@@ -1,0 +1,74 @@
+{
+  "ca": {
+    "path": "inst/udpipe-ud-2.5-191206/catalan-ancora-ud-2.5-191206.udpipe",
+    "git_blob": "079cd1f76e7720b804f1a7ad60e0f10324554b06"
+  },
+  "cs": {
+    "path": "inst/udpipe-ud-2.5-191206/czech-pdt-ud-2.5-191206.udpipe",
+    "git_blob": "3531f609897bbe8c0e0472197b95068f134673fe"
+  },
+  "cu": {
+    "path": "inst/udpipe-ud-2.5-191206/old_church_slavonic-proiel-ud-2.5-191206.udpipe",
+    "git_blob": "ca7cf8ec8a4e6c827f8969212e72c11079981cbc"
+  },
+  "de": {
+    "path": "inst/udpipe-ud-2.5-191206/german-gsd-ud-2.5-191206.udpipe",
+    "git_blob": "6890c813915a9bcf7abdab69b16f9d3f5372510a"
+  },
+  "en": {
+    "path": "inst/udpipe-ud-2.5-191206/english-ewt-ud-2.5-191206.udpipe",
+    "git_blob": "7f16e14d3695b6f878c6124a707359fdfd041c36"
+  },
+  "es": {
+    "path": "inst/udpipe-ud-2.5-191206/spanish-ancora-ud-2.5-191206.udpipe",
+    "git_blob": "1bf7f66742b7b0d6296b1eac8272e7ccf903cbcb"
+  },
+  "fr": {
+    "path": "inst/udpipe-ud-2.5-191206/french-gsd-ud-2.5-191206.udpipe",
+    "git_blob": "ca79311b47617b92a0762ae5f3fa13e3fcfe0972"
+  },
+  "grc": {
+    "path": "inst/udpipe-ud-2.5-191206/ancient_greek-perseus-ud-2.5-191206.udpipe",
+    "git_blob": "8e9dae6ce80ad785a6c0281482486cb13aaa1019"
+  },
+  "hi": {
+    "path": "inst/udpipe-ud-2.5-191206/hindi-hdtb-ud-2.5-191206.udpipe",
+    "git_blob": "c47773b90fd7992541259035d24a3dc98aa1297a"
+  },
+  "hu": {
+    "path": "inst/udpipe-ud-2.5-191206/hungarian-szeged-ud-2.5-191206.udpipe",
+    "git_blob": "badda442553a86f822d90ca5be92e5f5a82bc6f8"
+  },
+  "ko": {
+    "path": "inst/udpipe-ud-2.5-191206/korean-gsd-ud-2.5-191206.udpipe",
+    "git_blob": "e2c7e9468f43f68d1c92e7715c6c8ef01ee89e20"
+  },
+  "la": {
+    "path": "inst/udpipe-ud-2.5-191206/latin-perseus-ud-2.5-191206.udpipe",
+    "git_blob": "43d509fd12a508243bc1ee3db84cc9af49076603"
+  },
+  "lt": {
+    "path": "inst/udpipe-ud-2.5-191206/lithuanian-alksnis-ud-2.5-191206.udpipe",
+    "git_blob": "2030eb419b847de5b6931659727ddd8210ef28f6"
+  },
+  "nl": {
+    "path": "inst/udpipe-ud-2.5-191206/dutch-alpino-ud-2.5-191206.udpipe",
+    "git_blob": "28113065e616a753ddb4467260b22941f98bf9ee"
+  },
+  "no": {
+    "path": "inst/udpipe-ud-2.5-191206/norwegian-bokmaal-ud-2.5-191206.udpipe",
+    "git_blob": "11b1841d43ea8ef718e24d5ca476beb6026f041d"
+  },
+  "pl": {
+    "path": "inst/udpipe-ud-2.5-191206/polish-pdb-ud-2.5-191206.udpipe",
+    "git_blob": "76faab4cb879fcd36a71d3207a46885848efbf30"
+  },
+  "ru": {
+    "path": "inst/udpipe-ud-2.5-191206/russian-syntagrus-ud-2.5-191206.udpipe",
+    "git_blob": "871fdac3328ae930d052def7037a07ba195372e0"
+  },
+  "tr": {
+    "path": "inst/udpipe-ud-2.5-191206/turkish-imst-ud-2.5-191206.udpipe",
+    "git_blob": "de24a0b23533613404d1533f56552dbcc99e8e7e"
+  }
+}

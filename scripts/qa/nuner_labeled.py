@@ -19,6 +19,8 @@ from urllib.request import urlopen
 
 import numpy as np
 
+from multinerd_spans import text_and_gold
+
 REV = "2814b78e7af4b5a1f1886fe7ad49632de4d9dd25"
 FILES = {
     "en": "f89c5544643ec7223ca80c02ac4b50bdc3dab980f2e50d77ca8cae93d86e3428",
@@ -56,27 +58,6 @@ def dataset(directory, lang):
     if digest(path) != FILES[lang]:
         raise ValueError(f"Wrong test file digest: {filename}")
     return [json.loads(line) for line in path.read_text().splitlines()]
-
-
-def text_and_gold(rows):
-    offset = 0
-    sentences, gold = [], []
-    for row in rows:
-        sentences.append(" ".join(row["tokens"]))
-        prev = 0
-        for token, tag in zip(row["tokens"], row["ner_tags"], strict=True):
-            end = offset + len(token)
-            if 1 <= tag <= 6:
-                label = (tag - 1) // 2
-                if tag % 2:
-                    gold.append([offset, end, label])
-                elif prev in (tag - 1, tag):
-                    gold[-1][1] = end
-                else:
-                    raise ValueError("Orphan I tag in source data")
-            prev = tag
-            offset = end + 1
-    return "\n".join(sentences), gold
 
 
 def prepare(directory, export):

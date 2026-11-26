@@ -1,0 +1,227 @@
+{
+  "source_sha256": "f7872af697e8a887efcf2f3381bb815e791e9488186dd17167894808c89385ed",
+  "model_sha256": "55bf677bcdfa66973a4e22859051327dd63bfd7a249e5b3e34cd08b95681d4c2",
+  "revision": "85851dfcbb485d9bfa2bf662b8073e826c760d7f",
+  "document_start": 32,
+  "documents": 32,
+  "reference_threshold": 0.6,
+  "arms": {
+    "predicted_clusters": {
+      "0.25": {
+        "gold": 536,
+        "matched": 172,
+        "missed": 364,
+        "extras": 350,
+        "gained": 18,
+        "lost": 0
+      },
+      "0.5": {
+        "gold": 536,
+        "matched": 163,
+        "missed": 373,
+        "extras": 275,
+        "gained": 9,
+        "lost": 0
+      },
+      "0.6": {
+        "gold": 536,
+        "matched": 154,
+        "missed": 382,
+        "extras": 249,
+        "gained": 0,
+        "lost": 0
+      },
+      "0.75": {
+        "gold": 536,
+        "matched": 148,
+        "missed": 388,
+        "extras": 227,
+        "lost": 6,
+        "gained": 0
+      }
+    },
+    "reference_partition_of_detected_mentions": {
+      "0.25": {
+        "gold": 536,
+        "matched": 264,
+        "missed": 272,
+        "extras": 285,
+        "gained": 110,
+        "lost": 0
+      },
+      "0.5": {
+        "gold": 536,
+        "matched": 245,
+        "missed": 291,
+        "extras": 222,
+        "gained": 91,
+        "lost": 0
+      },
+      "0.6": {
+        "gold": 536,
+        "matched": 234,
+        "missed": 302,
+        "extras": 198,
+        "gained": 80,
+        "lost": 0
+      },
+      "0.75": {
+        "gold": 536,
+        "matched": 222,
+        "missed": 314,
+        "extras": 171,
+        "gained": 74,
+        "lost": 6
+      }
+    }
+  },
+  "paired_f1_difference_95pct_points": {
+    "predicted_clusters": {
+      "0.25": [
+        -2.182,
+        1.552
+      ],
+      "0.5": [
+        -0.332,
+        1.748
+      ],
+      "0.6": [
+        0.0,
+        0.0
+      ],
+      "0.75": [
+        -1.176,
+        0.582
+      ]
+    },
+    "reference_partition_of_detected_mentions": {
+      "0.25": [
+        6.872,
+        24.524
+      ],
+      "0.5": [
+        7.963,
+        24.144
+      ],
+      "0.6": [
+        7.464,
+        23.581
+      ],
+      "0.75": [
+        6.868,
+        22.956
+      ]
+    }
+  },
+  "revised_reference": {
+    "revision": "ccfb54f5ddf5836027c87badda10f6dfc56efaac",
+    "arms": {
+      "predicted_clusters": {
+        "0.25": {
+          "gold": 1208,
+          "matched": 245,
+          "missed": 963,
+          "extras": 277,
+          "gained": 34,
+          "lost": 0
+        },
+        "0.5": {
+          "gold": 1208,
+          "matched": 224,
+          "missed": 984,
+          "extras": 214,
+          "gained": 13,
+          "lost": 0
+        },
+        "0.6": {
+          "gold": 1208,
+          "matched": 211,
+          "missed": 997,
+          "extras": 192,
+          "gained": 0,
+          "lost": 0
+        },
+        "0.75": {
+          "gold": 1208,
+          "matched": 198,
+          "missed": 1010,
+          "extras": 177,
+          "lost": 13,
+          "gained": 0
+        }
+      },
+      "reference_partition_of_detected_mentions": {
+        "0.25": {
+          "gold": 1208,
+          "matched": 363,
+          "missed": 845,
+          "extras": 186,
+          "gained": 154,
+          "lost": 2
+        },
+        "0.5": {
+          "gold": 1208,
+          "matched": 329,
+          "missed": 879,
+          "extras": 138,
+          "gained": 120,
+          "lost": 2
+        },
+        "0.6": {
+          "gold": 1208,
+          "matched": 310,
+          "missed": 898,
+          "extras": 122,
+          "gained": 101,
+          "lost": 2
+        },
+        "0.75": {
+          "gold": 1208,
+          "matched": 291,
+          "missed": 917,
+          "extras": 102,
+          "gained": 95,
+          "lost": 15
+        }
+      }
+    },
+    "paired_f1_difference_95pct_points": {
+      "predicted_clusters": {
+        "0.25": [
+          0.84,
+          3.438
+        ],
+        "0.5": [
+          0.29,
+          1.822
+        ],
+        "0.6": [
+          0.0,
+          0.0
+        ],
+        "0.75": [
+          -2.205,
+          -0.371
+        ]
+      },
+      "reference_partition_of_detected_mentions": {
+        "0.25": [
+          8.807,
+          21.177
+        ],
+        "0.5": [
+          7.316,
+          18.891
+        ],
+        "0.6": [
+          6.103,
+          17.171
+        ],
+        "0.75": [
+          4.26,
+          15.955
+        ]
+      }
+    }
+  }
+}

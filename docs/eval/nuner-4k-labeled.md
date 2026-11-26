@@ -63,6 +63,8 @@ Measured on one AMD EPYC 9V74 Linux host, ONNX Runtime 1.32.0 CPU provider, FP32
 
 ## Replay
 
+[The five-language NER panel](ner-language-length.md) instead crosses natural short and long paragraphs for each language and accepts a local NuNER checkpoint through the Anno CLI.
+
 The exporter verifies the source checkpoint in FP32. The separate QA utility produces the candidate. Each graph runs in a fresh process with two intra-op threads, one inter-op thread, and one excluded warm-up on the first sentence. Use the same available CPU affinity for both `run` commands when measuring timings. Input preparation and postprocessing are outside per-call elapsed time. Peak RSS is for the whole Python inference process.
 
 ```sh

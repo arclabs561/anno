@@ -87,11 +87,11 @@ and counts for each language. Download models subject to their source licenses.
 ```bash
 python -m pip install ufal.udpipe==1.4.0.1 pyarrow==26.0.1
 mkdir -p /tmp/udpipe-models
-jq -r '.[].path' udpipe-models.json | while read -r path; do
+jq -r '.[].path' abstaining-head-models.json | while read -r path; do
   curl -fL "https://raw.githubusercontent.com/jwijffels/udpipe.models.ud.2.5/17d6bbfb7f138f9ba2cf04692f15d892becf0246/$path" -o "/tmp/udpipe-models/${path##*/}" || exit 1
 done
-python predicted_heads.py /tmp/corefud-dev.parquet /tmp/udpipe-models replay.json
-cmp predicted-head-results.json replay.json
+python abstaining_heads.py /tmp/corefud-dev.parquet /tmp/udpipe-models replay.json
+cmp abstaining-head-results.json replay.json
 ```
 
 **Implementation references.** Three interface decisions affect how to interpret
@@ -109,3 +109,72 @@ these results and reproduce them in downstream tools.
   Our replay constructs a sentence from the supplied words before tagging and
   parsing. A raw-text comparison must also measure tokenizer boundaries and
   count alignment failures in its denominator. [UDPipe 1 API reference](https://ufal.mff.cuni.cz/udpipe/1/api-reference)
+
+## Predicted dependency heads
+
+The paired replay selects up to four complete development documents per component
+by the lowest salted SHA-256 of the source text, deduplicated within that component.
+Selection uses no labels. UDPipe 1 consumes the supplied sentence boundaries and
+token forms. It predicts its own tags and dependency arcs before the scorer sees
+the supplied mention spans. An exact token-aligned span gets a head when exactly
+one of its tokens has an external governor. An ambiguous or unaligned span falls
+back to surface matching. The study uses 18 language-matched UD 2.5 parsers.
+Ancient Hebrew has no selected model and its sampled documents are counted separately.
+
+The retrieval measure asks which earlier mention belongs to the returning entity.
+The two clustering arms instead link exact surface matches, optionally using a
+predicted-head match as a fallback, and create a new cluster when neither matches.
+The reported pair counts include transitive links between all usable supplied
+mentions. The 95% interval resamples documents within components, 2,000 times.
+Model load time is excluded from the per-document parse and span-alignment
+latency. Parser failures retain all affected documents in the surface-only
+fallback. This panel assesses a frozen rule on a previously studied development
+release. The parser training treebanks can share source material with CorefUD;
+we have not established training-document disjointness for pretrained parsers.
+Its head and pair scores assume supplied mention boundaries.
+Release-system scores over their own detected mentions on Dutch and French are
+available in the [full-document replay](../../../../../../docs/eval/coref-corpus-qa.md).
+
+On 104 scored documents, the predicted-head rule won 670 and lost 89 retrieval
+decisions relative to surface matching. That moved correctness from 10,391 to
+10,972 of 17,310 returning mentions (60.03% to 63.39%). The paired change was
++3.36 percentage points, with a document-bootstrap 95% interval of +2.74 to
++4.03 points. Seventeen languages gained and Latin lost one retrieval. Four
+ancient-Hebrew documents had no available model. The parser gave an admissible
+head to 23,917 of 24,989 usable supplied mentions.
+
+With supplied mentions, head matching increased true cluster pairs from
+176,220 to 182,618 but also increased unmatched pairs from 152,001 to 161,474.
+Pair recall rose from 12.01% to 12.45% and precision fell from 53.69% to
+53.07%. Large entities contribute many pairs. The [aggregate receipt](predicted-head-results.json)
+includes language denominators and run time on this CPU host.
+
+The Anno native mention-ranking resolver also ran on the 104 full texts.
+It received one document ID and the raw text per call. The 2,169 returned
+mentions contained 1,267 exact reference mentions, from 24,989 usable annotated
+mentions. The returned clusters had 1,184 correct pairs among 2,372. Rebuilding
+clusters over these same returned spans produced 7,214 matches and 8,207
+unmatched pairs with surface matching alone. Adding predicted heads left the
+7,214 matches unchanged and increased unmatched pairs by seven. These two
+ablations use only already-returned spans. Missing native mentions cannot
+participate. On this cohort the supplied-span retrieval gain gives no basis to
+enable a multilingual parser by default. The final run spent 85.6 seconds in
+parsing and head alignment, with a per-document p95 of 2.78 seconds.
+
+Use an authorized local copy of the pinned development shard and local copies
+of the files listed in [the model manifest](udpipe-models.json). The script
+verifies the shard SHA-256 and each parser's content against its pinned Git blob.
+Model and treebank terms apply independently. The parsers by Straka and Straková,
+trained on Universal Dependencies 2.5, are distributed under CC BY-NC-SA 4.0.
+This local research comparison stores aggregate counts. Models and upstream
+text stay outside Git. [UDPipe model release and attribution](https://github.com/jwijffels/udpipe.models.ud.2.5/tree/17d6bbfb7f138f9ba2cf04692f15d892becf0246/inst/udpipe-ud-2.5-191206)
+· [Model license](https://github.com/jwijffels/udpipe.models.ud.2.5/blob/17d6bbfb7f138f9ba2cf04692f15d892becf0246/inst/udpipe-ud-2.5-191206/LICENSE)
+
+```bash
+# Build the native text-only driver from the Anno checkout if using --native-runner.
+cargo build --locked -p anno --features onnx --example coref_gap_panel
+python -m pip install pyarrow==18.1.0 ufal.udpipe==1.4.0.1
+python predicted_heads.py /tmp/corefud-dev.parquet /tmp/udpipe-2.5 /tmp/predicted-heads.json \
+  --native-runner /path/to/anno/target/debug/examples/coref_gap_panel
+python -m unittest -v test_predicted_heads
+```
