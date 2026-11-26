@@ -63,6 +63,12 @@ All 32 enrolled documents scored (141–458 encoded wordpieces). Of 406 labeled 
 
 The first three documents reproduce every published stage count in the earlier receipt, including 17 exact labeled matches out of 58 predictions and 76 annotated edges. The expanded cohort’s exact labeled micro precision is 40.7% and recall is 34.5%. The first-loss counts explain recall on this prefix. They do not establish why the model assigned an individual logit or which intervention would improve precision. [Original three documents](../../scripts/qa/joint_baseline/receipts/jerex.json)
 
+### What the 204 unmatched predictions contain
+
+Of 344 distinct directed labeled predictions, 140 matched and 204 were unmatched against the released annotations. In 121, at least one predicted cluster had no gold cluster with exactly its membership. For 48 of those edges, both endpoints contained only annotated mentions and each touched just one gold cluster. The inexact endpoint contained only part of that cluster. On 29 other edges at least one endpoint combined mentions from multiple gold clusters. On 14 an endpoint included a mention absent from all gold clusters, and on 30 both features occurred. These counts describe edges, so a single problematic cluster can contribute several times. [Prediction-side trace](../../scripts/qa/joint_baseline/receipts/jerex_predictions32.json)
+
+The remaining 83 unmatched predictions had two uniquely aligned endpoints. The exact directed pair carried a different gold predicate on two predictions. On the other 81 it had no annotated predicate in that direction. None of the 83 carried a predicate annotated only in reverse. The saved writer output contains neither calibrated truth nor the logits or competing candidates behind these choices. An absent annotation establishes a benchmark mismatch. Determining whether the document actually supports the prediction would require source adjudication. [Classification and checks](../../scripts/qa/joint_baseline/jerex_predictions.py)
+
 ## Reproduction
 
 Use the original model setup and pinned source editions. The JointIE checker also runs without model dependencies once inference receipts and the source split are available. The optional JEREX prediction file contains the author-format model outputs for independent scoring. [Model setup and pins](joint-stage-baseline.md)
@@ -70,6 +76,7 @@ Use the original model setup and pinned source editions. The JointIE checker als
 ```bash
 python scripts/qa/joint_baseline/jerex_loss.py /models/docred-joint test_joint.json jerex.json \
   --documents 32 --predictions jerex-predictions.json
+python scripts/qa/joint_baseline/jerex_predictions.py test_joint.json jerex-predictions.json jerex.json predicted-outcomes.json
 python scripts/qa/joint_baseline/jointie_coverage.py ai-test.json /models/gliner2.5-small-v1 short.json \
   --documents 64 --window-words 16 --overlap-words 4 --loss-trace
 python scripts/qa/joint_baseline/jointie_coverage.py ai-test.json /models/gliner2.5-small-v1 default.json \
