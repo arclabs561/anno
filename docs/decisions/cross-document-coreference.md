@@ -16,7 +16,19 @@ A cluster report’s type filter uses the type on the projected identity. A cata
 
 The native Rust default uses threshold 0.7 with type matching. Both CLI commands default to 0.6 with type matching off and expose `--require-type-match`. With native type matching, an explicit track label takes precedence, otherwise the resolver checks its member labels for agreement. A within-document model can emit a generic coreference mention label. That label carries less information than a person or organization annotation. [Native resolver](../../crates/anno/src/coalesce/resolver.rs) · [Pipeline](../../crates/anno-cli/src/cli/commands/pipeline.rs) · [Raw and imported reports](../../crates/anno-cli/src/cli/commands/crossdoc.rs)
 
-Raw directory mode selects exhaustive candidates through 100 documents and lexical locality-sensitive hashing (LSH) from 101. Two documents mentioning “Dr. Nara Pell” and “Dr. Pell” grouped with 98 empty-of-entities files. Adding one more such file split the pair. Pin `--candidates exhaustive` or `--candidates lsh` when comparing editions. JSON metadata records which resolver and candidate policy ran. Exhaustive generation compares all eligible pairs and can become expensive. The small Pell case measures a candidate miss, independently of how good a later scorer might be. [CLI regression](../../crates/anno-cli/tests/crossdoc_candidates.rs)
+Raw directory mode uses exhaustive matching through 100 documents with extracted mentions. A 101st document containing a mention switches the default to lexical locality-sensitive hashing (LSH). Adding files with zero detections leaves the policy unchanged. In exhaustive mode, the resolver scores each pair as it is generated, including within a document. With `M` mentions this takes `M(M−1)/2` comparisons, so a small number of dense documents can still be expensive. Pin `--candidates exhaustive` or `--candidates lsh` when comparing editions that cross the cutoff. Raw JSON metadata records the effective policy, the count used for the cutoff (`documents_with_mentions`), total files processed and total detections. The regressions exercise sparse and dense inputs that contain the “Dr. Nara Pell” / “Dr. Pell” pair. [CLI regressions](../../crates/anno-cli/tests/crossdoc_candidates.rs)
+
+## Inspecting one flat mention pair
+
+Use the document ID and zero-based entity index from the JSON cluster rows to ask how the raw directory resolver treated two mentions.
+
+```sh
+anno cross-doc ./reports --format json --explain-pair first 0 second 0
+```
+
+The optional `pair_explanation` includes each extracted surface and type. Its `decision.outcome` records `not_proposed` when candidate generation omitted the pair, `type_mismatch` when the type guard rejected it, or `below_threshold` or `accepted` with the measured `similarity` and its `basis`. If an encoder produces a non-finite similarity, the receipt records `non_finite_similarity`, its `basis` and the original comparison’s `passed_threshold` result. The report metadata supplies the candidate mode and threshold. An accepted edge includes equality at the threshold. `same_component` records the final membership before display filters. An indirect connection through a third mention can produce a shared component even when the pair itself was rejected. The Rust entry point is `CDCRResolver::resolve_with_pair`. [Flat resolver](../../crates/anno-eval/src/eval/cdcr.rs)
+
+For two **grounded tracks**, use `anno query memberships EDITION --explain-pair LEFT_DOC LEFT_TRACK RIGHT_DOC RIGHT_TRACK` on the retained edition. Its direct decision distinguishes catalog exclusion, type mismatch, missing evidence and the score comparison. The returned component flag includes transitive membership. Both CLI forms use source document IDs, but raw entity indices and grounded track IDs address different objects. [Grounded pair query](../../verification/memberships/README.md)
 
 ## Looking for a predecessor in a prior edition
 

@@ -18,6 +18,8 @@ The CLI rebuilds current model memberships from the submitted documents. A live 
 
 Apply removals then upserts from the expected predecessor and advance the checkpoint atomically. Redeliveries whose target already matches need no writes. Consumers caching a neighbor's display information must invalidate cached queries for affected **old and new** components, including when member metadata changes. The SQLite replay consumes intact locally generated CLI output, indexes postings by component, and compares every cached response to fresh bulk and native queries. It includes redundant paths, a disjoint insertion, source-edition replacement, ties, reversed input, an empty final corpus, and incompatible predecessors.
 
+A saved search for an exact display surface can have zero hits when it is cached. On each removal and upsert the sample reader evicts the cached search for that row's surface. This catches the first match on insertion and the last match on withdrawal. Changing a bridge track's display from “Jori Moss” to “Moss Jori” updates only its own posting, yet its neighbors' cached displays and searches for both spellings must refresh. The publisher provides changed rows and checkpoints. The application owns the predicates and dependencies of the answers it caches.
+
 ```sh
 cargo test --locked -p anno --no-default-features --test membership_publication
 cargo test --locked -p anno-cli --no-default-features --features 'eval extractor-readability' --test membership_queries
@@ -54,3 +56,16 @@ On the shared x86-64 development container with Rust 1.95, dev profile with symb
 |---:|---:|---:|---:|
 | 32 | 20.54 ms | 23.24 ms | 0.39 ms |
 | 128 | 164.32 ms | 295.98 ms | 0.53 ms |
+
+## Explain one direct comparison
+
+Run `anno query memberships edition.json --explain-pair doc-a 0 doc-b 3` with the original complete edition and the submitted track IDs. The response includes each full source address and effective track type, the publication checkpoint, the active threshold and type policy. Its `decision.outcome` is one of the following.
+
+| Direct outcome | What the resolver did |
+|---|---|
+| `catalog_bound` | Preserved a prior catalog binding. The `left` and `right` flags identify the excluded endpoint(s). |
+| `type_mismatch` | Applied the type guard before comparing surfaces or embeddings. |
+| `no_comparable_evidence` | Found neither compatible usable embeddings nor two nonblank canonical surfaces. |
+| `below_threshold` or `accepted` | Evaluated the pair. `similarity` gives the observed score and `basis` names the measure. |
+
+The `same_component` flag describes the final published group. A pair can score below threshold and still share a component through a third track. A checkpoint fingerprints published rows. Distinct grounded inputs can yield identical rows, so retain the original editions to reproduce their direct decisions. This query rebuilds the ordinary complete publication and replays one direct comparison with the same admission rule. Rust callers can use `MembershipEdition::explain_pair`.

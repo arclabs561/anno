@@ -49,9 +49,14 @@ pub struct CrossDocArgs {
     #[arg(short, long, default_value = "0.6", value_parser = super::parse_similarity_threshold)]
     pub threshold: f64,
 
-    /// Raw directory candidate generation (default: exhaustive up to 100 documents, then lsh)
+    /// Raw directory candidate generation (default: exhaustive up to 100 documents with mentions, then lsh)
     #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
     pub candidates: Option<CandidateMode>,
+
+    /// Include one raw pair's decision in JSON, using document IDs and zero-based entity indices.
+    #[arg(long, num_args = 4, value_names = ["LEFT_DOC", "LEFT_INDEX", "RIGHT_DOC", "RIGHT_INDEX"],
+          allow_hyphen_values = true, conflicts_with_all = ["import", "stdin", "delivery_manifest"])]
+    pub explain_pair: Vec<String>,
 
     /// Require entity type match for clustering
     #[arg(long)]
@@ -350,6 +355,21 @@ fn import_deliveries(
 #[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
+    let requested_pair = match args.explain_pair.as_slice() {
+        [] => None,
+        [left, i, right, j] => {
+            if !matches!(args.format, OutputFormat::Json) {
+                return Err("--explain-pair requires --format json".into());
+            }
+            let index = |raw: &str| {
+                raw.parse::<usize>().map_err(|_| {
+                    format!("invalid entity index '{raw}': expected a nonnegative integer")
+                })
+            };
+            Some(((left.as_str(), index(i)?), (right.as_str(), index(j)?)))
+        }
+        _ => return Err("--explain-pair expects LEFT_DOC LEFT_INDEX RIGHT_DOC RIGHT_INDEX".into()),
+    };
     if args.verbose {
         if let Some(ref dir) = args.directory {
             eprintln!("Scanning directory: {}", dir);
@@ -393,6 +413,10 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
     let candidate_mode;
+    let doc_count;
+    let total_entities: usize;
+    let mut pair_explanation = None;
+    let mut raw_documents_with_mentions = None;
     let mut delivery_outcomes = Vec::new();
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
@@ -408,7 +432,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 import_deliveries(&args.delivery_manifest, &mut corpus, &mut doc_paths)?;
         }
 
-        let doc_count = corpus.documents().count();
+        doc_count = corpus.documents().count();
+        total_entities = corpus.documents().map(|doc| doc.signals().len()).sum();
         if doc_count == 0 {
             return Err(
                 "No GroundedDocuments imported. Check import paths or stdin input.".to_string(),
@@ -416,11 +441,10 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         }
 
         if args.verbose {
-            let total_signals: usize = corpus.documents().map(|d| d.stats().signal_count).sum();
             let total_tracks: usize = corpus.documents().map(|d| d.stats().track_count).sum();
             eprintln!(
                 "Imported {} documents with {} signals, {} tracks",
-                doc_count, total_signals, total_tracks
+                doc_count, total_entities, total_tracks
             );
         }
 
@@ -545,19 +569,18 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             eprintln!("\r  Processed {} files successfully", total_files);
         }
 
+        doc_count = documents.len();
+        total_entities = documents.iter().map(|doc| doc.entities.len()).sum();
         if args.verbose {
-            eprintln!(
-                "Clustering {} entities across {} documents...",
-                documents
-                    .iter()
-                    .map(|doc| doc.entities.len())
-                    .sum::<usize>(),
-                documents.len()
-            );
+            eprintln!("Clustering {total_entities} entities across {doc_count} documents...");
         }
 
-        // Configure and run cross-doc coref using CDCRResolver (for raw text files)
-        candidate_mode = args.candidates.unwrap_or(if documents.len() > 100 {
+        let documents_with_mentions = documents
+            .iter()
+            .filter(|doc| !doc.entities.is_empty())
+            .count();
+        raw_documents_with_mentions = Some(documents_with_mentions);
+        candidate_mode = args.candidates.unwrap_or(if documents_with_mentions > 100 {
             CandidateMode::Lsh
         } else {
             CandidateMode::Exhaustive
@@ -570,7 +593,15 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         };
 
         let resolver = CDCRResolver::with_config(config);
-        let clusters = resolver.resolve(&documents);
+        let clusters = if let Some((left, right)) = requested_pair {
+            let (clusters, explanation) = resolver
+                .resolve_with_pair(&documents, left, right)
+                .map_err(|error| error.to_string())?;
+            pair_explanation = Some(explanation);
+            clusters
+        } else {
+            resolver.resolve(&documents)
+        };
 
         // Filter clusters
         let mut filtered_clusters: Vec<_> = clusters
@@ -629,24 +660,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let final_clusters: Vec<CrossDocCluster> = clusters_from_corpus
         .ok_or_else(|| "No clusters generated. This should not happen.".to_string())?;
 
-    let (doc_count, total_entities) = if use_corpus {
-        (
-            corpus.documents().count(),
-            corpus
-                .documents()
-                .map(|doc| doc.signals().len())
-                .sum::<usize>(),
-        )
-    } else {
-        (
-            documents.len(),
-            documents
-                .iter()
-                .map(|doc| doc.entities.len())
-                .sum::<usize>(),
-        )
-    };
-
     let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
     let singleton_clusters = || final_clusters.iter().filter(|c| c.len() == 1).count();
 
@@ -655,12 +668,13 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         OutputFormat::Json => {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
+            if let Some(explanation) = pair_explanation {
+                output.insert("pair_explanation".into(), serde_json::json!(explanation));
+            }
             if !delivery_outcomes.is_empty() {
                 output.insert("deliveries".into(), serde_json::json!(delivery_outcomes));
             }
-            output.insert(
-                "metadata".to_string(),
-                serde_json::json!({
+            let mut metadata = serde_json::json!({
                 "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
                 "candidate_mode": candidate_mode,
                 "documents_processed": doc_count,
@@ -670,13 +684,16 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 "threshold": args.threshold,
                 "require_type_match": args.require_type_match,
                 "filters": {
-                "min_cluster_size": args.min_cluster_size,
-                "cross_doc_only": args.cross_doc_only,
-                "entity_types": args.entity_types,
-                "max_clusters": args.max_clusters,
-                    }
-                }),
-            );
+                    "min_cluster_size": args.min_cluster_size,
+                    "cross_doc_only": args.cross_doc_only,
+                    "entity_types": args.entity_types,
+                    "max_clusters": args.max_clusters,
+                }
+            });
+            if let Some(count) = raw_documents_with_mentions {
+                metadata["documents_with_mentions"] = count.into();
+            }
+            output.insert("metadata".to_string(), metadata);
             output.insert(
                 "clusters".to_string(),
                 serde_json::to_value(&final_clusters)
