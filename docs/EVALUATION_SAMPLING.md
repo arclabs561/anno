@@ -19,6 +19,14 @@ whether “Maya” and “She” belong to the same mention chain. A grounded do
 represents that grouping as a `Track`. The `temporal` task scores the text
 spans “Tuesday” and “Friday” as time expressions.
 
+## Language coverage
+
+Muxer records the requested language pins in `requested_languages` and credits an outcome to a language only when `observed_language` identifies the loaded artifact. A bare cache or multilingual registry entry alone gives no language credit. Known mismatches are rejected during dataset preflight. An unverified artifact can still run in the `unknown` history slice. A batch spanning distinct or partially unknown languages uses `mixed`. The per-outcome field identifies which results can count toward language coverage.
+
+Language evidence currently comes from checksum-verified checkout fixtures and the official WikiGold digest, unanimous language annotations on parsed MultiNERD rows, recognized WikiANN or MasakhaNER2 configurations on the actual Hugging Face rows URL, and the resolved MasakhaNER Yoruba test file. Cached publisher metadata must match the payload checksum. To stage multiple configurations of a dataset with the same canonical filename, give each configuration a separate `ANNO_CACHE_DIR`. Preserve the original digest for exact replay.
+
+Estimate counts completed cells from the observed language in the result or its compact checkpoint. A language pin excludes old records without that evidence from the requested language's budget. Stable-language datasets in unpinned runs retain their pooled history. For multilingual dataset selection, cached configuration metadata helps prioritize which candidates to load. Backend selection uses the loaded artifact. The loader compares MasakhaNER2's three-letter codes with their two-letter equivalents where available (for example, `yor` and `yo`), and keeps the publisher configuration in the resolved source URL.
+
 ## Inspect dataset eligibility
 
 To see which sources the documentation figures actually read, look up a registry ID in the survey. It records file and split measurements alongside the source observed in trusted CI. The cache inventory and its limits are documented separately. [Figure inputs](eval/dataset-coverage.md) · [S3 evidence](eval/dataset-coverage.md#what-the-s3-cache-establishes)

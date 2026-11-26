@@ -111,6 +111,7 @@ mod checkpoint;
 mod retry;
 
 use crate::eval::backend_factory::BackendFactory;
+use crate::eval::dataset_language::{comparison_tag, CoverageLanguage};
 use crate::eval::loader::{DataSource, DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::provenance::policy_cohort_key;
 use crate::eval::provenance::EvaluationScheduling;
@@ -1142,6 +1143,10 @@ struct DecisionOutcomeLog {
     dataset_source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     dataset_split: Option<String>,
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    requested_languages: BTreeSet<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observed_language: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     s3_fallback: Option<crate::eval::loader::S3FallbackReason>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1632,6 +1637,7 @@ fn select_backends(
     k: usize,
     prior_calls: u64,
     plan: Option<&retry::RetryPlan>,
+    selected_languages: Option<&BTreeMap<String, Option<String>>>,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -2225,6 +2231,7 @@ fn select_backends(
             //
             // Query from SQLite eval-history DB for accurate counts across ALL historical
             // runs, not just the muxer's sliding window.
+            let pins = requested_languages();
             let cohort_counts: Vec<std::collections::HashMap<(String, String), u64>> =
                 {
                     let hist_path = eval_history_jsonl_path();
@@ -2248,8 +2255,19 @@ fn select_backends(
                                                     matrix_predicted_mentions(),
                                                 )
                                                 .and_then(|key| {
-                                                    h.cell_observation_counts_for_policy_cohort(
-                                                        &key,
+                                                    let observed =
+                                                        selected_languages.and_then(|languages| {
+                                                            languages
+                                                                .get(&format!("{dataset:?}"))
+                                                                .and_then(Option::as_deref)
+                                                        });
+                                                    let scope = CoverageLanguage::for_loaded(
+                                                        *dataset,
+                                                        pins.as_ref(),
+                                                        observed,
+                                                    );
+                                                    h.cell_observation_counts_for_language(
+                                                        &key, &scope,
                                                     )
                                                     .ok()
                                                 })
@@ -2829,7 +2847,7 @@ fn check_dataset_usable(
     tasks: &[Task],
     ds: DatasetId,
     require_cached: bool,
-) -> anno::Result<DataSource> {
+) -> anno::Result<(DataSource, Option<String>)> {
     fn require_examples(count: usize) -> anno::Result<()> {
         if count == 0 {
             return Err(anno::Error::InvalidInput(
@@ -2840,13 +2858,14 @@ fn check_dataset_usable(
     }
 
     let loadable = LoadableDatasetId::try_from(ds)?;
-    let receipt = if require_cached && stages_from_s3(loader) && !ds.excluded_from_shared_cache() {
-        loader.stage_from_shared_cache(loadable)?
-    } else if require_cached {
-        loader.load_with_receipt(loadable)?
-    } else {
-        loader.load_or_download_with_receipt(loadable)?
-    };
+    let mut receipt =
+        if require_cached && stages_from_s3(loader) && !ds.excluded_from_shared_cache() {
+            loader.stage_from_shared_cache(loadable)?
+        } else if require_cached {
+            loader.load_with_receipt(loadable)?
+        } else {
+            loader.load_or_download_with_receipt(loadable)?
+        };
     // A candidate check can warm the local cache before the evaluator loads it.
     eprintln!(
         "matrix-muxer: dataset precheck {}",
@@ -2854,11 +2873,28 @@ fn check_dataset_usable(
             "dataset": ds,
             "dataset_source": receipt.dataset.data_source.to_string(),
             "dataset_sha256": receipt.content_sha256,
+            "observed_language": receipt.dataset.metadata.observed_language,
             "s3_fallback": receipt.s3_fallback,
         })
     );
+    if let (Some(pins), Some(observed)) = (
+        requested_languages(),
+        receipt.dataset.metadata.observed_language.as_ref(),
+    ) {
+        if !pins
+            .iter()
+            .any(|pin| comparison_tag(pin) == comparison_tag(observed))
+        {
+            return Err(anno::Error::InvalidInput(
+                "loaded dataset language differs from language pin".into(),
+            ));
+        }
+    }
     require_examples(receipt.dataset.sentences.len())?;
-    let source = receipt.dataset.data_source;
+    let source = (
+        receipt.dataset.data_source,
+        receipt.dataset.metadata.observed_language.take(),
+    );
     drop(receipt);
 
     if tasks.contains(&Task::RelationExtraction) {
@@ -2898,6 +2934,8 @@ fn dataset_rejection_message(error: anno::Error) -> String {
         "TLS certificate issuer is untrusted (UnknownIssuer)"
     } else if message.contains("checksum") {
         "dataset checksum mismatch"
+    } else if message == "loaded dataset language differs from language pin" {
+        "loaded dataset language differs from language pin"
     } else if message.starts_with("Download rejected") {
         "download exceeds size limit"
     } else if message.contains("not cached") {
@@ -3133,6 +3171,31 @@ struct DatasetSelection {
     rejection_examples: Vec<DatasetLoadRejection>,
     selected: Vec<DatasetId>,
     selected_sources: BTreeMap<String, DataSource>,
+    selected_languages: BTreeMap<String, Option<String>>,
+}
+
+fn env_csv_set(key: &str) -> Option<std::collections::BTreeSet<String>> {
+    let raw = std::env::var(key).ok()?;
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let mut out = std::collections::BTreeSet::new();
+    for part in t.split(',') {
+        let s = part.trim().to_ascii_lowercase();
+        if !s.is_empty() {
+            out.insert(s);
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+fn requested_languages() -> Option<BTreeSet<String>> {
+    env_csv_set("ANNO_MUXER_PIN_LANG").or_else(|| env_csv_set("ANNO_MUXER_FILTER_LANG"))
 }
 
 fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
@@ -3140,27 +3203,7 @@ fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
     //
     // This is intentionally simple and coarse: it constrains which datasets we *sample* so muxer
     // histories don't bleed across unrelated language/domain buckets.
-    fn env_csv_set(key: &str) -> Option<std::collections::BTreeSet<String>> {
-        let raw = std::env::var(key).ok()?;
-        let t = raw.trim();
-        if t.is_empty() {
-            return None;
-        }
-        let mut out = std::collections::BTreeSet::new();
-        for part in t.split(',') {
-            let s = part.trim().to_ascii_lowercase();
-            if !s.is_empty() {
-                out.insert(s);
-            }
-        }
-        if out.is_empty() {
-            None
-        } else {
-            Some(out)
-        }
-    }
-    let pin_lang =
-        env_csv_set("ANNO_MUXER_PIN_LANG").or_else(|| env_csv_set("ANNO_MUXER_FILTER_LANG"));
+    let pin_lang = requested_languages();
     let pin_dom =
         env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
     if pin_lang.is_some() || pin_dom.is_some() {
@@ -3171,14 +3214,18 @@ fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
         // runs can still proceed on multilingual datasets when no monolingual dataset is loadable
         // in the current environment.
         let has_exact_lang_match = pin_lang.as_ref().is_some_and(|pins| {
-            candidates
-                .iter()
-                .any(|d| pins.contains(&d.language().to_ascii_lowercase()))
+            candidates.iter().any(|d| {
+                pins.iter()
+                    .any(|pin| comparison_tag(pin) == comparison_tag(d.language()))
+            })
         });
         candidates.retain(|d| {
             let d_lang = d.language().to_ascii_lowercase();
             let lang_ok = pin_lang.as_ref().is_none_or(|pins| {
-                if pins.contains(&d_lang) {
+                if pins
+                    .iter()
+                    .any(|pin| comparison_tag(pin) == comparison_tag(&d_lang))
+                {
                     return true;
                 }
                 // Fallback: allow multilingual datasets if no exact match exists.
@@ -3227,6 +3274,7 @@ fn choose_datasets_for_run(
     } else {
         0xDADA_BEEF
     };
+    let pins = requested_languages();
     let mut scored: Vec<_> = candidates
         .iter()
         .map(|&dataset| {
@@ -3243,11 +3291,19 @@ fn choose_datasets_for_run(
                             matrix_uses_gold_mentions(),
                             matrix_predicted_mentions(),
                         )?;
+                        let hint = loader.cached_language_hint(dataset);
+                        let scope =
+                            CoverageLanguage::for_panel(dataset, pins.as_ref(), hint.as_deref());
                         history
-                            .dataset_observation_counts_for_policy_cohort(&key)
-                            .ok()?
-                            .get(dataset.name())
-                            .copied()
+                            .cell_observation_counts_for_language(&key, &scope)
+                            .ok()
+                            .map(|counts| {
+                                counts
+                                    .into_iter()
+                                    .filter(|((_, name), _)| name == dataset.name())
+                                    .map(|(_, count)| count)
+                                    .sum::<u64>()
+                            })
                     })
                     .sum()
             });
@@ -3276,7 +3332,10 @@ fn choose_datasets_for_run(
             continue;
         }
         match check_dataset_usable(loader, tasks, ds, require_cached) {
-            Ok(source) => {
+            Ok((source, language)) => {
+                selection
+                    .selected_languages
+                    .insert(format!("{ds:?}"), language);
                 selection.selected_sources.insert(format!("{ds:?}"), source);
                 if let Some(arms) = &mut common {
                     arms.retain(compatible);
@@ -3617,6 +3676,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             fixed: fixed_backends_requested.as_deref(),
         });
     let mut chosen_datasets: Vec<DatasetId>;
+    let mut selected_languages = BTreeMap::new();
 
     // Optional override: fixed datasets (comma-separated DatasetId debug names).
     //
@@ -3669,11 +3729,13 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             if usable.is_err() && require_cached_for_run && try_download_on_empty {
                 usable = check_dataset_usable(&loader, &tasks, ds, false);
             }
-            if let Err(error) = usable {
-                rejected.push((ds, dataset_rejection_message(error)));
-                continue;
+            match usable {
+                Ok((_, language)) => {
+                    selected_languages.insert(format!("{ds:?}"), language);
+                    retained.push(ds);
+                }
+                Err(error) => rejected.push((ds, dataset_rejection_message(error))),
             }
-            retained.push(ds);
         }
         if retained.is_empty() {
             eprintln!("matrix-muxer: no usable fixed datasets remained after filtering");
@@ -3686,17 +3748,26 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     } else if let Some(cell) = retry {
         // Keep the replayed cell eligible for every backend in this batch.
         chosen_datasets = vec![cell.dataset];
+        // The retry picker already verified this cell; read the staged receipt for its history tag.
+        if let Ok(receipt) =
+            LoadableDatasetId::try_from(cell.dataset).and_then(|id| loader.load_with_receipt(id))
+        {
+            selected_languages.insert(
+                format!("{:?}", cell.dataset),
+                receipt.dataset.metadata.observed_language,
+            );
+        }
         if datasets_per_run > 1 {
-            for ds in choose_datasets_for_run(
+            let pool = choose_datasets_for_run(
                 seed,
                 &loader,
                 &tasks,
                 require_cached_for_run,
                 datasets_per_run,
                 None,
-            )
-            .selected
-            {
+            );
+            selected_languages.extend(pool.selected_languages);
+            for ds in pool.selected {
                 if chosen_datasets.len() == datasets_per_run {
                     break;
                 }
@@ -3706,7 +3777,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             }
         }
     } else {
-        let choose = |require_cached: bool, pass: &str| {
+        let mut choose = |require_cached: bool, pass: &str| {
             let pool = choose_datasets_for_run(
                 seed,
                 &loader,
@@ -3732,6 +3803,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     }),
                 );
             }
+            selected_languages.extend(pool.selected_languages);
             pool.selected
         };
         chosen_datasets = choose(require_cached_for_run, "initial");
@@ -3784,15 +3856,16 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             })
             .collect::<Vec<_>>();
         if !also_fixed_ds && estimate.is_none() && filtered.len() < want {
-            let mut pool = choose_datasets_for_run(
+            let pool = choose_datasets_for_run(
                 seed ^ 0xF1E3_DA7A,
                 &loader,
                 &tasks,
                 require_cached_for_run,
                 want.saturating_mul(10).max(want),
                 None,
-            )
-            .selected;
+            );
+            selected_languages.extend(pool.selected_languages);
+            let mut pool = pool.selected;
             pool.retain(|d| {
                 fixed
                     .iter()
@@ -3833,69 +3906,41 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     // backends, so different domains/languages don't collapse into one average history.
     //
     // Default: enabled. Set `ANNO_MUXER_SLICE_BY_DATASET_FACETS=0` to revert to task-only.
-    let mut slice_tag_for_muxer = mh::muxer_slice_tag(
+    let requested_languages = requested_languages().unwrap_or_default();
+    let languages: Vec<_> = chosen_datasets
+        .iter()
+        .map(|ds| {
+            selected_languages
+                .get(&format!("{ds:?}"))
+                .and_then(Option::as_deref)
+                .unwrap_or("unknown")
+        })
+        .collect();
+    let mut domains: Vec<_> = chosen_datasets.iter().map(|ds| ds.domain()).collect();
+    domains.sort_unstable();
+    domains.dedup();
+    let domain_pin =
+        env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
+    if domains.len() != 1 {
+        if let Some(pin) = domain_pin
+            .as_ref()
+            .filter(|pins| pins.len() == 1)
+            .and_then(|pins| pins.first())
+        {
+            domains = vec![pin.as_str()];
+        }
+    }
+    let slice_tag_for_muxer = mh::muxer_slice_with_facets(
         &slice_tag,
-        &chosen_datasets,
+        &languages,
+        &domains,
         mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true),
     )
-    .unwrap_or_else(|e| {
-        eprintln!("matrix-muxer: invalid muxer slice tag: {e} (falling back to task-only)");
-        // `slice_tag` here is a task code (e.g. `ner`) and should always parse.
+    .unwrap_or_else(|error| {
+        eprintln!("matrix-muxer: invalid history facets: {error}");
         mh::SliceTag::parse(&slice_tag).unwrap()
     })
     .to_string();
-
-    // If the user pinned exactly one language/domain, but the chosen dataset is multilingual
-    // (`language=mul`) or otherwise mixed, it is still useful to scope muxer history to the
-    // pinned facet (so runs don't bleed into the global "mul" bucket).
-    //
-    // This is only a history-key choice; it does not change what examples are evaluated.
-    if mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true) {
-        fn env_single_slug(keys: &[&str]) -> Option<String> {
-            for &k in keys {
-                if let Ok(raw) = std::env::var(k) {
-                    let mut parts = raw
-                        .split(',')
-                        .map(|s| s.trim().to_ascii_lowercase())
-                        .filter(|s| !s.is_empty())
-                        .collect::<Vec<_>>();
-                    parts.sort();
-                    parts.dedup();
-                    if parts.len() == 1 {
-                        return Some(parts[0].clone());
-                    }
-                }
-            }
-            None
-        }
-
-        let pin_lang = env_single_slug(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"]);
-        let pin_dom = env_single_slug(&["ANNO_MUXER_PIN_DOMAIN", "ANNO_MUXER_FILTER_DOMAIN"]);
-
-        if pin_lang.is_some() || pin_dom.is_some() {
-            let mut langs: Vec<&'static str> =
-                chosen_datasets.iter().map(|d| d.language()).collect();
-            langs.sort();
-            langs.dedup();
-            let mut doms: Vec<&'static str> = chosen_datasets.iter().map(|d| d.domain()).collect();
-            doms.sort();
-            doms.dedup();
-
-            let lang_is_ambiguous = langs.len() != 1 || langs[0].eq_ignore_ascii_case("mul");
-            let dom_is_ambiguous = doms.len() != 1;
-            if (lang_is_ambiguous && pin_lang.is_some()) || (dom_is_ambiguous && pin_dom.is_some())
-            {
-                let lang = pin_lang
-                    .unwrap_or_else(|| langs.first().copied().unwrap_or("unknown").to_string());
-                let dom = pin_dom
-                    .unwrap_or_else(|| doms.first().copied().unwrap_or("unknown").to_string());
-                let tagged = format!("{}.lang={}.dom={}", slice_tag, lang, dom);
-                if let Ok(st) = mh::SliceTag::parse(&tagged) {
-                    slice_tag_for_muxer = st.to_string();
-                }
-            }
-        }
-    }
 
     let hist_path = history_path(&slice_tag_for_muxer);
     let mut history = BackendHistory::load(&hist_path, window_cap);
@@ -4360,7 +4405,11 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         // proportional) because all observations come from the same feature regime.
         let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
         let guard = mh::latency_guardrail_from_env();
-        let context = mh::context_features(&chosen_datasets);
+        let context = mh::context_features_with_language(&chosen_datasets, |ds| {
+            selected_languages
+                .get(&format!("{ds:?}"))
+                .and_then(Option::as_deref)
+        });
 
         let linucb_alpha = mh::env_f64("ANNO_MUXER_LINUCB_ALPHA", 1.0);
         let linucb_lambda = mh::env_f64("ANNO_MUXER_LINUCB_LAMBDA", 1.0);
@@ -4449,6 +4498,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 backends_per_run,
                 prior_calls,
                 plan.as_ref(),
+                Some(&selected_languages),
             )
         } else {
             select_backends(
@@ -4465,6 +4515,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 backends_per_run,
                 prior_calls,
                 plan.as_ref(),
+                Some(&selected_languages),
             )
         }
     } else if per_dataset || matches!(strategy, SampleStrategy::WorstFirst) {
@@ -4484,6 +4535,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             backends_per_run,
             prior_calls,
             plan.as_ref(),
+            Some(&selected_languages),
         )
     } else {
         select_backends(
@@ -4500,6 +4552,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             backends_per_run,
             prior_calls,
             plan.as_ref(),
+            Some(&selected_languages),
         )
     };
 
@@ -4755,6 +4808,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     dataset_source: r.provenance.dataset.content_sha256.as_ref()
                         .map(|_| r.provenance.dataset.data_source.clone()),
                     dataset_split: r.provenance.dataset.split.clone(),
+                    requested_languages: requested_languages.clone(),
+                    observed_language: r.provenance.dataset.observed_language.clone(),
                     s3_fallback: r.provenance.dataset.s3_fallback,
                     evaluator_revision: r.provenance.build.source_revision.clone(),
                     coref_gold,
@@ -5473,6 +5528,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         1,
         6,
         None,
+        None,
     );
 
     // With require_measured=1 and no observed calls, we must not pick it.
@@ -5563,6 +5619,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         1,
         6,
         None,
+        None,
     );
     assert_eq!(chosen, vec!["measured_fast".to_string()]);
 }
@@ -5610,6 +5667,7 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         false,
         2,
         0,
+        None,
         None,
     );
     assert!(!chosen.is_empty());
@@ -5681,6 +5739,7 @@ fn test_novelty_still_triggers_under_priors() {
         false,
         1,
         6,
+        None,
         None,
     );
     assert_eq!(
@@ -5758,6 +5817,7 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         1,
         0,
         None,
+        None,
     );
 
     let s = std::fs::read_to_string(&tmp).expect("read decisions log");
@@ -5803,6 +5863,7 @@ fn test_coverage_decision_log_keeps_all_selected_arms() {
         false,
         2,
         0,
+        None,
         None,
     );
     let log = std::fs::read_to_string(&tmp).expect("read decisions log");
@@ -5882,6 +5943,7 @@ fn test_control_only_still_writes_minimal_decision_log_row() {
         false,
         2, // n=2: max_control = min(1, 2-1) = 1 → 1 control arm + 1 MAB pick
         0,
+        None,
         None,
     );
 

@@ -52,6 +52,18 @@ class CoverageTest(unittest.TestCase):
         rows.append(outcome("re", "worst-first"))
         self.assertFalse(self.accepted(rows))
 
+    def test_language_report_counts_observed_nonempty_outcomes_only(self):
+        rows = [outcome("ner"), dict(outcome("ner"), observed_language="de"),
+                dict(outcome("ner", hard=True), observed_language="fr"),
+                dict(outcome("ner", examples=0), observed_language="en")]
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(io.StringIO()):
+            check(map(json.dumps, rows), report=True)
+        self.assertIn("| ner | unverified | 1 |", output.getvalue())
+        self.assertIn("| ner | de | 1 |", output.getvalue())
+        self.assertNotIn("| en |", output.getvalue())
+        self.assertNotIn("| fr |", output.getvalue())
+
     def test_policy_decision_alone_does_not_count_as_an_outcome(self):
         rows = [outcome(task) for task in RANDOM_TASKS]
         rows.append({"strategy": "worst-first", "chosen": "tplinker"})
@@ -121,6 +133,16 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(output.getvalue().count(cmd), 1)
         self.assertIn(cmd + " --seed 913 --max-examples 5 --dataset-sha256 " + "a" * 64,
                       output.getvalue())
+
+    def test_language_replay_requires_safe_tags_and_preserves_pins(self):
+        from replay_matrix_cell import replay_command
+        row = dict(outcome("ner"), task="ner", dataset="WikiANN", backend="heuristic",
+                   max_examples=4, seed=5, dataset_sha256="a" * 64, coref_gold=False,
+                   coref_english_pronouns=False, requested_languages=["de", "fr"], observed_language="fr")
+        self.assertIn("--languages de,fr --observed-language fr", replay_command(row))
+        for bad in ("xx;echo", ["de", "de"], [1], ["invalid lang"]):
+            self.assertIsNone(replay_command(row | {"requested_languages": bad}))
+        self.assertIsNone(replay_command(row | {"observed_language": "de\nfr"}))
 
     def test_legacy_and_untrusted_fields_cannot_form_a_command(self):
         row = dict(outcome("ner"), task="ner", dataset="WikiGold", backend="heuristic",
