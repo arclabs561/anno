@@ -283,11 +283,11 @@ The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local pane
 
 ### Which datasets do the token counts describe?
 
-The survey inventories every registered dataset and counts the records, tokens or annotations it could read. Use the first panel to see how many registry entries contribute. An entry can appear under several sources in the second panel. The [coverage report and exclusions](eval/dataset-coverage.md) identifies the files, languages and splits behind each count.
+Check whether the survey measured the kind of text you plan to review. It measured 13 of 63 registered news entries and 13 of 21 Wikipedia entries. Five news entries and seven Wikipedia entries supply a fraction of tokens inside annotations. All 17 entries classified as clinical lack a corpus measurement in this survey. [Counts for every domain](eval/dataset-coverage-by-domain.csv) · [Sources and exclusions](eval/dataset-coverage.md)
 
-![All registry entries, entries with measured records and entries with tagged-token counts, followed by the contribution of each source.](eval/figures/dataset-coverage.png)
+![Survey coverage in the eight largest registered domains and the remainder. For each, the bars and counts distinguish tagged tokens, other measured records and missing corpus measurements.](eval/figures/dataset-coverage.png)
 
-Choose the split and annotation convention closest to your input before estimating review volume. For example, the WikiANN language and split measurements range from 9.1% of tokens marked as entities in Pashto training to 88.9% in Volapük test. The latter split has just 423 tokens. The report gives both endpoints and denominators for every measured entry. To see what the evaluator can load on your machine, run `anno sampler eligibility --task ner --require-cached`. [Annotation density by dataset](eval/dataset-coverage.md#how-much-of-the-text-carries-an-annotation) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
+For a WikiANN review, estimate the share of highlighted text from the training split in the language you plan to review. Its median error on test was 1.17 percentage points across 176 languages, compared with 9.36 points using the other languages’ median training rate. To see which inputs your evaluator can load, run `anno sampler eligibility --task ner --require-cached`. [WikiANN split comparison](eval/dataset-coverage.md#estimate-review-volume-for-a-wikiann-language) · [Measured density across 49 entries](eval/dataset-coverage.md#compare-annotation-density-across-datasets) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
 
 ### Decide what to keep
 

@@ -25,6 +25,12 @@ Compared on the same 120 test paragraphs, the external checkpoint recovered **17
 
 On this panel, long paragraphs had lower external checkpoint F1 in three languages and higher F1 in two. Topics, entity mixes and annotation density also differ between cells. RED-FM was assembled for relation extraction. Its entity boundaries and types are the scoring reference and can omit real mentions or label them differently. The sample uses European languages with whitespace word boundaries. It gives no estimate for Cyrillic, unspaced scripts, other domains, or languages absent from the panel. We therefore ran a separate English and Russian experiment on MultiNERD.
 
+### Paired GLiNEREL and heuristic results
+
+![Paired change in exact-span F1 when switching from Anno heuristic to GLiNEREL-72m. The 95% intervals lie above zero in all ten RED-FM groups and in one of the four MultiNERD groups. Each row gives gold mentions and matches gained or lost.](figures/ner-language-length.png)
+
+With 12 test inputs per group, the paired 95% interval favors GLiNEREL in all ten RED-FM groups (436 gold mentions altogether). On MultiNERD (48 test sentences, 68 gold mentions), only long English has an interval wholly above zero, from +24.4 to +68.0 F1 points. On long Russian sentences the checkpoint gained two matches and lost four among nine references. The estimate was −18.1 points, with an interval from −67.5 to +40.0. Each interval compares the two models by resampling whole inputs within one language and length group. [Paired counts and intervals](ner-language-length.json)
+
 ### Smaller ONNX panel
 
 A separate four-per-cell run compared native Anno ONNX backends on 40 test subjects with 161 scored reference mentions. It omitted one empty source annotation from a French paragraph while retaining that paragraph. The MIT-licensed [BERT checkpoint](https://huggingface.co/protectai/bert-base-NER-onnx/tree/84d28ab2bc28401b4353b26033eb043c8c8a0739) returned 94 correct, 184 unmatched, and missed 67 (42.8 F1). Anno heuristic on those same paragraphs returned 36 correct, 170 unmatched, and missed 125 (19.6 F1). Native BERT's per-cell test p95 ranged from 2.20 to 4.19 seconds including fresh CLI and model startup per paragraph. It used at most 553 MiB across those processes. The two sampling budgets have different panel digests and denominators. [Aggregate results, runtime identities and checkpoint hashes](ner-language-length.json)
@@ -58,6 +64,12 @@ NuNER recovered all four references on the long Russian sentences and emitted fi
 To run this second corpus after reviewing its noncommercial terms, add `--corpus multinerd` and supply a separate external `--data-dir`. `--fetch` downloads the four hash-verified validation and test shards. No text or row-level gold annotations belong in the repository. Simone Tedeschi and Roberto Navigli, *MultiNERD: A Multilingual, Multi-Genre and Fine-Grained Dataset for Named Entity Recognition (and Disambiguation)*, Findings of NAACL 2022. The card lists CC BY-NC-SA 4.0. The reconstruction, sampling and three-label projection are described above. [Dataset revision](https://huggingface.co/datasets/Babelscape/multinerd/tree/2814b78e7af4b5a1f1886fe7ad49632de4d9dd25) · [License](https://creativecommons.org/licenses/by-nc-sa/4.0/) · [Paper](https://aclanthology.org/2022.findings-naacl.60/)
 
 ## Replay
+
+Render the paired figure from the checked-in aggregate with Matplotlib. [Figure generator](../../scripts/plot_ner_language_length.py)
+
+```sh
+python3 scripts/plot_ner_language_length.py /tmp/anno-ner-figures
+```
 
 Use a Linux environment with Python 3.11 or newer and an Anno CLI. The first command fetches ten revision-pinned files into an external directory, verifies their contents and prints only aggregate JSON. Set `--per-cell 4` on every arm for a smaller paired panel. Score files record the panel digest, device/runtime information for the external checkpoint, and the binary or checkpoint fingerprints. Compare scores from identical panel digests. The per-cell p95 CLI timings include launching Anno and initializing the model for each document. The external checkpoint remains loaded between calls. Those resource figures describe different invocation paths.
 

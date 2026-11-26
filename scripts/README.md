@@ -23,7 +23,7 @@ the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.s
 
 ### Reproduce the dataset figures
 
-Run from the repository root with Python 3 and Matplotlib 3.6 or later. The coverage, density and benchmark charts read checked-in ledgers and examples offline. Each registry ID counts once in the combined coverage chart even when several sources cover it. [Coverage findings and source ledgers](../docs/eval/dataset-coverage.md)
+Run from the repository root with Python 3 and Matplotlib 3.6 or later. The following commands render PNG and SVG figures offline from the checked-in counts, evaluation results and fixture. [Figures, source ledgers and exclusions](../docs/eval/dataset-coverage.md)
 
 ```sh
 out=.generated/dataset-figures
@@ -40,19 +40,26 @@ python3 scripts/plot_density_ranges.py "$ledgers/dataset-figure-inventory.csv" "
   --repo-files "$ledgers/dataset-repo-files.csv" \
   --hf-splits "$ledgers/dataset-hf-splits.csv" \
   --github-sources "$ledgers/dataset-github-sources.csv"
+python3 scripts/plot_wikiann_split_density.py "$ledgers/dataset-hf-splits.csv" "$out"
+python3 scripts/plot_wnut_novelty.py "$out" --from-results "$ledgers/wnut-submission-results.csv"
+python3 scripts/plot_ner_language_length.py "$out"
 python3 scripts/plot_benchmark_examples.py "$out"
 ```
 
-The coverage generator writes `dataset-coverage.csv`, the combined `dataset-coverage` figure and the direct-reader `anno-selection` figure. The density generator writes `dataset-density-ranges.csv` and the `dataset-density` figure. The benchmark generator renders the JEREX benchmark chooser and the CrossRE prompt comparison. All three write PNG and SVG.
+The coverage generator writes one row per registry ID in `dataset-coverage.csv`, counts for every domain in `dataset-coverage-by-domain.csv`, and the direct-reader `anno-selection` figure. The density generator records per-dataset medians, quartiles and endpoints in `dataset-density-ranges.csv`. The WikiANN generator writes the source counts and both estimates for each language to `dataset-wikiann-split-density.csv`.
 
-**Annotation-level figures.** These commands read the pinned WNUT-17 and GENIA inputs. WNUT compares the development and registry-designated test mentions with training. GENIA verifies all three split files against their recorded SHA-256 digests.
+The WNUT figure reads counts for seven historical submissions and plots the six with identical full test input. The multilingual NER figure reads paired F1 intervals and gained/lost mentions from `ner-language-length.json`. The benchmark generator renders the JEREX task chooser and the CrossRE comparison of gold and fixed prompts. [WNUT scoring choices](../docs/DOMAIN_QA.md#test-recognition-of-unfamiliar-names) · [Language panel and inference replay](../docs/eval/ner-language-length.md) · [CrossRE model replay](../docs/eval/crossre-full-prompt-comparison.md)
+
+**Recompute from publisher annotations.** WNUT reads the three gold splits and all seven archived submissions. GENIA verifies its three split files against their recorded SHA-256 digests. CrossRE verifies all 18 domain/split files and compares each held-out split with the same domain’s training labels.
 
 ```sh
 python3 scripts/plot_wnut_novelty.py "$out"
 python3 scripts/plot_genia_nesting.py "$out"
+python3 scripts/survey_crossre_prompts.py "$out/crossre-prompt-scope.csv"
+cmp "$out/crossre-prompt-scope.csv" "$ledgers/crossre-prompt-scope.csv"
 ```
 
-For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE` for all three splits or `--input PATH_TO_GENIA_TEST_IOB2` for the original test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA file manifest](../docs/eval/dataset-repo-files.csv)
+For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA or CrossRE, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE`. GENIA also accepts `--input PATH_TO_GENIA_TEST_IOB2` for a test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA and CrossRE file manifest](../docs/eval/dataset-repo-files.csv)
 
 **Refresh source measurements.** The direct survey also generates the task-tag, PII fixture, WikiGold/WNUT-16, token-density and MIT query figures. Install the system libarchive and the Python `libarchive-c` package to read the FINER RAR release. The Hugging Face scan requires `pyarrow`. The GitHub source and archived CI surveys use an authenticated `gh` CLI. Run the following with network access and the same `out` and `ledgers` variables as above.
 
