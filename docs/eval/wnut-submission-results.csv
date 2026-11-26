@@ -1,0 +1,32 @@
+submission,scope,exposure,entity_type,sentences,tokens,changed_token_forms,i_tags_opening_new_spans,gold,predicted,correct,wrong_type,partial_overlap,no_overlap,predictions_in_gold_empty_sentences
+Arcada,verbatim full test,all,all,1287,23394,0,0,1079,787,373,,,,90
+Arcada,verbatim full test,seen,all,1287,23394,0,0,24,24,15,,,,0
+Arcada,verbatim full test,unseen,all,1287,23394,0,0,1055,763,358,,,,90
+Drexel-CCI,verbatim full test,all,all,1287,23394,0,0,1079,381,192,,,,38
+Drexel-CCI,verbatim full test,seen,all,1287,23394,0,0,24,23,16,,,,1
+Drexel-CCI,verbatim full test,unseen,all,1287,23394,0,0,1055,358,176,,,,37
+FLYTXT,verbatim full test,all,all,1287,23394,0,0,1079,720,345,,,,89
+FLYTXT,verbatim full test,seen,all,1287,23394,0,0,24,15,10,,,,0
+FLYTXT,verbatim full test,unseen,all,1287,23394,0,0,1055,705,335,,,,89
+MIC-CIS,verbatim sentences only,all,all,460,7257,0,5,358,289,122,,,,48
+MIC-CIS,verbatim sentences only,seen,all,460,7257,0,5,5,8,4,,,,1
+MIC-CIS,verbatim sentences only,unseen,all,460,7257,0,5,353,281,118,,,,47
+MIC-CIS,full test by token position,all,all,1287,23394,1283,13,1079,891,365,,,,126
+MIC-CIS,full test by token position,seen,all,1287,23394,1283,13,24,28,18,,,,2
+MIC-CIS,full test by token position,unseen,all,1287,23394,1283,13,1055,863,347,,,,124
+SJTU-Adapt,verbatim full test,all,all,1287,23394,0,0,1079,727,365,,,,69
+SJTU-Adapt,verbatim full test,seen,all,1287,23394,0,0,24,26,16,,,,1
+SJTU-Adapt,verbatim full test,unseen,all,1287,23394,0,0,1055,701,349,,,,68
+SpinningBytes,verbatim full test,all,all,1287,23394,0,34,1079,824,388,,,,86
+SpinningBytes,verbatim full test,seen,all,1287,23394,0,34,24,31,18,,,,2
+SpinningBytes,verbatim full test,unseen,all,1287,23394,0,34,1055,793,370,,,,84
+UH-RiTUAL,verbatim full test,all,all,1287,23394,0,0,1079,617,355,,,,49
+UH-RiTUAL,verbatim full test,seen,all,1287,23394,0,0,24,24,17,,,,0
+UH-RiTUAL,verbatim full test,unseen,all,1287,23394,0,0,1055,593,338,,,,49
+any verbatim full-test submission,verbatim full test,unseen,all,1287,23394,0,,1055,,556,169,98,232,
+any verbatim full-test submission,verbatim full test,unseen,corporation,1287,23394,0,,65,,29,15,3,18,
+any verbatim full-test submission,verbatim full test,unseen,creative-work,1287,23394,0,,142,,33,40,30,39,
+any verbatim full-test submission,verbatim full test,unseen,group,1287,23394,0,,163,,49,36,16,62,
+any verbatim full-test submission,verbatim full test,unseen,location,1287,23394,0,,139,,96,13,12,18,
+any verbatim full-test submission,verbatim full test,unseen,person,1287,23394,0,,421,,321,22,18,60,
+any verbatim full-test submission,verbatim full test,unseen,product,1287,23394,0,,125,,28,43,19,35,

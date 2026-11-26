@@ -1,8 +1,9 @@
-"""Plot verified tagged-token ranges across measured files and provider partitions.
+"""Plot the distribution of verified tag densities across measured files and splits.
 
 Pass INVENTORY OUTPUT_DIR and the four evidence CSVs. No dataset text or
 network access is required. Percentages use the tokenization of each release.
-Observation counts describe files/partitions, not independent examples.
+Each deduplicated unit has equal weight. Related splits can share examples.
+Quartiles use linear interpolation, and are reported for at least four units.
 """
 
 import argparse
@@ -11,20 +12,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
+from statistics import median, quantiles
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
-COLORS = {
-    "Entity tags": "#256a81",
-    "Silver entity tags": "#669246",
-    "Slot tags": "#ac5919",
-    "Entity links": "#645aa5",
-    "PII subword tags": "#a54768",
-}
 SPECIAL = {
     "WikiANN": "Silver entity tags",
     "WikiNeural": "Silver entity tags",
@@ -188,12 +182,19 @@ def summarize(observations, names):
         for item in group:
             # Different files with coincidentally equal counts remain separate.
             units.setdefault((item.identity, item.tagged, item.tokens), item)
+        rates = [100 * item.density for item in units.values()]
+        quartiles = (
+            quantiles(rates, n=4, method="inclusive") if len(rates) >= 4 else None
+        )
         row = {
             "id": dataset,
             "name": names[dataset],
             "annotation": SPECIAL.get(dataset, "Entity tags"),
             "n_observation_units": len(units),
             "n_route_observations": len(group),
+            "median_percent": float(median(rates)),
+            "p25_percent": float(quartiles[0]) if quartiles else "",
+            "p75_percent": float(quartiles[2]) if quartiles else "",
         }
         for prefix, extreme in (("min", min), ("max", max)):
             endpoint = extreme(units.values(), key=lambda item: item.density)
@@ -210,69 +211,167 @@ def summarize(observations, names):
             )
         rows.append(row)
     return sorted(
-        rows, key=lambda row: (-row["max_percent"], -row["min_percent"], row["id"])
+        rows, key=lambda row: (-row["median_percent"], row["name"], row["id"])
     )
 
 
 def plot(rows, output):
     if not rows:
         raise ValueError("No verified positive token denominators")
-    midpoint = (len(rows) + 1) // 2
-    parts = [rows[:midpoint], rows[midpoint:]] if len(rows) > 1 else [rows]
-    fig, axes = plt.subplots(
-        1,
-        len(parts),
-        figsize=(8 * len(parts), 3.4 + 0.36 * midpoint),
-        squeeze=False,
-        layout="constrained",
-    )
-    for axis, part in zip(axes[0], parts):
-        for index, row in enumerate(part):
-            low, high = row["min_percent"], row["max_percent"]
-            color = COLORS[row["annotation"]]
-            axis.plot([low, high], [index, index], color=color, linewidth=2.2, zorder=2)
-            positions = [low] if low == high else [low, high]
-            axis.scatter(
-                positions, [index] * len(positions), s=29, color=color, zorder=3
-            )
-        labels = [
-            r["name"]
-            + (" (fixture)" if r["id"] == "AnnoNerSmoke" else "")
-            + f"   n={r['n_observation_units']}"
-            for r in part
-        ]
-        axis.set(
-            yticks=range(len(part)),
-            yticklabels=labels,
-            ylim=(midpoint - 0.48, -0.52),
-            xlim=(-1.5, 101.5),
-            xticks=range(0, 101, 20),
-        )
-        axis.set_xlabel("Tagged tokens (% of file or split)")
-        axis.grid(axis="x", color="#dbe2e5", linewidth=0.8)
-        axis.spines[["top", "left", "right"]].set_visible(False)
-        axis.tick_params(axis="y", length=0)
-    legend = [
-        Line2D([], [], marker="o", color=color, lw=1.8, label=label)
-        for label, color in COLORS.items()
-        if any(r["annotation"] == label for r in rows)
+
+    cohorts = [
+        ("4+ files or partitions", [r for r in rows if r["n_observation_units"] >= 4]),
+        (
+            "2–3 files or partitions",
+            [r for r in rows if 2 <= r["n_observation_units"] <= 3],
+        ),
+        ("One file or partition", [r for r in rows if r["n_observation_units"] == 1]),
     ]
-    fig.suptitle(
-        f"How much text is annotated in {len(rows)} Anno datasets?\n"
-        "Minimum and maximum tagged-token coverage across n measured files or partitions",
+    cohorts = [(label, part) for label, part in cohorts if part]
+    plot_rows = len(rows) + 2.3 * len(cohorts)
+    height = 1.30 + 0.201 * plot_rows
+    fig, ax = plt.subplots(figsize=(8.6, height))
+    fig.subplots_adjust(
+        left=0.025, right=0.985, top=1 - 1.0 / height, bottom=0.18 / height
+    )
+    # The graph uses percentage points. Text columns sit in the margins of the
+    # same coordinate system to align each denominator and median with its row.
+    ax.set(xlim=(-112, 122), ylim=(plot_rows - 0.6, -0.6))
+    ax.axis("off")
+    ink = "#182e3a"
+    muted = "#4d626c"
+    teal = "#176e70"
+    header_color = "#304c5b"
+    title_x = 0.025
+    fig.text(
+        title_x,
+        1 - 0.12 / height,
+        "What share of tokens is tagged?",
         fontsize=17,
+        weight="bold",
+        color=ink,
+        va="top",
     )
-    # Attach legend to an axis so constrained layout reserves its space.
-    axes[0, 0].legend(
-        handles=legend,
-        loc="upper left",
-        bbox_to_anchor=(0, -0.075),
-        frameon=False,
-        ncol=2,
-        fontsize=9,
+    units = sum(row["n_observation_units"] for row in rows)
+    fig.text(
+        title_x,
+        1 - 0.47 / height,
+        f"{len(rows)} registry entries · {units:,} measured files or partitions · equal weight per measurement",
+        fontsize=9.2,
+        color=muted,
+        va="top",
     )
+    # Draw a single, directly labelled key above the table.
+    legend_y = 1 - 0.785 / height
+    for x1, x2, label, color, width in [
+        (0.027, 0.059, "Full observed range", "#80939b", 1.15),
+        (0.280, 0.312, "Middle 50% (four or more units)", teal, 4.6),
+    ]:
+        line = plt.Line2D(
+            [x1, x2],
+            [legend_y, legend_y],
+            color=color,
+            linewidth=width,
+            solid_capstyle="butt",
+            transform=fig.transFigure,
+        )
+        fig.add_artist(line)
+        fig.text(x2 + 0.007, legend_y, label, va="center", fontsize=8.2, color=ink)
+    fig.add_artist(
+        plt.Line2D(
+            [0.640],
+            [legend_y],
+            marker="o",
+            markersize=4.5,
+            color=ink,
+            transform=fig.transFigure,
+        )
+    )
+    fig.text(
+        0.651, legend_y, "Median across units", va="center", fontsize=8.2, color=ink
+    )
+
+    labels = {
+        "Entity tags": "Entity",
+        "Silver entity tags": "Silver entity",
+        "Entity links": "Entity links",
+        "Slot tags": "Slots",
+        "PII subword tags": "PII subwords",
+    }
+    y = 0
+    for heading, part in cohorts:
+        ax.text(
+            -111,
+            y,
+            heading,
+            weight="bold",
+            fontsize=8.7,
+            va="center",
+            color=header_color,
+        )
+        ax.text(-55, y, "Labels", fontsize=8, va="center", color=muted)
+        ax.text(-12, y, "Units", fontsize=8, ha="right", va="center", color=muted)
+        ax.text(121, y, "Median", fontsize=8, ha="right", va="center", color=muted)
+        for percent in (0, 25, 50, 75, 100):
+            ax.text(
+                percent,
+                y,
+                f"{percent}%",
+                ha="center",
+                va="center",
+                fontsize=7.6,
+                color=muted,
+            )
+            ax.vlines(
+                percent,
+                y + 0.51,
+                y + len(part) + 0.5,
+                color="#e3e9e9",
+                lw=0.65,
+                zorder=0,
+            )
+        ax.hlines(y + 0.50, -111, 121, color="#b5c5c7", lw=0.8)
+        for row in part:
+            y += 1
+            name = row["name"] + (" (fixture)" if row["id"] == "AnnoNerSmoke" else "")
+            ax.text(-111, y, name, fontsize=8.2, va="center", color=ink)
+            ax.text(
+                -55,
+                y,
+                labels[row["annotation"]],
+                fontsize=7.7,
+                va="center",
+                color=muted,
+            )
+            ax.text(
+                -12,
+                y,
+                str(row["n_observation_units"]),
+                ha="right",
+                va="center",
+                fontsize=8.3,
+                color=ink,
+            )
+            ax.hlines(
+                y, row["min_percent"], row["max_percent"], lw=1.05, color="#718991"
+            )
+            if row["n_observation_units"] >= 4:
+                ax.hlines(y, row["p25_percent"], row["p75_percent"], lw=4.9, color=teal)
+            ax.plot(
+                row["median_percent"], y, "o", ms=4.5, mfc=ink, mec="white", mew=0.5
+            )
+            ax.text(
+                121,
+                y,
+                f"{row['median_percent']:.1f}%",
+                ha="right",
+                va="center",
+                fontsize=8.3,
+                color=ink,
+            )
+        y += 2.3
     for ext in ("png", "svg"):
-        fig.savefig(output / f"dataset-density.{ext}", dpi=150)
+        fig.savefig(output / f"dataset-density.{ext}", dpi=160)
     plt.close(fig)
 
 

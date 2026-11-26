@@ -119,6 +119,7 @@ def has_tagged(row):
     return (
         has_count(row, "tokens")
         and has_count(row, "tagged")
+        and int(row["tokens"]) > 0
         and int(row["tagged"]) <= int(row["tokens"])
     )
 
@@ -227,7 +228,7 @@ def compile_entry(entry, sources, direct_supplied):
         units
         for units in github_files.values()
         if "tagged tokens" in units
-        and "tokens" in units
+        and units.get("tokens", 0) > 0
         and units["tagged tokens"] <= units["tokens"]
     ]
 
@@ -345,70 +346,153 @@ RECORD_UNITS = {
 }
 
 
-def coverage_plot(rows, output, supplied):
-    routes = {
-        "direct": "Registry-linked files",
-        "repo": "Publisher file manifest",
-        "hf": "Hugging Face splits",
-        "github": "GitHub release survey",
-    }
-    routes = {key: label for key, label in routes.items() if key in supplied}
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), layout="constrained")
-    all_counts = [
-        len(rows),
-        sum(r["measured"] for r in rows),
-        sum(r["tagged_tokens_measured"] for r in rows),
+COVERAGE_CATEGORIES = ("tagged_tokens_measured", "other_measured", "unmeasured")
+
+
+def coverage_by_domain(rows):
+    by_domain = defaultdict(Counter)
+    for row in rows:
+        counts_for_domain = by_domain[row["domain"]]
+        counts_for_domain["registered"] += 1
+        if int(row["tagged_tokens_measured"]):
+            counts_for_domain["tagged_tokens_measured"] += 1
+        elif int(row["measured"]):
+            counts_for_domain["other_measured"] += 1
+        else:
+            counts_for_domain["unmeasured"] += 1
+    summary = [
+        {
+            "domain": domain,
+            **{k: group[k] for k in ("registered", *COVERAGE_CATEGORIES)},
+        }
+        for domain, group in by_domain.items()
     ]
-    bars = axes[0].barh(
-        ["Registered", "Records or tokens counted", "Tagged tokens counted"],
-        all_counts,
-        color=["#b5c6c8", "#39737d", "#ae6328"],
-        height=0.6,
+    return sorted(summary, key=lambda group: (-group["registered"], group["domain"]))
+
+
+def coverage_plot(domains, output):
+    def totals(groups):
+        return {
+            k: sum(r[k] for r in groups) for k in ("registered", *COVERAGE_CATEGORIES)
+        }
+
+    # Rank by registry size rather than measurement success. The final row
+    # includes every domain beyond the eight shown by name.
+    overall = totals(domains)
+    labels = ["All domains"]
+    groups = [overall]
+    for group in domains[:8]:
+        labels.append(group["domain"].replace("_", " ").capitalize() or "Unspecified")
+        groups.append(group)
+    if len(domains) > 8:
+        labels.append(f"Other {len(domains) - 8} domains")
+        groups.append(totals(domains[8:]))
+    positions = [0, *(i + 1.35 for i in range(len(groups) - 1))]
+    ink, muted = "#1e3440", "#4b616a"
+    colors = ("#176d6b", "#d99142", "#dce3e6")
+
+    fig, (bars, values) = plt.subplots(
+        1,
+        2,
+        sharey=True,
+        figsize=(8.8, 2.55 + 0.30 * len(groups)),
+        gridspec_kw={"width_ratios": (2.2, 1.2)},
     )
-    axes[0].bar_label(bars, padding=4)
-    axes[0].set_title("Unique registry entries", loc="left")
-    for index, (route, label) in enumerate(routes.items()):
-        record = sum(route in r["measured_routes"].split(" | ") for r in rows)
-        tagged = sum(route in r["tagged_routes"].split(" | ") for r in rows)
-        axes[1].barh(
-            index,
-            record,
-            height=0.54,
-            color="#39737d",
-            label="Records or tokens" if index == 0 else None,
+    fig.subplots_adjust(left=0.19, right=0.98, bottom=0.14, top=0.76, wspace=0.06)
+    fig.text(
+        0.025, 0.95, "Dataset coverage by domain", size=18, weight="bold", color=ink
+    )
+    fig.text(
+        0.025,
+        0.895,
+        f"{overall['registered']:,} registry entries  ·  "
+        f"{overall['tagged_tokens_measured']:,} with tagged-token counts  ·  "
+        f"{overall['other_measured']:,} with other counts only",
+        size=10,
+        color=muted,
+    )
+
+    left = [0.0] * len(groups)
+    for category, label, color in zip(
+        COVERAGE_CATEGORIES,
+        ("Tagged tokens", "Other counts only", "No corpus measurement"),
+        colors,
+    ):
+        shares = [100 * row[category] / row["registered"] for row in groups]
+        bars.barh(
+            positions,
+            shares,
+            left=left,
+            label=label,
+            color=color,
+            height=0.56,
+            edgecolor="white",
+            linewidth=0.6,
         )
-        axes[1].barh(
-            index,
-            tagged,
-            height=0.54,
-            color="#ae6328",
-            label="Of which tagged" if index == 0 else None,
-        )
-        axes[1].annotate(
-            f"{tagged} of {record}",
-            (record, index),
-            xytext=(4, 0),
-            textcoords="offset points",
+        left = [a + b for a, b in zip(left, shares)]
+    bars.set(xlim=(0, 100), ylim=(positions[-1] + 0.60, -0.80))
+    bars.set_yticks(positions, labels, fontsize=10, color=ink)
+    bars.get_yticklabels()[0].set_fontweight("bold")
+    bars.set_xticks(
+        [0, 25, 50, 75, 100],
+        ["0%", "25%", "50%", "75%", "100%"],
+        fontsize=9,
+        color=muted,
+    )
+    bars.set_xlabel("Share of registry entries in the domain", fontsize=9, color=muted)
+    bars.spines[:].set_visible(False)
+    bars.tick_params(length=0)
+    bars.set_axisbelow(True)
+    bars.grid(axis="x", color="#edf0f1", linewidth=0.7)
+    fig.legend(
+        *bars.get_legend_handles_labels(),
+        loc="upper left",
+        bbox_to_anchor=(0.019, 0.855),
+        ncol=3,
+        frameon=False,
+        fontsize=9,
+        handlelength=1.15,
+        columnspacing=1.7,
+    )
+
+    values.set_xlim(0, 4)
+    values.set_axis_off()
+    for i, (key, label) in enumerate(
+        zip((*COVERAGE_CATEGORIES, "registered"), ("Tagged", "Other", "None", "Total"))
+    ):
+        values.text(
+            i + 0.5,
+            -0.76,
+            label,
+            ha="center",
             va="center",
+            size=9,
+            weight="bold",
+            color=muted,
         )
-    axes[1].set_yticks(range(len(routes)), routes.values())
-    axes[1].set_title("Coverage by source route", loc="left")
-    axes[1].legend(
-        loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=2, frameon=False
-    )
-    for ax in axes:
-        ax.set_xlabel("Registry entries")
-        ax.invert_yaxis()
-        ax.spines[["left", "top", "right"]].set_visible(False)
-        ax.tick_params(axis="y", length=0)
-        ax.margins(x=0.24)
-    fig.suptitle("How many Anno datasets have a verified measurement?", fontsize=16)
-    fig.supxlabel(
-        "Source routes overlap. Each entry counts once in the left panel.", fontsize=10
-    )
+        for y, group in zip(positions, groups):
+            values.text(
+                i + 0.5,
+                y,
+                f"{group[key]:,}",
+                ha="center",
+                va="center",
+                size=10,
+                color=ink,
+                weight="bold" if y == 0 else "normal",
+            )
+    for axis in (bars, values):
+        axis.axhline(0.71, color="#b0bfc3", linewidth=0.7)
     for ext in ("png", "svg"):
-        fig.savefig(output / f"dataset-coverage.{ext}", dpi=160)
+        fig.savefig(output / f"dataset-coverage.{ext}", dpi=180)
     plt.close(fig)
+
+
+def write_csv(path, rows):
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def main():
@@ -456,14 +540,11 @@ def main():
     for row in rows:
         row["survey_routes_supplied"] = joined(supplied)
     args.output.mkdir(parents=True, exist_ok=True)
-    with (args.output / "dataset-coverage.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0]), lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    domains = coverage_by_domain(rows)
+    write_csv(args.output / "dataset-coverage.csv", rows)
+    write_csv(args.output / "dataset-coverage-by-domain.csv", domains)
     selection_plot(inventory, args.output)
-    coverage_plot(rows, args.output, supplied)
+    coverage_plot(domains, args.output)
 
 
 if __name__ == "__main__":

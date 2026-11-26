@@ -5,6 +5,7 @@ Run from a checkout with Matplotlib installed:
 """
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -12,12 +13,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 ROOT = Path(__file__).resolve().parents[1]
 INK = "#243748"
 TEAL = "#176d6c"
-OCHRE = "#a65b18"
 RULE = "#cbd7da"
 
 
@@ -125,88 +124,195 @@ def benchmark_chooser():
     return fig
 
 
-def crossre_prompt_scores():
-    report = json.loads(
-        (ROOT / "docs/eval/crossre-full-prompt-comparison.json").read_text()
-    )
-    fig, ax = plt.subplots(figsize=(8.8, 3.6))
-    fig.subplots_adjust(left=0.18, right=0.965, top=0.68, bottom=0.22)
-    fig.text(
-        0.04,
-        0.90,
-        "Which labels did the relation extractor get to see?",
-        fontsize=16,
-        weight="bold",
-        color=INK,
-    )
-    domains = report["domains"]
-    tick_labels = []
-    for y, (domain, run) in enumerate(domains.items()):
-        arms = {a["prompt"]: a for a in run["arms"] if a["backend"] == "gliner_relex"}
-        fixed, gold = arms["fixed"], arms["oracle"]
-        if fixed["sample"]["sample_sha256"] != gold["sample"]["sample_sha256"]:
-            raise ValueError(f"Prompt arms used different examples in {domain}")
-        fixed_f1, gold_f1 = [100 * arm["metrics"]["strict_f1"] for arm in (fixed, gold)]
-        ax.hlines(y, fixed_f1, gold_f1, color=RULE, linewidth=3)
-        ax.plot(fixed_f1, y, "o", color=TEAL, markersize=9)
-        ax.plot(gold_f1, y, "D", color=OCHRE, markersize=8)
-        for value, color in [(fixed_f1, TEAL), (gold_f1, OCHRE)]:
-            ax.annotate(
-                f"{value:.1f}%",
-                (value, y),
-                xytext=(0, 10),
-                textcoords="offset points",
-                ha="center",
-                color=color,
-                weight="bold",
+def paired_prompt_f1(domain, run, splits):
+    corpus = run["corpus"]
+    arms = {a["prompt"]: a for a in run["arms"] if a["backend"] == "gliner_relex"}
+    fixed, gold = arms["fixed"], arms["oracle"]
+    if fixed["sample"]["sample_sha256"] != gold["sample"]["sample_sha256"]:
+        raise ValueError(f"Prompt arms used different examples in {domain}")
+    for split in ("train", "test"):
+        if splits[domain, split]["sha256"] != corpus[f"{split}_sha256"]:
+            raise ValueError(
+                f"Prompt survey and model trial use different {domain} {split} files"
             )
-        ax.annotate(
-            f"{gold_f1 - fixed_f1:+.1f} points",
-            ((fixed_f1 + gold_f1) / 2, y),
-            xytext=(0, -16),
-            textcoords="offset points",
-            ha="center",
-            fontsize=9,
-            color=INK,
-        )
-        name = "AI" if domain == "ai" else domain.title()
-        tick_labels.append(f"{name}\n{run['corpus']['test_docs']:,} sentences")
-    ax.set(
-        xlim=(0, 100),
-        ylim=(len(domains) - 0.5, -0.5),
-        xlabel="Strict relation F1 (%)",
-        yticks=range(len(domains)),
-        yticklabels=tick_labels,
+    test_row = splits[domain, "test"]
+    metrics = fixed["metrics"]
+    for field, key in (
+        ("sentences", "num_docs"),
+        ("gold_relations", "num_gold_relations"),
+        ("no_predicate_sentences", "gold_empty_docs"),
+    ):
+        if int(test_row[field]) != metrics[key] or metrics[key] != gold["metrics"][key]:
+            raise ValueError(f"Prompt study disagrees on {domain} {key}")
+    filtered = (
+        metrics["num_predicted_relations"] - metrics["predictions_on_gold_empty_docs"]
     )
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.tick_params(axis="y", length=0, pad=9)
-    ax.set_axisbelow(True)
-    ax.grid(axis="x", color="#e6ecee", linewidth=0.8)
-    fig.legend(
-        handles=[
-            Line2D(
-                [], [], marker="o", lw=0, color=TEAL, label="Vocabulary from training"
-            ),
-            Line2D(
-                [],
-                [],
-                marker="D",
-                lw=0,
-                color=OCHRE,
-                label="Gold labels from each test sentence",
-            ),
-        ],
-        loc="upper left",
-        bbox_to_anchor=(0.025, 0.85),
-        ncol=2,
-        frameon=False,
+    rescored = (
+        2
+        * metrics["strict_relation_matches"]
+        / (filtered + metrics["num_gold_relations"])
+    )
+    return [
+        100 * metrics["strict_f1"],
+        100 * rescored,
+        100 * gold["metrics"]["strict_f1"],
+    ]
+
+
+def crossre_prompt_scores():
+    study = ROOT / "docs/eval"
+    report = json.loads((study / "crossre-full-prompt-comparison.json").read_text())
+    with (study / "crossre-prompt-scope.csv").open(
+        newline="", encoding="utf-8"
+    ) as file:
+        splits = {(r["domain"], r["split"]): r for r in csv.DictReader(file)}
+    test = [row for (_, split), row in splits.items() if split == "test"]
+    none = "no_predicate_sentences"
+    single = "one_predicate_type_sentences"
+    many = "multiple_predicate_type_sentences"
+    test.sort(
+        key=lambda r: (int(r[none]) + int(r[single])) / int(r["sentences"]),
+        reverse=True,
+    )
+
+    fig = plt.figure(figsize=(8.8, 7.2))
+    fig.text(
+        0.025,
+        0.96,
+        "What does the gold prompt reveal?",
+        color=INK,
+        fontsize=18,
+        weight="bold",
     )
     fig.text(
-        0.04,
         0.025,
-        "GLiNER-Relex on the full CrossRE AI and literature test splits. Both runs predict their own endpoints.",
-        fontsize=9,
+        0.918,
+        f"Distinct reference predicates in {sum(int(r['sentences']) for r in test):,} test sentences. Segments show sentence counts.",
         color=INK,
+        fontsize=10.5,
+    )
+    ax = fig.add_axes((0.20, 0.535, 0.775, 0.286))
+    groups = [
+        (none, "No predicate", "#75456f", "white"),
+        (single, "One predicate type", "#dca75a", INK),
+        (many, "Two or more types", "#dae4e6", INK),
+    ]
+    starts = [0.0] * len(test)
+    for key, title, color, ink in groups:
+        counts = [int(row[key]) for row in test]
+        widths = [100 * n / int(r["sentences"]) for n, r in zip(counts, test)]
+        bars = ax.barh(
+            range(len(test)),
+            widths,
+            left=starts,
+            height=0.69,
+            color=color,
+            edgecolor="white",
+            linewidth=0.7,
+            label=title,
+        )
+        for bar, count in zip(bars, counts):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_y() + bar.get_height() / 2,
+                f"{count:,}",
+                ha="center",
+                va="center",
+                color=ink,
+                fontsize=10.5,
+            )
+        starts = [start + width for start, width in zip(starts, widths)]
+    names = {"ai": "AI"}
+    ax.set_yticks(
+        range(len(test)),
+        [
+            f"{names.get(r['domain'], r['domain'].title())}  ({int(r['sentences']):,})"
+            for r in test
+        ],
+    )
+    ax.set_xlim(0, 100)
+    ax.set_ylim(len(test) - 0.55, -0.55)
+    ax.set_xticks([0, 25, 50, 75, 100], ["0%", "25%", "50%", "75%", "100%"])
+    ax.legend(
+        loc="lower left",
+        bbox_to_anchor=(0.0, 1.03),
+        borderaxespad=0,
+        frameon=False,
+        ncol=3,
+        handlelength=1.1,
+        columnspacing=1.6,
+        fontsize=10.5,
+    )
+    ax.spines[:].set_visible(False)
+    ax.tick_params(axis="both", length=0, labelcolor=INK, labelsize=10.5)
+
+    fig.text(
+        0.025,
+        0.413,
+        "How much of the F1 gain comes from relation-free sentences?",
+        color=INK,
+        fontsize=14,
+        weight="bold",
+    )
+    fig.text(
+        0.025,
+        0.373,
+        "Strict GLiNER-Relex relation F1 (%) on the domains with paired predictions.",
+        color=INK,
+        fontsize=10.5,
+    )
+    panels = fig.add_gridspec(
+        1,
+        len(report["domains"]),
+        left=0.31,
+        right=0.946,
+        top=0.29,
+        bottom=0.105,
+        wspace=0.17,
+    )
+    row_labels = [
+        "Training vocabulary",
+        "Fixed predictions on\nrelation-bearing sentences",
+        "Per-sentence gold vocabulary",
+    ]
+    for panel, (domain, run) in zip(panels, report["domains"].items()):
+        values = paired_prompt_f1(domain, run, splits)
+        ax = fig.add_subplot(panel)
+        bars = ax.barh(
+            range(3),
+            values,
+            height=0.47,
+            color=[TEAL, "#93bab6", "#75456f"],
+            edgecolor="none",
+        )
+        ax.bar_label(
+            bars,
+            labels=[f"{v:.1f}" for v in values],
+            padding=4,
+            weight="bold",
+            color=INK,
+            fontsize=10.5,
+        )
+        ax.set_title(
+            names.get(domain, domain.title()),
+            loc="left",
+            color=INK,
+            weight="bold",
+            fontsize=12,
+            pad=4,
+        )
+        ax.set(xlim=(0, 70), ylim=(2.5, -0.5), xticks=[0, 20, 40, 60])
+        ax.set_yticks(range(3), row_labels if panel.is_first_col() else [])
+        ax.tick_params(axis="both", length=0, labelcolor=INK, labelsize=10)
+        ax.spines[:].set_visible(False)
+        ax.grid(axis="x", color="#e4ebeb", linewidth=0.7)
+        ax.set_axisbelow(True)
+    fig.text(
+        0.025,
+        0.028,
+        "The middle row removes only fixed-run predictions on test sentences with no reference relation.",
+        color=INK,
+        fontsize=9.6,
     )
     return fig
 

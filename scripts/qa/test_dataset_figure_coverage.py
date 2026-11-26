@@ -21,7 +21,15 @@ class DatasetFigureCoverageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             inventory = root / "inventory.csv"
-            ids = ["Overlap", "CI", "Provider", "Archive", "Unlabelled", "Records"]
+            ids = [
+                "Overlap",
+                "CI",
+                "Provider",
+                "Archive",
+                "Unlabelled",
+                "Records",
+                "Empty",
+            ]
             with inventory.open("w", newline="") as file:
                 writer = csv.writer(file)
                 writer.writerow(
@@ -60,6 +68,7 @@ class DatasetFigureCoverageTest(unittest.TestCase):
                     "Provider,provider_only,,,,20\n"
                     "Unlabelled,scanned_unlabelled,4,12,0,4\n"
                     "Records,scanned_records,6,,,6\n"
+                    "Empty,scanned,0,0,0,0\n"
                 ),
                 "github-sources": (
                     "id,status,metric,unit,value,sha256,revision,path\n"
@@ -88,9 +97,9 @@ class DatasetFigureCoverageTest(unittest.TestCase):
     def test_overlapping_routes_contribute_one_registry_entry(self):
         self.assertCountEqual(
             [row["id"] for row in self.rows],
-            ["Overlap", "CI", "Provider", "Archive", "Unlabelled", "Records"],
+            ["Overlap", "CI", "Provider", "Archive", "Unlabelled", "Records", "Empty"],
         )
-        self.assertEqual(sum(int(row["measured"]) for row in self.rows), 3)
+        self.assertEqual(sum(int(row["measured"]) for row in self.rows), 4)
         self.assertEqual(
             set(self.by_id["Overlap"]["measured_routes"].split(" | ")), {"direct", "hf"}
         )
@@ -110,7 +119,7 @@ class DatasetFigureCoverageTest(unittest.TestCase):
         self.assertEqual(set(row["tagged_routes"].split(" | ")), {"direct", "hf"})
 
     def test_unlabelled_scan_only_qualifies_for_record_coverage(self):
-        for ident in ("Unlabelled", "Records"):
+        for ident in ("Unlabelled", "Records", "Empty"):
             with self.subTest(ident=ident):
                 row = self.by_id[ident]
                 self.assertEqual(row["measured"], "1")
@@ -163,6 +172,22 @@ class PublishedCoverageTest(unittest.TestCase):
                 self.assertLessEqual(
                     float(row["min_percent"]), float(row["max_percent"])
                 )
+
+    def test_domain_chart_denominators_match_the_per_id_ledger(self):
+        coverage = self.read_rows("dataset-coverage.csv")
+        domains = self.read_rows("dataset-coverage-by-domain.csv")
+        self.assertCountEqual(
+            [row["domain"] for row in domains], {row["domain"] for row in coverage}
+        )
+        for row in domains:
+            with self.subTest(domain=row["domain"]):
+                members = [r for r in coverage if r["domain"] == row["domain"]]
+                measured = sum(int(r["measured"]) for r in members)
+                tagged = sum(int(r["tagged_tokens_measured"]) for r in members)
+                self.assertEqual(int(row["registered"]), len(members))
+                self.assertEqual(int(row["tagged_tokens_measured"]), tagged)
+                self.assertEqual(int(row["other_measured"]), measured - tagged)
+                self.assertEqual(int(row["unmeasured"]), len(members) - measured)
 
 
 if __name__ == "__main__":
