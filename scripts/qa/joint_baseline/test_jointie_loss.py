@@ -1,5 +1,6 @@
 """Regression for threshold/cap ordering and separately observed optimizer rejection."""
 
+import hashlib
 import json
 import unittest
 from copy import deepcopy
@@ -7,9 +8,65 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 from aggregate_receipt import external_output, project
+from check_jointie_loss import check
 from jerex_stages import SPLIT
 from jointie_coverage import attribute_schema
 from jointie_loss import DecoderTrace
+
+
+class ReceiptMutationTests(unittest.TestCase):
+    def setUp(self):
+        source = {
+            "doc_key": "synthetic", "sentence": ["A", "B", "C"],
+            "ner": [[i, i, "person"] for i in range(3)],
+            "relations": [[0, 0, 1, 1, "named"], [0, 0, 2, 2, "named"], [1, 1, 2, 2, "named"]],
+        }
+        a, b, c = (["person", start, start + 1] for start in (0, 2, 4))
+
+        def trace(h, t, reason):
+            return {"head": h, "predicate": "named", "tail": t, "first_loss": reason,
+                    "co_windows": [0], "joint_mention_windows": [0]}
+
+        hit = trace(a, b, "matched")
+        hit.update(probability=0.8, candidate_threshold=0.5, rank_after_gate=1,
+                   per_predicate_cap=5, optimizer_endpoint_count=2, optimizer_edge_utility=1.4)
+        weak = trace(b, c, "below_edge_candidate_threshold")
+        weak.update(probability=0.2, candidate_threshold=0.5, rank_after_gate=None,
+                    per_predicate_cap=5, optimizer_endpoint_count=2)
+        counts = {"gold_edges": 3, "decoded_edges": 2, "gold_edges_decoded": 1,
+                  "gold_mentions_decoded": 3, "gold_mentions": 3, "decoded_mentions": 3,
+                  "first_loss_matched": 1, "first_loss_not_in_sparse_edge_output": 1,
+                  "first_loss_below_edge_candidate_threshold": 1}
+        self.source = [source]
+        self.row = {
+            "document": "synthetic", "source_sha256": hashlib.sha256(b"A B C").hexdigest(),
+            "windows": [{"start": 0, "end": 5}], "counts": counts,
+            "decoded_mention_keys": [a, b, c], "decoded_edge_keys": [[a, "named", b], [b, "named", a]],
+            "edge_trace": [hit, trace(a, c, "not_in_sparse_edge_output"), weak],
+        }
+        self.report = {"enrolled_documents": 1, "scored_documents": 1,
+                       "totals": counts.copy(), "documents": [self.row]}
+        self.previous = deepcopy(self.report)
+
+    def test_valid_named_replay(self):
+        check(self.source, self.report, self.previous)
+
+    def test_replacing_one_correct_edge_with_another_keeps_totals(self):
+        self.row["decoded_edge_keys"][0][2] = self.row["decoded_mention_keys"][2]
+        with self.assertRaisesRegex(ValueError, "named decoded edge"):
+            check(self.source, self.report)
+
+    def test_replacing_a_false_positive_preserves_metrics_but_changes_frozen_graph(self):
+        self.row["decoded_edge_keys"][1][0] = self.row["decoded_mention_keys"][2]
+        check(self.source, self.report)  # Both versions really have one false positive.
+        with self.assertRaisesRegex(ValueError, "historical decoded_edge_keys"):
+            check(self.source, self.report, self.previous)
+
+    def test_swapping_two_missed_edge_stages_keeps_totals(self):
+        _, sparse, weak = self.row["edge_trace"]
+        sparse["first_loss"], weak["first_loss"] = weak["first_loss"], sparse["first_loss"]
+        with self.assertRaisesRegex(ValueError, "edge stage disagrees"):
+            check(self.source, self.report)
 
 
 class TraceTests(unittest.TestCase):

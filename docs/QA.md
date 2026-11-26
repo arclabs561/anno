@@ -12,6 +12,10 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Use the QA skill with an agent
+
+From the checkout under review, ask the agent to compare a saved paired-arm summary. Its brief reports final prediction counts for each cohort. To identify which individual predictions changed, inspect the paired item records. [Load the plugin](README.md#use-anno-with-an-agent) · [QA skill](../.agents/skills/anno-qa/SKILL.md)
+
 ## Checks for silent data loss and false passes
 
 | Contract | Regression that exercises it |

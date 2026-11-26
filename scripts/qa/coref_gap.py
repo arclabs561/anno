@@ -64,6 +64,35 @@ def index_partition(clusters):
     return index
 
 
+def decode_clusters(record, doc_id, text, backend, supplied=None):
+    """Validate the actual adapter response before collapsing spans into sets."""
+    if record["id"] != doc_id or record["producer"] != backend:
+        raise ValueError("resolver or document mismatch")
+    if "unsupported" in record:
+        if (backend != "maverick" or supplied is None or "clusters" in record
+                or record["unsupported"] != "supplied_span_splits_token"):
+            raise ValueError(f"invalid refusal on {doc_id}")
+        return None
+
+    allowed = None if supplied is None else set(supplied)
+    seen = set()
+    groups = []
+    for cluster in record["clusters"]:
+        group = set()
+        for start, end in cluster:
+            if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text):
+                raise ValueError(f"invalid returned character offsets on {doc_id}")
+            span = (start, end)
+            if span in seen:
+                raise ValueError(f"overlapping cluster assignment for {span} on {doc_id}")
+            if allowed is not None and span not in allowed:
+                raise ValueError(f"returned mention outside supplied spans on {doc_id}: {span}")
+            seen.add(span)
+            group.add(span)
+        groups.append(group)
+    return groups
+
+
 def measure(docs, records, backend, mode="predicted"):
     counts = dict.fromkeys(
         [
@@ -86,20 +115,13 @@ def measure(docs, records, backend, mode="predicted"):
     refused_gold_links = 0
     refusals = 0
     for (doc_id, text, targets, gold), record in zip(docs, records, strict=True):
-        if record["id"] != doc_id or record["producer"] != backend:
-            raise ValueError("resolver or document mismatch")
-        if "unsupported" in record:
-            if (backend != "maverick" or mode != "supplied" or "clusters" in record
-                    or record["unsupported"] != "supplied_span_splits_token"):
-                raise ValueError(f"invalid refusal on {doc_id}")
+        groups = decode_clusters(record, doc_id, text, backend, targets if mode == "supplied" else None)
+        if groups is None:
             refusals += 1
             refused_gold_links += sum(gold)
             observations.append({"unsupported": record["unsupported"]})
             continue
-        groups = [set(map(tuple, c)) for c in record["clusters"]]
         seen = index_partition(groups)
-        if any(not 0 <= start < end <= len(text) for start, end in seen):
-            raise ValueError(f"invalid returned character offsets on {doc_id}")
         covered = [span in seen for span in targets]
         pred = [
             targets[0] in seen and seen[targets[0]] == seen.get(target)

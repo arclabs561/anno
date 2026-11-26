@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "anno",
+  "description": "Use the Anno CLI, integrate extraction into applications, and investigate extraction quality with the project guides.",
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/arclabs561/anno"
+}
