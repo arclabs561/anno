@@ -893,6 +893,14 @@ impl Model for TPLinker {
         "tplinker"
     }
 
+    fn runtime_name(&self) -> &'static str {
+        if self.is_neural() {
+            "tplinker"
+        } else {
+            "tplinker-heuristic"
+        }
+    }
+
     fn description(&self) -> &'static str {
         #[cfg(feature = "onnx")]
         if self.onnx.is_some() {
@@ -1043,6 +1051,8 @@ mod tests {
     fn test_tplinker_name_and_description() {
         let tp = TPLinker::new().unwrap();
         assert_eq!(tp.name(), "tplinker");
+        #[cfg(not(feature = "onnx"))]
+        assert_eq!(tp.runtime_name(), "tplinker-heuristic");
         let desc = tp.description();
         assert!(
             desc.contains("TPLinker"),

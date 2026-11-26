@@ -281,6 +281,11 @@ pub trait Model: sealed::Sealed + Send + Sync {
         "unknown"
     }
 
+    /// Identify the implementation used for extraction, including an active fallback.
+    fn runtime_name(&self) -> &'static str {
+        self.name()
+    }
+
     /// Get a description of the model.
     fn description(&self) -> &'static str {
         "Unknown NER model"

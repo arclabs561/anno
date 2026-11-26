@@ -239,6 +239,16 @@ jobs:
         run: bash scripts/verification/check_reviewed_kb.sh
       - name: Replay index revisions and downstream queries
         run: bash scripts/verification/check_index_replay.sh
+      - name: Check multilingual source coordinates
+        run: |
+          cargo build --locked -p anno-cli --no-default-features --features "eval extractor-readability heuristic-fr"
+          python3 scripts/verification/check_language_spans.py "${CARGO_TARGET_DIR:-target}/debug/anno" language-spans.json
+      - name: Publish multilingual source-coordinate results
+        if: always() && hashFiles('language-spans.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: language-spans
+          path: language-spans.json
       - run: cargo test --package anno --lib
         # Unit tests exercise the public default stack with a cold local model cache.
         # Checkpoint verification has separate jobs with explicit, pinned assets.
