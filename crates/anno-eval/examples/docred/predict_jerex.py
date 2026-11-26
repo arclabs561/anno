@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import is_zipfile
 
 import torch
 from jerex import models
@@ -24,11 +25,16 @@ class CheckpointMetadata:
     """Passive replacement for a Lightning callback type stored as a dict key."""
 
 
-def predict(model_dir, documents, output, include_mention_scores=False, observer=None):
+def predict(model_dir, documents, output, include_mention_scores=False, observer=None, relation_threshold=None):
+    if relation_threshold is not None and not 0 <= relation_threshold <= 1:
+        raise ValueError("relation threshold must be a probability in [0, 1]")
     metadata = (CheckpointMetadata, "pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint")
     with torch.serialization.safe_globals([metadata, EntityType, RelationType]):
-        checkpoint = torch.load(model_dir / "model.ckpt", weights_only=True, map_location="cpu")
+        path = model_dir / "model.ckpt"
+        checkpoint = torch.load(path, weights_only=True, map_location="cpu", mmap=is_zipfile(path))
     hp = checkpoint["hyper_parameters"]
+    if relation_threshold is not None:
+        hp = dict(hp, rel_threshold=relation_threshold)
     if hp["model_type"] != "joint_multi_instance":
         raise ValueError("Expected the joint_multi_instance checkpoint")
     tokenizer = BertTokenizer.from_pretrained(model_dir, do_lower_case=hp["lowercase"], local_files_only=True)
@@ -47,7 +53,9 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
         raise ValueError("Checkpoint and encoder position indices differ")
     if "bert.embeddings.position_ids" in model.state_dict():
         state["bert.embeddings.position_ids"] = position_ids
-    model.load_state_dict(state, strict=True)
+    # Inference can use checkpoint tensors directly, including file-backed weights on the pinned release.
+    model.load_state_dict(state, strict=True, assign=True)
+    del state, checkpoint
     # Keep the default token-type buffer aligned with JEREX's extended positions.
     model.bert.embeddings.register_buffer("token_type_ids", torch.zeros_like(position_ids), persistent=False)
     model.eval()
@@ -89,6 +97,8 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
         rows = json.loads(staged.read_text(encoding="utf-8"))
         for row, document in zip(rows, documents, strict=True):
             row["title"] = document["title"]
+            if relation_threshold is not None:
+                row["relation_threshold"] = relation_threshold
         if include_mention_scores:
             with (model_dir / "model.ckpt").open("rb") as stream:
                 checkpoint_sha = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -108,8 +118,10 @@ def main():
     parser.add_argument("documents", type=Path)
     parser.add_argument("predictions", type=Path)
     parser.add_argument("--mention-scores", action="store_true", help="Include the trained mention detector probabilities")
+    parser.add_argument("--relation-threshold", type=float, help="explicit sigmoid cutoff, defaults to the checkpoint setting")
     args = parser.parse_args()
-    predict(args.model_dir, json.loads(args.documents.read_text(encoding="utf-8")), args.predictions, args.mention_scores)
+    predict(args.model_dir, json.loads(args.documents.read_text(encoding="utf-8")), args.predictions, args.mention_scores,
+            relation_threshold=args.relation_threshold)
 
 
 if __name__ == "__main__":
