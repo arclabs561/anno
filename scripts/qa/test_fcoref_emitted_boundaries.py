@@ -25,6 +25,19 @@ class BoundaryReplacementTests(unittest.TestCase):
         self.assertEqual(result["removed_spans_outside_marked"], 1)
         self.assertEqual(result["stock"]["all_output_spans"], result["candidate"]["all_output_spans"])
 
+    def test_exact_larger_gold_can_be_lost(self):
+        text = "Kim Yu. Dr Kim Yu said she saw Mo."
+        title = place(text, "Dr Kim Yu")
+        pronoun = place(text, "she")
+        row = dict(ID="fixture", Text=text, Pronoun="she", A="Dr Kim Yu", B="Mo")
+        row.update({"Pronoun-offset": pronoun[0], "A-offset": title[0], "B-offset": text.index("Mo"),
+                    "A-coref": "TRUE", "B-coref": "FALSE"})
+        pred = dict(id="fixture", producer="fcoref", clusters=[[place(text, "Kim Yu"), title, pronoun]])
+        result = score([row], [pred])
+        self.assertEqual(result["paired"]["gold_links_lost"], 1)
+        self.assertEqual(result["removed_marked_spans"], 1)
+        self.assertEqual(result["added_spans_outside_marked"], 1)
+
     def test_unique_target_and_global_collisions(self):
         text = "John John. John John John. dr John John left."
         name = place(text, "John John")

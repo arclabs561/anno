@@ -104,6 +104,8 @@ used the stock null and union-find decisions for both budgets. The separate
 uses `ceil(tokens / 2)` on different articles. That differs from exactly
 twice the rounded stock count by at most one candidate.
 
+A [follow-up on 256 separate English articles](fcoref-emitted-boundaries.md) tests whether names already emitted elsewhere in a cluster can repair an exact boundary.
+
 ### Reproduce the boundary-rank table
 
 The external inputs are GAP's original test and validation TSV files, the

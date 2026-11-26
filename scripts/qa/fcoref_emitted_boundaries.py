@@ -8,14 +8,22 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import unicodedata
+from urllib.parse import unquote, urlsplit
 
 from coref_gap import DATA_SHA, FC_FILES, FC_REV, check_file, decode_clusters, measure
+from gap_receipts import digest
 from fcoref_proposal_budget import DEVELOPMENT_SHA, cohort as budget_cohort, compare
 from native_gap_possessives import VALIDATION_SHA, read_rows
 
 
 MODEL_FILES = {**FC_FILES, "encoder.onnx": "190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4",
                "config.json": "2d96a29d2ebd497d34580594f40ded241440411bcd83885b89d8fbb86189bc3b"}
+
+
+def article_title(row):
+    path = unicodedata.normalize("NFC", unquote(urlsplit(row["URL"]).path))
+    return path.replace("_", " ").casefold()
 
 
 def panel(development, test, validation):
@@ -32,6 +40,9 @@ def panel(development, test, validation):
         urls.add(row["URL"])
         texts.add(row["Text"])
         if len(selected) == 256:
+            selected_titles = set(map(article_title, selected))
+            if len(selected_titles) != 256 or selected_titles.intersection(map(article_title, previous)):
+                raise ValueError("Repeated Wikipedia title after URL normalization")
             return selected
     raise ValueError("Expected 256 distinct fresh article URLs")
 
@@ -97,7 +108,11 @@ def score(rows, predictions):
         docs.append((row["ID"], text, targets, [v == "TRUE" for v in labels]))
     old = measure(docs, predictions, "fcoref")
     new = measure(docs, candidate, "fcoref")
-    return dict(stock=old["counts"], candidate=new["counts"], paired=compare(docs, old, new),
+    def partition_digest(records):
+        return digest([(r["id"], sorted(sorted(map(tuple, group)) for group in r["clusters"])) for r in records])
+
+    return dict(stock_partitions_sha256=partition_digest(predictions), candidate_partitions_sha256=partition_digest(candidate),
+                stock=old["counts"], candidate=new["counts"], paired=compare(docs, old, new),
                 documents_with_replacements=changed_docs, replaced_output_spans=changed_spans,
                 removed_marked_spans=removed_marked, added_marked_spans=added_marked,
                 removed_spans_outside_marked=changed_spans - removed_marked,
