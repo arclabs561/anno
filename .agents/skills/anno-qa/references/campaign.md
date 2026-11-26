@@ -155,3 +155,5 @@ panels to check what the extractor missed.
   and numerical evidence on the target hardware before claiming support.
 - Coreference receipts must disclose adapter and scorer limitations; an
   approximate CEAF assignment does not produce official leaderboard scores.
+
+After scoring, link the shareable aggregate to its study in the [experiment records](../../../../docs/eval/README.md). Preserve the private run directory according to the source terms if reviewers need per-document evidence.

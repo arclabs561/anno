@@ -34,6 +34,7 @@ For clients that load a local Agent Plugins package, select the checkout’s `.a
 
 | Task | Guide |
 |---|---|
+| Find an experiment’s notes, results and replay command, or record a new trial | [Experiment records](eval/README.md) |
 | Choose a regression fixture, a labeled comparison or a live check | [Fixtures, datasets and QA](QA.md) |
 | Choose a benchmark for mention spans, clusters or directed relations | [Worked example](QA.md#find-a-dataset-or-add-a-case) |
 | Find the files and splits behind a figure and see which datasets were left out | [Dataset coverage and exclusions](eval/dataset-coverage.md) |
