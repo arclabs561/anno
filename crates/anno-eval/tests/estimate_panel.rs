@@ -88,10 +88,12 @@ fn estimate_uses_final_datasets_for_eligibility_and_history() {
         assert_eq!(decision["datasets"], serde_json::json!([dataset]));
         let arms = decision["remaining"].as_array().unwrap();
         assert_eq!(arms.iter().any(|b| b == "heuristic"), domain == "news");
-        let slice = format!("ner.lang=en.dom={domain}");
+        // These caller-supplied bytes have no provenance binding them to a language.
+        let slice = format!("ner.lang=unknown.dom={domain}");
         assert_eq!(decision["slice"], slice);
         let outcome = rows.iter().find(|r| r["record_type"] == "outcome").unwrap();
         assert_eq!(outcome["slice"], slice);
+        assert!(outcome["observed_language"].is_null());
         assert!(dir
             .path()
             .join(format!("muxer_history.{slice}.json"))
