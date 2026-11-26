@@ -1,4 +1,4 @@
-use anno::{DiscontinuousSpan, Entity, EntityType, GroundedDocument};
+use anno::{Entity, EntityType, GroundedDocument};
 use std::{fs, path::Path, process::Command};
 
 fn run(dir: &Path, args: &[&str]) {
