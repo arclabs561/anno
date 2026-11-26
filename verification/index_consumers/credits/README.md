@@ -38,6 +38,10 @@ The [replay](check_attribution_history.py) reads the authored JATS through the b
 
 The article’s affiliation comes from its contributor reference. Dated institutional claims have independent evidence. The reference reader keeps an undated affiliation visible as undetermined for the requested day. Its edition counter orders what the application learned. The fixture treats a stated period as nonempty and uses whole days, with an exclusive end. A known start confirms that day. A known end confirms the previous day. It assumes trusted native CLI output; the reader checks the scope, transition, and the person named by each authority decision. Each claim is public in this fixture. Each retained view occupies memory. [JATS affiliations](https://jats.nlm.nih.gov/publishing/tag-library/1.4/chapter/tag-affiliations.html) · [ORCID affiliation dates and overlapping roles](https://info.orcid.org/documentation/integration-guide/admin-guide-to-affiliations/) · [Example of a publisher changing an author list](https://elifesciences.org/articles/90408)
 
+The date check generates 15 possible reports with known or missing bounds. It asks about six days spanning a leap day, through both name and affiliation lookup. Its answer key enumerates the compatible nonempty intervals. A citation is confirmed if every interval covers the day, undetermined if some do, and absent if none do. Several sources use the same display value, so the check also exercises retaining each citation and keeping the other namesake's answers separate. The replay includes a faulty reader that discards uncertain names and checks that it fails on those answers.
+
+A missing end here means that the source did not supply one. The [temporal alias example](../../temporal_identity/check_replay.py) models a different source convention in which a dated alias can continue indefinitely.
+
 Run `python3 verification/index_consumers/credits/check_attribution_history.py --anno target/debug/anno`. All article text, example dates, authority decisions and expected answers for this case were written for anno under MIT OR Apache-2.0.
 
 ## Provenance and reuse
