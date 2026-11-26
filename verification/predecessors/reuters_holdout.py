@@ -19,12 +19,15 @@ from rdflib import Graph, Namespace
 
 NIF = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
 ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
+RSS_DIGEST = "4ee0d831cb7fdcc7ca4263aea0444984cb210294dd9afad825caa5a66590f3cc"
 DIGEST = "7b0b9a158a77edab8219999fd88b38993df748410aed9ad063f58fe8c15c0f9a"
 
 
 def split(source):
-    if hashlib.sha256(source.read_bytes()).hexdigest() != DIGEST:
-        raise ValueError("unexpected Reuters-128 input revision")
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    rss = digest == RSS_DIGEST
+    if not rss and digest != DIGEST:
+        raise ValueError("expected the pinned Reuters-128 or RSS-500 input")
     graph = Graph().parse(source, format="nt")
     catalog = defaultdict(Counter)
     queries = []
@@ -38,7 +41,14 @@ def split(source):
         surface = str(graph.value(mention, NIF.anchorOf))
         if text[start:end] != surface:
             raise ValueError(f"source span mismatch at {mention}")
-        key = (text, start, end, str(target))
+        target = str(target)
+        # RSS-500 explicitly labels mentions with no Wikipedia identity.
+        if rss:
+            if target.startswith("http://aksw.org/notInWiki/"):
+                target = None
+            else:
+                target = target.replace("http://dbpedia.org/page/", "http://dbpedia.org/resource/")
+        key = (text, start, end, target)
         if key in seen:
             continue
         seen.add(key)
@@ -46,9 +56,9 @@ def split(source):
         holdout = int(digest, 16) % 3 == 0
         documents[holdout].add(digest)
         if holdout:
-            queries.append((surface, str(target)))
-        else:
-            catalog[str(target)][surface] += 1
+            queries.append((surface, target))
+        elif target is not None:
+            catalog[target][surface] += 1
     return catalog, queries, len(documents[False]), len(documents[True])
 
 
@@ -103,6 +113,9 @@ def run(source, binary, directory):
         for occurrence, (name, target) in enumerate(queries):
             ids = choices[name]
             present = target in catalog
+            if target is None:
+                stats["explicit_nil"] += 1
+                stats["shown_on_explicit_nil"] += bool(ids)
             stats["in_catalog" if present else "absent_from_catalog"] += 1
             if policy == "default" and present and target not in ids:
                 score = qualifying[name].get(target, 0)
