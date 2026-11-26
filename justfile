@@ -285,6 +285,11 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
     echo "QA panel output: $OUT"
     python3 scripts/qa/run_panel.py --anno-bin "$ANNO_BIN" --suite "$SUITE" --output-dir "$OUT"
 
+# Inspect pinned corpus terms, check local inputs, or replay source-bound coreference cases.
+[positional-arguments]
+qa-coref-corpora *args:
+    @python3 scripts/qa/coref_corpus.py "$@"
+
 # Prepare a coordinator prompt from a fixed panel or a muxer slot.
 qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
