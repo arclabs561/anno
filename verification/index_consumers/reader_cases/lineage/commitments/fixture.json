@@ -1,0 +1,25 @@
+{
+  "catalog": {
+    "fen": ["Copper Fen Observatory", "Copper Fen Station"],
+    "reed": ["Quiet Reed College"],
+    "coil": ["Cobalt Coil Institute"],
+    "east": ["Beacon Field House East", "Beacon Field House"],
+    "west": ["Beacon Field House West", "Beacon Field House"],
+    "salt": ["Salt Mirror Archive"],
+    "mesa": ["Nine Mesa Academy"]
+  },
+  "papers": [
+    ["single_display", "available", [["Quiet Reed College", "reed"]]],
+    ["single_alias", "available", [["Copper Fen Station", "fen"]]],
+    ["single_case", "available", [["COBALT  COIL INSTITUTE", "coil"]]],
+    ["absent_novel", "absent", [["ΩΞΨ", "missing_greek"]]],
+    ["absent_namesake", "absent", [["Salt Mirror Archive", "missing_salt"]]],
+    ["ambiguous_east", "ambiguous", [["Beacon Field House", "east"]]],
+    ["ambiguous_west", "ambiguous", [["Beacon Field House", "west"]]],
+    ["two_exact", "multiple_available", [["Cobalt Coil Institute", "coil"], ["Quiet Reed College", "reed"]]],
+    ["three_exact", "multiple_available", [["Nine Mesa Academy", "mesa"], ["Quiet Reed College", "reed"], ["Copper Fen Station", "fen"]]],
+    ["two_one_ambiguous", "multiple_ambiguous", [["Quiet Reed College", "reed"], ["Beacon Field House", "west"]]],
+    ["two_one_missing", "multiple_partial_catalog", [["Copper Fen Station", "fen"], ["ΩΞΨ", "missing_greek"]]],
+    ["two_missing_namesake", "multiple_partial_catalog", [["Cobalt Coil Institute", "coil"], ["Salt Mirror Archive", "missing_salt"]]]
+  ]
+}
