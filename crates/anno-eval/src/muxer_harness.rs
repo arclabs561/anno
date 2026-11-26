@@ -957,8 +957,8 @@ impl FacetSlug {
 }
 
 #[cfg(feature = "eval")]
-fn facet_slug(values: &[&'static str]) -> FacetSlug {
-    let mut uniq: Vec<&'static str> = values.to_vec();
+fn facet_slug(values: &[&str]) -> FacetSlug {
+    let mut uniq = values.to_vec();
     uniq.sort();
     uniq.dedup();
     if uniq.is_empty() {
@@ -1003,15 +1003,26 @@ pub fn muxer_slice_tag(
     datasets: &[crate::eval::loader::DatasetId],
     slice_by_dataset_facets: bool,
 ) -> Result<SliceTag, String> {
+    let languages: Vec<_> = datasets.iter().map(|d| d.language()).collect();
+    let domains: Vec<_> = datasets.iter().map(|d| d.domain()).collect();
+    muxer_slice_with_facets(task_code, &languages, &domains, slice_by_dataset_facets)
+}
+
+/// Build a history tag from the facets of the actual selected artifacts.
+#[cfg(feature = "eval")]
+pub(crate) fn muxer_slice_with_facets(
+    task_code: &str,
+    languages: &[&str],
+    domains: &[&str],
+    slice_by_dataset_facets: bool,
+) -> Result<SliceTag, String> {
     let base = SliceTag::parse(task_code)?;
     if !slice_by_dataset_facets {
         return Ok(base);
     }
-    let langs: Vec<&'static str> = datasets.iter().map(|d| d.language()).collect();
-    let domains: Vec<&'static str> = datasets.iter().map(|d| d.domain()).collect();
     let summary = DatasetFacetSummary {
-        language: facet_slug(&langs),
-        domain: facet_slug(&domains),
+        language: facet_slug(languages),
+        domain: facet_slug(domains),
     };
     let tagged = format!(
         "{}.lang={}.dom={}",
@@ -1059,6 +1070,15 @@ pub const CONTEXT_DIM: usize = 8;
 /// "Cyrillic + biomedical => prefer ONNX") without combinatorial facet explosion.
 #[cfg(feature = "eval")]
 pub fn context_features(datasets: &[DatasetId]) -> [f64; CONTEXT_DIM] {
+    context_features_with_language(datasets, |id| Some(id.language()))
+}
+
+/// Use the artifact language when updating contextual policy state from real observations.
+#[cfg(feature = "eval")]
+pub(crate) fn context_features_with_language<'a>(
+    datasets: &[DatasetId],
+    language: impl Fn(DatasetId) -> Option<&'a str>,
+) -> [f64; CONTEXT_DIM] {
     let mut f = [0.0f64; CONTEXT_DIM];
     f[0] = 1.0; // bias
 
@@ -1072,11 +1092,11 @@ pub fn context_features(datasets: &[DatasetId]) -> [f64; CONTEXT_DIM] {
     let mut total_entity_types = 0u32;
 
     for d in datasets {
-        let lang = d.language();
-        if lang == "en" {
+        let lang = language(*d);
+        if lang == Some("en") {
             n_en += 1;
         }
-        if lang == "mul" || lang == "mixed" {
+        if matches!(lang, Some("mul" | "mixed")) {
             n_mul += 1;
         }
 

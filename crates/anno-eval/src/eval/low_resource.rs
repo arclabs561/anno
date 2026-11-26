@@ -929,32 +929,7 @@ pub fn language_metadata(language_code: &str) -> Option<LowResourceMetadata> {
     }
 }
 
-/// MasakhaNER 2.0 language codes.
-///
-/// These codes can be used to load specific language splits from MasakhaNER 2.0.
-/// Example: `load_dataset("masakhane/masakhaner2", "yor")` for Yoruba.
-pub const MASAKHANER2_LANGUAGES: &[(&str, &str)] = &[
-    ("bam", "Bambara"),
-    ("bbj", "Ghomala"),
-    ("ewe", "Ewe"),
-    ("fon", "Fon"),
-    ("hau", "Hausa"),
-    ("ibo", "Igbo"),
-    ("kin", "Kinyarwanda"),
-    ("lug", "Luganda"),
-    ("luo", "Dholuo"),
-    ("mos", "Mossi"),
-    ("nya", "Chichewa"),
-    ("pcm", "Nigerian Pidgin"),
-    ("sna", "Shona"),
-    ("swa", "Swahili"),
-    ("tsn", "Setswana"),
-    ("twi", "Twi"),
-    ("wol", "Wolof"),
-    ("xho", "Xhosa"),
-    ("yor", "Yoruba"),
-    ("zul", "Zulu"),
-];
+pub use super::dataset_language::MASAKHANER2_LANGUAGES;
 
 /// Get language name from MasakhaNER 2.0 code.
 pub fn masakhaner2_language_name(code: &str) -> Option<&'static str> {

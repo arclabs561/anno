@@ -33,6 +33,9 @@ impl Catalog {
             languages: ["mixed".into(), "unknown".into()].into(),
             domains: ["mixed".into(), "unknown".into()].into(),
         };
+        catalog
+            .languages
+            .extend(crate::eval::dataset_language::verified_config_languages().map(str::to_owned));
         for dataset in DatasetId::all() {
             let slice = mh::muxer_slice_tag("ner", &[*dataset], true).unwrap();
             let (_, facets) = slice.as_str().split_once(".lang=").unwrap();
@@ -461,5 +464,7 @@ mod tests {
         );
         assert!(!catalog.arm("heuristic@@PRIVATE_SENTINEL") && !catalog.arm("PRIVATE_SENTINEL"));
         assert!(!catalog.slice("ner.lang=en.dom=PRIVATE_SENTINEL"));
+        assert!(catalog.slice("ner.lang=ace.dom=wikipedia"));
+        assert!(!catalog.slice("ner.lang=zzz.dom=wikipedia"));
     }
 }

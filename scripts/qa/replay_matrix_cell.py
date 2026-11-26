@@ -18,6 +18,10 @@ FIXTURES = {
 }
 
 
+def language_tag(value):
+    return isinstance(value, str) and re.fullmatch(r"[a-z]{2,8}(?:-[a-z0-9]{1,8}){0,4}", value) is not None
+
+
 def replay_args(row):
     """Only emit shell-safe identifiers and bounded typed values from the outcome."""
     fields = [row.get(key) for key in ("task", "dataset", "backend")]
@@ -32,6 +36,16 @@ def replay_args(row):
         if not isinstance(digest, str) or not re.fullmatch("[a-f0-9]{64}", digest):
             return None
         args += ["--dataset-sha256", digest]
+    requested = row.get("requested_languages", [])
+    observed = row.get("observed_language")
+    if not isinstance(requested, list) or not all(map(language_tag, requested)):
+        return None
+    if requested != sorted(set(requested)) or (observed is not None and not language_tag(observed)):
+        return None
+    if requested:
+        args += ["--languages", ",".join(requested)]
+    if observed is not None:
+        args += ["--observed-language", observed]
     for key, flag in (("coref_gold", "--gold-mentions"), ("coref_english_pronouns", "--english-pronouns")):
         if type(row.get(key)) is not bool:
             return None
@@ -49,6 +63,10 @@ def replay(args):
     wanted = dict(task=args.task, dataset=args.dataset, backend=args.backend, seed=args.seed,
                   max_examples=args.max_examples, dataset_sha256=args.dataset_sha256,
                   coref_gold=args.gold_mentions, coref_english_pronouns=args.english_pronouns)
+    if args.languages is not None:
+        wanted["requested_languages"] = args.languages.split(",")
+    if args.observed_language is not None:
+        wanted["observed_language"] = args.observed_language
     command = replay_command(wanted)
     if not command:
         raise ValueError("invalid cell identifier, seed, sample limit or dataset SHA-256")
@@ -68,6 +86,8 @@ def replay(args):
             datasets.symlink_to((args.cache_dir / "datasets").resolve(), target_is_directory=True)
         log = cache / "outcomes.jsonl"
         env = sampler_env(cache, "random", log, fixed=args.dataset, seed=args.seed)
+        if args.languages:
+            env["ANNO_MUXER_PIN_LANG"] = args.languages
         env.update(ANNO_MATRIX_TASK=args.task,
                    ANNO_MUXER_PIN_BACKEND=args.backend, ANNO_ML_IN_MATRIX="1",
                    ANNO_MAX_EXAMPLES=str(args.max_examples), ANNO_COREF_GOLD=str(int(args.gold_mentions)),
@@ -100,6 +120,8 @@ if __name__ == "__main__":
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--max-examples", type=int, required=True)
     p.add_argument("--dataset-sha256", help="require the loader-reported dataset digest")
+    p.add_argument("--languages", help="original comma-separated language pins")
+    p.add_argument("--observed-language", help="require this language in the evaluated input receipt")
     p.add_argument("--gold-mentions", action="store_true")
     p.add_argument("--english-pronouns", action="store_true")
     p.add_argument("--cache-dir", type=Path, default=os.getenv("ANNO_CACHE_DIR"))

@@ -275,6 +275,7 @@ pub mod coref_resolver {
 }
 pub mod cuad;
 pub mod dataset;
+pub(crate) mod dataset_language;
 pub mod dataset_metadata;
 pub mod dataset_registry;
 pub mod dataset_spec;
