@@ -627,7 +627,7 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
     }
 
     // Write outputs.
-    write_outputs(&documents, &args)?;
+    write_outputs(&documents, &args, &model_name)?;
 
     if !args.quiet {
         if cache_root.is_some() && cache_hits > 0 {
@@ -651,7 +651,11 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
 ///
 /// Schema: `{id, entities: [{text, type, start, end, confidence, negated, quantifier}], tracks}`
 /// This matches the extract command's output so consumers get a consistent schema.
-fn doc_to_clean_json(doc: &anno::GroundedDocument, model_name: &str) -> serde_json::Value {
+fn doc_to_clean_json(
+    doc: &anno::GroundedDocument,
+    model_name: &str,
+    runtime_model: &str,
+) -> serde_json::Value {
     let entities: Vec<serde_json::Value> = doc
         .signals()
         .iter()
@@ -696,6 +700,7 @@ fn doc_to_clean_json(doc: &anno::GroundedDocument, model_name: &str) -> serde_js
     let mut obj = serde_json::json!({
         "id": doc.id(),
         "model": model_name,
+        "runtime_model": runtime_model,
         "text_length": doc.text().chars().count(),
         "source_sha256": source_sha256(doc.text()),
         "entity_count": entities.len(),
@@ -707,7 +712,11 @@ fn doc_to_clean_json(doc: &anno::GroundedDocument, model_name: &str) -> serde_js
     obj
 }
 
-fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Result<(), String> {
+fn write_outputs(
+    documents: &[anno::GroundedDocument],
+    args: &BatchArgs,
+    runtime_model: &str,
+) -> Result<(), String> {
     use super::super::output::{color, print_signals};
 
     let model_name = args.model.name();
@@ -719,7 +728,7 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
                 // Clean schema matching `extract --format json`
                 let clean: Vec<serde_json::Value> = documents
                     .iter()
-                    .map(|d| doc_to_clean_json(d, model_name))
+                    .map(|d| doc_to_clean_json(d, model_name, runtime_model))
                     .collect();
                 let output = serde_json::to_string_pretty(&clean)
                     .map_err(|e| format!("Failed to serialize batch output: {}", e))?;
@@ -734,7 +743,7 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
             OutputFormat::Jsonl => {
                 // One clean JSON object per line
                 for doc in documents {
-                    let clean = doc_to_clean_json(doc, model_name);
+                    let clean = doc_to_clean_json(doc, model_name, runtime_model);
                     let line = serde_json::to_string(&clean)
                         .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                     println!("{}", line);
@@ -770,7 +779,7 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
         match args.format {
             OutputFormat::Json => {
                 let path = out_dir.join(format!("{}.json", doc.id()));
-                let clean = doc_to_clean_json(doc, model_name);
+                let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string_pretty(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload)
@@ -778,7 +787,7 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
             }
             OutputFormat::Jsonl => {
                 let path = out_dir.join(format!("{}.jsonl", doc.id()));
-                let clean = doc_to_clean_json(doc, model_name);
+                let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload + "\n")
@@ -1019,8 +1028,8 @@ mod tests {
             "cache reuse must preserve the complete extraction, including confidence"
         );
         assert_eq!(
-            super::doc_to_clean_json(&fresh, "pattern"),
-            super::doc_to_clean_json(&cached, "pattern")
+            super::doc_to_clean_json(&fresh, "pattern", "regex"),
+            super::doc_to_clean_json(&cached, "pattern", "regex")
         );
     }
 
@@ -1166,9 +1175,10 @@ mod tests {
         );
         doc.add_signal(signal);
 
-        let json = super::doc_to_clean_json(&doc, "bert-onnx");
+        let json = super::doc_to_clean_json(&doc, "tplinker", "tplinker-heuristic");
         assert_eq!(json["id"], "test_doc");
-        assert_eq!(json["model"], "bert-onnx");
+        assert_eq!(json["model"], "tplinker");
+        assert_eq!(json["runtime_model"], "tplinker-heuristic");
         assert_eq!(json["entity_count"], 1);
         assert_eq!(json["text_length"], 23);
         assert_eq!(
