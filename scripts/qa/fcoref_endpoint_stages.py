@@ -3,11 +3,11 @@
 from collections import Counter
 import hashlib
 import json
-import math
 from pathlib import Path
 from statistics import median
 
 from coref_gap import decode_clusters, index_partition
+from fcoref_boundary_ranks import span_ranks
 from gap_receipts import digest
 
 
@@ -15,54 +15,6 @@ REFERENCE = Path(__file__).resolve().parents[2] / "docs/eval/fcoref-emitted-boun
 STAGES = ("no_exact_candidate", "below_stock_budget", "retained_but_not_emitted",
           "emitted_separately", "linked")
 ROLES = ("pronoun", "name", "both")
-# Rust str::trim uses Unicode White_Space. Python's default strip also removes U+001C..U+001F.
-WHITE_SPACE = "\t\n\v\f\r \u0085\u00a0\u1680" + "".join(chr(i) for i in range(0x2000, 0x200B)) + "\u2028\u2029\u202f\u205f\u3000"
-
-
-def span_ranks(text, encoding, trace):
-    """Find the best native rank mapping to each nonempty source-character span."""
-    k, candidates = trace
-    offsets, mask = encoding.offsets, encoding.attention_mask
-    if len(offsets) != len(mask) or any(bit not in (0, 1) for bit in mask):
-        raise ValueError("Invalid tokenizer attention mask")
-    if any(not 0 <= a <= b <= len(text) for a, b in offsets):
-        raise ValueError("Tokenizer returned invalid source offsets")
-    if type(k) is not int or k != max(1, (sum(mask) + 3) // 4):
-        raise ValueError("Unexpected stock cutoff")
-    legal = set()
-    for i in range(len(mask)):
-        for j in range(i, min(i + 30, len(mask))):
-            if not mask[j]:
-                break
-            legal.add((i, j))
-    if len(candidates) != len(legal):
-        raise ValueError("Incomplete native candidate table")
-
-    best = {}
-    previous_score = None
-    previous_pair = None
-    for rank, (i, j, logit) in enumerate(candidates, 1):
-        pair = (i, j)
-        if type(i) is not int or type(j) is not int or pair not in legal:
-            raise ValueError("Illegal or repeated token pair in trace")
-        legal.remove(pair)
-        if type(logit) not in (float, int) or not math.isfinite(logit):
-            raise ValueError("Invalid native logit")
-        # Rust f32::total_cmp distinguishes signed zero. Stable ties retain (i,j) order.
-        score_key = (logit, math.copysign(1, logit))
-        if previous_score is not None and (score_key > previous_score or
-                (score_key == previous_score and pair < previous_pair)):
-            raise ValueError("Candidate trace differs from the native rank order")
-        previous_score, previous_pair = score_key, pair
-        start, end = offsets[i][0], offsets[j][1]
-        raw = text[start:end]
-        leading_trimmed = raw.lstrip(WHITE_SPACE)
-        surface = leading_trimmed.rstrip(WHITE_SPACE)
-        if surface:
-            start += len(raw) - len(leading_trimmed)
-            best.setdefault((start, start + len(surface)), rank)
-    return best
-
 
 def endpoint_role(pronoun, name):
     return "both" if pronoun and name else "pronoun" if pronoun else "name"
