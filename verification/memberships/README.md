@@ -18,6 +18,8 @@ The CLI rebuilds current model memberships from the submitted documents. A live 
 
 Apply removals then upserts from the expected predecessor and advance the checkpoint atomically. Redeliveries whose target already matches need no writes. Consumers caching a neighbor's display information must invalidate cached queries for affected **old and new** components, including when member metadata changes. The SQLite replay consumes intact locally generated CLI output, indexes postings by component, and compares every cached response to fresh bulk and native queries. It includes redundant paths, a disjoint insertion, source-edition replacement, ties, reversed input, an empty final corpus, and incompatible predecessors.
 
+A saved search for an exact display surface can have zero hits when it is cached. On each removal and upsert the sample reader evicts the cached search for that row's surface. This catches the first match on insertion and the last match on withdrawal. Changing a bridge track's display from “Jori Moss” to “Moss Jori” updates only its own posting, yet its neighbors' cached displays and searches for both spellings must refresh. The publisher provides changed rows and checkpoints. The application owns the predicates and dependencies of the answers it caches.
+
 ```sh
 cargo test --locked -p anno --no-default-features --test membership_publication
 cargo test --locked -p anno-cli --no-default-features --features 'eval extractor-readability' --test membership_queries
