@@ -1,463 +1,463 @@
-name,url,language,domain,format,id,access,result,tokens,tagged,bytes
-Anno NER Smoke,,en,example,CoNLL,AnnoNerSmoke,Local,Registry metadata only,,,
-WikiGold,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt,en,wikipedia,CoNLL,WikiGold,Public,BIO token counts,39007,6431,318530
-WNUT-17,https://raw.githubusercontent.com/leondz/emerging_entities_17/master/emerging.test.annotated,en,social_media,CoNLL,Wnut17,HuggingFace,BIO token counts,23394,1740,192425
-MIT Movie,https://groups.csail.mit.edu/sls/downloads/movie/engtest.bio,en,entertainment,BIO,MitMovie,Public,BIO token counts,24686,9757,252636
-MIT Restaurant,https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttest.bio,en,restaurant,BIO,MitRestaurant,Public,BIO token counts,14256,5597,155722
-CoNLL-2003 Sample,https://huggingface.co/datasets/tner/conll2003,en,news,CoNLL,CoNLL2003Sample,HuggingFace,Registry metadata only,,,
-OntoNotes Sample,https://huggingface.co/datasets/tner/ontonotes5,en,news,CoNLL,OntoNotesSample,HuggingFace,Registry metadata only,,,
-MultiNERD,https://huggingface.co/datasets/Babelscape/multinerd/resolve/main/test/test_en.jsonl,en,wikipedia,JSONL,MultiNERD,HuggingFace,File read,,,4648704
-Few-NERD,https://huggingface.co/datasets/DFKI-SLT/few-nerd,en,wikipedia,TSV,FewNERD,HuggingFace,Registry metadata only,,,
-CrossNER,https://huggingface.co/datasets/DFKI-SLT/cross_ner,en,multi-domain,CoNLL,CrossNER,HuggingFace,Registry metadata only,,,
-FabNER,https://huggingface.co/datasets/DFKI-SLT/fabner,en,manufacturing,CoNLL,FabNER,HuggingFace,Registry metadata only,,,
-Broad Twitter Corpus,https://huggingface.co/datasets/tner/btc,en,social_media,BIO,BroadTwitterCorpus,HuggingFace,Registry metadata only,,,
-WikiNeural,https://huggingface.co/datasets/Babelscape/wikineural,mul,wikipedia,CoNLL,WikiNeural,HuggingFace,Registry metadata only,,,
-Polyglot-NER,https://huggingface.co/datasets/rmyeid/polyglot_ner,mul,wikipedia,CoNLL,PolyglotNER,HuggingFace,Registry metadata only,,,
-Universal NER,https://github.com/UniversalNER/uner_code,mul,mixed,CoNLL,UniversalNERBench,Public,Registry metadata only,,,
-CoNLL-2002,,mul,news,CoNLL,CoNLL2002,Deprecated,Registry metadata only,,,
-TweetNER7,https://huggingface.co/datasets/tner/tweetner7,en,social_media,JSONL,TweetNER7,HuggingFace,Registry metadata only,,,
-Google-RE,https://raw.githubusercontent.com/google-research-datasets/relation-extraction-corpus/master/20130403-place_of_birth.json,en,wikipedia,JSON,GoogleRE,Public,File read,,,7735964
-NYT-FB,https://github.com/thunlp/OpenNRE,en,news,JSONL,NYTFB,Public,Registry metadata only,,,
-REBEL,https://huggingface.co/datasets/Babelscape/rebel-dataset,en,wikipedia,JSONL,REBEL,Public,Registry metadata only,,,
-MultiCoNER,https://huggingface.co/datasets/samanjoy2/multiconer_v1,mul,mixed,CoNLL,MultiCoNER,HuggingFace,Registry metadata only,,,
-MultiCoNER v2,https://huggingface.co/datasets/MultiCoNER/multiconer_v2,mul,mixed,CoNLL,MultiCoNERv2,HuggingFace,Registry metadata only,,,
-BC5CDR,https://huggingface.co/datasets/tner/bc5cdr,en,biomedical,BIO,BC5CDR,HuggingFace,Registry metadata only,,,
-NCBI Disease,https://raw.githubusercontent.com/shreyashub/BioFLAIR/master/data/ner/NCBI-disease/test.txt,en,biomedical,BIO,NCBIDisease,HuggingFace,BIO token counts,24497,2047,328149
-GENIA,https://huggingface.co/datasets/chufangao/GENIA-NER,en,biomedical,XML,GENIA,HuggingFace,Registry metadata only,,,
-AnatEM,https://huggingface.co/datasets/disi-unibo-nlp/AnatEM,en,biomedical,Standoff,AnatEM,HuggingFace,Registry metadata only,,,
-BC2GM,https://huggingface.co/datasets/spyysalo/bc2gm_corpus,en,biomedical,IOB2,BC2GM,HuggingFace,Registry metadata only,,,
-BC4CHEMD,https://huggingface.co/datasets/chintagunta85/bc4chemd,en,biomedical,IOB2,BC4CHEMD,HuggingFace,Registry metadata only,,,
-GAP,https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv,en,wikipedia,TSV,GAP,HuggingFace,File read,,,1075889
-PreCo,https://huggingface.co/datasets/coref-data/preco_raw,en,reading_comprehension,JSONL,PreCo,HuggingFace,Registry metadata only,,,
-LitBank,https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann,en,literature,BRAT,LitBank,Public,File read,,,25073
-ECB+,https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip,en,news,ECB+ XML (ZIP),ECBPlus,Public,File read,,,4470858
-OntoNotes Coreference,https://catalog.ldc.upenn.edu/LDC2013T19,en,mixed,CoNLL,OntoNotesCoref,Public,Registry metadata only,,,
-WikiCoref,,en,wikipedia,CoNLL,WikiCoref,Deprecated,Registry metadata only,,,
-ARRAU 3.0,https://aclanthology.org/2024.codi-1.12/,en,mixed,MMAX2,ARRAU3,Public,Registry metadata only,,,
-AMI Meeting,https://groups.inf.ed.ac.uk/ami/download/,en,dialogue,XML,AMIMeeting,Public,Registry metadata only,,,
-CLEF Clinical Coreference,,en,clinical,Standoff,CLEFClinicalCoref,Registration,Registry metadata only,,,
-RST Discourse Treebank,https://catalog.ldc.upenn.edu/LDC2002T07,en,news,Custom,RSTDT,Public,Registry metadata only,,,
-WinoBias,https://raw.githubusercontent.com/uclanlp/corefBias/master/WinoBias/wino/data/anti_stereotyped_type1.txt.dev,en,evaluation,Custom,WinoBias,Public,File read,,,32782
-qxoRef,https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll,qxo,narrative,CoNLL,QxoRef,Public,File read,,,8548
-AmericasNLI,https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv,mul,general,TSV,AmericasNLI,Public,File read,,,1165688
-Cherokee NER,,chr,indigenous,Custom,CherokeeNER,Deprecated,Registry metadata only,,,
-Nahuatl NER,,nah,historical,CoNLL,NahuatlNER,Deprecated,Registry metadata only,,,
-Māori NER,,mi,indigenous,JSONL,MaoriNER,ContactAuthors,Registry metadata only,,,
-Welsh NER,,cy,news,CoNLL,WelshNER,Deprecated,Registry metadata only,,,
-Basque NER,,eu,news,CoNLL,BasqueNER,Deprecated,Registry metadata only,,,
-HIPE-2022,https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-test-de.tsv,mul,historical,TSV,HIPE2022,Public,File read,,,929525
-HistNERo,https://github.com/avramandrei/histnero,ro,historical,CoNLL,HistNERo,Public,Registry metadata only,,,
-Quaero Old Press,,fr,historical,XML,QuaeroOldPress,ContactAuthors,Registry metadata only,,,
-Historical Chinese NER,,zh,historical,JSONL,HistoricalChineseNER,ContactAuthors,Registry metadata only,,,
-CHisIEC,https://raw.githubusercontent.com/tangxuemei1995/CHisIEC/main/data/re/coling_test.json,lzh,historical,JSON,CHisIEC,Public,File read,,,184906
-DocRED,,en,wikipedia,JSON,DocRED,Public,Registry metadata only,,,
-Re-TACRED,,en,news,JSON,ReTACRED,DependsOnOther,Registry metadata only,,,
-ACE 2004,,en,news,XML,ACE2004,Registration,Registry metadata only,,,
-CADEC,https://huggingface.co/datasets/KevinSpaghetti/cadec,en,biomedical,BRAT,CADEC,HuggingFace,Registry metadata only,,,
-WinoQueer,https://raw.githubusercontent.com/katyfelkner/winoqueer/main/data/winoqueer_final.csv,en,evaluation,CSV,WinoQueer,Public,File read,,,4816487
-BBQ,https://raw.githubusercontent.com/nyu-mll/BBQ/main/data/Gender_identity.jsonl,en,evaluation,JSONL,BBQ,Public,File read,,,4331406
-GICoref,https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/master/GICoref/coref.combo.conll,en,evaluation,CoNLL,GICoref,Public,File read,,,470685
-CorefUD,http://hdl.handle.net/11234/1-5987,mul,general,CoNLLU,CorefUD,Public,Registry metadata only,,,
-TransMuCoRes,,mul,general,JSONL,TransMuCoRes,ContactAuthors,Registry metadata only,,,
-mGAP,,mul,evaluation,TSV,MGAP,ContactAuthors,Registry metadata only,,,
-CrowS-Pairs,https://github.com/nyu-mll/crows-pairs,en,evaluation,CSV,CrowSPairs,Public,Registry metadata only,,,
-StereoSet,https://github.com/moinnadeem/StereoSet,en,evaluation,JSONL,StereoSet,Public,Registry metadata only,,,
-RealToxicityPrompts,https://huggingface.co/datasets/allenai/real-toxicity-prompts,en,evaluation,JSONL,RealToxicityPrompts,Public,Registry metadata only,,,
-BOLD,https://github.com/amazon-science/bold,en,evaluation,JSONL,BoldBias,Public,Registry metadata only,,,
-DROC,,de,literature,JSONL,DROC,Deprecated,Registry metadata only,,,
-FantasyCoref,https://github.com/emorynlp/FantasyCoref/archive/refs/heads/master.zip,en,literature,JSONL,FantasyCoref,ContactAuthors,File read,,,2089264
-BOOKCOREF,https://huggingface.co/datasets/sapienzanlp/bookcoref,en,literature,JSONL,BookCoref,DependsOnOther,Registry metadata only,,,
-BOOKCOREF (Split),https://huggingface.co/datasets/sapienzanlp/bookcoref,en,literature,JSONL,BookCorefSplit,DependsOnOther,Registry metadata only,,,
-LongtoNotes,https://docs.google.com/forms/d/e/1FAIpQLScoWkBOgJ1HH_phtvTJ4_hGvQw6f0W6K7kw74sUKCDTG8P2iA/viewform,en,mixed,CoNLL,LongtoNotes,Public,Registry metadata only,,,
-MovieCoref,https://aclanthology.org/attachments/2021.findings-acl.176.OptionalSupplementaryMaterial.gz,en,literature,CoNLL,MovieCoref,Public,File read,,,199509
-TwiConv,https://raw.githubusercontent.com/berfingit/TwiConv/main/conll_skeleton/001_940791133357199360.branch7._with_boundaries_gold_conll,en,social_media,CoNLL,TwiConv,Public,File read,,,4985
-MuDoCo,https://raw.githubusercontent.com/facebookresearch/mudoco/main/mudoco_calling.json,en,dialogue,JSON,MuDoCo,Public,File read,,,10032044
-DialogRE,https://github.com/nlpdata/dialogre,en,dialogue,JSONL,DialogRE,Public,Registry metadata only,,,
-MultiWOZ NER,https://github.com/budzianowski/multiwoz,en,dialogue,JSONL,MultiWOZNER,Public,Registry metadata only,,,
-CoQA,https://stanfordnlp.github.io/coqa/,en,mixed,JSONL,CoQAEntities,Public,Registry metadata only,,,
-Gun Violence Corpus,https://github.com/cltl/GunViolenceCorpus,en,news,Custom,GVC,Public,Registry metadata only,,,
-Football Coreference Corpus,,en,sports,,FCC,ContactAuthors,Registry metadata only,,,
-ECB+META,,en,news,,ECBPlusMeta,ContactAuthors,Registry metadata only,,,
-ARRAU 3.0 (v2),,en,mixed,MMAX2,ARRAU,Registration,Registry metadata only,,,
-ISNotes,https://github.com/nlpAThits/ISNotes1.0/archive/refs/heads/master.zip,en,news,MMAX2,ISNotes,DependsOnOther,File read,,,851167
-Shell Nouns (ASN),,en,academic,,ShellNouns,ContactAuthors,Registry metadata only,,,
-PDTB 3.0,,en,news,,PDTBv3,Registration,Registry metadata only,,,
-CODI-CRAC Bridging,https://github.com/UniversalAnaphora/UA-CODI-CRAC,en,dialogue,CoNLLUA,CODICRACBridging,Public,Registry metadata only,,,
-Anaphora Accessibility,,en,evaluation,JSONL,AnaphoraAccessibility,NotYetReleased,Registry metadata only,,,
-Human-Voice Agent Interaction,,fr,dialogue,JSONL,HumanVoiceAgentInteraction,Local,Registry metadata only,,,
-Disco-Bench,,zh-en,literature,Custom,DiscoBench,NotYetReleased,Registry metadata only,,,
-DiscoTrack,,mul,general,Custom,DiscoTrack,NotYetReleased,Registry metadata only,,,
-LIEDER,,en,evaluation,Custom,LIEDER,ContactAuthors,Registry metadata only,,,
-GCDC,,en,mixed,TSV,GCDC,DependsOnOther,Registry metadata only,,,
-DISAPERE,https://github.com/nnkennard/DISAPERE,en,scientific,JSONL,DISAPERE,Public,Registry metadata only,,,
-PragmEval,https://github.com/sileod/pragmeval,en,dialogue,TSV,PragmEval,Public,Registry metadata only,,,
-ViRA Dialog Acts (Live),https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live,en,dialogue,HF-rows,ViraDialogActsLive,HuggingFace,Registry metadata only,,,
-DISRPT (eng.dep.scidtb.rels),https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.rels&split=train&offset=0&length=100,en,scientific,HF-rows,DisrptEngDepScidtbRels,HuggingFace,Registry metadata only,,,
-DISRPT (deu.rst.pcc.rels),https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.rels&split=train&offset=0&length=100,de,news,HF-rows,DisrptDeuRstPccRels,HuggingFace,Registry metadata only,,,
-"DISRPT (eng.dep.scidtb.conllu, Seg)",https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.conllu&split=train&offset=0&length=100,en,scientific,HF-rows,DisrptEngDepScidtbConlluSeg,HuggingFace,Registry metadata only,,,
-"DISRPT (deu.rst.pcc.conllu, Seg)",https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.conllu&split=train&offset=0&length=100,de,news,HF-rows,DisrptDeuRstPccConlluSeg,HuggingFace,Registry metadata only,,,
-DISRPT 2025,https://github.com/disrpt/sharedtask2025,mul,general,CoNLL,DISRPT2025,Public,Registry metadata only,,,
-Ancient Greek UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/master/grc_perseus-ud-test.conllu,grc,literature,CoNLLU,AncientGreekUD,Public,File read,,,1979037
-Latin UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/master/la_ittb-ud-test.conllu,la,literature,CoNLLU,LatinUD,Public,File read,,,3184421
-Coptic Scriptorium,https://data.copticscriptorium.org/,cop,religious,CoNLLU,CopticScriptorium,Registration,Registry metadata only,,,
-LT4HALA Hebrew,,hbo,religious,,LT4HALA,ContactAuthors,Registry metadata only,,,
-ORACC,http://oracc.museum.upenn.edu/,akk,historical,JSON,ORACC,Registration,Registry metadata only,,,
-MasakhaNER,https://raw.githubusercontent.com/masakhane-io/masakhane-ner/main/data/yor/test.txt,mul,news,CoNLL,MasakhaNER,HuggingFace,BIO token counts,19896,2486,182311
-MasakhaNER 2.0,https://huggingface.co/datasets/masakhane/masakhaner2,mul,news,CoNLL,MasakhaNER2,HuggingFace,Registry metadata only,,,
-AfriSenti,https://huggingface.co/datasets/shmuhammad/AfriSenti-twitter-sentiment,mul,social_media,HuggingFace,AfriSenti,HuggingFace,Registry metadata only,,,
-AfriQA,https://huggingface.co/datasets/masakhane/afriqa,mul,wikipedia,JSONL,AfriQA,HuggingFace,Registry metadata only,,,
-MasakhaNEWS,https://huggingface.co/datasets/masakhane/masakhanews,mul,news,HuggingFace,MasakhaNEWS,HuggingFace,Registry metadata only,,,
-AG News,https://huggingface.co/datasets/fancyzhx/ag_news,en,news,HuggingFace,AGNews,HuggingFace,Registry metadata only,,,
-DBPedia-14,https://huggingface.co/datasets/fancyzhx/dbpedia_14,en,wikipedia,HuggingFace,DBPedia14,HuggingFace,Registry metadata only,,,
-Yahoo Answers Topic,https://huggingface.co/datasets/community-datasets/yahoo_answers_topics,en,qa,HuggingFace,YahooAnswers,HuggingFace,Registry metadata only,,,
-TREC Question Classification,https://huggingface.co/datasets/trec,en,qa,HuggingFace,TREC,HuggingFace,Registry metadata only,,,
-TweetTopic,https://huggingface.co/datasets/cardiffnlp/tweet_topic_multi,en,social_media,HuggingFace,TweetTopic,HuggingFace,Registry metadata only,,,
-MasakhaPOS,https://github.com/masakhane-io/masakhane-pos,mul,general,CoNLL-U,MasakhaPOS,HuggingFace,Registry metadata only,,,
-WikiANN,https://huggingface.co/datasets/unimelb-nlp/wikiann,mul,wikipedia,,WikiANN,HuggingFace,Registry metadata only,,,
-NaijaNER,,pcm,social_media,,NaijaNER,ContactAuthors,Registry metadata only,,,
-WIESP2022-NER (DEAL),https://huggingface.co/datasets/adsabs/WIESP2022-NER,en,scientific,JSONL,WIESP2022NER,HuggingFace,Registry metadata only,,,
-Dutch Archaeology NER,https://live.european-language-grid.eu/catalogue/corpus/13410,nl,archaeology,CoNLL,DutchArchaeology,Public,Registry metadata only,,,
-E-NER (EDGAR-NER),https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/main/all.csv,en,legal,CSV,ENer,Public,File read,,,3445556
-FINER (Food Ingredients NER),https://figshare.com/ndownloader/files/36144501,en,food,CoNLL,FINER,Public,Registry metadata only,,,
-AnnoCTR (Cyber Threat Reports),https://github.com/boschresearch/anno-ctr-lrec-coling-2024/archive/refs/heads/main.zip,en,cybersecurity,JSONL,AnnoCTR,Public,File read,,,92683884
-CRAFT,https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip,en,biomedical,XML,CRAFT,Public,File read,,,241114956
-WNUT-16,https://raw.githubusercontent.com/aritter/twitter_nlp/65f3d77134c40d920db8d431c5c6faef1c051c94/data/annotated/wnut16/data/test,en,social_media,CoNLL,WNUT16,Public,BIO token counts,61908,5955,568766
-Sanskrit UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/master/sa_vedic-ud-test.conllu,sa,religious,CoNLLU,SanskritUD,Public,File read,,,3035277
-Old English UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/ang_cairo-ud-test.conllu,ang,historical,CoNLLU,OldEnglishUD,Public,File read,,,18525
-Old Norse UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-test.conllu,non,literature,CoNLLU,OldNorseUD,Public,File read,,,11900516
-CALCS-2018,https://code-switching.github.io/2018/,mul,social_media,CoNLL,CALCS2018,Public,Registry metadata only,,,
-Hinglish NER,https://github.com/murali1996/CodemixedNLP,mul,social_media,JSONL,HinglishNER,Public,Registry metadata only,,,
-Medieval Charter NER,https://zenodo.org/records/6463699,mul,historical,CoNLL,MedievalCharterNER,Public,Registry metadata only,,,
-CBMA Charters,,la,historical,CoNLL,CBMACharters,ContactAuthors,Registry metadata only,,,
-MSNER,https://rdr.kuleuven.be/dataset.xhtml?persistentId=doi:10.48804/ZTVMIX,mul,speech,CoNLL,MSNER,Public,Registry metadata only,,,
-NoiseBench,https://raw.githubusercontent.com/elenamer/NoiseBench/main/data/annotations/clean.traindev,en,evaluation,CoNLL,NoiseBench,Public,BIO token counts,80120,14048,705396
-RockNER,https://github.com/INK-USC/RockNER,en,evaluation,CoNLL,RockNER,Public,Registry metadata only,,,
-CrossWeigh,https://raw.githubusercontent.com/ZihanWangKi/CrossWeigh/master/data/conllpp_test.txt,en,evaluation,CoNLL,CrossWeigh,Public,BIO token counts,46435,8258,748737
-ZELDA,https://raw.githubusercontent.com/flairNLP/zelda/main/test_data/conll/test_aida-b.conll,en,wikipedia,CoNLL,ZELDA,Public,BIO token counts,46435,6084,580980
-TweetNERD,https://zenodo.org/records/6617192,en,social_media,JSONL,TweetNERD,Public,Registry metadata only,,,
-AIDA-CoNLL,https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida,en,news,CoNLL,AIDACoNLL,Public,Registry metadata only,,,
-ACE 2005,,en,news,XML,ACE2005,Registration,Registry metadata only,,,
-NNE (Nested Named Entities),https://github.com/nickyringland/nested_named_entities,en,news,CoNLL,NNE,Public,Registry metadata only,,,
-GENIA Nested,https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/master/Our_boundary-aware_model/data/genia/genia.test.iob2,en,biomedical,CoNLL,GENIANested,Public,BIO token counts,57021,14456,889419
-Chinese Nested NER,https://github.com/LeeSureman/Nested-NER,zh,news,JSONL,ChineseNestedNER,Public,Registry metadata only,,,
-SciNER Nested,https://github.com/allenai/sciie,en,scientific,JSONL,SCINERNested,Public,Registry metadata only,,,
-ShARe/CLEF,,en,clinical,BRAT,ShAReCLEF,Registration,Registry metadata only,,,
-GermEval Discontinuous,https://sites.google.com/site/germaboreval/data,de,news,CoNLL,GermEvalDiscontinuous,Public,Registry metadata only,,,
-ADR Discontinuous,https://github.com/Aitslab/ADR-DisNER,en,biomedical,BRAT,ADRDiscontinuous,Public,Registry metadata only,,,
-PubMed Discontinuous,https://github.com/dmis-lab/discontinuous-ner,en,biomedical,CoNLL,PubMedDiscontinuous,Public,Registry metadata only,,,
-TACRED,,en,news,JSON,TACRED,Registration,Registry metadata only,,,
-SemEval-2010 Task 8,https://github.com/sahitya0000/Relation-Classification,en,mixed,Custom,SemEval2010Task8,Public,Registry metadata only,,,
-FewRel,https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json,en,wikipedia,JSON,FewRel,Public,File read,,,3534147
-NYT-10,http://iesl.cs.umass.edu/riedel/ecml/,en,news,Custom,NYT10,Public,Registry metadata only,,,
-JNLPBA,https://raw.githubusercontent.com/cambridgeltl/MTL-Bioinformatics-2016/master/data/JNLPBA/test.tsv,en,biomedical,CoNLL,JNLPBA,Public,BIO token counts,101039,19392,996475
-S800,https://species.jensenlab.org/files/S800-1.0.tar.gz,en,biomedical,XML,S800,DependsOnOther,HTTP Error 503: Service Unavailable,,,
-TempEval-3,https://figshare.com/articles/dataset/TempEval-3_data/9586532,en,news,TimeML,TempEval3,Public,Registry metadata only,,,
-Anno TIMEX Smoke,,en,synthetic,TIMEX JSONL,AnnoTimexSmoke,Local,Registry metadata only,,,
-Anno TIMEX Contrast,,en,mixed,TIMEX JSONL,AnnoTimexContrast,Local,Registry metadata only,,,
-"TIMEX Recognition (Sentence, Original)",,en,news,HF-rows,TimexRecognitionSentenceOriginal,DependsOnOther,Registry metadata only,,,
-TimeBank 1.2,https://catalog.ldc.upenn.edu/LDC2006T08,en,news,TimeML,TimeBank12,Public,Registry metadata only,,,
-MATRES,https://github.com/qiangning/MATRES,en,news,Custom,MATRES,Public,Registry metadata only,,,
-THYME,,en,clinical,Custom,THYME,Registration,Registry metadata only,,,
-i2b2 2012 Temporal,,en,clinical,Custom,I2B2Temporal,Registration,Registry metadata only,,,
-Twitter-2015 MNER,https://github.com/jefferyYu/UMT,en,social_media,CoNLL,Twitter2015MNER,Public,Registry metadata only,,,
-Distant Listening Corpus,https://zenodo.org/records/15150283,mul,music,TSV,DistantListeningCorpus,Public,Registry metadata only,,,
-PII Masking 200k,https://huggingface.co/datasets/ai4privacy/pii-masking-200k,mul,privacy,JSONL,PIIMasking200k,HuggingFace,Registry metadata only,,,
-E-NER SEC,https://github.com/jnishii/E-NER,en,legal,CSV,ENERSec,Public,Registry metadata only,,,
-MSNBC,,en,news,Custom,MSNBCEL,ContactAuthors,Registry metadata only,,,
-AQUAINT,,en,news,Custom,AQUAINT,Registration,Registry metadata only,,,
-KORE50,https://github.com/KORE50/KORE50-NIF-NER,en,evaluation,Custom,KORE50,Public,Registry metadata only,,,
-WNED-WIKI,https://github.com/wikipedia2vec/wikipedia2vec,en,wikipedia,Custom,WNEDWiki,Public,Registry metadata only,,,
-WNED-ClueWeb,,en,web,Custom,WNEDClueweb,Registration,Registry metadata only,,,
-BELB,https://github.com/sg-wbi/belb,en,biomedical,JSONL,BELB,Public,Registry metadata only,,,
-MELO,https://github.com/avature/melo-benchmark,mul,general,JSONL,MELO,Public,Registry metadata only,,,
-Mewsli-X,https://huggingface.co/datasets/izhx/mewsli-x,mul,news,TSV,MewsliX,Public,Registry metadata only,,,
-BookCoref (Bamman),https://huggingface.co/datasets/spacemanidol/BookCoref,en,literature,JSONL,BookCorefBamman,ContactAuthors,Registry metadata only,,,
-NovelCR,https://github.com/NovelCR/NovelCR,mul,literature,JSONL,NovelCR,Public,Registry metadata only,,,
-AgCNER,https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873,zh,scientific,JSONL,AgCNER,Public,Registry metadata only,,,
-SCROLLS QMSum,https://github.com/tau-nlp/scrolls,en,dialogue,JSONL,ScrollsQMSum,Public,Registry metadata only,,,
-Long Document NER,https://github.com/xhuang28/LongDocNER,en,mixed,JSONL,LongDocNER,Public,Registry metadata only,,,
-BookSum Coref,https://github.com/salesforce/booksum,en,literature,JSONL,BookSumCoref,Public,Registry metadata only,,,
-Multi-Bio Long NER,https://github.com/dmis-lab/multi-bio-ner,en,biomedical,JSONL,MultiBioNERLong,Public,Registry metadata only,,,
-RadCoref,https://physionet.org/content/rad-coreference-resolution/,en,clinical,BRAT,RadCoref,Public,Registry metadata only,,,
-MEANTIME,https://github.com/newsreader/meantime,mul,news,Custom,MEANTIME,Public,Registry metadata only,,,
-FCC-T,https://github.com/cltl/FCC,en,sports,CoNLL,FCCT,Public,Registry metadata only,,,
-LEMONADE,https://github.com/lemonade-coref/lemonade,mul,news,JSONL,LEMONADE,Public,Registry metadata only,,,
-BioRED,https://ftp.ncbi.nlm.nih.gov/pub/lu/BioRED/,en,biomedical,Custom,BioRED,Public,Registry metadata only,,,
-MedMentions,https://github.com/chanzuckerberg/MedMentions,en,biomedical,Custom,MedMentions,Public,Registry metadata only,,,
-EnzChemRED,https://github.com/ncbi-nlp/EnzChemRED,en,biomedical,JSONL,EnzChemRED,Public,Registry metadata only,,,
-NCERB,https://github.com/WadoodAbdul/clinical_ner_benchmark,en,clinical,Custom,NCERB,Public,Registry metadata only,,,
-MACCROBAT,https://figshare.com/articles/dataset/MACCROBAT2018/9764942,en,biomedical,Custom,MACCROBAT,Public,Registry metadata only,,,
-ACE 2005 RE,,en,news,XML,ACE05RE,Registration,Registry metadata only,,,
-CoNLL04 RE,https://github.com/bekou/multihead_joint_entity_relation_extraction,en,news,CoNLL,CoNLL04RE,Public,Registry metadata only,,,
-CrossRE,https://github.com/mainlp/CrossRE,en,cross_domain,JSON,CrossRE,Public,Registry metadata only,,,
-CrossRE AI,https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json,en,scientific,JSONL,CrossREAI,Public,File read,,,237375
-CrossRE Literature,https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data/literature-test.json,en,literature,JSONL,CrossRELiterature,Public,File read,,,292338
-UNER,https://github.com/UniversalNER/UNER,mul,general,CoNLLU,UNER,Public,Registry metadata only,,,
-IndicNER,https://github.com/AI4Bharat/IndicNER,mul,general,CoNLL,IndicNER,Public,Registry metadata only,,,
-NorNE,https://github.com/ltgoslo/norne,no,news,CoNLL,NorNE,Public,Registry metadata only,,,
-GermEval 2014,https://sites.google.com/site/germaboreval2014/data,de,news,CoNLL,GermEval2014,Public,Registry metadata only,,,
-ReasoningNER,https://github.com/HuiResearch/ReasoningIE,en,evaluation,JSONL,ReasoningNER,Public,Registry metadata only,,,
-BioNER-LLaMA,https://github.com/BIDS-Xu-Lab/BioNER-LLaMA,en,biomedical,JSONL,BioNERLLaMA,Public,Registry metadata only,,,
-Mention Resolution LLM,https://github.com/KawshikManikantan/IdentifyMe,en,literature,JSONL,MentionResolutionLLM,Public,Registry metadata only,,,
-ShARe 2013,,en,clinical,Custom,ShARe2013,Registration,Registry metadata only,,,
-ShARe 2014,,en,clinical,Custom,ShARe2014,Registration,Registry metadata only,,,
-i2b2 2010,,en,clinical,Custom,I2B2_2010,Registration,Registry metadata only,,,
-LexGLUE NER,https://github.com/coastalcph/lex-glue,en,legal,JSONL,LexGLUENER,Public,Registry metadata only,,,
-FinBen NER,https://github.com/TheFinAI/FinBen,en,financial,JSONL,FinBenNER,Public,Registry metadata only,,,
-FiNER-139,https://huggingface.co/datasets/nlpaueb/finer-139,en,financial,JSONL,FiNER139,HuggingFace,Registry metadata only,,,
-taggedPBC Esperanto,https://github.com/lingdoc/taggedPBC,eo,religious,CoNLLU,TaggedPBCEsperanto,Public,Registry metadata only,,,
-taggedPBC Klingon,https://github.com/lingdoc/taggedPBC,tlh,religious,CoNLLU,TaggedPBCKlingon,Public,Registry metadata only,,,
-UD Esperanto Cairo,https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/master/eo_cairo-ud-test.conllu,eo,constructed_language,CoNLLU,UDEsperantoCairo,Public,File read,,,12133
-Klingon Effect LID,https://wmdqs.org/submissions-2025/19.pdf,mul,general,Custom,KlingonEffectLID,Public,Registry metadata only,,,
-Lojban Tatoeba,https://tatoeba.org/en/downloads,jbo,constructed_language,TSV,LojbanTatoeba,Public,Registry metadata only,,,
-Interlingue Wikipedia,https://dumps.wikimedia.org/iewiki/,ie,encyclopedia,XML,InterlingueWikipedia,Public,Registry metadata only,,,
-Toki Pona Corpus,https://github.com/kilipan/toki-pona-corpus,tok,constructed_language,TXT,TokiPonaCorpus,Public,Registry metadata only,,,
-OmniNER2025,,zh,social_media,JSONL,OmniNER2025,NotYetReleased,Registry metadata only,,,
-LegalCore,,en,legal,JSONL,LegalCore,NotYetReleased,Registry metadata only,,,
-Z-coref,,th,general,CoNLL,Zcoref,NotYetReleased,Registry metadata only,,,
-TikTalkCoref,,zh,social_media,Custom,TikTalkCoref,NotYetReleased,Registry metadata only,,,
-MHERCL,https://arxiv.org/html/2505.03473v1,en,historical,JSONL,MHERCL,Public,Registry metadata only,,,
-SNOMED CT EL Challenge,,en,clinical,Custom,SNOMEDChallenge,Registration,Registry metadata only,,,
-ESCO Skills EL,,mul,general,Custom,ESCOSkillsEL,ContactAuthors,Registry metadata only,,,
-NatureLM-audio,https://github.com/earthspecies/naturelm-audio,en,bioacoustics,Custom,NatureLMAudio,Public,Registry metadata only,,,
-BEANS-Zero,https://github.com/earthspecies/beans-zero,en,bioacoustics,Custom,BEANSZero,Public,Registry metadata only,,,
-NLM-Chem,https://ftp.ncbi.nlm.nih.gov/pub/lu/NLM-Chem/,en,biomedical,BRAT,NLMChem,Public,Registry metadata only,,,
-CHEMDNER,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-iv/chemdner/,en,biomedical,BIO,CHEMDNER,Public,Registry metadata only,,,
-TimeBank-Dense,https://github.com/bethard/timebank-dense,en,news,TimeML,TimeBankDense,Public,Registry metadata only,,,
-Twitter-GMNER,https://github.com/JinYuanLi0012/RiVEG,en,social_media,JSONL,TwitterGMNER,Public,Registry metadata only,,,
-MNER-MI,https://github.com/NUSTM/MNER-MI,en,social_media,JSONL,MNERMI,Public,Registry metadata only,,,
-2M-NER,https://github.com/wangdsh/MMNERD,mul,social_media,JSONL,TwoMNER,Public,Registry metadata only,,,
-Mathematical Entities,https://github.com/dmazzei/mathematical-entities,en,scientific,LaTeX,MathEntities,Public,Registry metadata only,,,
-SciERC,,en,scientific,JSONL,SciERC,Local,Registry metadata only,,,
-GeoWebNews,https://github.com/milangritta/GeoWebNews,en,news,CoNLL,GeoWebNews,Public,Registry metadata only,,,
-LGL,https://github.com/wikipedia2vec/wikipedia2vec,en,news,Custom,LGL,Public,Registry metadata only,,,
-TASTEset,https://github.com/taisti/TASTEset,en,food,BIO,TASTEset,Public,Registry metadata only,,,
-Recipe NER,https://github.com/cosylabiiit/recipe-ner,en,food,BIO,RecipeNER,Public,Registry metadata only,,,
-CodeSearchNet,https://github.com/github/CodeSearchNet,mul,code,JSONL,CodeSearchNet,Public,Registry metadata only,,,
-FABLE,https://huggingface.co/DeBERTa-literary-entities,en,fiction,Custom,FABLE,Public,Registry metadata only,,,
-ELGold,https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset,pl,general,JSONL,ELGold,Public,Registry metadata only,,,
-Streaming CD-Coref,https://www.cs.jhu.edu/~mdredze/publications/streaming_coref_coling.pdf,en,news,Custom,StreamingCDCoref,Public,Registry metadata only,,,
-Tem-DocRED,https://github.com/THUDM/Tem-DocRED,en,wikipedia,JSONL,TemDocRED,Public,Registry metadata only,,,
-SciCo-Radar,https://github.com/TomHopeLab/ScicoRadar,en,scientific,JSONL,SciCoRadar,Public,Registry metadata only,,,
-Event KG Drift,https://research.tue.nl/files/349781334/978-3-031-61057-8_9.pdf,en,evaluation,Custom,EventKGDrift,Public,Registry metadata only,,,
-Wikidata Semantic Drift,https://arxiv.org/abs/2511.04926,mul,encyclopedia,Custom,WikidataDrift,Public,Registry metadata only,,,
-AIDA-CoNLL (v2),https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida/downloads,en,news,CoNLL,AIDA,Public,Registry metadata only,,,
-AIONER,https://github.com/ncbi/AIONER,en,biomedical,JSONL,AIONER,Public,Registry metadata only,,,
-AISHELL-NER,https://www.aishelltech.com/aishell_2,zh,speech,Custom,AISHELLNER,Public,Registry metadata only,,,
-AstroNER,https://github.com/astronomical-ner/AstroNER,en,astrophysics,CoNLL,AstroNER,Public,Registry metadata only,,,
-B2NERD,https://huggingface.co/datasets/Umean/B2NERD,en,news,JSONL,B2NERD,Public,Registry metadata only,,,
-BioMNER,https://huggingface.co/datasets/tner/bionlp2004,en,biomedical,BIO,BioMNER,Public,Registry metadata only,,,
-LegNER,https://github.com/Liquid-Legal-Institute/LegalBench,en,legal,CoNLL,LegNER,Public,Registry metadata only,,,
-OpenNER 1.0,https://huggingface.co/datasets/yongsun-yoon/open-ner-english,en,mixed,JSONL,OpenNER,HuggingFace,Registry metadata only,,,
-SciNER,https://github.com/allenai/sciner,en,scientific,JSONL,SciNER,Public,Registry metadata only,,,
-FinanceNER,https://github.com/nlpaueb/finer,en,financial,CoNLL,FinanceNER,Public,Registry metadata only,,,
-TechNER,https://github.com/techner/techner,en,code,CoNLL,TechNER,Public,Registry metadata only,,,
-FictionNER-750M,https://huggingface.co/datasets/SaladTechnologies/fiction-ner-750m,en,fiction,JSONL,FictionNER750M,HuggingFace,Registry metadata only,,,
-Character Codex,https://github.com/character-codex/character-codex,en,fiction,JSONL,CharacterCodex,Public,Registry metadata only,,,
-MUC-6,https://catalog.ldc.upenn.edu/LDC2003T13,en,news,SGML,MUC6,Public,Registry metadata only,,,
-MUC-7,https://catalog.ldc.upenn.edu/LDC2001T02,en,news,SGML,MUC7,Public,Registry metadata only,,,
-OntoNotes 5.0,https://catalog.ldc.upenn.edu/LDC2013T19,en,mixed,CoNLL,OntoNotes50,Public,Registry metadata only,,,
-GUM,https://github.com/amir-zeldes/gum,en,mixed,CoNLL,GUM,Public,Registry metadata only,,,
-TAC-KBP,https://tac.nist.gov/,en,news,Custom,TACKBP,Public,Registry metadata only,,,
-HAREM,https://www.linguateca.pt/HAREM/,pt,news,SGML,HAREM,Public,Registry metadata only,,,
-Gun Violence Corpus (v2),https://github.com/gun-violence-corpus/gvc,en,news,Custom,GunViolenceCorpus,Public,Registry metadata only,,,
-MAVEN,https://github.com/THU-KEG/MAVEN-dataset,en,wikipedia,JSONL,MAVEN,Public,Registry metadata only,,,
-MAVEN-ARG,https://github.com/THU-KEG/MAVEN-Argument,en,wikipedia,JSONL,MAVENArg,Public,Registry metadata only,,,
-CASIE,https://github.com/Ebiquity/CASIE,en,cybersecurity,Standoff,CASIE,Public,Registry metadata only,,,
-RAMS,https://nlp.jhu.edu/rams/,en,news,JSONL,RAMS,Public,Registry metadata only,,,
-SLUE,https://github.com/asappresearch/slue-toolkit,en,speech,JSONL,SLUE,Public,Registry metadata only,,,
-CRAFT Coreference,https://github.com/UCDenver-ccp/CRAFT,en,biomedical,Standoff,CRAFTCoref,Public,Registry metadata only,,,
-Football Coreference Corpus (v2),https://github.com/cltl/FCC,en,sports,Custom,FootballCorefCorpus,Public,Registry metadata only,,,
-Multiparty Dialogue Coreference,https://github.com/sopan-sarkar/multiparty-dialogue-coref,en,dialogue,JSONL,MultipartyDialogueCoref,Public,Registry metadata only,,,
-CODI-CRAC,https://github.com/UniversalAnaphora/UA-CODI-CRAC,mul,mixed,CoNLL,CODICRAC,Public,Registry metadata only,,,
-MixRED,https://github.com/mixred/MixRED,en,mixed,JSONL,MixRED,Public,Registry metadata only,,,
-CovEReD,https://github.com/covered/CovEReD,en,biomedical,JSONL,CovEReD,Public,Registry metadata only,,,
-SciER,https://github.com/allenai/sciie,en,scientific,JSONL,SciER,Public,Registry metadata only,,,
-WebNLG,https://gitlab.com/webnlg/challenge-2017,en,wikipedia,XML,WEBNLG,Public,Registry metadata only,,,
-Akkadian UD,https://universaldependencies.org/treebanks/akk_pisandub/index.html,akk,historical,CoNLLU,AkkadianUD,Public,Registry metadata only,,,
-Ancient Hebrew UD,https://universaldependencies.org/treebanks/hbo_ptnk/index.html,hbo,religious,CoNLLU,AncientHebrewUD,Public,Registry metadata only,,,
-Classical Chinese UD,https://universaldependencies.org/treebanks/lzh_kyoto/index.html,lzh,historical,CoNLLU,ClassicalChineseUD,Public,Registry metadata only,,,
-Coptic UD,https://universaldependencies.org/treebanks/cop_scriptorium/index.html,cop,religious,CoNLLU,CopticUD,Public,Registry metadata only,,,
-Gothic UD,https://universaldependencies.org/treebanks/got_proiel/index.html,got,religious,CoNLLU,GothicUD,Public,Registry metadata only,,,
-Hittite UD,https://universaldependencies.org/treebanks/hit_hittb/index.html,hit,historical,CoNLLU,HittiteUD,Public,Registry metadata only,,,
-Old Church Slavonic UD,https://universaldependencies.org/treebanks/cu_proiel/index.html,cu,religious,CoNLLU,OldChurchSlavonicUD,Public,Registry metadata only,,,
-Latin ITTB,https://universaldependencies.org/treebanks/la_ittb/index.html,la,religious,CoNLLU,LatinITTB,Public,Registry metadata only,,,
-Latin PROIEL,https://universaldependencies.org/treebanks/la_proiel/index.html,la,historical,CoNLLU,LatinPROIEL,Public,Registry metadata only,,,
-Esperanto UD,https://universaldependencies.org/treebanks/eo_pud/index.html,eo,constructed_language,CoNLLU,EsperantoUD,Public,Registry metadata only,,,
-Dothraki,https://wiki.dothraki.org/,dlk,fiction,Custom,Dothraki,Public,Registry metadata only,,,
-High Valyrian,https://wiki.dothraki.org/High_Valyrian,hvy,fiction,Custom,HighValyrian,Public,Registry metadata only,,,
-Klingon,https://github.com/klingonlanguage/klingon-data,tlh,fiction,Custom,Klingon,Public,Registry metadata only,,,
-Quenya,https://eldamo.org/,qya,fiction,Custom,Quenya,Public,Registry metadata only,,,
-Na'vi,https://learnnavi.org/,nav,fiction,Custom,Navi,Public,Registry metadata only,,,
-Interslavic,https://interslavic.fun/,isv,constructed_language,Custom,InterslavicCorpus,Public,Registry metadata only,,,
-Lojban,https://mw.lojban.org/,jbo,constructed_language,Custom,Lojban,Public,Registry metadata only,,,
-Toki Pona,https://github.com/kilipan/toki-pona-corpus,tok,constructed_language,Custom,TokiPona,Public,Registry metadata only,,,
-i2b2-2010,https://www.i2b2.org/NLP/DataSets/,en,clinical,Custom,I2B22010,Public,Registry metadata only,,,
-i2b2 De-identification,https://www.i2b2.org/NLP/DataSets/,en,clinical,Custom,I2b2Deidentification,Public,Registry metadata only,,,
-French Clinical NER,https://github.com/EDS-NLP/eds-nlp,fr,clinical,Standoff,FrenchClinicalNER,Public,Registry metadata only,,,
-ShARe/CLEF 2013,https://physionet.org/content/shareclefehealth2013/,en,clinical,Standoff,ShARe13,Public,Registry metadata only,,,
-ShARe/CLEF 2014,https://physionet.org/content/shareclefehealth2014/,en,clinical,Standoff,ShARe14,Public,Registry metadata only,,,
-CALCS,https://code-switching.github.io/,mul,social_media,CoNLL,CALCS,Public,Registry metadata only,,,
-LinCE,https://ritual.uh.edu/lince/,mul,social_media,CoNLL,LinCE,Public,Registry metadata only,,,
-GLUECoS,https://github.com/microsoft/GLUECoS,mul,social_media,JSONL,GLUECoS,Public,Registry metadata only,,,
-ChemDataExtractor,https://chemdataextractor.org/,en,biomedical,Custom,ChemDataExtractor,Public,Registry metadata only,,,
-HUPD,https://github.com/suzgunmirac/hupd,en,legal,JSONL,HUPD,Public,Registry metadata only,,,
-FinTech Patent NER,https://github.com/fintech-patent-ner,en,financial,CoNLL,FinTechPatent,Public,Registry metadata only,,,
-WaterAgriNER,https://github.com/wateragriner,en,scientific,CoNLL,WaterAgriNER,Public,Registry metadata only,,,
-WIESP Astrophysics,https://ui.adsabs.harvard.edu/,en,astrophysics,JSONL,WIESPAstro,Public,Registry metadata only,,,
-NER Social Food,https://github.com/food-ner/social,en,food,CoNLL,NERsocialFood,Public,Registry metadata only,,,
-Russian Cultural NER,https://github.com/russian-cultural-ner,ru,encyclopedia,CoNLL,RussianCulturalNER,Public,Registry metadata only,,,
-18th Century NER,https://github.com/Living-with-machines/,en,historical,CoNLL,EighteenthCenturyNER,Public,Registry metadata only,,,
-Spanish Medieval TEI,https://github.com/spanish-medieval-nlp,es,historical,XML,SpanishMedievalTEI,Public,Registry metadata only,,,
-Medieval Czech Charters,https://github.com/czech-medieval-charters,cs,historical,XML,MedievalCzechCharters,Public,Registry metadata only,,,
-Dutch Archaeology NER (v2),https://easy.dans.knaw.nl/,nl,archaeology,Standoff,DutchArchaeologyNER,Public,Registry metadata only,,,
-Guaraní NER,https://github.com/guarani-nlp,gn,indigenous,CoNLL,GuaraniNER,Public,Registry metadata only,,,
-Shipibo-Konibo NER,https://github.com/ixa-ehu/shipibo-konibo,shp,indigenous,CoNLL,ShipiboKoniboNER,Public,Registry metadata only,,,
-Navajo Morphology,https://github.com/navajo-nlp,nv,indigenous,CoNLLU,NavajoMorph,Public,Registry metadata only,,,
-KoCoNovel,https://github.com/storidient/KoCoNovel,ko,fiction,CoNLL,KoCoNovel,Public,Registry metadata only,,,
-OpenBoek,https://github.com/cltl/OpenBoek,nl,fiction,CoNLL,OpenBoek,Public,Registry metadata only,,,
-SciCo,https://github.com/allenai/scico,en,scientific,JSONL,SciCo,Public,Registry metadata only,,,
-SemEval-2013 Task 9.1,https://www.cs.york.ac.uk/semeval-2013/task9/,en,biomedical,XML,SemEval2013Task91,Public,Registry metadata only,,,
-PDTB 3.0 (v2),https://catalog.ldc.upenn.edu/LDC2019T05,en,news,Custom,PDTB3,Public,Registry metadata only,,,
-WinoPron,https://cs.nyu.edu/~davise/papers/WinoPron/,en,evaluation,Custom,WinoPron,Public,Registry metadata only,,,
-QUOREF,https://github.com/allenai/quoref,en,wikipedia,JSONL,QUOREF,Public,Registry metadata only,,,
-CoNLL-2002 Dutch,,nl,news,CoNLL,CoNLL2002Dutch,ContactAuthors,Registry metadata only,,,
-CoNLL-2002 Spanish,,es,news,CoNLL,CoNLL2002Spanish,ContactAuthors,Registry metadata only,,,
-BC2GM Full,https://biocreative.bioinformatics.udel.edu/resources/biocreative-ii-corpus/,en,biomedical,IOB2,BC2GMFull,Public,Registry metadata only,,,
-FinNER,https://github.com/mpsilfern/finer,fi,news,CoNLL,FinNER,Public,Registry metadata only,,,
-LegalNER,https://github.com/legal-ner/legal-ner,en,legal,CoNLL,LegalNER,Public,Registry metadata only,,,
-CEREC,https://github.com/Stardust-hyx/CEREC,zh,news,JSONL,CEREC,Public,Registry metadata only,,,
-DELICATE,https://github.com/delicate-nlp/delicate,en,clinical,JSONL,DELICATE,Public,Registry metadata only,,,
-SciERC NER,,en,scientific,JSONL,SciERCNER,Local,Registry metadata only,,,
-ULNER,,en,mixed,JSONL,ULNER,Deprecated,Registry metadata only,,,
-UniversalNER,https://huggingface.co/datasets/universalner/universal_ner,mul,mixed,JSONL,UniversalNER,HuggingFace,Registry metadata only,,,
-ARRAU GENIA,https://aclanthology.org/2020.codi-1.1/,en,biomedical,MMAX2,ArrauGenia,Public,Registry metadata only,,,
-ARRAU Pear Stories,https://aclanthology.org/2020.codi-1.1/,en,narrative,MMAX2,ArrauPear,Public,Registry metadata only,,,
-ARRAU RST,https://aclanthology.org/2020.codi-1.1/,en,news,MMAX2,ArrauRst,Public,Registry metadata only,,,
-ARRAU Trains,https://aclanthology.org/2020.codi-1.1/,en,dialogue,MMAX2,ArrauTrains,Public,Registry metadata only,,,
-NomBank Implicit,https://catalog.ldc.upenn.edu/LDC2008T23,en,news,Custom,NomBankImplicit,Public,Registry metadata only,,,
-BASHI,https://sites.google.com/view/ipm-bashi/,bn,news,CoNLL,BASHI,Public,Registry metadata only,,,
-ERST,https://github.com/rsttools/signal,en,mixed,Custom,ERST,Public,Registry metadata only,,,
-BiTimeBERT,https://github.com/btime-bert/bitimebert,en,news,JSONL,BiTimeBERT,Public,Registry metadata only,,,
-TRIDIS,https://github.com/tridis/tridis,en,mixed,JSONL,TRIDIS,Public,Registry metadata only,,,
-QueerBench,https://github.com/queerbench/queerbench,en,evaluation,JSONL,QueerBench,Public,Registry metadata only,,,
-QUEEREOTYPES,https://github.com/queereotypes/queereotypes,en,evaluation,JSONL,QUEEREOTYPES,Public,Registry metadata only,,,
-MAP,https://github.com/medical-annotation-pipeline/map,en,clinical,Standoff,MAP,Public,Registry metadata only,,,
-ASN,http://www.cs.toronto.edu/~varada/ASN/,en,news,Custom,ASN,Public,Registry metadata only,,,
-CSN,https://github.com/github/CodeSearchNet,mul,code,JSONL,CSN,Public,Registry metadata only,,,
-HOMOMEX,https://github.com/homomex/homomex,es,general,JSONL,HOMOMEX,Public,Registry metadata only,,,
-ENER,https://github.com/ener-dataset/ener,en,e-commerce,CoNLL,ENER,Public,Registry metadata only,,,
-FIREBALL,https://huggingface.co/datasets/lara-martin/FIREBALL,en,gaming,JSONL,FIREBALL,Public,Registry metadata only,,,
-D&D NER Benchmark,https://aclanthology.org/2023.ranlp-1.130.pdf,en,gaming,CoNLL,DnDNERBenchmark,Public,Registry metadata only,,,
-Critical Role Dataset,https://www.microsoft.com/en-us/research/wp-content/uploads/2020/06/R.Rameshkumar-and-P.Bailey-Storytelling-with-Dialogue-ACL2020.pdf,en,gaming,Custom,CriticalRoleDataset,Public,Registry metadata only,,,
-CUAD,https://www.atticusprojectai.org/cuad,en,legal,SQuAD JSON,CUAD,Public,Registry metadata only,,,
-ACORD,https://arxiv.org/html/2501.06582v1,en,legal,JSONL,ACORD,Public,Registry metadata only,,,
-Party Extraction Dataset,https://aclanthology.org/2023.ranlp-1.116.pdf,en,legal,Standoff,PartyExtractionDataset,Public,Registry metadata only,,,
-FINER (Food),https://figshare.com/articles/dataset/Food_Ingredient_Named-Entity_Data/20222361,en,food,BIO,FINERFood,Public,Registry metadata only,,,
-NHK Recipe Dataset,https://arxiv.org/html/2507.17232v1,ja,food,JSONL,NHKRecipeDataset,Public,Registry metadata only,,,
-Sanskrit NER (Bhagavad Gita),https://www.kaggle.com/datasets/akashsuklabaidya/ner-dataset-fyp-25,sa,religious,CoNLL,SanskritNERBhagavadGita,Public,Registry metadata only,,,
-Mahānāma,https://github.com/sujoysarkarai/mahanama,sa,literary,CoNLLU,Mahanama,Public,Registry metadata only,,,
-Akkadian Cuneiform Dataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC7592802/,akk,historical,Custom,AkkadianCuneiformDataset,Public,Registry metadata only,,,
-Heidelberg Cuneiform Benchmark,https://direct.mit.edu/coli/article/49/3/703/116160,akk,historical,Custom,HeidelbergCuneiformBenchmark,Public,Registry metadata only,,,
-Greek Mythology Knowledge Graph,https://www.semantic-web-journal.net/system/files/swj2754.pdf,en,mythology,Custom,GreekMythologyKG,Public,Registry metadata only,,,
-Folklore Motif Distribution,https://www.academia.edu/14481230/,mul,mythology,Custom,FolkloreMotifDistribution,Public,Registry metadata only,,,
-ND-NER,https://github.com/XinyanLi2016/ND-NER,en,defense,CoNLL,NDNER,Public,Registry metadata only,,,
-re3d (Defense),https://github.com/dstl/re3d,en,defense,BRAT,Re3dDefense,Public,Registry metadata only,,,
-CyNER-APTNER,https://ceur-ws.org/Vol-3928/paper_170.pdf,en,cybersecurity,CoNLL,CyNERAptner,Public,Registry metadata only,,,
-Chinese Engineering Geology NER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423024272,zh,geology,BIO,ChineseEngineeringGeologyNER,Public,Registry metadata only,,,
-LLM-RocMin-NER,https://www.sciencedirect.com/science/article/abs/pii/S0098300425000949,en,geology,JSONL,LLMRocMinNER,Public,Registry metadata only,,,
-PolyIE,https://ramprasad.mse.gatech.edu/PolyIE/,en,materials,JSONL,PolyIE,Public,Registry metadata only,,,
-MathDial,https://arxiv.org/abs/2305.14536,en,education,JSONL,MathDial,Public,Registry metadata only,,,
-CoMTA,https://learninganalytics.upenn.edu/ryanbaker/,en,education,JSONL,CoMTA,Public,Registry metadata only,,,
-French Full-Length Fiction Coreference,https://arxiv.org/html/2510.15594v1,fr,fiction,CoNLL,FrenchFullLengthFictionCoref,Public,Registry metadata only,,,
-Winograd Schema Challenge,https://cs.nyu.edu/~davise/papers/WinoPron/WSCollection.xml,en,evaluation,XML,WinogradSchemaChallengeWSC,Public,Registry metadata only,,,
-TV Show Multilingual Coreference,https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00581/117162,mul,dialogue,CoNLL,TVShowMultilingualCoref,Public,Registry metadata only,,,
-VisDial Coreference,https://www.sciencedirect.com/science/article/pii/S266729522300082X,en,vision,JSONL,VisDialCoref,Public,Registry metadata only,,,
-RISeC,https://aclanthology.org/2020.aacl-main.82/,en,food,Standoff,RISeC,Public,Registry metadata only,,,
-EFGC,https://aclanthology.org/2020.lrec-1.638/,en,food,CoNLL,EFGC,Public,Registry metadata only,,,
-SPoRC,https://arxiv.org/html/2411.07892v1,en,speech,JSONL,SPoRC,Public,Registry metadata only,,,
-ARF (Artificial Relationships in Fiction),https://aclanthology.org/2025.latechclfl-1.13.pdf,en,fiction,JSONL,ARFFiction,Public,Registry metadata only,,,
-CRAFT Corpus (Full Coref),https://github.com/UCDenver-ccp/CRAFT,en,biomedical,Standoff,CRAFTCorpusCoref,Public,Registry metadata only,,,
-Aerospace NER Dataset,https://arc.aiaa.org/doi/10.2514/1.I011251,en,aerospace,CoNLL,AerospaceNERDataset,Public,Registry metadata only,,,
-Aviation Products NER,https://dspace.lib.cranfield.ac.uk/server/api/core/bitstreams/a59ed640-4783-4ddb-871b-6fd8bd0e7400/content,zh,aerospace,BIO,AviationProductsNER,Public,Registry metadata only,,,
-VREN (Volleyball),https://arxiv.org/abs/2209.13846,en,sports,JSONL,VREN,Public,Registry metadata only,,,
-Fashion IQ,https://github.com/XiaoxiaoGuo/fashion-iq,en,fashion,JSONL,FashionIQ,Public,Registry metadata only,,,
-Natural Products RE,https://direct.mit.edu/coli/article/50/3/953/121178,en,biomedical,JSONL,NaturalProductsRE,Public,Registry metadata only,,,
-DrugProt,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vii/track-1/,en,biomedical,BRAT,DrugProtBioCreative,Public,Registry metadata only,,,
-MOF Dataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,en,materials,JSONL,MOFDataset,Public,Registry metadata only,,,
-Solid-State Doping,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,en,materials,JSONL,SolidStateDoping,Public,Registry metadata only,,,
-AgriNER,https://2023.eswc-conferences.org/wp-content/uploads/2023/05/paper_De_2023_AgriNER.pdf,en,agriculture,JSONL,AgriNER,Public,Registry metadata only,,,
-AGRONER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423009429,en,agriculture,BIO,AGRONER,Public,Registry metadata only,,,
-AgMNER,https://www.nature.com/articles/s41598-025-88874-9,zh,agriculture,JSONL,AgMNER,Public,Registry metadata only,,,
-Polish Coreference Corpus,http://zil.ipipan.waw.pl/PolishCoreferenceCorpus,pl,general,Custom,PolishCoreferenceCorpus,Public,Registry metadata only,,,
-Arabic Event Coreference,https://dl.acm.org/doi/10.1145/3743047,ar,news,CoNLL,ArabicEventCoref,Public,Registry metadata only,,,
-Hindi-English Social Media NER,https://github.com/juand-r/entity-recognition-datasets,hi-en,social_media,CoNLL,HindiEnglishSocialMediaNER,Public,Registry metadata only,,,
-astroBERT Corpus,https://huggingface.co/adsabs/astroBERT,en,astronomy,Custom,AstroBERTCorpus,Public,Registry metadata only,,,
-Astronomical Telegram KEE,https://www.raa-journal.org/issues/all/2024/v24n6/202405/,en,astronomy,JSONL,AstronomicalTelegramKEE,Public,Registry metadata only,,,
-Saraga,https://mtg.github.io/saraga/,mul,music,JSONL,Saraga,Public,Registry metadata only,,,
-MusicBrainz RE,https://web.stanford.edu/~jurafsky/mintz.pdf,en,music,Custom,MusicBrainzRE,Public,Registry metadata only,,,
-DINAA,https://ux.opencontext.org/endangered-data-and-the-digital-index-of-north-american-archaeology-dinaa/,en,archaeology,Custom,DINAA,Public,Registry metadata only,,,
-IMDb Semi-Structured RE,https://www.vldb.org/pvldb/vol11/p1084-lockard.pdf,en,entertainment,JSONL,IMDbSemiStructuredRE,Public,Registry metadata only,,,
-ATIS Flight Booking,https://github.com/yvchen/JointSLU,en,travel,BIO,ATISFlightBooking,Public,Registry metadata only,,,
-Paleontology NER,https://aclanthology.org/anthology-files/anthology-files/pdf/findings/2023.findings-emnlp.218v1.pdf,en,paleontology,CoNLL,PaleontologyNER,Public,Registry metadata only,,,
-Water Resource NER,https://www.frontiersin.org/journals/environmental-science/articles/10.3389/fenvs.2025.1558317/pdf,en,environment,BIO,WaterResourceNER,Public,Registry metadata only,,,
-MalwareTextDB,https://github.com/juand-r/entity-recognition-datasets,en,cybersecurity,BRAT,MalwareTextDB,Public,Registry metadata only,,,
-SEC-filings,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/SEC-filings/CONLL-format/data/test/FIN3.txt,en,finance,CoNLL,SECFilingsNER,Public,BIO token counts,13246,436,167860
-AnEM,http://www.nactem.ac.uk/anatomy/,en,biomedical,Standoff,AnEM,Public,Registry metadata only,,,
-RecipeDB Annotated,https://aclanthology.org/2024.lrec-main.406/,en,food,JSONL,RecipeDBAnnotated,Public,Registry metadata only,,,
-Ritter Twitter NER,https://github.com/aritter/twitter_nlp,en,social_media,CoNLL,RitterTwitterNER,Public,Registry metadata only,,,
-Music-NER,https://github.com/juand-r/entity-recognition-datasets,en,music,CoNLL,MusicNER,Public,Registry metadata only,,,
-500 Tutoring Sessions,https://aclanthology.org/C16-1188.pdf,en,education,Custom,TutoringSessionsAlgebra,Public,Registry metadata only,,,
-GNER,https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/2019EA000610,zh,geology,BIO,GNERGeoscience,Public,Registry metadata only,,,
-Four Regions Geology NER,https://www.geodoi.ac.cn/WebEn/down.aspx?ID=1873,zh,geology,BIO,FourRegionsGeologyNER,Public,Registry metadata only,,,
-MSP-Podcast,https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html,en,speech,Custom,MSPPodcast,Public,Registry metadata only,,,
-Spotify Podcasts Dataset,https://www.isca-archive.org/interspeech_2023/kotey23_interspeech.pdf,en,speech,JSONL,SpotifyPodcastsDataset,Public,Registry metadata only,,,
-Sports NER,https://arxiv.org/html/2406.12252v1,en,sports,CoNLL,SportsNERGeneral,Public,Registry metadata only,,,
-Esports NER,https://arxiv.org/html/2406.12252v1,en,gaming,CoNLL,EsportsNER,Public,Registry metadata only,,,
-DeepFashion2,https://github.com/switchablenorms/DeepFashion2,en,fashion,JSONL,DeepFashion2,Public,Registry metadata only,,,
-Construction NER,https://www.sciencedirect.com/science/article/pii/S0926580520309481,en,construction,BIO,ConstructionNER,Public,Registry metadata only,,,
-PharmaNER,https://github.com/juand-r/entity-recognition-datasets,en,biomedical,BIO,PharmaNER,Public,Registry metadata only,,,
-Product Review NER,https://www.aclweb.org/anthology/S14-2004/,en,ecommerce,XML,ProductReviewNER,Public,Registry metadata only,,,
-Real Estate NER,https://github.com/juand-r/entity-recognition-datasets,en,real_estate,CoNLL,RealEstateNER,Public,Registry metadata only,,,
-Automotive NER,https://github.com/juand-r/entity-recognition-datasets,en,automotive,CoNLL,AutomotiveNER,Public,Registry metadata only,,,
-Tourism NER,https://github.com/juand-r/entity-recognition-datasets,en,tourism,CoNLL,TourismNER,Public,Registry metadata only,,,
-Energy NER,https://github.com/juand-r/entity-recognition-datasets,en,energy,BIO,EnergyNER,Public,Registry metadata only,,,
-Insurance NER,https://github.com/juand-r/entity-recognition-datasets,en,insurance,JSONL,InsuranceNER,Public,Registry metadata only,,,
-Logistics NER,https://github.com/juand-r/entity-recognition-datasets,en,logistics,CoNLL,LogisticsNER,Public,Registry metadata only,,,
-Resume NER,https://www.kaggle.com/datasets/dataturks/resume-entities-for-ner,en,hr,JSONL,ResumeNER,Public,Registry metadata only,,,
-Job Posting NER,https://github.com/juand-r/entity-recognition-datasets,en,hr,CoNLL,JobPostingNER,Public,Registry metadata only,,,
-Healthcare Admin NER,https://github.com/juand-r/entity-recognition-datasets,en,healthcare,BIO,HealthcareAdminNER,Public,Registry metadata only,,,
-Telecom NER,https://github.com/juand-r/entity-recognition-datasets,en,telecom,CoNLL,TelecomNER,Public,Registry metadata only,,,
-Weather NER,https://github.com/juand-r/entity-recognition-datasets,en,weather,BIO,WeatherNER,Public,Registry metadata only,,,
-Manufacturing NER,https://github.com/juand-r/entity-recognition-datasets,en,manufacturing,BIO,ManufacturingNER,Public,Registry metadata only,,,
-Retail Inventory NER,https://github.com/juand-r/entity-recognition-datasets,en,retail,JSONL,RetailInventoryNER,Public,Registry metadata only,,,
-Crop Disease NER,https://github.com/juand-r/entity-recognition-datasets,en,agriculture,BIO,CropDiseaseNER,Public,Registry metadata only,,,
-Wine NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,WineNER,Public,Registry metadata only,,,
-Veterinary NER,https://github.com/juand-r/entity-recognition-datasets,en,veterinary,BIO,VeterinaryNER,Public,Registry metadata only,,,
-Photography NER,https://github.com/juand-r/entity-recognition-datasets,en,photography,CoNLL,PhotographyNER,Public,Registry metadata only,,,
-Genealogy NER,https://github.com/juand-r/entity-recognition-datasets,en,genealogy,Custom,GenealogyNER,Public,Registry metadata only,,,
-Board Game NER,https://github.com/juand-r/entity-recognition-datasets,en,gaming,JSONL,BoardGameNER,Public,Registry metadata only,,,
-Gardening NER,https://github.com/juand-r/entity-recognition-datasets,en,gardening,CoNLL,GardeningNER,Public,Registry metadata only,,,
-Brewing NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,BrewingNER,Public,Registry metadata only,,,
-Knitting NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,JSONL,KnittingNER,Public,Registry metadata only,,,
-Fitness NER,https://github.com/juand-r/entity-recognition-datasets,en,fitness,CoNLL,FitnessNER,Public,Registry metadata only,,,
-Astrology NER,https://github.com/juand-r/entity-recognition-datasets,en,astrology,CoNLL,AstrologyNER,Public,Registry metadata only,,,
-Tattoo NER,https://github.com/juand-r/entity-recognition-datasets,en,art,JSONL,TattooNER,Public,Registry metadata only,,,
-Fragrance NER,https://github.com/juand-r/entity-recognition-datasets,en,fragrance,JSONL,FragranceNER,Public,Registry metadata only,,,
-Chess NER,https://github.com/juand-r/entity-recognition-datasets,en,gaming,JSONL,ChessNER,Public,Registry metadata only,,,
-Cocktail NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,CocktailNER,Public,Registry metadata only,,,
-Antiques NER,https://github.com/juand-r/entity-recognition-datasets,en,antiques,JSONL,AntiquesNER,Public,Registry metadata only,,,
-Maritime NER,https://github.com/juand-r/entity-recognition-datasets,en,maritime,CoNLL,MaritimeNER,Public,Registry metadata only,,,
-Equestrian NER,https://github.com/juand-r/entity-recognition-datasets,en,equestrian,CoNLL,EquestrianNER,Public,Registry metadata only,,,
-Woodworking NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,CoNLL,WoodworkingNER,Public,Registry metadata only,,,
-Birdwatching NER,https://github.com/juand-r/entity-recognition-datasets,en,wildlife,JSONL,BirdwatchingNER,Public,Registry metadata only,,,
-Numismatics NER,https://github.com/juand-r/entity-recognition-datasets,en,numismatics,JSONL,NumismaticsNER,Public,Registry metadata only,,,
-Philately NER,https://github.com/juand-r/entity-recognition-datasets,en,philately,JSONL,PhilatelyNER,Public,Registry metadata only,,,
-Scuba NER,https://github.com/juand-r/entity-recognition-datasets,en,scuba,CoNLL,ScubaNER,Public,Registry metadata only,,,
-Theme Park NER,https://github.com/juand-r/entity-recognition-datasets,en,entertainment,JSONL,ThemeParkNER,Public,Registry metadata only,,,
-Origami NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,CoNLL,OrigamiNER,Public,Registry metadata only,,,
-Anime/Manga NER,https://github.com/juand-r/entity-recognition-datasets,mul,entertainment,JSONL,AnimeMangaNER,Public,Registry metadata only,,,
-Crypto NER,https://github.com/juand-r/entity-recognition-datasets,en,crypto,CoNLL,CryptoNER,Public,Registry metadata only,,,
-Telenovela NER,https://github.com/juand-r/entity-recognition-datasets,es,entertainment,CoNLL,TelenovelaNER,Public,Registry metadata only,,,
-Tarot NER,https://github.com/juand-r/entity-recognition-datasets,en,divination,CoNLL,TarotNER,Public,Registry metadata only,,,
-Beekeeping NER,https://github.com/juand-r/entity-recognition-datasets,en,agriculture,CoNLL,BeekeepingNER,Public,Registry metadata only,,,
+name,url,language,domain,format,id,access,declared_splits,result,bytes,tokens,tagged,reason
+Anno NER Smoke,,en,example,CoNLL,AnnoNerSmoke,Local,fixture,Tagged token counts,97,10,5,
+WikiGold,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt,en,wikipedia,CoNLL,WikiGold,Public,all,Tagged token counts,318530,39007,6431,
+WNUT-17,https://raw.githubusercontent.com/leondz/emerging_entities_17/master/emerging.test.annotated,en,social_media,CoNLL,Wnut17,HuggingFace,,Tagged token counts,192425,23394,1740,
+MIT Movie,https://groups.csail.mit.edu/sls/downloads/movie/engtest.bio,en,entertainment,BIO,MitMovie,Public,,Tagged token counts,252636,24686,9757,
+MIT Restaurant,https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttest.bio,en,restaurant,BIO,MitRestaurant,Public,,Tagged token counts,155722,14256,5597,
+CoNLL-2003 Sample,https://huggingface.co/datasets/tner/conll2003,en,news,CoNLL,CoNLL2003Sample,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+OntoNotes Sample,https://huggingface.co/datasets/tner/ontonotes5,en,news,CoNLL,OntoNotesSample,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+MultiNERD,https://huggingface.co/datasets/Babelscape/multinerd/resolve/main/test/test_en.jsonl,en,wikipedia,JSONL,MultiNERD,HuggingFace,,File read,4648704,,,No comparable entity-token density measured for this representation
+Few-NERD,https://huggingface.co/datasets/DFKI-SLT/few-nerd,en,wikipedia,TSV,FewNERD,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+CrossNER,https://huggingface.co/datasets/DFKI-SLT/cross_ner,en,multi-domain,CoNLL,CrossNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+FabNER,https://huggingface.co/datasets/DFKI-SLT/fabner,en,manufacturing,CoNLL,FabNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Broad Twitter Corpus,https://huggingface.co/datasets/tner/btc,en,social_media,BIO,BroadTwitterCorpus,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+WikiNeural,https://huggingface.co/datasets/Babelscape/wikineural,mul,wikipedia,CoNLL,WikiNeural,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Polyglot-NER,https://huggingface.co/datasets/rmyeid/polyglot_ner,mul,wikipedia,CoNLL,PolyglotNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Universal NER,https://github.com/UniversalNER/uner_code,mul,mixed,CoNLL,UniversalNERBench,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CoNLL-2002,,mul,news,CoNLL,CoNLL2002,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+TweetNER7,https://huggingface.co/datasets/tner/tweetner7,en,social_media,JSONL,TweetNER7,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Google-RE,https://raw.githubusercontent.com/google-research-datasets/relation-extraction-corpus/master/20130403-place_of_birth.json,en,wikipedia,JSON,GoogleRE,Public,,File read,7735964,,,No comparable entity-token density measured for this representation
+NYT-FB,https://github.com/thunlp/OpenNRE,en,news,JSONL,NYTFB,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+REBEL,https://huggingface.co/datasets/Babelscape/rebel-dataset,en,wikipedia,JSONL,REBEL,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+MultiCoNER,https://huggingface.co/datasets/samanjoy2/multiconer_v1,mul,mixed,CoNLL,MultiCoNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+MultiCoNER v2,https://huggingface.co/datasets/MultiCoNER/multiconer_v2,mul,mixed,CoNLL,MultiCoNERv2,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BC5CDR,https://huggingface.co/datasets/tner/bc5cdr,en,biomedical,BIO,BC5CDR,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+NCBI Disease,https://raw.githubusercontent.com/shreyashub/BioFLAIR/master/data/ner/NCBI-disease/test.txt,en,biomedical,BIO,NCBIDisease,HuggingFace,,Tagged token counts,328149,24497,2047,
+GENIA,https://huggingface.co/datasets/chufangao/GENIA-NER,en,biomedical,XML,GENIA,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+AnatEM,https://huggingface.co/datasets/disi-unibo-nlp/AnatEM,en,biomedical,Standoff,AnatEM,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BC2GM,https://huggingface.co/datasets/spyysalo/bc2gm_corpus,en,biomedical,IOB2,BC2GM,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BC4CHEMD,https://huggingface.co/datasets/chintagunta85/bc4chemd,en,biomedical,IOB2,BC4CHEMD,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+GAP,https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv,en,wikipedia,TSV,GAP,HuggingFace,,File read,1075889,,,No comparable entity-token density measured for this representation
+PreCo,https://huggingface.co/datasets/coref-data/preco_raw,en,reading_comprehension,JSONL,PreCo,HuggingFace,train|validation,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+LitBank,https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann,en,literature,BRAT,LitBank,Public,all,File read,25073,,,No comparable entity-token density measured for this representation
+ECB+,https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip,en,news,ECB+ XML (ZIP),ECBPlus,Public,all,File read,4470858,,,No comparable entity-token density measured for this representation
+OntoNotes Coreference,https://catalog.ldc.upenn.edu/LDC2013T19,en,mixed,CoNLL,OntoNotesCoref,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+WikiCoref,,en,wikipedia,CoNLL,WikiCoref,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+ARRAU 3.0,https://aclanthology.org/2024.codi-1.12/,en,mixed,MMAX2,ARRAU3,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+AMI Meeting,https://groups.inf.ed.ac.uk/ami/download/,en,dialogue,XML,AMIMeeting,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+CLEF Clinical Coreference,,en,clinical,Standoff,CLEFClinicalCoref,Registration,,Registry metadata only,,,,Registry requires registration
+RST Discourse Treebank,https://catalog.ldc.upenn.edu/LDC2002T07,en,news,Custom,RSTDT,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+WinoBias,https://raw.githubusercontent.com/uclanlp/corefBias/master/WinoBias/wino/data/anti_stereotyped_type1.txt.dev,en,evaluation,Custom,WinoBias,Public,,File read,32782,,,No comparable entity-token density measured for this representation
+qxoRef,https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll,qxo,narrative,CoNLL,QxoRef,Public,,File read,8548,,,No comparable entity-token density measured for this representation
+AmericasNLI,https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv,mul,general,TSV,AmericasNLI,Public,,File read,1165688,,,No comparable entity-token density measured for this representation
+Cherokee NER,,chr,indigenous,Custom,CherokeeNER,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+Nahuatl NER,,nah,historical,CoNLL,NahuatlNER,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+Māori NER,,mi,indigenous,JSONL,MaoriNER,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+Welsh NER,,cy,news,CoNLL,WelshNER,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+Basque NER,,eu,news,CoNLL,BasqueNER,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+HIPE-2022,https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-test-de.tsv,mul,historical,TSV,HIPE2022,Public,test,Tagged token counts,929525,30737,2369,
+HistNERo,https://github.com/avramandrei/histnero,ro,historical,CoNLL,HistNERo,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Quaero Old Press,,fr,historical,XML,QuaeroOldPress,ContactAuthors,test,Registry metadata only,,,,Registry requires contacting the authors
+Historical Chinese NER,,zh,historical,JSONL,HistoricalChineseNER,ContactAuthors,train|dev|test,Registry metadata only,,,,Registry requires contacting the authors
+CHisIEC,https://raw.githubusercontent.com/tangxuemei1995/CHisIEC/main/data/re/coling_test.json,lzh,historical,JSON,CHisIEC,Public,train|dev|test,File read,184906,,,No comparable entity-token density measured for this representation
+DocRED,,en,wikipedia,JSON,DocRED,Public,train|dev|test,Registry metadata only,,,,Registry supplies no URL
+Re-TACRED,,en,news,JSON,ReTACRED,DependsOnOther,,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+ACE 2004,,en,news,XML,ACE2004,Registration,,Registry metadata only,,,,Registry requires registration
+CADEC,https://huggingface.co/datasets/KevinSpaghetti/cadec,en,biomedical,BRAT,CADEC,HuggingFace,train|dev|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+WinoQueer,https://raw.githubusercontent.com/katyfelkner/winoqueer/main/data/winoqueer_final.csv,en,evaluation,CSV,WinoQueer,Public,all,File read,4816487,,,No comparable entity-token density measured for this representation
+BBQ,https://raw.githubusercontent.com/nyu-mll/BBQ/main/data/Gender_identity.jsonl,en,evaluation,JSONL,BBQ,Public,all,File read,4331406,,,No comparable entity-token density measured for this representation
+GICoref,https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/master/GICoref/coref.combo.conll,en,evaluation,CoNLL,GICoref,Public,all,File read,470685,,,No comparable entity-token density measured for this representation
+CorefUD,http://hdl.handle.net/11234/1-5987,mul,general,CoNLLU,CorefUD,Public,,Registry metadata only,,,,Registry URL is outside the HTTPS file reader
+TransMuCoRes,,mul,general,JSONL,TransMuCoRes,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+mGAP,,mul,evaluation,TSV,MGAP,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+CrowS-Pairs,https://github.com/nyu-mll/crows-pairs,en,evaluation,CSV,CrowSPairs,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+StereoSet,https://github.com/moinnadeem/StereoSet,en,evaluation,JSONL,StereoSet,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+RealToxicityPrompts,https://huggingface.co/datasets/allenai/real-toxicity-prompts,en,evaluation,JSONL,RealToxicityPrompts,Public,all,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BOLD,https://github.com/amazon-science/bold,en,evaluation,JSONL,BoldBias,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+DROC,,de,literature,JSONL,DROC,Deprecated,all,Registry metadata only,,,,Registry marks this source deprecated
+FantasyCoref,https://github.com/emorynlp/FantasyCoref/archive/refs/heads/master.zip,en,literature,JSONL,FantasyCoref,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+BOOKCOREF,https://huggingface.co/datasets/sapienzanlp/bookcoref,en,literature,JSONL,BookCoref,DependsOnOther,train|validation|test,Registry metadata only,,,,Registry requires an independently provisioned source corpus
+BOOKCOREF (Split),https://huggingface.co/datasets/sapienzanlp/bookcoref,en,literature,JSONL,BookCorefSplit,DependsOnOther,train|validation|test,Registry metadata only,,,,Registry requires an independently provisioned source corpus
+LongtoNotes,https://docs.google.com/forms/d/e/1FAIpQLScoWkBOgJ1HH_phtvTJ4_hGvQw6f0W6K7kw74sUKCDTG8P2iA/viewform,en,mixed,CoNLL,LongtoNotes,Public,train|dev|test,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+MovieCoref,https://aclanthology.org/attachments/2021.findings-acl.176.OptionalSupplementaryMaterial.gz,en,literature,CoNLL,MovieCoref,Public,all,File read,199509,,,No comparable entity-token density measured for this representation
+TwiConv,https://raw.githubusercontent.com/berfingit/TwiConv/main/conll_skeleton/001_940791133357199360.branch7._with_boundaries_gold_conll,en,social_media,CoNLL,TwiConv,Public,,File read,4985,,,No comparable entity-token density measured for this representation
+MuDoCo,https://raw.githubusercontent.com/facebookresearch/mudoco/main/mudoco_calling.json,en,dialogue,JSON,MuDoCo,Public,,File read,10032044,,,No comparable entity-token density measured for this representation
+DialogRE,https://github.com/nlpdata/dialogre,en,dialogue,JSONL,DialogRE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MultiWOZ NER,https://github.com/budzianowski/multiwoz,en,dialogue,JSONL,MultiWOZNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CoQA,https://stanfordnlp.github.io/coqa/,en,mixed,JSONL,CoQAEntities,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Gun Violence Corpus,https://github.com/cltl/GunViolenceCorpus,en,news,Custom,GVC,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Football Coreference Corpus,,en,sports,,FCC,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+ECB+META,,en,news,,ECBPlusMeta,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+ARRAU 3.0 (v2),,en,mixed,MMAX2,ARRAU,Registration,train|dev|test,Registry metadata only,,,,Registry requires registration
+ISNotes,https://github.com/nlpAThits/ISNotes1.0/archive/refs/heads/master.zip,en,news,MMAX2,ISNotes,DependsOnOther,,Registry metadata only,,,,Registry requires an independently provisioned source corpus
+Shell Nouns (ASN),,en,academic,,ShellNouns,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+PDTB 3.0,,en,news,,PDTBv3,Registration,,Registry metadata only,,,,Registry requires registration
+CODI-CRAC Bridging,https://github.com/UniversalAnaphora/UA-CODI-CRAC,en,dialogue,CoNLLUA,CODICRACBridging,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Anaphora Accessibility,,en,evaluation,JSONL,AnaphoraAccessibility,NotYetReleased,test,Registry metadata only,,,,Registry marks the dataset unreleased
+Human-Voice Agent Interaction,,fr,dialogue,JSONL,HumanVoiceAgentInteraction,Local,all,File read,34984,,,No comparable entity-token density measured for this representation
+Disco-Bench,,zh-en,literature,Custom,DiscoBench,NotYetReleased,test,Registry metadata only,,,,Registry marks the dataset unreleased
+DiscoTrack,,mul,general,Custom,DiscoTrack,NotYetReleased,test,Registry metadata only,,,,Registry marks the dataset unreleased
+LIEDER,,en,evaluation,Custom,LIEDER,ContactAuthors,test,Registry metadata only,,,,Registry requires contacting the authors
+GCDC,,en,mixed,TSV,GCDC,DependsOnOther,train|dev|test,Registry metadata only,,,,Registry requires an independently provisioned source corpus
+DISAPERE,https://github.com/nnkennard/DISAPERE,en,scientific,JSONL,DISAPERE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+PragmEval,https://github.com/sileod/pragmeval,en,dialogue,TSV,PragmEval,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ViRA Dialog Acts (Live),https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live,en,dialogue,HF-rows,ViraDialogActsLive,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+DISRPT (eng.dep.scidtb.rels),https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.rels&split=train&offset=0&length=100,en,scientific,HF-rows,DisrptEngDepScidtbRels,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+DISRPT (deu.rst.pcc.rels),https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.rels&split=train&offset=0&length=100,de,news,HF-rows,DisrptDeuRstPccRels,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+"DISRPT (eng.dep.scidtb.conllu, Seg)",https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.conllu&split=train&offset=0&length=100,en,scientific,HF-rows,DisrptEngDepScidtbConlluSeg,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+"DISRPT (deu.rst.pcc.conllu, Seg)",https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.conllu&split=train&offset=0&length=100,de,news,HF-rows,DisrptDeuRstPccConlluSeg,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+DISRPT 2025,https://github.com/disrpt/sharedtask2025,mul,general,CoNLL,DISRPT2025,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Ancient Greek UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/master/grc_perseus-ud-test.conllu,grc,literature,CoNLLU,AncientGreekUD,Public,,File read,1979037,,,No comparable entity-token density measured for this representation
+Latin UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/master/la_ittb-ud-test.conllu,la,literature,CoNLLU,LatinUD,Public,,File read,3184421,,,No comparable entity-token density measured for this representation
+Coptic Scriptorium,https://data.copticscriptorium.org/,cop,religious,CoNLLU,CopticScriptorium,Registration,,Registry metadata only,,,,Registry requires registration
+LT4HALA Hebrew,,hbo,religious,,LT4HALA,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+ORACC,http://oracc.museum.upenn.edu/,akk,historical,JSON,ORACC,Registration,,Registry metadata only,,,,Registry requires registration
+MasakhaNER,https://raw.githubusercontent.com/masakhane-io/masakhane-ner/main/data/yor/test.txt,mul,news,CoNLL,MasakhaNER,HuggingFace,,Tagged token counts,182311,19896,2486,
+MasakhaNER 2.0,https://huggingface.co/datasets/masakhane/masakhaner2,mul,news,CoNLL,MasakhaNER2,HuggingFace,train|dev|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+AfriSenti,https://huggingface.co/datasets/shmuhammad/AfriSenti-twitter-sentiment,mul,social_media,HuggingFace,AfriSenti,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+AfriQA,https://huggingface.co/datasets/masakhane/afriqa,mul,wikipedia,JSONL,AfriQA,HuggingFace,train|dev|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+MasakhaNEWS,https://huggingface.co/datasets/masakhane/masakhanews,mul,news,HuggingFace,MasakhaNEWS,HuggingFace,train|dev|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+AG News,https://huggingface.co/datasets/fancyzhx/ag_news,en,news,HuggingFace,AGNews,HuggingFace,train|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+DBPedia-14,https://huggingface.co/datasets/fancyzhx/dbpedia_14,en,wikipedia,HuggingFace,DBPedia14,HuggingFace,train|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Yahoo Answers Topic,https://huggingface.co/datasets/community-datasets/yahoo_answers_topics,en,qa,HuggingFace,YahooAnswers,HuggingFace,train|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+TREC Question Classification,https://huggingface.co/datasets/trec,en,qa,HuggingFace,TREC,HuggingFace,train|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+TweetTopic,https://huggingface.co/datasets/cardiffnlp/tweet_topic_multi,en,social_media,HuggingFace,TweetTopic,HuggingFace,train|validation|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+MasakhaPOS,https://github.com/masakhane-io/masakhane-pos,mul,general,CoNLL-U,MasakhaPOS,HuggingFace,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WikiANN,https://huggingface.co/datasets/unimelb-nlp/wikiann,mul,wikipedia,,WikiANN,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+NaijaNER,,pcm,social_media,,NaijaNER,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+WIESP2022-NER (DEAL),https://huggingface.co/datasets/adsabs/WIESP2022-NER,en,scientific,JSONL,WIESP2022NER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Dutch Archaeology NER,https://live.european-language-grid.eu/catalogue/corpus/13410,nl,archaeology,CoNLL,DutchArchaeology,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+E-NER (EDGAR-NER),https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/main/all.csv,en,legal,CSV,ENer,Public,,File read,3445556,,,4 rows use tags outside the BIO schema; tagged total omitted
+FINER (Food Ingredients NER),https://figshare.com/ndownloader/files/36144501,en,food,CoNLL,FINER,Public,train|test,Tagged token counts,1949641,1397960,1177660,
+AnnoCTR (Cyber Threat Reports),https://github.com/boschresearch/anno-ctr-lrec-coling-2024/archive/refs/heads/main.zip,en,cybersecurity,JSONL,AnnoCTR,Public,train|dev|test,Tagged token counts,92683884,268539,44142,
+CRAFT,https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip,en,biomedical,XML,CRAFT,Public,,File read,241114956,,,No comparable entity-token density measured for this representation
+WNUT-16,https://raw.githubusercontent.com/aritter/twitter_nlp/65f3d77134c40d920db8d431c5c6faef1c051c94/data/annotated/wnut16/data/test,en,social_media,CoNLL,WNUT16,Public,train|dev|test,Tagged token counts,568766,61908,5955,
+Sanskrit UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/master/sa_vedic-ud-test.conllu,sa,religious,CoNLLU,SanskritUD,Public,,File read,3035277,,,No comparable entity-token density measured for this representation
+Old English UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/ang_cairo-ud-test.conllu,ang,historical,CoNLLU,OldEnglishUD,Public,,File read,18525,,,No comparable entity-token density measured for this representation
+Old Norse UD,https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-test.conllu,non,literature,CoNLLU,OldNorseUD,Public,,File read,11900516,,,No comparable entity-token density measured for this representation
+CALCS-2018,https://code-switching.github.io/2018/,mul,social_media,CoNLL,CALCS2018,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Hinglish NER,https://github.com/murali1996/CodemixedNLP,mul,social_media,JSONL,HinglishNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Medieval Charter NER,https://zenodo.org/records/6463699,mul,historical,CoNLL,MedievalCharterNER,Public,,read failed,,,,HTTP Error 503: Service Unavailable
+CBMA Charters,,la,historical,CoNLL,CBMACharters,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+MSNER,https://rdr.kuleuven.be/dataset.xhtml?persistentId=doi:10.48804/ZTVMIX,mul,speech,CoNLL,MSNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+NoiseBench,https://raw.githubusercontent.com/elenamer/NoiseBench/main/data/annotations/clean.traindev,en,evaluation,CoNLL,NoiseBench,Public,,Tagged token counts,705396,80120,14048,
+RockNER,https://github.com/INK-USC/RockNER,en,evaluation,CoNLL,RockNER,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CrossWeigh,https://raw.githubusercontent.com/ZihanWangKi/CrossWeigh/master/data/conllpp_test.txt,en,evaluation,CoNLL,CrossWeigh,Public,test,Tagged token counts,748737,46435,8258,
+ZELDA,https://raw.githubusercontent.com/flairNLP/zelda/main/test_data/conll/test_aida-b.conll,en,wikipedia,CoNLL,ZELDA,Public,test,Tagged token counts,580980,46435,6084,
+TweetNERD,https://zenodo.org/records/6617192,en,social_media,JSONL,TweetNERD,Public,train|dev|test,read failed,,,,HTTP Error 503: Service Unavailable
+AIDA-CoNLL,https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida,en,news,CoNLL,AIDACoNLL,Public,train|testa|testb,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ACE 2005,,en,news,XML,ACE2005,Registration,,Registry metadata only,,,,Registry requires registration
+NNE (Nested Named Entities),https://github.com/nickyringland/nested_named_entities,en,news,CoNLL,NNE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+GENIA Nested,https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/master/Our_boundary-aware_model/data/genia/genia.test.iob2,en,biomedical,CoNLL,GENIANested,Public,train|dev|test,Tagged token counts,889419,57021,14456,
+Chinese Nested NER,https://github.com/LeeSureman/Nested-NER,zh,news,JSONL,ChineseNestedNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciNER Nested,https://github.com/allenai/sciie,en,scientific,JSONL,SCINERNested,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ShARe/CLEF,,en,clinical,BRAT,ShAReCLEF,Registration,,Registry metadata only,,,,Registry requires registration
+GermEval Discontinuous,https://sites.google.com/site/germaboreval/data,de,news,CoNLL,GermEvalDiscontinuous,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ADR Discontinuous,https://github.com/Aitslab/ADR-DisNER,en,biomedical,BRAT,ADRDiscontinuous,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+PubMed Discontinuous,https://github.com/dmis-lab/discontinuous-ner,en,biomedical,CoNLL,PubMedDiscontinuous,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+TACRED,,en,news,JSON,TACRED,Registration,,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+SemEval-2010 Task 8,https://github.com/sahitya0000/Relation-Classification,en,mixed,Custom,SemEval2010Task8,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FewRel,https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json,en,wikipedia,JSON,FewRel,Public,validation,File read,3534147,,,No comparable entity-token density measured for this representation
+NYT-10,http://iesl.cs.umass.edu/riedel/ecml/,en,news,Custom,NYT10,Public,train|test,Registry metadata only,,,,Registry URL is outside the HTTPS file reader
+JNLPBA,https://raw.githubusercontent.com/cambridgeltl/MTL-Bioinformatics-2016/master/data/JNLPBA/test.tsv,en,biomedical,CoNLL,JNLPBA,Public,,Tagged token counts,996475,101039,19392,
+S800,https://species.jensenlab.org/files/S800-1.0.tar.gz,en,biomedical,XML,S800,DependsOnOther,,Registry metadata only,,,,Registry requires an independently provisioned source corpus
+TempEval-3,https://figshare.com/articles/dataset/TempEval-3_data/9586532,en,news,TimeML,TempEval3,Public,train|test,Registry metadata only,,,,Release bundles TimeBank source text; no provisioned local archive
+Anno TIMEX Smoke,,en,synthetic,TIMEX JSONL,AnnoTimexSmoke,Local,fixture,File read,430,,,No comparable entity-token density measured for this representation
+Anno TIMEX Contrast,,en,mixed,TIMEX JSONL,AnnoTimexContrast,Local,fixture,File read,5621,,,No comparable entity-token density measured for this representation
+"TIMEX Recognition (Sentence, Original)",,en,news,HF-rows,TimexRecognitionSentenceOriginal,DependsOnOther,train|validation|test,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+TimeBank 1.2,https://catalog.ldc.upenn.edu/LDC2006T08,en,news,TimeML,TimeBank12,Public,train|test,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+MATRES,https://github.com/qiangning/MATRES,en,news,Custom,MATRES,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+THYME,,en,clinical,Custom,THYME,Registration,train|dev|test,Registry metadata only,,,,Registry requires registration
+i2b2 2012 Temporal,,en,clinical,Custom,I2B2Temporal,Registration,train|test,Registry metadata only,,,,Registry requires registration
+Twitter-2015 MNER,https://github.com/jefferyYu/UMT,en,social_media,CoNLL,Twitter2015MNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Distant Listening Corpus,https://zenodo.org/records/15150283,mul,music,TSV,DistantListeningCorpus,Public,train,read failed,,,,HTTP Error 503: Service Unavailable
+PII Masking 200k,https://huggingface.co/datasets/ai4privacy/pii-masking-200k,mul,privacy,JSONL,PIIMasking200k,HuggingFace,train,Registry metadata only,,,,Hub reference; see the configuration and split survey
+E-NER SEC,https://github.com/jnishii/E-NER,en,legal,CSV,ENERSec,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MSNBC,,en,news,Custom,MSNBCEL,ContactAuthors,test,Registry metadata only,,,,Registry requires contacting the authors
+AQUAINT,,en,news,Custom,AQUAINT,Registration,test,Registry metadata only,,,,Registry requires registration
+KORE50,https://github.com/KORE50/KORE50-NIF-NER,en,evaluation,Custom,KORE50,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WNED-WIKI,https://github.com/wikipedia2vec/wikipedia2vec,en,wikipedia,Custom,WNEDWiki,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WNED-ClueWeb,,en,web,Custom,WNEDClueweb,Registration,test,Registry metadata only,,,,Registry requires registration
+BELB,https://github.com/sg-wbi/belb,en,biomedical,JSONL,BELB,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MELO,https://github.com/avature/melo-benchmark,mul,general,JSONL,MELO,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Mewsli-X,https://huggingface.co/datasets/izhx/mewsli-x,mul,news,TSV,MewsliX,Public,test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BookCoref (Bamman),https://huggingface.co/datasets/spacemanidol/BookCoref,en,literature,JSONL,BookCorefBamman,ContactAuthors,test,Registry metadata only,,,,Registry requires contacting the authors
+NovelCR,https://github.com/NovelCR/NovelCR,mul,literature,JSONL,NovelCR,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+AgCNER,https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873,zh,scientific,JSONL,AgCNER,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+SCROLLS QMSum,https://github.com/tau-nlp/scrolls,en,dialogue,JSONL,ScrollsQMSum,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Long Document NER,https://github.com/xhuang28/LongDocNER,en,mixed,JSONL,LongDocNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+BookSum Coref,https://github.com/salesforce/booksum,en,literature,JSONL,BookSumCoref,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Multi-Bio Long NER,https://github.com/dmis-lab/multi-bio-ner,en,biomedical,JSONL,MultiBioNERLong,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+RadCoref,https://physionet.org/content/rad-coreference-resolution/,en,clinical,BRAT,RadCoref,Public,train|test,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+MEANTIME,https://github.com/newsreader/meantime,mul,news,Custom,MEANTIME,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FCC-T,https://github.com/cltl/FCC,en,sports,CoNLL,FCCT,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+LEMONADE,https://github.com/lemonade-coref/lemonade,mul,news,JSONL,LEMONADE,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+BioRED,https://ftp.ncbi.nlm.nih.gov/pub/lu/BioRED/,en,biomedical,Custom,BioRED,Public,train|dev|test,File read,2191684,,,No comparable entity-token density measured for this representation
+MedMentions,https://github.com/chanzuckerberg/MedMentions,en,biomedical,Custom,MedMentions,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+EnzChemRED,https://github.com/ncbi-nlp/EnzChemRED,en,biomedical,JSONL,EnzChemRED,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+NCERB,https://github.com/WadoodAbdul/clinical_ner_benchmark,en,clinical,Custom,NCERB,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MACCROBAT,https://figshare.com/articles/dataset/MACCROBAT2018/9764942,en,biomedical,Custom,MACCROBAT,Public,train|test,File read,2135051,,,No comparable entity-token density measured for this representation
+ACE 2005 RE,,en,news,XML,ACE05RE,Registration,train|dev|test,Registry metadata only,,,,Registry requires registration
+CoNLL04 RE,https://github.com/bekou/multihead_joint_entity_relation_extraction,en,news,CoNLL,CoNLL04RE,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CrossRE,https://github.com/mainlp/CrossRE,en,cross_domain,JSON,CrossRE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CrossRE AI,https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json,en,scientific,JSONL,CrossREAI,Public,test,Tagged token counts,237375,12991,3782,
+CrossRE Literature,https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data/literature-test.json,en,literature,JSONL,CrossRELiterature,Public,test,Tagged token counts,292338,16157,5318,
+UNER,https://github.com/UniversalNER/UNER,mul,general,CoNLLU,UNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+IndicNER,https://github.com/AI4Bharat/IndicNER,mul,general,CoNLL,IndicNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+NorNE,https://github.com/ltgoslo/norne,no,news,CoNLL,NorNE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+GermEval 2014,https://sites.google.com/site/germaboreval2014/data,de,news,CoNLL,GermEval2014,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ReasoningNER,https://github.com/HuiResearch/ReasoningIE,en,evaluation,JSONL,ReasoningNER,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+BioNER-LLaMA,https://github.com/BIDS-Xu-Lab/BioNER-LLaMA,en,biomedical,JSONL,BioNERLLaMA,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Mention Resolution LLM,https://github.com/KawshikManikantan/IdentifyMe,en,literature,JSONL,MentionResolutionLLM,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ShARe 2013,,en,clinical,Custom,ShARe2013,Registration,train|dev|test,Registry metadata only,,,,Registry requires registration
+ShARe 2014,,en,clinical,Custom,ShARe2014,Registration,train|test,Registry metadata only,,,,Registry requires registration
+i2b2 2010,,en,clinical,Custom,I2B2_2010,Registration,train|test,Registry metadata only,,,,Registry requires registration
+LexGLUE NER,https://github.com/coastalcph/lex-glue,en,legal,JSONL,LexGLUENER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FinBen NER,https://github.com/TheFinAI/FinBen,en,financial,JSONL,FinBenNER,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FiNER-139,https://huggingface.co/datasets/nlpaueb/finer-139,en,financial,JSONL,FiNER139,HuggingFace,train|test,Registry metadata only,,,,Hub reference; see the configuration and split survey
+taggedPBC Esperanto,https://github.com/lingdoc/taggedPBC,eo,religious,CoNLLU,TaggedPBCEsperanto,Public,train,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+taggedPBC Klingon,https://github.com/lingdoc/taggedPBC,tlh,religious,CoNLLU,TaggedPBCKlingon,Public,train,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+UD Esperanto Cairo,https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/master/eo_cairo-ud-test.conllu,eo,constructed_language,CoNLLU,UDEsperantoCairo,Public,test,File read,12133,,,No comparable entity-token density measured for this representation
+Klingon Effect LID,https://wmdqs.org/submissions-2025/19.pdf,mul,general,Custom,KlingonEffectLID,Public,test,Registry metadata only,,,,Publication reference without a verified corpus file
+Lojban Tatoeba,https://tatoeba.org/en/downloads,jbo,constructed_language,TSV,LojbanTatoeba,Public,all,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Interlingue Wikipedia,https://dumps.wikimedia.org/iewiki/,ie,encyclopedia,XML,InterlingueWikipedia,Public,all,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Toki Pona Corpus,https://github.com/kilipan/toki-pona-corpus,tok,constructed_language,TXT,TokiPonaCorpus,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+OmniNER2025,,zh,social_media,JSONL,OmniNER2025,NotYetReleased,train|dev|test,Registry metadata only,,,,Registry marks the dataset unreleased
+LegalCore,,en,legal,JSONL,LegalCore,NotYetReleased,train|dev|test,Registry metadata only,,,,Registry marks the dataset unreleased
+Z-coref,,th,general,CoNLL,Zcoref,NotYetReleased,train|dev|test,Registry metadata only,,,,Registry marks the dataset unreleased
+TikTalkCoref,,zh,social_media,Custom,TikTalkCoref,NotYetReleased,train|dev|test,Registry metadata only,,,,Registry marks the dataset unreleased
+MHERCL,https://arxiv.org/html/2505.03473v1,en,historical,JSONL,MHERCL,Public,test,Registry metadata only,,,,Publication reference without a verified corpus file
+SNOMED CT EL Challenge,,en,clinical,Custom,SNOMEDChallenge,Registration,train|test,Registry metadata only,,,,Registry requires registration
+ESCO Skills EL,,mul,general,Custom,ESCOSkillsEL,ContactAuthors,train|test,Registry metadata only,,,,Registry requires contacting the authors
+NatureLM-audio,https://github.com/earthspecies/naturelm-audio,en,bioacoustics,Custom,NatureLMAudio,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+BEANS-Zero,https://github.com/earthspecies/beans-zero,en,bioacoustics,Custom,BEANSZero,Public,test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+NLM-Chem,https://ftp.ncbi.nlm.nih.gov/pub/lu/NLM-Chem/,en,biomedical,BRAT,NLMChem,Public,train|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+CHEMDNER,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-iv/chemdner/,en,biomedical,BIO,CHEMDNER,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+TimeBank-Dense,https://github.com/bethard/timebank-dense,en,news,TimeML,TimeBankDense,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Twitter-GMNER,https://github.com/JinYuanLi0012/RiVEG,en,social_media,JSONL,TwitterGMNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MNER-MI,https://github.com/NUSTM/MNER-MI,en,social_media,JSONL,MNERMI,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+2M-NER,https://github.com/wangdsh/MMNERD,mul,social_media,JSONL,TwoMNER,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Mathematical Entities,https://github.com/dmazzei/mathematical-entities,en,scientific,LaTeX,MathEntities,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciERC,,en,scientific,JSONL,SciERC,Local,train|dev|test,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+GeoWebNews,https://github.com/milangritta/GeoWebNews,en,news,CoNLL,GeoWebNews,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+LGL,https://github.com/wikipedia2vec/wikipedia2vec,en,news,Custom,LGL,Public,all,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+TASTEset,https://github.com/taisti/TASTEset,en,food,BIO,TASTEset,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Recipe NER,https://github.com/cosylabiiit/recipe-ner,en,food,BIO,RecipeNER,Public,train|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CodeSearchNet,https://github.com/github/CodeSearchNet,mul,code,JSONL,CodeSearchNet,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FABLE,https://huggingface.co/DeBERTa-literary-entities,en,fiction,Custom,FABLE,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+ELGold,https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset,pl,general,JSONL,ELGold,Public,train|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Streaming CD-Coref,https://www.cs.jhu.edu/~mdredze/publications/streaming_coref_coling.pdf,en,news,Custom,StreamingCDCoref,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Tem-DocRED,https://github.com/THUDM/Tem-DocRED,en,wikipedia,JSONL,TemDocRED,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciCo-Radar,https://github.com/TomHopeLab/ScicoRadar,en,scientific,JSONL,SciCoRadar,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Event KG Drift,https://research.tue.nl/files/349781334/978-3-031-61057-8_9.pdf,en,evaluation,Custom,EventKGDrift,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Wikidata Semantic Drift,https://arxiv.org/abs/2511.04926,mul,encyclopedia,Custom,WikidataDrift,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+AIDA-CoNLL (v2),https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida/downloads,en,news,CoNLL,AIDA,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+AIONER,https://github.com/ncbi/AIONER,en,biomedical,JSONL,AIONER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+AISHELL-NER,https://www.aishelltech.com/aishell_2,zh,speech,Custom,AISHELLNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+AstroNER,https://github.com/astronomical-ner/AstroNER,en,astrophysics,CoNLL,AstroNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+B2NERD,https://huggingface.co/datasets/Umean/B2NERD,en,news,JSONL,B2NERD,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+BioMNER,https://huggingface.co/datasets/tner/bionlp2004,en,biomedical,BIO,BioMNER,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+LegNER,https://github.com/Liquid-Legal-Institute/LegalBench,en,legal,CoNLL,LegNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+OpenNER 1.0,https://huggingface.co/datasets/yongsun-yoon/open-ner-english,en,mixed,JSONL,OpenNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+SciNER,https://github.com/allenai/sciner,en,scientific,JSONL,SciNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FinanceNER,https://github.com/nlpaueb/finer,en,financial,CoNLL,FinanceNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+TechNER,https://github.com/techner/techner,en,code,CoNLL,TechNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FictionNER-750M,https://huggingface.co/datasets/SaladTechnologies/fiction-ner-750m,en,fiction,JSONL,FictionNER750M,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Character Codex,https://github.com/character-codex/character-codex,en,fiction,JSONL,CharacterCodex,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MUC-6,https://catalog.ldc.upenn.edu/LDC2003T13,en,news,SGML,MUC6,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+MUC-7,https://catalog.ldc.upenn.edu/LDC2001T02,en,news,SGML,MUC7,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+OntoNotes 5.0,https://catalog.ldc.upenn.edu/LDC2013T19,en,mixed,CoNLL,OntoNotes50,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+GUM,https://github.com/amir-zeldes/gum,en,mixed,CoNLL,GUM,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+TAC-KBP,https://tac.nist.gov/,en,news,Custom,TACKBP,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+HAREM,https://www.linguateca.pt/HAREM/,pt,news,SGML,HAREM,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Gun Violence Corpus (v2),https://github.com/gun-violence-corpus/gvc,en,news,Custom,GunViolenceCorpus,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MAVEN,https://github.com/THU-KEG/MAVEN-dataset,en,wikipedia,JSONL,MAVEN,Public,train|valid|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MAVEN-ARG,https://github.com/THU-KEG/MAVEN-Argument,en,wikipedia,JSONL,MAVENArg,Public,train|valid|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CASIE,https://github.com/Ebiquity/CASIE,en,cybersecurity,Standoff,CASIE,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+RAMS,https://nlp.jhu.edu/rams/,en,news,JSONL,RAMS,Public,train|dev|test,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+SLUE,https://github.com/asappresearch/slue-toolkit,en,speech,JSONL,SLUE,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CRAFT Coreference,https://github.com/UCDenver-ccp/CRAFT,en,biomedical,Standoff,CRAFTCoref,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Football Coreference Corpus (v2),https://github.com/cltl/FCC,en,sports,Custom,FootballCorefCorpus,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Multiparty Dialogue Coreference,https://github.com/sopan-sarkar/multiparty-dialogue-coref,en,dialogue,JSONL,MultipartyDialogueCoref,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CODI-CRAC,https://github.com/UniversalAnaphora/UA-CODI-CRAC,mul,mixed,CoNLL,CODICRAC,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MixRED,https://github.com/mixred/MixRED,en,mixed,JSONL,MixRED,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CovEReD,https://github.com/covered/CovEReD,en,biomedical,JSONL,CovEReD,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciER,https://github.com/allenai/sciie,en,scientific,JSONL,SciER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WebNLG,https://gitlab.com/webnlg/challenge-2017,en,wikipedia,XML,WEBNLG,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Akkadian UD,https://universaldependencies.org/treebanks/akk_pisandub/index.html,akk,historical,CoNLLU,AkkadianUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Ancient Hebrew UD,https://universaldependencies.org/treebanks/hbo_ptnk/index.html,hbo,religious,CoNLLU,AncientHebrewUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Classical Chinese UD,https://universaldependencies.org/treebanks/lzh_kyoto/index.html,lzh,historical,CoNLLU,ClassicalChineseUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Coptic UD,https://universaldependencies.org/treebanks/cop_scriptorium/index.html,cop,religious,CoNLLU,CopticUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Gothic UD,https://universaldependencies.org/treebanks/got_proiel/index.html,got,religious,CoNLLU,GothicUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Hittite UD,https://universaldependencies.org/treebanks/hit_hittb/index.html,hit,historical,CoNLLU,HittiteUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Old Church Slavonic UD,https://universaldependencies.org/treebanks/cu_proiel/index.html,cu,religious,CoNLLU,OldChurchSlavonicUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Latin ITTB,https://universaldependencies.org/treebanks/la_ittb/index.html,la,religious,CoNLLU,LatinITTB,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Latin PROIEL,https://universaldependencies.org/treebanks/la_proiel/index.html,la,historical,CoNLLU,LatinPROIEL,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Esperanto UD,https://universaldependencies.org/treebanks/eo_pud/index.html,eo,constructed_language,CoNLLU,EsperantoUD,Public,,Registry metadata only,,,,Treebank reference; see the repository file survey
+Dothraki,https://wiki.dothraki.org/,dlk,fiction,Custom,Dothraki,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+High Valyrian,https://wiki.dothraki.org/High_Valyrian,hvy,fiction,Custom,HighValyrian,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Klingon,https://github.com/klingonlanguage/klingon-data,tlh,fiction,Custom,Klingon,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Quenya,https://eldamo.org/,qya,fiction,Custom,Quenya,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Na'vi,https://learnnavi.org/,nav,fiction,Custom,Navi,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Interslavic,https://interslavic.fun/,isv,constructed_language,Custom,InterslavicCorpus,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Lojban,https://mw.lojban.org/,jbo,constructed_language,Custom,Lojban,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Toki Pona,https://github.com/kilipan/toki-pona-corpus,tok,constructed_language,Custom,TokiPona,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+i2b2-2010,https://www.i2b2.org/NLP/DataSets/,en,clinical,Custom,I2B22010,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+i2b2 De-identification,https://www.i2b2.org/NLP/DataSets/,en,clinical,Custom,I2b2Deidentification,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+French Clinical NER,https://github.com/EDS-NLP/eds-nlp,fr,clinical,Standoff,FrenchClinicalNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ShARe/CLEF 2013,https://physionet.org/content/shareclefehealth2013/,en,clinical,Standoff,ShARe13,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+ShARe/CLEF 2014,https://physionet.org/content/shareclefehealth2014/,en,clinical,Standoff,ShARe14,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+CALCS,https://code-switching.github.io/,mul,social_media,CoNLL,CALCS,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+LinCE,https://ritual.uh.edu/lince/,mul,social_media,CoNLL,LinCE,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+GLUECoS,https://github.com/microsoft/GLUECoS,mul,social_media,JSONL,GLUECoS,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ChemDataExtractor,https://chemdataextractor.org/,en,biomedical,Custom,ChemDataExtractor,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+HUPD,https://github.com/suzgunmirac/hupd,en,legal,JSONL,HUPD,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FinTech Patent NER,https://github.com/fintech-patent-ner,en,financial,CoNLL,FinTechPatent,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WaterAgriNER,https://github.com/wateragriner,en,scientific,CoNLL,WaterAgriNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+WIESP Astrophysics,https://ui.adsabs.harvard.edu/,en,astrophysics,JSONL,WIESPAstro,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+NER Social Food,https://github.com/food-ner/social,en,food,CoNLL,NERsocialFood,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Russian Cultural NER,https://github.com/russian-cultural-ner,ru,encyclopedia,CoNLL,RussianCulturalNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+18th Century NER,https://github.com/Living-with-machines/,en,historical,CoNLL,EighteenthCenturyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Spanish Medieval TEI,https://github.com/spanish-medieval-nlp,es,historical,XML,SpanishMedievalTEI,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Medieval Czech Charters,https://github.com/czech-medieval-charters,cs,historical,XML,MedievalCzechCharters,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Dutch Archaeology NER (v2),https://easy.dans.knaw.nl/,nl,archaeology,Standoff,DutchArchaeologyNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Guaraní NER,https://github.com/guarani-nlp,gn,indigenous,CoNLL,GuaraniNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Shipibo-Konibo NER,https://github.com/ixa-ehu/shipibo-konibo,shp,indigenous,CoNLL,ShipiboKoniboNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Navajo Morphology,https://github.com/navajo-nlp,nv,indigenous,CoNLLU,NavajoMorph,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+KoCoNovel,https://github.com/storidient/KoCoNovel,ko,fiction,CoNLL,KoCoNovel,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+OpenBoek,https://github.com/cltl/OpenBoek,nl,fiction,CoNLL,OpenBoek,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciCo,https://github.com/allenai/scico,en,scientific,JSONL,SciCo,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SemEval-2013 Task 9.1,https://www.cs.york.ac.uk/semeval-2013/task9/,en,biomedical,XML,SemEval2013Task91,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+PDTB 3.0 (v2),https://catalog.ldc.upenn.edu/LDC2019T05,en,news,Custom,PDTB3,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+WinoPron,https://cs.nyu.edu/~davise/papers/WinoPron/,en,evaluation,Custom,WinoPron,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+QUOREF,https://github.com/allenai/quoref,en,wikipedia,JSONL,QUOREF,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CoNLL-2002 Dutch,,nl,news,CoNLL,CoNLL2002Dutch,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+CoNLL-2002 Spanish,,es,news,CoNLL,CoNLL2002Spanish,ContactAuthors,,Registry metadata only,,,,Registry requires contacting the authors
+BC2GM Full,https://biocreative.bioinformatics.udel.edu/resources/biocreative-ii-corpus/,en,biomedical,IOB2,BC2GMFull,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+FinNER,https://github.com/mpsilfern/finer,fi,news,CoNLL,FinNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+LegalNER,https://github.com/legal-ner/legal-ner,en,legal,CoNLL,LegalNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CEREC,https://github.com/Stardust-hyx/CEREC,zh,news,JSONL,CEREC,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+DELICATE,https://github.com/delicate-nlp/delicate,en,clinical,JSONL,DELICATE,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SciERC NER,,en,scientific,JSONL,SciERCNER,Local,,Registry metadata only,,,,Raw-source rules require a provisioned local copy
+ULNER,,en,mixed,JSONL,ULNER,Deprecated,,Registry metadata only,,,,Registry marks this source deprecated
+UniversalNER,https://huggingface.co/datasets/universalner/universal_ner,mul,mixed,JSONL,UniversalNER,HuggingFace,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+ARRAU GENIA,https://aclanthology.org/2020.codi-1.1/,en,biomedical,MMAX2,ArrauGenia,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+ARRAU Pear Stories,https://aclanthology.org/2020.codi-1.1/,en,narrative,MMAX2,ArrauPear,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+ARRAU RST,https://aclanthology.org/2020.codi-1.1/,en,news,MMAX2,ArrauRst,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+ARRAU Trains,https://aclanthology.org/2020.codi-1.1/,en,dialogue,MMAX2,ArrauTrains,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+NomBank Implicit,https://catalog.ldc.upenn.edu/LDC2008T23,en,news,Custom,NomBankImplicit,Public,,Registry metadata only,,,,Access or catalog page without a provisioned corpus file
+BASHI,https://sites.google.com/view/ipm-bashi/,bn,news,CoNLL,BASHI,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ERST,https://github.com/rsttools/signal,en,mixed,Custom,ERST,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+BiTimeBERT,https://github.com/btime-bert/bitimebert,en,news,JSONL,BiTimeBERT,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+TRIDIS,https://github.com/tridis/tridis,en,mixed,JSONL,TRIDIS,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+QueerBench,https://github.com/queerbench/queerbench,en,evaluation,JSONL,QueerBench,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+QUEEREOTYPES,https://github.com/queereotypes/queereotypes,en,evaluation,JSONL,QUEEREOTYPES,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+MAP,https://github.com/medical-annotation-pipeline/map,en,clinical,Standoff,MAP,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ASN,http://www.cs.toronto.edu/~varada/ASN/,en,news,Custom,ASN,Public,,Registry metadata only,,,,Registry URL is outside the HTTPS file reader
+CSN,https://github.com/github/CodeSearchNet,mul,code,JSONL,CSN,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+HOMOMEX,https://github.com/homomex/homomex,es,general,JSONL,HOMOMEX,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+ENER,https://github.com/ener-dataset/ener,en,e-commerce,CoNLL,ENER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+FIREBALL,https://huggingface.co/datasets/lara-martin/FIREBALL,en,gaming,JSONL,FIREBALL,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+D&D NER Benchmark,https://aclanthology.org/2023.ranlp-1.130.pdf,en,gaming,CoNLL,DnDNERBenchmark,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Critical Role Dataset,https://www.microsoft.com/en-us/research/wp-content/uploads/2020/06/R.Rameshkumar-and-P.Bailey-Storytelling-with-Dialogue-ACL2020.pdf,en,gaming,Custom,CriticalRoleDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+CUAD,https://www.atticusprojectai.org/cuad,en,legal,SQuAD JSON,CUAD,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ACORD,https://arxiv.org/html/2501.06582v1,en,legal,JSONL,ACORD,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Party Extraction Dataset,https://aclanthology.org/2023.ranlp-1.116.pdf,en,legal,Standoff,PartyExtractionDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+FINER (Food),https://figshare.com/articles/dataset/Food_Ingredient_Named-Entity_Data/20222361,en,food,BIO,FINERFood,Public,,Registry metadata only,,,,Same Figshare release as FINER; see FINER to avoid counting the same file twice
+NHK Recipe Dataset,https://arxiv.org/html/2507.17232v1,ja,food,JSONL,NHKRecipeDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Sanskrit NER (Bhagavad Gita),https://www.kaggle.com/datasets/akashsuklabaidya/ner-dataset-fyp-25,sa,religious,CoNLL,SanskritNERBhagavadGita,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Mahānāma,https://github.com/sujoysarkarai/mahanama,sa,literary,CoNLLU,Mahanama,Public,train|dev|test,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Akkadian Cuneiform Dataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC7592802/,akk,historical,Custom,AkkadianCuneiformDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Heidelberg Cuneiform Benchmark,https://direct.mit.edu/coli/article/49/3/703/116160,akk,historical,Custom,HeidelbergCuneiformBenchmark,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Greek Mythology Knowledge Graph,https://www.semantic-web-journal.net/system/files/swj2754.pdf,en,mythology,Custom,GreekMythologyKG,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Folklore Motif Distribution,https://www.academia.edu/14481230/,mul,mythology,Custom,FolkloreMotifDistribution,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+ND-NER,https://github.com/XinyanLi2016/ND-NER,en,defense,CoNLL,NDNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+re3d (Defense),https://github.com/dstl/re3d,en,defense,BRAT,Re3dDefense,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+CyNER-APTNER,https://ceur-ws.org/Vol-3928/paper_170.pdf,en,cybersecurity,CoNLL,CyNERAptner,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Chinese Engineering Geology NER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423024272,zh,geology,BIO,ChineseEngineeringGeologyNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+LLM-RocMin-NER,https://www.sciencedirect.com/science/article/abs/pii/S0098300425000949,en,geology,JSONL,LLMRocMinNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+PolyIE,https://ramprasad.mse.gatech.edu/PolyIE/,en,materials,JSONL,PolyIE,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+MathDial,https://arxiv.org/abs/2305.14536,en,education,JSONL,MathDial,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+CoMTA,https://learninganalytics.upenn.edu/ryanbaker/,en,education,JSONL,CoMTA,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+French Full-Length Fiction Coreference,https://arxiv.org/html/2510.15594v1,fr,fiction,CoNLL,FrenchFullLengthFictionCoref,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Winograd Schema Challenge,https://cs.nyu.edu/~davise/papers/WinoPron/WSCollection.xml,en,evaluation,XML,WinogradSchemaChallengeWSC,Public,,File read,113235,,,No comparable entity-token density measured for this representation
+TV Show Multilingual Coreference,https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00581/117162,mul,dialogue,CoNLL,TVShowMultilingualCoref,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+VisDial Coreference,https://www.sciencedirect.com/science/article/pii/S266729522300082X,en,vision,JSONL,VisDialCoref,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+RISeC,https://aclanthology.org/2020.aacl-main.82/,en,food,Standoff,RISeC,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+EFGC,https://aclanthology.org/2020.lrec-1.638/,en,food,CoNLL,EFGC,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+SPoRC,https://arxiv.org/html/2411.07892v1,en,speech,JSONL,SPoRC,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+ARF (Artificial Relationships in Fiction),https://aclanthology.org/2025.latechclfl-1.13.pdf,en,fiction,JSONL,ARFFiction,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+CRAFT Corpus (Full Coref),https://github.com/UCDenver-ccp/CRAFT,en,biomedical,Standoff,CRAFTCorpusCoref,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Aerospace NER Dataset,https://arc.aiaa.org/doi/10.2514/1.I011251,en,aerospace,CoNLL,AerospaceNERDataset,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Aviation Products NER,https://dspace.lib.cranfield.ac.uk/server/api/core/bitstreams/a59ed640-4783-4ddb-871b-6fd8bd0e7400/content,zh,aerospace,BIO,AviationProductsNER,Public,,File read,1428439,,,Linked bitstream contains a PDF; no validated annotation file
+VREN (Volleyball),https://arxiv.org/abs/2209.13846,en,sports,JSONL,VREN,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Fashion IQ,https://github.com/XiaoxiaoGuo/fashion-iq,en,fashion,JSONL,FashionIQ,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Natural Products RE,https://direct.mit.edu/coli/article/50/3/953/121178,en,biomedical,JSONL,NaturalProductsRE,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+DrugProt,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vii/track-1/,en,biomedical,BRAT,DrugProtBioCreative,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+MOF Dataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,en,materials,JSONL,MOFDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Solid-State Doping,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,en,materials,JSONL,SolidStateDoping,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+AgriNER,https://2023.eswc-conferences.org/wp-content/uploads/2023/05/paper_De_2023_AgriNER.pdf,en,agriculture,JSONL,AgriNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+AGRONER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423009429,en,agriculture,BIO,AGRONER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+AgMNER,https://www.nature.com/articles/s41598-025-88874-9,zh,agriculture,JSONL,AgMNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Polish Coreference Corpus,http://zil.ipipan.waw.pl/PolishCoreferenceCorpus,pl,general,Custom,PolishCoreferenceCorpus,Public,,Registry metadata only,,,,Registry URL is outside the HTTPS file reader
+Arabic Event Coreference,https://dl.acm.org/doi/10.1145/3743047,ar,news,CoNLL,ArabicEventCoref,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Hindi-English Social Media NER,https://github.com/juand-r/entity-recognition-datasets,hi-en,social_media,CoNLL,HindiEnglishSocialMediaNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+astroBERT Corpus,https://huggingface.co/adsabs/astroBERT,en,astronomy,Custom,AstroBERTCorpus,Public,,Registry metadata only,,,,Hub reference; see the configuration and split survey
+Astronomical Telegram KEE,https://www.raa-journal.org/issues/all/2024/v24n6/202405/,en,astronomy,JSONL,AstronomicalTelegramKEE,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Saraga,https://mtg.github.io/saraga/,mul,music,JSONL,Saraga,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+MusicBrainz RE,https://web.stanford.edu/~jurafsky/mintz.pdf,en,music,Custom,MusicBrainzRE,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+DINAA,https://ux.opencontext.org/endangered-data-and-the-digital-index-of-north-american-archaeology-dinaa/,en,archaeology,Custom,DINAA,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+IMDb Semi-Structured RE,https://www.vldb.org/pvldb/vol11/p1084-lockard.pdf,en,entertainment,JSONL,IMDbSemiStructuredRE,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+ATIS Flight Booking,https://github.com/yvchen/JointSLU,en,travel,BIO,ATISFlightBooking,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Paleontology NER,https://aclanthology.org/anthology-files/anthology-files/pdf/findings/2023.findings-emnlp.218v1.pdf,en,paleontology,CoNLL,PaleontologyNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Water Resource NER,https://www.frontiersin.org/journals/environmental-science/articles/10.3389/fenvs.2025.1558317/pdf,en,environment,BIO,WaterResourceNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+MalwareTextDB,https://github.com/juand-r/entity-recognition-datasets,en,cybersecurity,BRAT,MalwareTextDB,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+SEC-filings,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/SEC-filings/CONLL-format/data/test/FIN3.txt,en,finance,CoNLL,SECFilingsNER,Public,,Tagged token counts,167860,13246,436,
+AnEM,http://www.nactem.ac.uk/anatomy/,en,biomedical,Standoff,AnEM,Public,,Registry metadata only,,,,Registry URL is outside the HTTPS file reader
+RecipeDB Annotated,https://aclanthology.org/2024.lrec-main.406/,en,food,JSONL,RecipeDBAnnotated,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Ritter Twitter NER,https://github.com/aritter/twitter_nlp,en,social_media,CoNLL,RitterTwitterNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Music-NER,https://github.com/juand-r/entity-recognition-datasets,en,music,CoNLL,MusicNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+500 Tutoring Sessions,https://aclanthology.org/C16-1188.pdf,en,education,Custom,TutoringSessionsAlgebra,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+GNER,https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/2019EA000610,zh,geology,BIO,GNERGeoscience,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Four Regions Geology NER,https://www.geodoi.ac.cn/WebEn/down.aspx?ID=1873,zh,geology,BIO,FourRegionsGeologyNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+MSP-Podcast,https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html,en,speech,Custom,MSPPodcast,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Spotify Podcasts Dataset,https://www.isca-archive.org/interspeech_2023/kotey23_interspeech.pdf,en,speech,JSONL,SpotifyPodcastsDataset,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Sports NER,https://arxiv.org/html/2406.12252v1,en,sports,CoNLL,SportsNERGeneral,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+Esports NER,https://arxiv.org/html/2406.12252v1,en,gaming,CoNLL,EsportsNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+DeepFashion2,https://github.com/switchablenorms/DeepFashion2,en,fashion,JSONL,DeepFashion2,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Construction NER,https://www.sciencedirect.com/science/article/pii/S0926580520309481,en,construction,BIO,ConstructionNER,Public,,Registry metadata only,,,,Publication reference without a verified corpus file
+PharmaNER,https://github.com/juand-r/entity-recognition-datasets,en,biomedical,BIO,PharmaNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Product Review NER,https://www.aclweb.org/anthology/S14-2004/,en,ecommerce,XML,ProductReviewNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Real Estate NER,https://github.com/juand-r/entity-recognition-datasets,en,real_estate,CoNLL,RealEstateNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Automotive NER,https://github.com/juand-r/entity-recognition-datasets,en,automotive,CoNLL,AutomotiveNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Tourism NER,https://github.com/juand-r/entity-recognition-datasets,en,tourism,CoNLL,TourismNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Energy NER,https://github.com/juand-r/entity-recognition-datasets,en,energy,BIO,EnergyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Insurance NER,https://github.com/juand-r/entity-recognition-datasets,en,insurance,JSONL,InsuranceNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Logistics NER,https://github.com/juand-r/entity-recognition-datasets,en,logistics,CoNLL,LogisticsNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Resume NER,https://www.kaggle.com/datasets/dataturks/resume-entities-for-ner,en,hr,JSONL,ResumeNER,Public,,Registry metadata only,,,,Project or publisher page without a resolved direct file in this reader
+Job Posting NER,https://github.com/juand-r/entity-recognition-datasets,en,hr,CoNLL,JobPostingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Healthcare Admin NER,https://github.com/juand-r/entity-recognition-datasets,en,healthcare,BIO,HealthcareAdminNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Telecom NER,https://github.com/juand-r/entity-recognition-datasets,en,telecom,CoNLL,TelecomNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Weather NER,https://github.com/juand-r/entity-recognition-datasets,en,weather,BIO,WeatherNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Manufacturing NER,https://github.com/juand-r/entity-recognition-datasets,en,manufacturing,BIO,ManufacturingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Retail Inventory NER,https://github.com/juand-r/entity-recognition-datasets,en,retail,JSONL,RetailInventoryNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Crop Disease NER,https://github.com/juand-r/entity-recognition-datasets,en,agriculture,BIO,CropDiseaseNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Wine NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,WineNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Veterinary NER,https://github.com/juand-r/entity-recognition-datasets,en,veterinary,BIO,VeterinaryNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Photography NER,https://github.com/juand-r/entity-recognition-datasets,en,photography,CoNLL,PhotographyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Genealogy NER,https://github.com/juand-r/entity-recognition-datasets,en,genealogy,Custom,GenealogyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Board Game NER,https://github.com/juand-r/entity-recognition-datasets,en,gaming,JSONL,BoardGameNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Gardening NER,https://github.com/juand-r/entity-recognition-datasets,en,gardening,CoNLL,GardeningNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Brewing NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,BrewingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Knitting NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,JSONL,KnittingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Fitness NER,https://github.com/juand-r/entity-recognition-datasets,en,fitness,CoNLL,FitnessNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Astrology NER,https://github.com/juand-r/entity-recognition-datasets,en,astrology,CoNLL,AstrologyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Tattoo NER,https://github.com/juand-r/entity-recognition-datasets,en,art,JSONL,TattooNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Fragrance NER,https://github.com/juand-r/entity-recognition-datasets,en,fragrance,JSONL,FragranceNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Chess NER,https://github.com/juand-r/entity-recognition-datasets,en,gaming,JSONL,ChessNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Cocktail NER,https://github.com/juand-r/entity-recognition-datasets,en,food,CoNLL,CocktailNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Antiques NER,https://github.com/juand-r/entity-recognition-datasets,en,antiques,JSONL,AntiquesNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Maritime NER,https://github.com/juand-r/entity-recognition-datasets,en,maritime,CoNLL,MaritimeNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Equestrian NER,https://github.com/juand-r/entity-recognition-datasets,en,equestrian,CoNLL,EquestrianNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Woodworking NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,CoNLL,WoodworkingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Birdwatching NER,https://github.com/juand-r/entity-recognition-datasets,en,wildlife,JSONL,BirdwatchingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Numismatics NER,https://github.com/juand-r/entity-recognition-datasets,en,numismatics,JSONL,NumismaticsNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Philately NER,https://github.com/juand-r/entity-recognition-datasets,en,philately,JSONL,PhilatelyNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Scuba NER,https://github.com/juand-r/entity-recognition-datasets,en,scuba,CoNLL,ScubaNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Theme Park NER,https://github.com/juand-r/entity-recognition-datasets,en,entertainment,JSONL,ThemeParkNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Origami NER,https://github.com/juand-r/entity-recognition-datasets,en,crafts,CoNLL,OrigamiNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Anime/Manga NER,https://github.com/juand-r/entity-recognition-datasets,mul,entertainment,JSONL,AnimeMangaNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Crypto NER,https://github.com/juand-r/entity-recognition-datasets,en,crypto,CoNLL,CryptoNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Telenovela NER,https://github.com/juand-r/entity-recognition-datasets,es,entertainment,CoNLL,TelenovelaNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Tarot NER,https://github.com/juand-r/entity-recognition-datasets,en,divination,CoNLL,TarotNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys
+Beekeeping NER,https://github.com/juand-r/entity-recognition-datasets,en,agriculture,CoNLL,BeekeepingNER,Public,,Registry metadata only,,,,GitHub project or collection pointer; see the repository file surveys

@@ -133,9 +133,9 @@ them.
 
 In the GENIA test file, “cyclophilin gene” is a DNA mention and “cyclophilin” inside it is a protein mention. Given both spans, the Rust function `anno::export::to_html` highlights the whole phrase once. It processes earlier starts first, prefers the longer span at a shared start, and skips later overlaps. A reviewer looking for the protein would miss a correct extraction.
 
-![GENIA test annotations by number of active layers and by nested label pair. The most frequent pair is a protein mention inside a DNA mention, with 190 occurrences.](eval/figures/anno-genia-nesting.png)
+![GENIA train, dev and test mentions hidden by HTML highlighting, annotated tokens by number of active layers, and the seven most frequent nested label pairs.](eval/figures/anno-genia-nesting.png)
 
-Applying that display rule to the 5,474 reference mentions would show 4,883 highlights and hide 591 mentions. When reviewing a suspected miss, inspect the original entity list or pass it to `anno::export::to_jsonl`, which writes one row per entity. Use those spans to calculate recall. [Export functions](../crates/anno/src/export.rs) · [Annotated test file](https://github.com/thecharm/boundary-aware-nested-ner/blob/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.test.iob2) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
+Across the three published GENIA splits, that display rule would show **50,709 of 55,740 reference mentions** and hide **5,031 (9.0%)**. It hides 4,067 of 45,929 training mentions, 373 of 4,337 development mentions, and 591 of 5,474 test mentions. The original test-only replay shows 4,883 highlights. The most frequent nested pair also changes with scope. The test split has 190 protein mentions inside DNA mentions, its most frequent pair. Across all splits, protein inside protein leads with 1,863 pairs. When reviewing a suspected miss, inspect the original entity list or pass it to `anno::export::to_jsonl`, which writes one row per entity. Use those spans to calculate recall. [Export functions](../crates/anno/src/export.rs) · [Pinned split files and SHA-256 digests](eval/dataset-repo-files.csv) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
 
 ## Comparing contract passage suggestions
 
