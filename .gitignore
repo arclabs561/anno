@@ -61,6 +61,7 @@ crates/anno/target/
 !.claude/settings.json
 !.agents/
 .agents/*
+!.agents/plugin.json
 !.agents/skills/
 !.agents/skills/**/
 .firecrawl/

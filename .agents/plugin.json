@@ -1,6 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "anno-qa",
-  "description": "Replay and review QA experiments in an Anno checkout.",
+  "description": "Replay extraction regressions and compare backend or scorer changes against saved evidence in an Anno checkout.",
+  "license": "MIT OR Apache-2.0",
   "repository": "https://github.com/arclabs561/anno"
 }

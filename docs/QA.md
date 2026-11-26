@@ -12,6 +12,10 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
+## Use the QA skill with an agent
+
+The Agent Plugins package root is the checkout’s `.agents/` directory. For clients that accept a local plugin directory, select that directory. The package supplies the `anno-qa` skill and its campaign reference. Run its commands from the Anno checkout whose behavior you want to measure, using that checkout’s scripts, binary and datasets. For example, ask the agent to compare a saved paired-arm summary and report which final predictions improved in each cohort. [Plugin manifest](../.agents/plugin.json) · [QA skill](../.agents/skills/anno-qa/SKILL.md) · [Agent Plugins specification](https://agent-plugins.org/specification)
+
 ## Checks for silent data loss and false passes
 
 | Contract | Regression that exercises it |
