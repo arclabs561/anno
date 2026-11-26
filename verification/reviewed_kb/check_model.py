@@ -14,6 +14,8 @@ QUERIES = (
     ("value-comparison-misses-intervening-write", "sat"),
     ("revision-comparison-misses-foreign-owner", "sat"),
     ("overbroad-apply-changes-unreported-peer", "sat"),
+    ("new-preview-has-clean-history", "unsat"),
+    ("every-operation-preserves-invalidation-history", "unsat"),
 )
 
 
