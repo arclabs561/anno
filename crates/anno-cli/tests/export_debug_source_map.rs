@@ -74,18 +74,24 @@ fn debug_exports_original_offsets_in_every_format() {
 }
 
 #[test]
-fn debug_identifies_the_input_it_selected() {
+fn debug_rejects_conflicting_sources_and_identifies_inline_text() {
     let temp = tempfile::tempdir().unwrap();
     let saved = temp.path().join("debug.json");
     let text = "  Ada  ";
+    let conflicting = Command::new(env!("CARGO_BIN_EXE_anno"))
+        .args(["debug", "--text", text, "--file", "unused.txt", "--export"])
+        .arg(&saved)
+        .output()
+        .unwrap();
+    assert!(!conflicting.status.success());
+    assert!(String::from_utf8_lossy(&conflicting.stderr).contains("cannot be used with"));
+    assert!(!saved.exists());
     run(&[
         "debug",
         "--model",
         "pattern",
         "--text",
         text,
-        "--file",
-        "unused.txt",
         "--export",
         saved.to_str().unwrap(),
         "--quiet",

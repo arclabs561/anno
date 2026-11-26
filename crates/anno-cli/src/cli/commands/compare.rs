@@ -16,20 +16,20 @@ pub struct CompareArgs {
     #[arg(value_name = "FILE1")]
     pub file1: String,
 
-    /// Second input file (or text for compare-models)
+    /// Second saved document for document comparison
     #[arg(value_name = "FILE2")]
     pub file2: Option<String>,
 
     /// Compare models on the same input text (reads FILE1 from disk)
-    #[arg(long)]
+    #[arg(long, conflicts_with_all = ["file2", "changes_only", "confidence_epsilon"], requires = "model_list")]
     pub models: bool,
 
     /// Models to compare (when --models is used)
-    #[arg(long, value_delimiter = ',', value_name = "MODEL")]
+    #[arg(long, value_delimiter = ',', value_name = "MODEL", requires = "models")]
     pub model_list: Vec<ModelBackend>,
 
-    /// Output format (diff, table, summary)
-    #[arg(long, default_value = "diff")]
+    /// Document diff, summary, JSON or JSONL; model comparison also supports table
+    #[arg(long, default_value = "diff", value_parser = ["diff", "summary", "table", "json", "jsonl"])]
     pub format: String,
 
     /// Confidence delta threshold for treating an otherwise-identical entity as modified
@@ -104,7 +104,20 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
         }
 
         let output = match args.format.as_str() {
-            "table" => {
+            "json" | "jsonl" => {
+                let rows: Vec<_> = results
+                    .iter()
+                    .map(
+                        |(model, entities)| serde_json::json!({"model":model, "entities":entities}),
+                    )
+                    .collect();
+                if args.format == "json" {
+                    serde_json::to_string_pretty(&rows).map_err(|e| e.to_string())?
+                } else {
+                    rows.iter().map(|r| format!("{r}\n")).collect()
+                }
+            }
+            "table" | "summary" => {
                 let mut output = String::from("\nModel Comparison:\n");
                 output.push_str(&format!("{:<15} {:<10}\n", "Model", "Entities"));
                 output.push_str(&format!("{}\n", "-".repeat(25)));
@@ -189,7 +202,7 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
                     "added={} removed={} modified={} unchanged={} jaccard={:.3}\n",
                     counts.added, counts.removed, counts.modified, counts.unchanged, jaccard
                 ));
-                for d in diffs {
+                for d in diffs.iter().filter(|_| args.format == "diff") {
                     output.push_str(&format!(
                         "  {}: {} [{}]\n",
                         d.change_type, d.text, d.entity_type

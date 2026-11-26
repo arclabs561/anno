@@ -61,7 +61,7 @@ pub struct PipelineArgs {
     pub require_type_match: bool,
 
     /// Output format
-    #[arg(long, default_value = "human")]
+    #[arg(long, default_value = "human", value_parser = super::super::parser::output_formats(&["human", "json", "jsonl", "grounded", "tree"]))]
     pub format: OutputFormat,
 
     /// Export results to file
@@ -79,6 +79,21 @@ pub struct PipelineArgs {
 
 /// Execute the pipeline command.
 pub fn run(args: PipelineArgs) -> Result<(), String> {
+    let structured = matches!(
+        args.format,
+        OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Grounded
+    );
+    if !(structured
+        || matches!(args.format, OutputFormat::Human)
+        || (args.cross_doc && matches!(args.format, OutputFormat::Tree)))
+    {
+        return Err(
+            "pipeline supports human, json, jsonl, grounded, and tree with --cross-doc".into(),
+        );
+    }
+    if args.output.is_some() && !structured {
+        return Err("--output requires --format json, jsonl, or grounded".into());
+    }
     if !args.coref && args.maverick_model.is_some() {
         return Err("--maverick-model requires --coref".into());
     }
@@ -264,6 +279,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
     }
 
     match args.format {
+        OutputFormat::Jsonl => write_json_lines(&documents, args.output.as_deref())?,
         OutputFormat::Json | OutputFormat::Grounded => {
             write_json(&documents, args.output.as_deref())?
         }
@@ -341,6 +357,21 @@ fn seed_uncovered_detections(
     Ok(())
 }
 
+fn write_json_lines<T: serde::Serialize>(rows: &[T], path: Option<&str>) -> Result<(), String> {
+    use std::io::Write;
+    let mut out: Box<dyn Write> = match path {
+        Some(path) => Box::new(std::io::BufWriter::new(
+            fs::File::create(path).map_err(|e| format!("{path}: {e}"))?,
+        )),
+        None => Box::new(std::io::stdout().lock()),
+    };
+    for row in rows {
+        serde_json::to_writer(&mut out, row).map_err(|e| e.to_string())?;
+        writeln!(out).map_err(|e| e.to_string())?;
+    }
+    out.flush().map_err(|e| e.to_string())
+}
+
 fn write_json<T: serde::Serialize>(value: &T, path: Option<&str>) -> Result<(), String> {
     let output = serde_json::to_string_pretty(value)
         .map_err(|e| format!("Failed to serialize output: {e}"))?;
@@ -374,6 +405,7 @@ fn output_cross_doc(args: &PipelineArgs, documents: Vec<GroundedDocument>) -> Re
     }
     let clusters = super::crossdoc::corpus_clusters(&corpus);
     match args.format {
+        OutputFormat::Jsonl => write_json_lines(&clusters, args.output.as_deref())?,
         OutputFormat::Json => write_json(&clusters, args.output.as_deref())?,
         OutputFormat::Tree => {
             for cluster in &clusters {

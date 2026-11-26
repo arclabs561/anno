@@ -92,7 +92,7 @@ fn query_reads_the_produced_report_and_matches_the_exact_catalog_record() {
     }
     let result = anno(dir, &["query", "report.json", "--format", "grounded"]);
     assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("unsupported for cluster queries"));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("invalid value"));
 
     let stdout = success(anno(
         dir,

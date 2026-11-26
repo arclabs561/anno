@@ -30,7 +30,7 @@ pub struct BatchArgs {
     pub dir: Option<String>,
 
     /// Read from stdin (JSONL: one `{"id":"…","text":"…"}` object per line)
-    #[arg(long)]
+    #[arg(long, conflicts_with = "dir")]
     pub stdin: bool,
 
     /// Model backend to use
@@ -66,7 +66,7 @@ pub struct BatchArgs {
     pub output: Option<String>,
 
     /// Output format
-    #[arg(long, default_value = "grounded")]
+    #[arg(long, default_value = "grounded", value_parser = super::super::parser::output_formats(&["human", "json", "jsonl", "grounded"]))]
     pub format: OutputFormat,
 
     /// Suppress status messages
@@ -329,6 +329,15 @@ fn finalize_document(
 
 /// Execute the batch processing command.
 pub fn run(args: BatchArgs) -> Result<(), String> {
+    if args.output.is_some() && matches!(args.format, OutputFormat::Human) {
+        return Err("batch --output requires json, jsonl, or grounded".into());
+    }
+    if !matches!(
+        args.format,
+        OutputFormat::Human | OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Grounded
+    ) {
+        return Err("batch supports --format human, json, jsonl, grounded".into());
+    }
     use std::io::{self, BufRead};
 
     if args.dir.is_none() && !args.stdin {

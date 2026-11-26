@@ -179,10 +179,6 @@ pub enum DatasetAction {
         /// Check specific dataset
         #[arg(short, long)]
         dataset: Option<String>,
-
-        /// Fix issues automatically where possible
-        #[arg(short, long)]
-        fix: bool,
     },
 
     /// Check URL health for dataset download sources
@@ -435,7 +431,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         }
 
                         for (case_idx, (text, gold)) in test_cases.iter().enumerate() {
-                            let entities = m.extract_entities(text, None).unwrap_or_default();
+                            let entities = m
+                                .extract_entities(text, None)
+                                .map_err(|e| format!("Entity extraction failed: {e}"))?;
 
                             total_gold += gold.len();
                             total_pred += entities.len();
@@ -1139,7 +1137,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                             );
                                             // Fall back to entity-pair heuristic for this document
                                             let entities =
-                                                m.extract_entities(text, None).unwrap_or_default();
+                                                m.extract_entities(text, None).map_err(|e| {
+                                                    format!("Entity extraction failed: {e}")
+                                                })?;
                                             let fallback = create_entity_pair_relations(
                                                 &entities,
                                                 text,
@@ -1161,8 +1161,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     let text = doc.text.as_str();
 
                                     // Extract entities using NER
-                                    let entities =
-                                        m.extract_entities(text, None).unwrap_or_default();
+                                    let entities = m
+                                        .extract_entities(text, None)
+                                        .map_err(|e| format!("Entity extraction failed: {e}"))?;
 
                                     // Create relation predictions from entity pairs
                                     let pred_this = create_entity_pair_relations(
@@ -1295,9 +1296,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
         DatasetAction::Check {
             issues_only,
             dataset,
-            fix,
         } => {
-            run_check(issues_only, dataset.as_deref(), fix)?;
+            run_check(issues_only, dataset.as_deref())?;
         }
         DatasetAction::CheckHealth {
             dataset,
@@ -3041,7 +3041,7 @@ fn run_list(
 }
 
 #[cfg(feature = "eval")]
-fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(), String> {
+fn run_check(issues_only: bool, dataset: Option<&str>) -> Result<(), String> {
     use anno_eval::eval::dataset_registry::DatasetId as RegistryDatasetId;
 
     println!();
@@ -3208,9 +3208,8 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
 }
 
 #[cfg(not(feature = "eval"))]
-fn run_check(_issues_only: bool, _dataset: Option<&str>, _fix: bool) -> Result<(), String> {
-    println!("Dataset checking requires --features eval");
-    Ok(())
+fn run_check(_issues_only: bool, _dataset: Option<&str>) -> Result<(), String> {
+    Err("Dataset checking requires --features eval".into())
 }
 
 #[cfg(feature = "eval")]
@@ -3469,8 +3468,7 @@ fn run_check_health(
     _workers: usize,
     _timeout: u64,
 ) -> Result<(), String> {
-    println!("URL health checking requires --features eval");
-    Ok(())
+    Err("URL health checking requires --features eval".into())
 }
 
 #[cfg(feature = "eval")]

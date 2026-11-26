@@ -31,11 +31,11 @@ pub struct WatchArgs {
     pub model: ModelBackend,
 
     /// Output format for results
-    #[arg(long, default_value = "jsonl")]
-    pub format: OutputFormat,
+    #[arg(long, value_parser = super::super::parser::output_formats(&["json", "jsonl"]))]
+    pub format: Option<OutputFormat>,
 
     /// Poll interval in seconds
-    #[arg(long, default_value = "2")]
+    #[arg(long, default_value = "2", value_parser = clap::value_parser!(u64).range(1..))]
     pub interval: u64,
 
     /// Process existing files on startup
@@ -61,6 +61,12 @@ struct FileState {
 
 /// Run the watch command.
 pub fn run(args: WatchArgs) -> Result<(), String> {
+    if !matches!(
+        args.format,
+        None | Some(OutputFormat::Json | OutputFormat::Jsonl)
+    ) {
+        return Err("watch supports --format json or jsonl".into());
+    }
     // Validate directory
     if !args.directory.exists() {
         return Err(format!("Directory not found: {:?}", args.directory));
@@ -182,14 +188,7 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
                         );
                     }
                     Err(e) => {
-                        if !args.quiet {
-                            eprintln!(
-                                "{} {:?}: {}",
-                                color("31", "[error]"),
-                                path.file_name().unwrap_or_default(),
-                                e
-                            );
-                        }
+                        eprintln!("{} {}: {e}", color("31", "[error]"), path.display());
                     }
                 }
             }
@@ -243,7 +242,11 @@ fn scan_directory(dir: &PathBuf, extensions: &[String]) -> Result<Vec<PathBuf>, 
 /// Process a single file
 fn process_file(path: &Path, model: &dyn anno::Model, args: &WatchArgs) -> Result<usize, String> {
     // Read file content
-    let content = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let content = if let Some(name) = path.to_str() {
+        super::super::utils::read_input_file(name)?
+    } else {
+        fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {e}", path.display()))?
+    };
 
     // Extract entities
     let entities = model
@@ -252,49 +255,35 @@ fn process_file(path: &Path, model: &dyn anno::Model, args: &WatchArgs) -> Resul
 
     let entity_count = entities.len();
 
-    // Output results
-    if let Some(ref out_dir) = args.output {
-        let out_filename = path
-            .file_name()
-            .map(|n| format!("{}.json", n.to_string_lossy()))
-            .unwrap_or_else(|| "output.json".into());
-        let out_path = out_dir.join(out_filename);
+    let output = serde_json::json!({
+        "source": path.to_string_lossy(),
+        "entity_count": entity_count,
+        "entities": entities.iter().map(|e| {
+            serde_json::json!({
+                "text": e.text,
+                "type": e.entity_type.as_label(),
+                "start": e.start(),
+                "end": e.end(),
+                "confidence": e.confidence,
+            })
+        }).collect::<Vec<_>>()
+    });
 
-        let output = serde_json::json!({
-            "source": path.to_string_lossy(),
-            "entity_count": entity_count,
-            "entities": entities.iter().map(|e| {
-                serde_json::json!({
-                    "text": e.text,
-                    "type": e.entity_type.as_label(),
-                    "start": e.start(),
-                    "end": e.end(),
-                    "confidence": e.confidence,
-                })
-            }).collect::<Vec<_>>()
-        });
-
-        fs::write(
-            &out_path,
-            serde_json::to_string_pretty(&output).unwrap_or_default(),
-        )
-        .map_err(|e| format!("Failed to write output: {}", e))?;
+    let compact = matches!(args.format, Some(OutputFormat::Jsonl))
+        || (args.format.is_none() && args.output.is_none());
+    let encoded = if compact {
+        serde_json::to_string(&output)
     } else {
-        // Print to stdout in JSONL format
-        let output = serde_json::json!({
-            "source": path.to_string_lossy(),
-            "entity_count": entity_count,
-            "entities": entities.iter().map(|e| {
-                serde_json::json!({
-                    "text": e.text,
-                    "type": e.entity_type.as_label(),
-                    "start": e.start(),
-                    "end": e.end(),
-                    "confidence": e.confidence,
-                })
-            }).collect::<Vec<_>>()
-        });
-        println!("{}", output);
+        serde_json::to_string_pretty(&output)
+    }
+    .map_err(|e| e.to_string())?;
+    if let Some(dir) = &args.output {
+        let extension = if compact { "jsonl" } else { "json" };
+        let mut name = path.file_name().ok_or("Missing input filename")?.to_owned();
+        name.push(format!(".{extension}"));
+        fs::write(dir.join(name), format!("{encoded}\n")).map_err(|e| e.to_string())?;
+    } else {
+        println!("{encoded}");
     }
 
     Ok(entity_count)

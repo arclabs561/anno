@@ -19,6 +19,7 @@ use anno::Entity;
 
 /// Privacy analysis and redaction
 #[derive(Parser, Debug)]
+#[command(group(clap::ArgGroup::new("input_source").args(["text", "input"]).multiple(false)))]
 pub struct PrivacyArgs {
     /// Read UTF-8 text from this file
     #[arg(short, long, value_name = "PATH")]

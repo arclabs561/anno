@@ -22,12 +22,12 @@ use std::path::{Path, PathBuf};
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
-use super::super::utils::parse_grounded_document;
+use anno::GroundedDocument;
 
 /// Export annotations to different formats
 #[derive(Parser, Debug)]
 pub struct ExportArgs {
-    /// Input file or directory
+    /// Raw text, grounded JSON, grounded JSONL, or a directory of input files
     #[arg(short, long, value_name = "PATH")]
     pub input: PathBuf,
 
@@ -39,9 +39,7 @@ pub struct ExportArgs {
     #[arg(short, long, default_value = "brat")]
     pub format: ExportFormat,
 
-    /// Model backend to use for extraction.
-    /// Use `--model tplinker` to enable joint entity+relation extraction (actual semantic
-    /// triples rather than co-occurrence edges) for graph-oriented formats.
+    /// Backend for raw input only. Saved documents use their recorded entities and relations.
     #[arg(short, long, default_value = "stacked")]
     pub model: ModelBackend,
 
@@ -61,7 +59,7 @@ pub struct ExportArgs {
     #[arg(long, default_value = "urn:anno:")]
     pub base_uri: String,
 
-    /// Versioned source IRI for a single RDF input. Defaults to a digest of its path and text.
+    /// Versioned source IRI for a single RDF document. Defaults to a digest of its path and text.
     #[arg(long, value_name = "IRI", value_parser = parse_document_iri)]
     pub document_iri: Option<String>,
 
@@ -146,6 +144,7 @@ fn file_document_iri(input: &Path, text: &str, base_uri: &str) -> Result<String,
 // =============================================================================
 
 struct Extracted {
+    recorded: bool,
     entities: Vec<anno::Entity>,
     /// Populated when the backend supports relation extraction; empty otherwise.
     relations: Vec<anno::Relation>,
@@ -156,7 +155,92 @@ impl Extracted {
         Self {
             entities,
             relations: Vec::new(),
+            recorded: false,
         }
+    }
+}
+
+struct ExportInput {
+    source: PathBuf,
+    name: PathBuf,
+    document: Option<GroundedDocument>,
+}
+
+fn plan_input(path: &Path) -> Result<Vec<ExportInput>, String> {
+    let extension = path.extension().and_then(|e| e.to_str());
+    if !matches!(extension, Some("json" | "jsonl")) {
+        return Ok(vec![ExportInput {
+            source: path.into(),
+            name: path.into(),
+            document: None,
+        }]);
+    }
+    let content = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let invalid = |error: serde_json::Error| {
+        format!(
+        "{}: expected a grounded document, a document array, or one grounded document per JSONL line ({error}). Use extract --format grounded; compact predictions omit the source text.", path.display())
+    };
+    let documents: Vec<GroundedDocument> = if content.trim_start().starts_with('[') {
+        serde_json::from_str(&content).map_err(invalid)?
+    } else {
+        serde_json::Deserializer::from_str(&content)
+            .into_iter::<GroundedDocument>()
+            .collect::<Result<_, _>>()
+            .map_err(invalid)?
+    };
+    if documents.is_empty() {
+        return Err(format!("{} contains no documents", path.display()));
+    }
+    let multiple = documents.len() > 1;
+    Ok(documents
+        .into_iter()
+        .enumerate()
+        .map(|(i, doc)| ExportInput {
+            source: path.into(),
+            name: if multiple {
+                path.with_file_name(format!("{}-{}.json", output_stem(path), i + 1))
+            } else {
+                path.into()
+            },
+            document: Some(doc),
+        })
+        .collect())
+}
+
+impl Extracted {
+    fn from_document(doc: &GroundedDocument) -> Result<Self, String> {
+        let mut entities = Vec::new();
+        let mut index = HashMap::new();
+        for (signal, entity) in doc.signals().iter().zip(doc.to_entities()) {
+            if signal.text_offsets().is_some() {
+                index.insert(signal.id, entities.len());
+                entities.push(entity);
+            }
+        }
+        let mut relations = Vec::new();
+        for projection in doc.project_recorded_relations() {
+            let edge = projection.map_err(|e| e.to_string())?;
+            let endpoint = |id| {
+                index
+                    .get(&id)
+                    .map(|&i: &usize| entities[i].clone())
+                    .ok_or_else(|| format!("Relation endpoint {id} has no text span"))
+            };
+            let mut relation = edge.relation.clone();
+            relation.head = endpoint(edge.head.signal.id)?;
+            relation.tail = endpoint(edge.tail.signal.id)?;
+            relations.push(relation);
+        }
+        if anno::export::resolved_relations(&entities, &relations).count() != relations.len() {
+            return Err(
+                "A saved relation has ambiguous endpoints in the flat export schema".into(),
+            );
+        }
+        Ok(Self {
+            entities,
+            relations,
+            recorded: true,
+        })
     }
 }
 
@@ -203,8 +287,16 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
 
     // A format appends the same suffixes to every stem, including both CSV or brat files.
     // --overwrite may replace an earlier run, but two inputs must never replace one another.
-    let mut by_output_stem = HashMap::new();
+    let mut inputs = Vec::new();
     for file in &files {
+        inputs.extend(plan_input(file)?);
+    }
+    if args.document_iri.is_some() && inputs.len() != 1 {
+        return Err("--document-iri requires exactly one document".into());
+    }
+    let mut by_output_stem = HashMap::new();
+    for item in &inputs {
+        let file = &item.name;
         let stem = output_stem(file);
         if let Some(previous) = by_output_stem.insert(stem, file) {
             return Err(format!(
@@ -226,8 +318,9 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
         .map(|path| file_identity(path))
         .collect::<std::io::Result<std::collections::HashSet<_>>>()
         .map_err(|e| format!("Cannot identify export inputs: {e}"))?;
-    for file in &files {
-        for path in output_paths(file, &args.output, args.format) {
+    for item in &inputs {
+        let file = &item.source;
+        for path in output_paths(&item.name, &args.output, args.format) {
             match fs::symlink_metadata(&path) {
                 Ok(_) => {
                     let target = file_identity(&path)
@@ -253,8 +346,13 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     }
 
     // Choose extraction path: relation-capable model vs plain model.
-    let relation_model = args.model.try_create_relation_model().transpose()?;
-    let plain_model = if relation_model.is_none() {
+    let needs_model = inputs.iter().any(|item| item.document.is_none());
+    let relation_model = if needs_model {
+        args.model.try_create_relation_model().transpose()?
+    } else {
+        None
+    };
+    let plain_model = if needs_model && relation_model.is_none() {
         Some(args.model.create_model()?)
     } else {
         None
@@ -278,37 +376,10 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     let mut success_count = 0;
     let mut error_count = 0;
 
-    for file in &files {
-        let is_json = file
-            .extension()
-            .is_some_and(|e| e == "json" || e == "jsonl");
-
-        // Extract — JSON files are parsed as GroundedDocument; text files run extraction.
-        let extracted = if is_json {
-            let json_content =
-                fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
-            let doc = parse_grounded_document(&json_content)?;
-            let entities: Vec<anno::Entity> = doc
-                .signals()
-                .iter()
-                .filter_map(|s| {
-                    let (start, end) = s.text_offsets()?;
-                    let mut entity = anno::Entity::new(
-                        s.surface(),
-                        s.label.to_entity_type(),
-                        start,
-                        end,
-                        s.confidence.value(),
-                    );
-                    if let anno::Location::Discontinuous { segments } = &s.location {
-                        entity.set_discontinuous_span(anno::DiscontinuousSpan::new(
-                            segments.iter().map(|&(start, end)| start..end).collect(),
-                        ));
-                    }
-                    Some(entity)
-                })
-                .collect();
-            Ok((doc.text().to_owned(), Extracted::entities_only(entities)))
+    for item in inputs {
+        let file = &item.source;
+        let extracted = if let Some(doc) = item.document {
+            Ok((doc.text().to_owned(), Extracted::from_document(&doc)?))
         } else if let Some(ref rm) = relation_model {
             let content =
                 fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
@@ -320,6 +391,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                 Extracted {
                     entities,
                     relations,
+                    recorded: false,
                 },
             ))
         } else if let Some(ref m) = plain_model {
@@ -350,6 +422,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                 let rel_count = ext.relations.len();
                 match export_file(ExportFileOpts {
                     input: file,
+                    name: &item.name,
                     output_dir: &args.output,
                     content: &content,
                     ext,
@@ -413,6 +486,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
 
 struct ExportFileOpts<'a> {
     input: &'a Path,
+    name: &'a Path,
     output_dir: &'a Path,
     content: &'a str,
     ext: Extracted,
@@ -474,9 +548,44 @@ fn output_paths(input: &Path, dir: &Path, format: ExportFormat) -> Vec<PathBuf> 
         .collect()
 }
 
+/// Write a freshly extracted document through the same interchange writers as saved input.
+pub(super) fn write_extraction(
+    doc: &GroundedDocument,
+    source: Option<&str>,
+    directory: &Path,
+    format: ExportFormat,
+) -> Result<(), String> {
+    let name = Path::new(source.unwrap_or("extract"));
+    fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    for path in output_paths(name, directory, format) {
+        match fs::symlink_metadata(&path) {
+            Ok(_) => return Err(format!("Output already exists: {}", path.display())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    let iri = format!(
+        "urn:anno:doc:sha256-{}",
+        super::super::utils::source_sha256(doc.text())
+    );
+    export_file(ExportFileOpts {
+        input: name,
+        name,
+        output_dir: directory,
+        content: doc.text(),
+        ext: Extracted::from_document(doc)?,
+        format,
+        include_confidence: false,
+        overwrite: false,
+        base_uri: "urn:anno:",
+        document_iri: source.is_none().then_some(iri.as_str()),
+    })
+}
+
 fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     let ExportFileOpts {
         input,
+        name,
         output_dir,
         content,
         ext,
@@ -486,12 +595,17 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         base_uri,
         document_iri,
     } = opts;
-    let paths = output_paths(input, output_dir, format);
+    let paths = output_paths(name, output_dir, format);
 
     if matches!(format, ExportFormat::GraphCsv) {
         let nodes_path = &paths[0];
         let edges_path = &paths[1];
-        let (nodes_csv, edges_csv) = anno::export::to_graph_csv(
+        let writer = if ext.recorded {
+            anno::export::to_recorded_graph_csv
+        } else {
+            anno::export::to_graph_csv
+        };
+        let (nodes_csv, edges_csv) = writer(
             &ext.entities,
             &ext.relations,
             &input.to_string_lossy(),
@@ -514,12 +628,43 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     }
 
     let source_label = input.to_string_lossy();
-    let source_iri = || match document_iri {
-        Some(iri) => Ok(iri.to_owned()),
-        None => file_document_iri(input, content, base_uri),
+    let source_iri = || -> Result<String, String> {
+        match document_iri {
+            Some(iri) => Ok(iri.to_owned()),
+            None => {
+                let iri = file_document_iri(input, content, base_uri)?;
+                if input == name {
+                    Ok(iri)
+                } else {
+                    Ok(format!(
+                        "{iri}/record/{}",
+                        super::super::utils::source_sha256(&name.to_string_lossy())
+                    ))
+                }
+            }
+        }
     };
     let output_content = match format {
-        ExportFormat::Brat => anno::export::to_brat(content, &ext.entities, include_confidence),
+        ExportFormat::Brat => {
+            let mut output = anno::export::to_brat(content, &ext.entities, include_confidence);
+            for (i, (edge, head, tail)) in
+                anno::export::resolved_relations(&ext.entities, &ext.relations).enumerate()
+            {
+                if edge.relation_type.is_empty()
+                    || edge.relation_type.chars().any(char::is_whitespace)
+                {
+                    return Err("brat relation labels must be nonempty tokens".into());
+                }
+                output.push_str(&format!(
+                    "\nR{}\t{} Arg1:T{} Arg2:T{}",
+                    i + 1,
+                    edge.relation_type,
+                    head + 1,
+                    tail + 1
+                ));
+            }
+            output
+        }
         ExportFormat::Conll => {
             if ext.entities.iter().any(anno::Entity::is_discontinuous) {
                 return Err("CoNLL BIO cannot represent a discontinuous mention. Use brat to preserve its segments.".into());

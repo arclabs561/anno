@@ -3,6 +3,8 @@
 Extract entities with the CLI or a reusable Rust model. To try the offline
 Python bindings on a pair of documents, [compare dates in two bulletins](../crates/anno-py/README.md#compare-dates-in-two-bulletins).
 
+Find any invocation and its flags in the [command and option index](CLI_OPTIONS.md). For direct BRAT output or conversion of reviewed predictions, see [saving and converting annotations](EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations).
+
 ## Install
 
 These commands select the releases published on crates.io. Run the first
@@ -51,10 +53,11 @@ anno batch --config standard --dir ./docs --quiet
 | Positional text, `extract` | `model`, `format`, `threshold` |
 | `batch`, `pipeline` | `model`, `format`, `coref`, `link_kb` |
 | `debug` | `model`, `coref`, `link_kb` |
+| `watch` | `model`, `format` (JSON or JSONL) |
 | `enhance` | `format`, `coref`, `link_kb` |
 | `cross-doc` (eval build) | `model` for raw inputs, `format` |
 | `query FILE` | `format` |
-| `eval` with live extraction, `dataset eval`, `privacy`, `export`, `explain`, `watch`, `domain`, `singleton` | `model` |
+| `eval` with live extraction, `dataset eval`, `privacy`, `export` and `dataset export` with raw input, `dataset context`, `explain`, `domain`, `singleton` | `model` |
 
 Use `--coref=false` or `--link-kb=false` to override a saved switch. The profile
 threshold is extraction confidence. Cross-document similarity, relation distance,
