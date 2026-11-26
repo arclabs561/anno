@@ -45,6 +45,10 @@ class RoleTests(unittest.TestCase):
         self.assertEqual(eligible, raw)
         self.assertEqual(top, {(0, 1)})
 
+    def test_query_membership_has_set_semantics_and_bounds(self):
+        _, _, top = ranked_roles([0, 0, -1, 2], [[.9, .8]], [[True, True]], [[(0, 1), (2, 3)]], 0, 2)
+        self.assertEqual(top, {(0, 1), (2, 3)})
+
     def test_overlapping_windows_credit_furthest_observed_stage(self):
         trace = RoleTrace()
         hs, ts = {(1, 2)}, {(3, 4)}

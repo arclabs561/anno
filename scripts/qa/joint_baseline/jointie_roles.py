@@ -8,7 +8,7 @@ def ranked_roles(routed, probabilities, valid, indices, threshold, cap):
     # Upstream's stable tie order is probability, then start, end and flat index.
     rows = sorted(
         (-score, *span, query, index)
-        for query in routed
+        for query in sorted({q for q in routed if 0 <= q < len(probabilities)})
         for index, (score, keep, span) in enumerate(
             zip(probabilities[query], valid[query], indices[query], strict=True)
         )
