@@ -80,6 +80,19 @@ tracks and identities. For custom entity types use `extract_with_types` or CLI
 feature exposes `GraphDocument` and N-Triples export. Keep training, document parsing and downstream graph algorithms in their
 respective tools. [Backend selection](BACKENDS.md) · [Constituency interchange](CONSTITUENCY.md)
 
+## Signals, tracks and identity in a reader
+
+Keep enough information to answer each question the application offers. A reader that promises to explain an earlier link needs the original resolution inputs and policy, or the explanation captured at that edition. Two different direct decisions can produce identical published memberships. [Executable example](../crates/anno/tests/membership_publication.rs)
+
+| Reader question | Observable behavior and where it is checked |
+|---|---|
+| Which occurrence did the source print? | Two equal strings retain their separate source byte ranges through cleanup and reload. [CLI source map tests](../crates/anno-cli/tests/extract_source_map.rs) |
+| Which mentions belong to this track? | A namesake swap changes the answer even when every span and cluster size stays the same. Live and bulk publication agree on document-qualified source addresses after track handles change. [Namesake regression](../crates/anno/tests/integration/grounded_namesakes.rs) · [Publication tests](../crates/anno/tests/membership_publication.rs) |
+| Why are these tracks grouped, and who can bind them to a catalog? | A pair can share a component through a third track. The direct pair decision and the qualified catalog binding remain separately queryable. Applying a reviewed binding checks the corpus and revision of the preview. [Pair and membership tests](../crates/anno/tests/membership_publication.rs) · [Reviewed assignment checks](../verification/reviewed_kb/README.md) |
+| What could a reader establish on a given day, using a particular edition? | The bibliography example keeps the printed credit, corrected attribution, and independently dated claims queryable. Both a fresh snapshot and a reader applying deltas must answer against the cited expectations at every retained edition. The source's convention determines how a missing date is read. [Bibliography replay and date convention](../verification/index_consumers/credits/README.md#correct-a-bibliography-at-a-retained-edition) |
+
+When extending these behaviors, write down a pair of inputs that must give different answers, or a change that must preserve an answer. Exercise the public query and check the returned source or decision. Use a deliberately wrong reader to check that the example distinguishes the two outcomes. For a resolver accuracy claim, record the labeled evaluation population and measure the result on held-out examples. [Adversarial QA](ADVERSARIAL_QA.md) · [Case retention and source rights](QA.md#decide-what-to-keep)
+
 ## Grouping flat entities
 
 For reviewed catalog writes, `Corpus::preview_kb_assignment` identifies the track bindings in scope. `Corpus::apply_kb_assignment` checks the preview's owner and revision before applying it. [Executable verification contract](../verification/reviewed_kb/README.md)
