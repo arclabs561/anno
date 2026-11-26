@@ -436,3 +436,73 @@ fn every_track_outside_the_reviewed_scope_keeps_its_catalog_binding() {
         }
     }
 }
+
+#[test]
+fn a_bridge_discovered_during_review_cannot_rebind_a_catalogued_namesake() {
+    fn member(corpus: &mut Corpus, doc_id: &str, text: &str, name: &str) -> TrackRef {
+        let mut doc = GroundedDocument::new(doc_id, text);
+        let id = doc.add_track(Track::new(0, name));
+        let member = doc.track_ref(id).unwrap();
+        corpus.add_document(doc);
+        member
+    }
+
+    let mut corpus = Corpus::new();
+    let a = member(&mut corpus, "a", "Ada North", "Ada North");
+    let b = member(&mut corpus, "b", "Ada North Lee", "Ada North Lee");
+    let c = member(&mut corpus, "c", "Iris, also called North Lee", "Iris");
+    let resolve = |corpus: &mut Corpus| {
+        Resolver::new().resolve_inter_doc_coref(corpus, Some(0.65), None);
+    };
+    let introduce_alias = |corpus: &mut Corpus| {
+        corpus
+            .get_document_mut("c")
+            .unwrap()
+            .get_track_mut(c.track_id)
+            .unwrap()
+            .canonical_surface = "North Lee".into();
+    };
+
+    // With the same lexical evidence and no catalog binding, B joins A to C.
+    let mut control = corpus.clone();
+    introduce_alias(&mut control);
+    resolve(&mut control);
+    assert_eq!(linked(&control, &a).id, linked(&control, &c).id);
+
+    corpus.link_track_to_kb(&c, "catalog", "C", "Iris").unwrap();
+    resolve(&mut corpus);
+    let prepare = |corpus: &Corpus| {
+        corpus
+            .preview_kb_assignment(&a, "catalog", "AB", "Ada")
+            .unwrap()
+    };
+    let pending = prepare(&corpus);
+    assert_eq!(pending.assignment().affected_tracks, [a.clone(), b.clone()]);
+    let before = [&a, &b, &c].map(|track| linked(&corpus, track).clone());
+
+    introduce_alias(&mut corpus);
+    resolve(&mut corpus);
+    assert!(matches!(
+        corpus.apply_kb_assignment(pending),
+        Err(KbAssignmentError::StalePreview)
+    ));
+    assert_eq!(
+        [&a, &b, &c].map(|track| linked(&corpus, track).clone()),
+        before
+    );
+
+    let fresh = prepare(&corpus);
+    let receipt = corpus.apply_kb_assignment(fresh).unwrap();
+    assert_eq!(receipt.assignment.affected_tracks, [a.clone(), b.clone()]);
+    for track in [&a, &b] {
+        assert_eq!(
+            linked(&corpus, track).qualified_kb_ref(),
+            Some(("catalog", "AB"))
+        );
+    }
+    assert_eq!(
+        linked(&corpus, &c),
+        &before[2],
+        "C is outside the reviewed scope"
+    );
+}
