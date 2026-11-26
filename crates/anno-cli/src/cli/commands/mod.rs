@@ -6,6 +6,7 @@
 
 pub mod analyze;
 pub mod batch;
+mod brat_pair;
 pub mod cache;
 pub mod compare;
 pub mod config;

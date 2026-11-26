@@ -34,6 +34,10 @@ pub struct ImportArgs {
     #[arg(long, value_name = "PATH")]
     pub source_text: Option<PathBuf>,
 
+    /// Require an Anno pair manifest for every BRAT input. Legacy files otherwise remain readable.
+    #[arg(long)]
+    pub require_brat_manifest: bool,
+
     /// Include source text. Multi-span brat records need a .txt companion or --source-text.
     #[arg(long)]
     pub include_text: bool,
@@ -152,6 +156,9 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         return Err(format!("Input not found: {:?}", args.input));
     }
 
+    if args.require_brat_manifest && !matches!(args.format, ExportFormat::Brat) {
+        return Err("--require-brat-manifest requires BRAT input".into());
+    }
     let output_exists = args
         .output
         .try_exists()
@@ -229,18 +236,19 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
 
     if matches!(args.format, ExportFormat::Brat) {
         for file in &files {
-            let companion = file.with_extension("txt");
-            if same_entry(&companion, &args.output)?
-                || (output_exists
-                    && companion
-                        .try_exists()
-                        .map_err(|e| format!("Failed to inspect {}: {e}", companion.display()))?
-                    && same_existing_file(&companion, &args.output)?)
-            {
-                return Err(format!(
-                    "Output aliases a brat source companion: {}",
-                    companion.display()
-                ));
+            for companion in [file.with_extension("txt"), file.with_extension("anno-pair")] {
+                if same_entry(&companion, &args.output)?
+                    || (output_exists
+                        && companion.try_exists().map_err(|e| {
+                            format!("Failed to inspect {}: {e}", companion.display())
+                        })?
+                        && same_existing_file(&companion, &args.output)?)
+                {
+                    return Err(format!(
+                        "Output aliases a brat source companion: {}",
+                        companion.display()
+                    ));
+                }
             }
         }
     }
@@ -262,7 +270,7 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
     let mut success_count = 0;
 
     for file in &files {
-        match import_file(file, args.format, args.include_text, source_text.as_deref()) {
+        match import_file(file, &args, source_text.as_deref()) {
             Ok(annotations) => {
                 let count = annotations.len();
                 all_annotations.extend(annotations);
@@ -325,12 +333,28 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
 
 fn import_file(
     input: &PathBuf,
-    format: ExportFormat,
-    include_text: bool,
+    args: &ImportArgs,
     source_text: Option<&str>,
 ) -> Result<Vec<ImportedAnnotation>, String> {
-    match format {
-        ExportFormat::Brat => import_brat(input, include_text, source_text),
+    match args.format {
+        ExportFormat::Brat => {
+            let pair = super::brat_pair::BratPair::read(input)?;
+            if pair.is_none() {
+                if args.require_brat_manifest {
+                    return Err(format!(
+                        "Missing {}",
+                        input.with_extension("anno-pair").display()
+                    ));
+                }
+                if !args.quiet {
+                    eprintln!(
+                        "{}: source revision unverified (no pair manifest)",
+                        input.display()
+                    );
+                }
+            }
+            import_brat(input, args.include_text, source_text, pair.as_ref())
+        }
         ExportFormat::Conll => import_conll(input, source_text),
         ExportFormat::Jsonl => import_jsonl(input, source_text),
         ExportFormat::NTriples => import_ntriples(input),
@@ -348,6 +372,7 @@ fn import_brat(
     input: &Path,
     include_text: bool,
     source_text: Option<&str>,
+    pair: Option<&super::brat_pair::BratPair>,
 ) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
@@ -369,6 +394,12 @@ fn import_brat(
             .as_ref()
             .map(|(text, bytes)| (text.as_str(), bytes.as_slice()))
     };
+
+    if let Some(pair) = pair {
+        let (text, _) = read_source()
+            .map_err(|e| format!("Cannot verify source for {}: {e}", input.display()))?;
+        pair.verify(&content, text)?;
+    }
 
     let mut annotations = Vec::new();
     let mut confidences: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
@@ -1017,7 +1048,7 @@ mod tests {
             fs::write(path.with_extension("txt"), &text).unwrap();
             fs::write(&path, ann).unwrap();
             for include_text in [false, true] {
-                let rows = import_brat(&path, include_text, None).unwrap();
+                let rows = import_brat(&path, include_text, None, None).unwrap();
                 assert_eq!(rows.len(), 1);
                 assert_eq!(rows[0].text, mention);
                 assert_eq!(rows[0].span.bounds(), 2..end);
@@ -1031,10 +1062,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("gap.ann");
         fs::write(&path, "T1\tLOC 0 3;8 12\tNew York").unwrap();
-        let err = import_brat(&path, false, None).unwrap_err();
+        let err = import_brat(&path, false, None, None).unwrap_err();
         assert!(err.contains("gap.txt"), "{err}");
         fs::write(path.with_extension("txt"), "New and York").unwrap();
-        let rows = import_brat(&path, false, None).unwrap();
+        let rows = import_brat(&path, false, None, None).unwrap();
         assert_eq!(rows[0].text, "New York");
         assert_eq!(rows[0].span.bounds(), 0..12);
 
@@ -1048,7 +1079,7 @@ mod tests {
         ] {
             fs::write(&path, format!("T1\tLOC {spans}\t{reference}")).unwrap();
             assert!(
-                import_brat(&path, true, None).is_err(),
+                import_brat(&path, true, None, None).is_err(),
                 "{spans}: {reference}"
             );
         }
@@ -1182,6 +1213,7 @@ mod tests {
             format: ExportFormat::Jsonl,
             source_text: None,
             include_text: false,
+            require_brat_manifest: false,
             allow_partial: false,
             quiet: true,
         })
@@ -1202,6 +1234,7 @@ mod tests {
             format: ExportFormat::Jsonl,
             source_text: None,
             include_text: false,
+            require_brat_manifest: false,
             allow_partial: false,
             quiet: true,
         };
