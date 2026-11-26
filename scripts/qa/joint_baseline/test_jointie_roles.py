@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 from jointie_roles import RoleTrace, ranked_roles
@@ -7,6 +11,33 @@ from jointie_ranking import candidates
 
 
 class RoleTests(unittest.TestCase):
+    def test_destinations_checked_before_loading_models(self):
+        runner = Path(__file__).resolve().with_name("jointie_coverage.py")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            existing = root / "gold.json"
+            existing.write_text("untouched")
+            for options in ([], ["--training-routes", "train"], ["--loss-trace"], ["--sparse-roles"],
+                            ["--argument-threshold", ".1"], ["--rank-typed-alternatives"]):
+                run = subprocess.run([sys.executable, "-O", str(runner), "source", "weights", str(existing), *options],
+                                     capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn("output already exists", run.stderr)
+                self.assertEqual(existing.read_text(), "untouched")
+            for kind in ("repository", "linked_worktree"):
+                repo = root / kind
+                repo.mkdir()
+                if kind == "repository":
+                    (repo / ".git").mkdir()
+                    (repo / ".git/HEAD").write_text("ref: refs/heads/main")
+                else:
+                    (repo / ".git").write_text("gitdir: ../administrative/worktrees/tree")
+                dest = repo / "private.json"
+                run = subprocess.run([sys.executable, "-O", str(runner), "source", "weights", str(dest),
+                                      "--training-routes", "train"], capture_output=True, text=True)
+                self.assertIn("outside Git checkouts", run.stderr)
+                self.assertFalse(dest.exists())
+
     def test_stable_rank_threshold_and_duplicate_occurrences(self):
         raw, eligible, top = ranked_roles([0, 1], [[.2, .6], [.6, .1]], [[True, True], [True, True]],
                                           [[(4, 5), (2, 3)], [(0, 1), (4, 5)]], .2, 1)

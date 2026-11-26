@@ -5,8 +5,12 @@ from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
-from aggregate_receipt import external_output
+import os
 import runpy
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend_residuals"))
+from private_ledger import external_path, save_new
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKER = ROOT / "crates/anno-cli/src/cli/commands/joint.py"
@@ -162,11 +166,12 @@ def main():
     args = parser.parse_args()
     if args.sparse_roles or args.rank_typed_alternatives or args.argument_threshold is not None:
         args.loss_trace = True
-        if any((parent / ".git").is_file() or (parent / ".git/HEAD").is_file()
-               for parent in args.output.resolve().parents):
-            parser.error("write per-edge role diagnostics outside Git checkouts")
-    if args.loss_trace or args.training_routes:
-        external_output(args.output)
+    private = bool(args.loss_trace or args.training_routes)
+    destination = external_path(args.output) if private else args.output
+    if os.path.lexists(args.output) or destination.exists():
+        parser.error("output already exists; choose a new filename")
+    if not destination.parent.is_dir():
+        parser.error("output directory does not exist")
     import torch
     import gliner2
     from gliner2.joint_ie import JointIE, JointSchema
@@ -249,7 +254,13 @@ def main():
         for key in fields:
             if report[key] != expected[key]:
                 raise ValueError(f"coverage replay differs for {key}")
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    if private:
+        save_new(args.output, report)
+    else:
+        # Exclusive creation also protects a concurrent run that finished during inference.
+        with destination.open("x", encoding="utf-8") as stream:
+            json.dump(report, stream, indent=2, allow_nan=False)
+            stream.write("\n")
 
 
 if __name__ == "__main__":
