@@ -1,0 +1,74 @@
+{
+  "documents": 256,
+  "cohort_ids_sha256": "12575e21f545a394ed20318e04c9518af7be7526317c45d2ac113dd18c7c95c0",
+  "stock_partitions_sha256": "7cfcb6e687e0177119f66b88cca1a7f182b9ab0f94371fe059c800d2f0a9acf1",
+  "gold_links": 231,
+  "stock_decisions": {
+    "tp": 149,
+    "fp": 12,
+    "fn": 82,
+    "tn": 269
+  },
+  "first_stage": {
+    "no_exact_candidate": 0,
+    "below_stock_budget": 57,
+    "retained_but_not_emitted": 12,
+    "emitted_separately": 13,
+    "linked": 149
+  },
+  "endpoint_at_first_loss": {
+    "no_exact_candidate": {
+      "pronoun": 0,
+      "name": 0,
+      "both": 0
+    },
+    "below_stock_budget": {
+      "pronoun": 1,
+      "name": 55,
+      "both": 1
+    },
+    "retained_but_not_emitted": {
+      "pronoun": 0,
+      "name": 10,
+      "both": 2
+    }
+  },
+  "below_budget_pairs_with_both_in_first_2k": 1,
+  "below_budget_name_rivals": {
+    "gold_pairs": 56,
+    "among_retained": {
+      "longer": 56,
+      "shorter": 0,
+      "both": 0,
+      "none": 0
+    },
+    "among_pronoun_cluster": {
+      "longer": 43,
+      "shorter": 0,
+      "both": 0,
+      "none": 13
+    }
+  },
+  "ranks_below_stock_cutoff": {
+    "pronoun": {
+      "count": 2,
+      "median": 797.0,
+      "min": 131,
+      "max": 1463
+    },
+    "name": {
+      "count": 56,
+      "median": 559.5,
+      "min": 12,
+      "max": 1850
+    }
+  },
+  "model_revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
+  "model_files": {
+    "encoder.onnx": "190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4",
+    "scorer_weights.safetensors": "54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7",
+    "tokenizer.json": "5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1",
+    "config.json": "2d96a29d2ebd497d34580594f40ded241440411bcd83885b89d8fbb86189bc3b"
+  },
+  "diagnostic_binary_sha256": "0f31b213543b06cc1bc84e2eb8ca1859c575d510729c89afa0e304a6d5492735"
+}
