@@ -53,3 +53,27 @@ class SlotSchedule(unittest.TestCase):
                 summary = json.loads((receipts / "result.json").read_text())
                 self.assertFalse(summary["strategy_matches"])
                 self.assertEqual(summary["observed_strategies"], ["random"])
+
+    def test_rotate_verified_cells_and_refuse_unmeasured_languages(self):
+        cells = [("ner", "en"), ("ner", "de")]
+        for slot, lang, verified in [(2, "en", True), (6, "de", True), (10, "en", False)]:
+            with self.subTest(slot=slot), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                receipts = root / "receipts"
+                def native(*args, env, **kwargs):
+                    self.assertEqual((env["ANNO_MATRIX_TASK"], env["ANNO_MUXER_PIN_LANG"]), ("ner", lang))
+                    row = dict(record_type="outcome", strategy="estimate", task="ner",
+                               requested_languages=[lang], hard_junk=False, cost_units=1,
+                               observed_language=lang if verified else None)
+                    (receipts / "decisions.jsonl").write_text(json.dumps(row))
+                with patch("run_matrix_slot.subprocess.run", native):
+                    def run():
+                        run_slot(root / "fake", root / "cache", receipts, "mixed", slot, 4, 2,
+                                 seed=3, coverage_cells=cells)
+                    if verified:
+                        run()
+                    else:
+                        with self.assertRaisesRegex(ValueError, "no completed evaluation"):
+                            run()
+                summary = json.loads((receipts / "result.json").read_text())
+                self.assertEqual(summary["target_evaluations"], int(verified))

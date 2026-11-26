@@ -5,3 +5,4 @@ cd "$(dirname "$0")"
 python3 -m unittest test_entity_memory_replay
 python3 -m unittest discover -s bookscale -p 'test_*.py'
 python3 -m unittest discover -s anno_adapter -p 'test_*.py'
+python3 -m unittest discover -s adjacent/multilingual -p 'test_*.py'

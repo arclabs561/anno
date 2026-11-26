@@ -67,6 +67,13 @@ jobs:
             '{kind, schema_version, fixture_sha256, passed, total, domains, prediction_coverage, backend: "stacked", revision: $revision}' \
             "$panel/scores.json" > qa/reports/domain-discovery.json
           cp "$panel/manifest.json" qa/reports/domain-manifest.json
+      - name: Score fixed short and long NER documents in five languages
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          mkdir -p qa/reports
+          python3 scripts/qa/ner_language_length.py --fetch --data-dir "$RUNNER_TEMP/anno-redfm" \
+            --anno "$ANNO" --backend heuristic --per-cell 4 > "$RUNNER_TEMP/ner-language-length.json"
+          mv "$RUNNER_TEMP/ner-language-length.json" qa/reports/ner-language-length.json
       - name: Save live QA reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -78,6 +85,7 @@ jobs:
             qa/reports/publishers-summary.json
             qa/reports/domain-discovery.json
             qa/reports/domain-manifest.json
+            qa/reports/ner-language-length.json
           if-no-files-found: error
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
@@ -481,8 +489,8 @@ jobs:
       - name: Test
         env: *unit-model-cache
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
-      - name: Check prepared model loading and shared dataset staging offline
-        run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache --test offline_gliner_selection
+      - name: Check model loading, dataset staging and Estimate history offline
+        run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache --test offline_gliner_selection --test estimate_panel
       # Reuse the workspace test build and retain the dedicated 100-case run.
       - name: Run property tests
         if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}

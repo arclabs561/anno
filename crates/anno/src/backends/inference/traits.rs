@@ -294,6 +294,19 @@ pub trait RelationExtractor: Send + Sync {
             .map(|output| (output, None))
     }
 
+    /// Run once with a caller-selected character distance for heuristic scoring.
+    /// Neural scorers retain their own candidate selection policy.
+    fn extract_with_heuristic_distance(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+        _max_span_distance: usize,
+    ) -> crate::Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        self.extract_with_relation_provenance(text, entity_types, relation_types, threshold)
+    }
+
     /// Convenience: extract with broad default entity/relation types and threshold 0.5.
     ///
     /// Returns `(entities, relations)` flattened from [`ExtractionWithRelations`].

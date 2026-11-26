@@ -4,7 +4,14 @@
 
 On “Ada founded Acme. She leads it.”, NER can return the typed spans “Ada” and “Acme”. A coreference resolver can group “Ada” with “She”. A relation extractor can return a directed `founded` edge from the Ada mention to the Acme mention. A document-level model can also predict an edge between two clusters. Each output answers a different question, and each can be evaluated separately. [Grounded representation](decisions/grounded-extraction.md) · [Joint extraction design](decisions/joint-extraction.md)
 
-The backend error analysis breaks down which mentions, links, relations, and entity spans were missed or added on each evaluated sample. [Backend error analysis](eval/backend-residuals.md)
+The [backend error analysis](eval/backend-residuals.md) counts missing and extra outputs by stage. To choose a checkpoint or change a threshold, start with the comparison that matches your input and output.
+
+| Decision | Reproducible comparison |
+|---|---|
+| Pick a NER backend for short and long text in a particular language | [Source-verified multilingual NER panels](eval/ner-language-length.md) |
+| Retain more mention candidates or use dependency heads for coreference | [Raw-text mention budget](eval/coref-panels.md#doubling-the-fcoref-mention-budget) · [Predicted heads on supplied and returned mentions](../crates/anno-eval/research/reference/adjacent/multilingual/README.md#predicted-dependency-heads) |
+| Rank candidate directed relations with a fixed budget | [JointIE argument and ranking trial](eval/jointie-role-trial.md) |
+| Separate a clustering error from a relation threshold or annotation gap | [JEREX controls on two annotation editions](eval/jerex-controls.md) |
 
 ### Which inputs do you have?
 

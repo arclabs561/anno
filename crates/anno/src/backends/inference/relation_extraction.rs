@@ -107,16 +107,19 @@ pub fn extract_relations(
                     continue;
                 }
 
-                // `detect_relation_type` returns byte offsets into `between_text`.
+                // The matcher searches Unicode-lowercased text. Convert its match
+                // to source byte offsets before constructing the character span.
                 let trigger_span = if config.extract_triggers {
-                    trigger.map(|(s, e)| {
-                        let trigger_start_byte = between_span.byte_start.saturating_add(s);
-                        let trigger_end_byte = between_span.byte_start.saturating_add(e);
-                        (
-                            span_converter.byte_to_char(trigger_start_byte),
-                            span_converter.byte_to_char(trigger_end_byte),
-                        )
-                    })
+                    trigger
+                        .and_then(|(s, e)| lowercase_match_source_span(between_text, s, e))
+                        .map(|(s, e)| {
+                            let trigger_start_byte = between_span.byte_start.saturating_add(s);
+                            let trigger_end_byte = between_span.byte_start.saturating_add(e);
+                            (
+                                span_converter.byte_to_char(trigger_start_byte),
+                                span_converter.byte_to_char(trigger_end_byte),
+                            )
+                        })
                 } else {
                     None
                 };
@@ -223,6 +226,26 @@ pub fn extract_relation_triples(
     }
 
     triples
+}
+
+/// Return the source bytes covering a nonempty match in Unicode-lowercased text.
+fn lowercase_match_source_span(text: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    if text.is_ascii() {
+        return Some((start, end));
+    }
+    let mut lower_position = 0;
+    let mut source_start = None;
+    for (byte, ch) in text.char_indices() {
+        // Contextual final sigma has the same encoded length as ordinary sigma.
+        lower_position += ch.to_lowercase().map(char::len_utf8).sum::<usize>();
+        if source_start.is_none() && start < lower_position {
+            source_start = Some(byte);
+        }
+        if end <= lower_position {
+            return source_start.map(|start| (start, byte + ch.len_utf8()));
+        }
+    }
+    None
 }
 
 /// Result of relation detection: (label, confidence, optional span).
@@ -1658,6 +1681,31 @@ mod tests {
             "trigger text '{}' should contain 'works for'",
             trigger_text
         );
+    }
+
+    #[test]
+    fn trigger_offsets_refer_to_source_after_unicode_case_conversion() {
+        for prefix in ["İ", "K", "İK", "𐐀", "東京", "اَلْ", "e\u{301}"] {
+            let text = format!("Alice {prefix} WORKS FOR Acme");
+            let tail = text.chars().count() - 4;
+            let entities = vec![person("Alice", 0, 5), org("Acme", tail, tail + 4)];
+            let matches = extract_relations(
+                &entities,
+                &text,
+                &registry_with_relations(&["WORKS_FOR"]),
+                &default_config(),
+            );
+            assert_eq!(matches.len(), 1, "{prefix}");
+            let (start, end) = matches[0].trigger_span.unwrap();
+            assert_eq!(
+                text.chars()
+                    .skip(start)
+                    .take(end - start)
+                    .collect::<String>(),
+                "WORKS FOR",
+                "{prefix}"
+            );
+        }
     }
 
     #[test]

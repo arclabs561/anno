@@ -7,7 +7,6 @@ import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import pyarrow.parquet as pq
 
 REV = "3ded5a1638e43d89b81ee24bf5b98f66943e1c60"
 URL = f"https://huggingface.co/datasets/lattice-nlp/corefud-1-4/resolve/{REV}/data/dev-00000-of-00001.parquet"
@@ -18,7 +17,7 @@ def norm(s):
     return " ".join(s.casefold().split())
 
 
-def score(doc):
+def score(doc, predicted_heads=None):
     text = doc['text']
     counts = Counter(documents=1)
     occurrences = []
@@ -28,7 +27,10 @@ def score(doc):
         if l is None or r is None or l < 0 or r > len(text) or r <= l or not any(c.isalnum() for c in text[l:r]):
             counts['excluded_spans'] += 1
             continue
-        h, t = m['head_onset'], m['head_offset']
+        if predicted_heads is None:
+            h, t = m['head_onset'], m['head_offset']
+        else:
+            h, t = predicted_heads.get((l, r), (None, None))
         head = norm(text[h:t]) if h is not None and t is not None and l <= h < t <= r else ''
         occurrences.append((l, r, m['COREF'], norm(text[l:r]), head, m['start_token'], m['end_token']))
     # Only unambiguous observable spans are scored. Sort ties by offsets;
@@ -40,6 +42,10 @@ def score(doc):
     by_shape, by_head, gold_last = {}, {}, {}
     gold_shapes = set()
     pending = []
+    clusters = {'surface': [], 'head_backoff': []}
+    gold_counts = Counter()
+    predicted_counts = defaultdict(Counter)
+    intersections = defaultdict(Counter)
     for i, (start, end, target, shape, head, begin_token, _) in enumerate(mentions):
         while pending and pending[0][0] <= start:
             _, j = heapq.heappop(pending)
@@ -51,6 +57,19 @@ def score(doc):
             gold_last[entity] = j
             gold_shapes.add((entity, surface))
         heapq.heappush(pending, (end, i))
+        if predicted_heads is not None:
+            counts['usable_mentions'] += 1
+            counts['mentions_with_head'] += bool(head)
+            gold_counts[target] += 1
+            surface_pick = by_shape.get(shape)
+            head_pick = surface_pick if surface_pick is not None else by_head.get(head)
+            for policy, pick in [('surface', surface_pick), ('head_backoff', head_pick)]:
+                # Construct one cluster per chain of affirmative matches. Unmatched
+                # mentions start a cluster; the ranker's recency guess is not a merge.
+                cluster = i if pick is None else clusters[policy][pick]
+                clusters[policy].append(cluster)
+                predicted_counts[policy][cluster] += 1
+                intersections[policy][cluster, target] += 1
         if target not in gold_last:
             counts['no_eligible_gold'] += 1
             continue
@@ -60,14 +79,28 @@ def score(doc):
             labels.append('long_gap')
         exact = by_shape.get(shape, latest)
         head_backoff = by_shape.get(shape, by_head.get(head, latest))
+        if predicted_heads is not None:
+            baseline_hit = mentions[exact][2] == target
+            candidate_hit = mentions[head_backoff][2] == target
+            counts['gained'] += candidate_hit and not baseline_hit
+            counts['lost'] += baseline_hit and not candidate_hit
         for label in labels:
             counts[label + '.queries'] += 1
             for policy, picked in [('recent', latest), ('surface', exact), ('head_backoff', head_backoff)]:
                 counts[label + '.' + policy] += mentions[picked][2] == target
+    if predicted_heads is not None:
+        def pairs(histogram):
+            return sum(n * (n - 1) // 2 for n in histogram.values())
+        counts['gold_pairs'] = pairs(gold_counts)
+        for policy in clusters:
+            counts[f'{policy}.predicted_pairs'] = pairs(predicted_counts[policy])
+            counts[f'{policy}.correct_pairs'] = pairs(intersections[policy])
     return counts
 
 
 def main():
+    import pyarrow.parquet as pq
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('cache', type=Path)
     parser.add_argument('result', type=Path)

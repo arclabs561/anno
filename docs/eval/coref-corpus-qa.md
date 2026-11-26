@@ -72,3 +72,7 @@ A published singleton supplies an exact mention and a distinct cluster identity.
 CorPipeLarge linked both options in 8 Dutch and 10 French cases and uniquely linked the wrong option in 28 Dutch and 7 French cases. All three submissions missed the correct identity decision on all six same-identity nested pairs. The components contain 1,360 different-identity pairs. Report both classes separately when studying nesting.
 
 These are exact-span diagnostic counts on two Dutch and four French development works. The sources supplied the two candidate mentions for scoring, and the submissions predicted full-document chains. The counts do not establish independent test accuracy, local inference cost or compatibility with a short-window caller. The submission archive used for these reference counts has SHA-256 `34a670c598a81943dd2a89889da5eb53aec510cc6b717b79e15d8f3ddba4f389`. [Task findings](https://aclanthology.org/2026.codi-1.21/) · [CorPipe system paper](https://aclanthology.org/2026.codi-1.27/)
+
+To isolate the effect of antecedent selection given supplied mentions, replay the
+[CorefUD predicted dependency-head comparison](../../crates/anno-eval/research/reference/adjacent/multilingual/README.md#predicted-dependency-heads).
+It measures retrieval gains and losses, transitive cluster pairs, and the cost of running a local parser.
