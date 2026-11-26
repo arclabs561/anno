@@ -50,8 +50,10 @@ def reshape(text, groups):
         for a, b in group:
             hits = set()
             for name in names:
-                for match in re.finditer(r'(?<!\w)' + re.escape(name) + r'(?!\w)', text[a:b]):
-                    hit = a + match.start(), a + match.end()
+                # A lookahead also finds overlapping occurrences such as "John John" twice in three tokens.
+                pattern = r'(?<!\w)(?=(' + re.escape(name) + r')(?!\w))'
+                for match in re.finditer(pattern, text[a:b]):
+                    hit = a + match.start(1), a + match.end(1)
                     if hit != (a, b):
                         hits.add(hit)
             if len(hits) == 1:
@@ -65,7 +67,8 @@ def reshape(text, groups):
 
 def score(rows, predictions):
     docs, candidate = [], []
-    changed_spans = changed_docs = changed_marked_spans = 0
+    changed_spans = changed_docs = 0
+    removed_marked = added_marked = 0
     for row, pred in zip(rows, predictions, strict=True):
         text = row["Text"]
         groups = decode_clusters(pred, row["ID"], text, "fcoref")
@@ -82,7 +85,8 @@ def score(rows, predictions):
             targets.append((start, end))
         original = {s for g in groups for s in g}
         updated = {s for g in reshaped for s in g}
-        changed_marked_spans += sum(s in original ^ updated for s in targets)
+        removed_marked += len(set(targets) & (original - updated))
+        added_marked += len(set(targets) & (updated - original))
         labels = [row[k + "-coref"] for k in ("A", "B")]
         if not set(labels) <= {"TRUE", "FALSE"}:
             raise ValueError("unexpected GAP label")
@@ -91,7 +95,9 @@ def score(rows, predictions):
     new = measure(docs, candidate, "fcoref")
     return dict(stock=old["counts"], candidate=new["counts"], paired=compare(docs, old, new),
                 documents_with_replacements=changed_docs, replaced_output_spans=changed_spans,
-                changed_marked_span_memberships=changed_marked_spans)
+                removed_marked_spans=removed_marked, added_marked_spans=added_marked,
+                removed_spans_outside_marked=changed_spans - removed_marked,
+                added_spans_outside_marked=changed_spans - added_marked)
 
 
 def main():
