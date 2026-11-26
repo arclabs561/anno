@@ -331,6 +331,59 @@
                 "it/long": 0.0057,
                 "it/short": 0.0073
               }
+            },
+            "nuner": {
+              "dev_correct_unmatched_missed_at_threshold": {
+                "0.5": [72, 130, 48]
+              },
+              "dev_selected_threshold": 0.5,
+              "model": {
+                "backend": "nuner",
+                "checkpoint_sha256": {
+                  "config.json": "5ca0deb328891b72320a18cc04dc6400e80eb8e36f8f88690726447dbf1216be",
+                  "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+                  "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+                  "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+                },
+                "cli_sha256": "3342830c28f39fa8af855f7187aceab5e6affb09088184a99ddcef26dc9cbad6",
+                "held_out_cli_parity_languages": [
+                  "de",
+                  "en",
+                  "es",
+                  "fr",
+                  "it"
+                ],
+                "session": "public Rust zero-shot API",
+                "worker_sha256": "07d337d628282f89441ba294ffd2a03427770e496d38c1fb6824465ae142708b"
+              },
+              "observed_runtimes_by_call": {
+                "nuner": 80
+              },
+              "peak_rss_kib": 3120296,
+              "test_correct_unmatched_missed": {
+                "de/long": [10, 22, 4],
+                "de/short": [7, 6, 6],
+                "en/long": [18, 19, 3],
+                "en/short": [10, 5, 1],
+                "es/long": [15, 13, 8],
+                "es/short": [7, 6, 1],
+                "fr/long": [14, 17, 8],
+                "fr/short": [8, 6, 3],
+                "it/long": [29, 23, 1],
+                "it/short": [7, 11, 1]
+              },
+              "test_p95_seconds": {
+                "de/long": 1.0015,
+                "de/short": 0.3055,
+                "en/long": 0.6594,
+                "en/short": 0.3264,
+                "es/long": 0.9596,
+                "es/short": 0.2977,
+                "fr/long": 1.0901,
+                "fr/short": 0.4173,
+                "it/long": 1.1726,
+                "it/short": 0.3466
+              }
             }
           }
         }
@@ -526,6 +579,107 @@
                 "en/short": 0.081,
                 "ru/long": 0.4296,
                 "ru/short": 0.1629
+              }
+            }
+          }
+        },
+        "4": {
+          "empty_reference_annotations_omitted": {},
+          "panel_sha256": "0dc9030c000eb031d45e67698f86c7e5b5f17d81690be61182cb583de5afe305",
+          "reports": {
+            "bert-onnx": {
+              "dev_correct_unmatched_missed_at_threshold": {
+                "0.5": [10, 2, 5]
+              },
+              "dev_selected_threshold": 0.5,
+              "model": {
+                "backend": "bert-onnx",
+                "checkpoint_sha256": {
+                  "config.json": "e3cc09261a1c73bda961e030563585b2be563bef339a78e11c802c3377b98d66",
+                  "model.onnx": "e2165e300f6e0016c1f295bcdee36e084371e1f4f3564cd7e47cb833b58a75b7",
+                  "tokenizer.json": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34"
+                },
+                "cli_sha256": "3342830c28f39fa8af855f7187aceab5e6affb09088184a99ddcef26dc9cbad6"
+              },
+              "observed_runtimes_by_call": {
+                "bert-onnx": 32
+              },
+              "peak_rss_kib": 561636,
+              "test_correct_unmatched_missed": {
+                "en/long": [16, 0, 0],
+                "en/short": [7, 0, 0],
+                "ru/long": [1, 3, 3],
+                "ru/short": [0, 3, 5]
+              },
+              "test_p95_seconds": {
+                "en/long": 4.0653,
+                "en/short": 4.2249,
+                "ru/long": 3.3645,
+                "ru/short": 3.3637
+              }
+            },
+            "heuristic": {
+              "dev_correct_unmatched_missed_at_threshold": {
+                "0.5": [3, 6, 12]
+              },
+              "dev_selected_threshold": 0.5,
+              "model": {
+                "backend": "heuristic",
+                "cli_sha256": "60abedba2a28030110e941ae608123038bae9247e66263de9dc20c1dc8aaaee0"
+              },
+              "observed_runtimes_by_call": {
+                "heuristic": 32
+              },
+              "peak_rss_kib": 72972,
+              "test_correct_unmatched_missed": {
+                "en/long": [8, 3, 8],
+                "en/short": [4, 0, 3],
+                "ru/long": [2, 1, 2],
+                "ru/short": [1, 1, 4]
+              },
+              "test_p95_seconds": {
+                "en/long": 0.0485,
+                "en/short": 0.0565,
+                "ru/long": 0.0395,
+                "ru/short": 0.0269
+              }
+            },
+            "nuner": {
+              "dev_correct_unmatched_missed_at_threshold": {
+                "0.5": [12, 14, 3]
+              },
+              "dev_selected_threshold": 0.5,
+              "model": {
+                "backend": "nuner",
+                "checkpoint_sha256": {
+                  "config.json": "5ca0deb328891b72320a18cc04dc6400e80eb8e36f8f88690726447dbf1216be",
+                  "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+                  "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+                  "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+                },
+                "cli_sha256": "3342830c28f39fa8af855f7187aceab5e6affb09088184a99ddcef26dc9cbad6",
+                "held_out_cli_parity_languages": [
+                  "en",
+                  "ru"
+                ],
+                "session": "public Rust zero-shot API",
+                "worker_sha256": "07d337d628282f89441ba294ffd2a03427770e496d38c1fb6824465ae142708b"
+              },
+              "observed_runtimes_by_call": {
+                "nuner": 32
+              },
+              "peak_rss_kib": 3068840,
+              "test_correct_unmatched_missed": {
+                "en/long": [16, 2, 0],
+                "en/short": [5, 6, 2],
+                "ru/long": [4, 5, 0],
+                "ru/short": [3, 2, 2]
+              },
+              "test_p95_seconds": {
+                "en/long": 0.9154,
+                "en/short": 0.6961,
+                "ru/long": 1.036,
+                "ru/short": 0.6443
               }
             }
           }

@@ -234,6 +234,40 @@ def predictor(args):
     return predict, identity
 
 
+
+def warm_predictions(worker, checkpoint, cases, cli_predict):
+    """Use one public Rust session, then verify one held-out example per language against the CLI."""
+    labels = list(LABELS)
+    threshold = 0.5
+    request = {"texts": [c.text for c in cases], "labels": labels, "threshold": threshold}
+    process = subprocess.run([str(worker.resolve()), str(checkpoint.resolve())], input=json.dumps(request),
+                             capture_output=True, text=True, env=dict(os.environ, ANNO_NO_DOWNLOADS="1"))
+    if process.returncode:
+        raise RuntimeError(f"NuNER session exited {process.returncode}; panel incomplete")
+    record = json.loads(process.stdout)
+    if (record["model"], record["checkpoint"], record["threshold"], record["labels"]) != (
+        "nuner", str(checkpoint.resolve()), threshold, labels
+    ):
+        raise ValueError("Session did not confirm the requested checkpoint, labels, and threshold")
+    predictions = {}
+    for case, row in zip(cases, record["rows"], strict=True):
+        if row["source_sha256"] != hashlib.sha256(case.text.encode()).hexdigest():
+            raise ValueError("Session returned a result for a different source or order")
+        elapsed = row["seconds"]
+        if not math.isfinite(elapsed) or elapsed < 0:
+            raise ValueError("Invalid session timing")
+        predictions[case.fingerprint] = (spans(case.text, row["entities"], "type"), elapsed)
+    checked = set()
+    for case in cases:
+        language = case.cell.split("/")[0]
+        if case.split == "test" and language not in checked:
+            expected, _ = cli_predict(case.text, threshold)
+            if expected != predictions[case.fingerprint][0]:
+                raise ValueError("Public session and extract CLI disagree on a parity case")
+            checked.add(language)
+    return predictions, sorted(checked)
+
+
 def run(args):
     if args.per_cell < 1:
         raise ValueError("per-cell budget must be positive")
@@ -259,6 +293,13 @@ def run(args):
                 rows = source_rows(args.data_dir, f"{split}.{lang}", args.fetch)
             cases.extend(select(rows, split, lang, used, args.per_cell, corpus=args.corpus, lengths=lengths))
     predict, identity = predictor(args)
+    warm = None
+    if args.nuner_worker:
+        if args.backend != "nuner" or args.calibrate:
+            raise ValueError("The NuNER session runner uses the fixed three-label 0.5 protocol")
+        warm, checked = warm_predictions(args.nuner_worker, args.checkpoint, cases, predict)
+        identity.update(worker_sha256=digest(args.nuner_worker), session="public Rust zero-shot API",
+                        held_out_cli_parity_languages=checked)
     reference_predict = reference_identity = None
     reference_name = "heuristic"
     if args.compare_heuristic:
@@ -283,9 +324,13 @@ def run(args):
             if split == "test" and reference_predict:
                 baseline_pred, _ = reference_predict(case.text, 0.5)
             for t in split_thresholds:
-                before = time.perf_counter()
-                pred, observed = predict(case.text, t)
-                elapsed = time.perf_counter() - before
+                if warm is None:
+                    before = time.perf_counter()
+                    pred, observed = predict(case.text, t)
+                    elapsed = time.perf_counter() - before
+                else:
+                    pred, elapsed = warm[case.fingerprint]
+                    observed = "nuner"
                 runtime[observed] += 1
                 candidate_counts = counts(case.gold, pred)
                 score[t][case.cell].append(candidate_counts)
@@ -328,7 +373,9 @@ def run(args):
             "panel_sha256": hashlib.sha256("\n".join(c.fingerprint for c in cases).encode()).hexdigest(),
             "labels": list(LABELS.values()), "length_words": lengths, "model": identity,
             "observed_runtimes_by_call": dict(runtime), "dev_selected_threshold": selected,
-            "resource_scope": "wall time per test call at 0.5; peak RSS for process or maximum child, Linux KiB",
+            "resource_scope": ("warm Rust extraction time per test call at 0.5, max child RSS including CLI parity, Linux KiB"
+                               if warm is not None else
+                               "wall time per test call at 0.5, peak RSS for process or maximum child, Linux KiB"),
             "test_p95_seconds": {k: sorted(v)[math.ceil(0.95 * len(v))-1] for k, v in timings.items()},
             "peak_rss_kib": resource.getrusage(resource.RUSAGE_SELF if args.backend == "sauerkraut"
                                                else resource.RUSAGE_CHILDREN).ru_maxrss,
@@ -344,6 +391,7 @@ def main():
     p.add_argument("--anno", type=Path)
     p.add_argument("--backend", choices=("heuristic", "crf", "hmm", "nuner", "bert-onnx", "sauerkraut"), required=True)
     p.add_argument("--checkpoint", type=Path)
+    p.add_argument("--nuner-worker", type=Path, help="Use the nuner_panel Rust example and verify against --anno")
     p.add_argument("--precision", choices=("fp32", "bf16"), default="fp32",
                    help="CPU arithmetic in the optional GLiNEREL runtime")
     p.add_argument("--per-cell", type=int, default=12)

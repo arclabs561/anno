@@ -1,11 +1,13 @@
 """Offline checks of the multilingual NER panel's sampling and scoring contracts."""
+import hashlib
 import json
+from types import SimpleNamespace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from ner_language_length import MULTINERD_LENGTHS, counts, digest, paired_delta, select, source_rows, spans
+from ner_language_length import Case, MULTINERD_LENGTHS, counts, digest, paired_delta, select, source_rows, spans, warm_predictions
 from multinerd_spans import text_and_gold
 
 
@@ -54,6 +56,29 @@ class PanelTests(unittest.TestCase):
         cases = select(rows, "test", "ru", set(), 1, corpus="multinerd", lengths=MULTINERD_LENGTHS)
         self.assertEqual(cases[0].gold, {(0, 10, "PER")})
         self.assertEqual(len(cases[1].gold), 5)
+
+    def test_warm_worker_validates_completeness_identity_and_cli_parity(self):
+        case = Case("test", "en/short", "Ada", set(), "topic", "id", 0)
+        checkpoint = Path("/tmp/nuner-synthetic-export")
+        row = {"source_sha256": hashlib.sha256(b"Ada").hexdigest(), "seconds": 0.1,
+               "entities": [{"type": "PER", "start": 0, "end": 3, "text": "Ada"}]}
+        record = {"model": "nuner", "checkpoint": str(checkpoint), "threshold": 0.5,
+                  "labels": ["person", "organization", "location"], "rows": [row]}
+        def parity(text, threshold):
+            return {(0, 3, "PER")}, "nuner"
+
+        def replay(result, cli=parity):
+            response = SimpleNamespace(returncode=0, stdout=json.dumps(result))
+            with patch("ner_language_length.subprocess.run", return_value=response):
+                return warm_predictions(Path("/tmp/worker"), checkpoint, [case], cli)
+
+        self.assertEqual(replay(record)[1], ["en"])
+        for changes in ({"rows": []}, {"rows": [row, row]}, {"rows": [dict(row, source_sha256="wrong")]},
+                        {"checkpoint": "/tmp/swapped"}, {"labels": ["person"]}, {"threshold": 0.3}):
+            with self.assertRaises(ValueError):
+                replay(dict(record, **changes))
+        with self.assertRaisesRegex(ValueError, "parity"):
+            replay(record, lambda *_: (set(), "nuner"))
 
     def test_unicode_span_and_unmatched_predictions(self):
         text = "Éva à Liège"
