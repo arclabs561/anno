@@ -214,6 +214,47 @@ class RoundEvidenceTest(unittest.TestCase):
                 prompt_digest, = db.execute("SELECT prompt_sha256 FROM spans WHERE kind='round'").fetchone()
             self.assertEqual(prompt_digest, hashlib.sha256(run.stdout).hexdigest())
 
+    def test_arm_comparisons_keep_cohorts_and_final_error_counts(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "summary.json"
+            base = dict(tp=0, fp=2, fn=4, gold_solver=1)
+            discovery = dict(common=dict(documents=3, gold=4), baseline=base,
+                             candidate=dict(tp=1, fp=1, fn=3, gold_solver=2,
+                                            new_solver_gold=1, lost_solver_gold=0, retained_solver_gold=1))
+            confirm = dict(common=dict(documents=2, gold=3), baseline=dict(tp=0, fp=1, fn=3),
+                           candidate=dict(tp=0, fp=4, fn=3, decode_seconds=2.5))
+            path.write_text(json.dumps(dict(paired_arms=dict(discovery=discovery, confirmation=confirm),
+                                            raw_predictions="PRIVATE_SENTINEL")))
+            output = evidence(path)
+            first, second = output.split("confirmation (")
+            self.assertIn("discovery (3 documents, 4 gold items)", first)
+            self.assertIn("TP +1, FP -1, FN -1", first)
+            self.assertIn("gained 1, lost 0 and retained 1", first)
+            self.assertIn("2 documents, 3 gold items", second)
+            self.assertIn("4 predicted, micro F1 0.0000", second)
+            self.assertIn("TP +0, FP +3, FN +0", second)
+            self.assertIn("2.500 seconds", second)
+            self.assertNotIn("PRIVATE_SENTINEL", output)
+            path.write_text(json.dumps(dict(paired_arms={"discovery": dict(discovery, candidate=base)})))
+            self.assertIn("TP +0, FP +0, FN +0", evidence(path))
+
+    def test_arm_comparison_rejects_inconsistent_or_unmeasured_totals(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "summary.json"
+            base = dict(tp=2, fp=1, fn=1, gold_solver=3, sample_sha256="a" * 64)
+            for change in (dict(tp=1), dict(fp=True), dict(gold=4), dict(documents=4),
+                           dict(predicted=7), dict(gold_solver=1), dict(decode_seconds=-1),
+                           dict(sample_sha256="b" * 64),
+                           dict(new_solver_gold=1, lost_solver_gold=0, retained_solver_gold=3)):
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    path.write_text(json.dumps(dict(paired_arms={"discovery": dict(
+                        common=dict(documents=2, gold=3), baseline=base, alternative=dict(base, **change))})))
+                    evidence(path)
+            empty = dict(tp=0, fp=0, fn=0)
+            path.write_text(json.dumps(dict(paired_arms={"confirmation": dict(
+                common=dict(documents=2, gold=0), baseline=empty, alternative=empty)})))
+            self.assertIn("micro F1 undefined", evidence(path))
+
     def test_unknown_directory_fails(self):
         with TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError, "expected panel"):
             evidence(Path(tmp))

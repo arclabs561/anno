@@ -229,12 +229,87 @@ def benchmark_evidence(receipt):
     return "\n".join(lines)
 
 
+def arm_counts(values, *keys):
+    counts = measured_counts(values, *keys)
+    if counts is None:
+        raise ValueError(f"expected nonnegative integer counts for {', '.join(keys)}")
+    return counts
+
+
+def paired_arm_evidence(cohorts):
+    """Compare final outputs within each reported cohort without inferring item-level pairing."""
+    if not isinstance(cohorts, dict) or not cohorts:
+        raise ValueError("expected paired arm cohorts")
+    lines = ["Aggregate arm comparison. Verify common item IDs and cohort separation in the source ledgers."]
+    for cohort, group in cohorts.items():
+        registry_id(cohort)
+        if not isinstance(group, dict) or "common" not in group or "baseline" not in group or len(group) < 3:
+            raise ValueError("expected common counts, a baseline and at least one alternative per cohort")
+        common = group["common"]
+        docs, gold = arm_counts(common, "documents", "gold")
+        if not docs and gold:
+            raise ValueError("nonzero gold count on an empty cohort")
+        sample_digests = set()
+        for entry in group.values():
+            if isinstance(entry, dict) and "sample_sha256" in entry:
+                digest = entry["sample_sha256"]
+                if not isinstance(digest, str) or not re.fullmatch("[0-9a-f]{64}", digest):
+                    raise ValueError("invalid cohort sample digest")
+                sample_digests.add(digest)
+        if len(sample_digests) > 1:
+            raise ValueError("arms report different cohort sample digests")
+        eligible = gold
+        if "gold_scored" in common:
+            eligible, = arm_counts(common, "gold_scored")
+            if eligible > gold:
+                raise ValueError("scored gold exceeds cohort gold")
+        lines.append(f"\n{cohort} ({docs} documents, {gold} gold items)")
+        for name in ["baseline", *(k for k in group if k not in ("common", "baseline"))]:
+            registry_id(name)
+            arm = group[name]
+            tp, fp, fn = arm_counts(arm, "tp", "fp", "fn")
+            if tp + fn != gold or (not docs and tp + fp):
+                raise ValueError("final counts disagree with cohort totals")
+            for key, expected in (("documents", docs), ("gold", gold), ("predicted", tp + fp)):
+                if key in arm and arm_counts(arm, key) != (expected,):
+                    raise ValueError(f"inconsistent arm {key}")
+            denom = 2 * tp + fp + fn
+            f1 = f"{2 * tp / denom:.4f}" if denom else "undefined"
+            line = f"- {name}: TP {tp}, FP {fp}, FN {fn}; {tp + fp} predicted, micro F1 {f1}."
+            if name == "baseline":
+                base = tp, fp, fn
+            else:
+                line += f" Change from baseline: TP {tp-base[0]:+d}, FP {fp-base[1]:+d}, FN {fn-base[2]:+d}."
+            lines.append(line)
+            if "gold_solver" in arm:
+                reached, = arm_counts(arm, "gold_solver")
+                if not tp <= reached <= eligible:
+                    raise ValueError("solver gold inconsistent with scored gold or final matches")
+                lines.append(f"  Gold items in solver input: {reached}/{gold}.")
+            churn = ("new_solver_gold", "lost_solver_gold", "retained_solver_gold")
+            if any(k in arm for k in churn):
+                gained, lost, kept = arm_counts(arm, *churn)
+                prev, = arm_counts(group["baseline"], "gold_solver")
+                curr, = arm_counts(arm, "gold_solver")
+                if name == "baseline" or kept + lost != prev or kept + gained != curr or kept + lost + gained > eligible:
+                    raise ValueError("inconsistent solver gold gains and losses")
+                lines.append(f"  Solver input gained {gained}, lost {lost} and retained {kept} gold items.")
+            if "decode_seconds" in arm:
+                secs = arm["decode_seconds"]
+                if type(secs) not in (int, float) or not 0 <= secs < math.inf:
+                    raise ValueError("invalid decode time")
+                lines.append(f"  Reported decode time: {secs:.3f} seconds.")
+    return "\n".join(lines)
+
+
 def evidence(directory):
     if directory.is_file():
         if directory.suffix == ".jsonl":
             return outcome_evidence(directory)
         receipt = json.loads(directory.read_text(encoding="utf-8"))
         if isinstance(receipt, dict):
+            if "kind" not in receipt and "paired_arms" in receipt:
+                return paired_arm_evidence(receipt["paired_arms"])
             if "kind" not in receipt and "results" in receipt and "summary" in receipt:
                 return benchmark_evidence(receipt)
             if receipt.get("kind") == "anno.qa.crossdoc-query-case.v1":
