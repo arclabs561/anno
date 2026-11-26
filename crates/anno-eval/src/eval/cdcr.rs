@@ -153,7 +153,14 @@ pub enum PairDecision {
     NotProposed,
     /// The enabled type check rejected the pair before scoring.
     TypeMismatch,
-    /// The score failed the configured threshold.
+    /// The scorer produced NaN or infinity, which has no JSON numeric representation.
+    NonFiniteSimilarity {
+        /// Function that produced the non-finite value.
+        basis: PairScorer,
+        /// Result of the resolver's inclusive threshold comparison on the original value.
+        passed_threshold: bool,
+    },
+    /// The finite score failed the configured threshold.
     BelowThreshold {
         /// Similarity measured during resolution.
         similarity: f64,
@@ -699,7 +706,14 @@ impl CDCRResolver {
         for (i, j) in candidates {
             let decision = self.compare_candidate(&mentions[i], &mentions[j]);
             observe(i, j, decision);
-            if matches!(decision, PairDecision::Accepted { .. }) {
+            if matches!(
+                decision,
+                PairDecision::Accepted { .. }
+                    | PairDecision::NonFiniteSimilarity {
+                        passed_threshold: true,
+                        ..
+                    }
+            ) {
                 Self::union(&mut union_find, i, j);
             }
         }
@@ -727,7 +741,13 @@ impl CDCRResolver {
         }
 
         let (similarity, basis) = self.mention_similarity(a, b);
-        if similarity >= self.config.min_similarity {
+        let passed_threshold = similarity >= self.config.min_similarity;
+        if !similarity.is_finite() {
+            PairDecision::NonFiniteSimilarity {
+                basis,
+                passed_threshold,
+            }
+        } else if passed_threshold {
             PairDecision::Accepted { similarity, basis }
         } else {
             PairDecision::BelowThreshold { similarity, basis }
@@ -1518,6 +1538,19 @@ mod tests {
                 similarity: 1.0,
                 basis: PairScorer::EncoderCosine
             }
+        );
+        let huge_encoder = resolver
+            .clone()
+            .with_cluster_encoder(Arc::new(SpanCheckingEncoder(f32::MAX)));
+        let (clusters, overflow) = huge_encoder
+            .resolve_with_pair(&docs, ("first", 0), ("next", 0))
+            .unwrap();
+        assert_eq!(huge_encoder.resolve(&docs).len(), 2);
+        assert_eq!(clusters.len(), 2);
+        assert!(!overflow.same_component);
+        assert_eq!(
+            serde_json::to_value(overflow.decision).unwrap(),
+            serde_json::json!({"outcome":"non_finite_similarity","basis":"encoder_cosine","passed_threshold":false})
         );
         let zero_encoder = resolver.with_cluster_encoder(Arc::new(SpanCheckingEncoder(0.0)));
         let (_, fallback) = zero_encoder
