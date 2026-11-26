@@ -6,6 +6,21 @@ Independent scorers rebuild labels from original corpus records and inspect save
 
 Eight saved native runs on the full CrossRE AI and literature test files were checked against source JSONL. The 431 AI sentences contain 1,164 reference relations and 105 sentences without a relation. The 416 literature sentences contain 1,623 reference relations and 47 sentences without one. Recomputing micro F1 as twice the exact match count divided by predicted plus gold reproduces all eight results. All arms used predicted endpoints. The four requested TPLinker arms executed the heuristic producer on every sentence. The document-gold prompt disclosed the absence of relations on empty sentences. These checks validate the saved numerators against their published denominators and F1 formula. The native receipts omit individual predicted triplets. [Full native prompt comparison](crossre-full-prompt-comparison.md)
 
+Each row below counts strict relation matches. A false positive is an unmatched prediction and a false negative is an unmatched gold triplet. Direction, head span, tail span and predicate must all agree. One wrong prediction can therefore contribute one false positive and leave one gold edge as a false negative.
+
+| Domain | Effective producer | Prompt | TP | FP | FN |
+|---|---|---|---:|---:|---:|
+| AI | GLiNER-Relex | Fixed training vocabulary | 256 | 707 | 908 |
+| AI | GLiNER-Relex | Document gold | 680 | 571 | 484 |
+| AI | TPLinker heuristic | Fixed training vocabulary | 0 | 0 | 1,164 |
+| AI | TPLinker heuristic | Document gold | 0 | 0 | 1,164 |
+| Literature | GLiNER-Relex | Fixed training vocabulary | 614 | 1,560 | 1,009 |
+| Literature | GLiNER-Relex | Document gold | 964 | 696 | 659 |
+| Literature | TPLinker heuristic | Fixed training vocabulary | 0 | 0 | 1,623 |
+| Literature | TPLinker heuristic | Document gold | 0 | 1 | 1,623 |
+
+The fixed-prompt Relex runs emitted 160 false positives on relation-free AI sentences and 181 on relation-free literature sentences. The stored aggregate receipts support that attribution. They cannot identify which individual triplets account for the remaining errors, or separate failures of mention detection, endpoint selection, direction, and predicate assignment. That would require the per-sentence predicted triplets and, for stage attribution, the model's candidate and score trace. [Full-split measurements](crossre-full-prompt-comparison.json)
+
 For JointIE, the checker rebuilds every typed directed gold edge from inclusive token indices, maps it to the exact source Unicode string, and recomputes each shared-window test. It verifies document identity and text hash, every recorded edge's window list and the sum of the per-document fields. The checkpoint trace supplies the proposal and decoding observations. The checker does not rerun its optimizer. [Independent checker](../../scripts/qa/audit_joint_candidates.py) · [Checkpoint replay](joint-stage-baseline.md)
 
 Across the first 64 AI test sentences, the short-window policy put 86 of 161 distinct gold edges inside at least one window. The 384-word policy put all 161 inside a window. The larger window still yielded only 22 exact edge candidates and two decoded predictions, both incorrect. Independently checking the returned mention and edge keys against source annotations gave the following counts.
