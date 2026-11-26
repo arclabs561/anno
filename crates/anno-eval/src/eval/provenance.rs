@@ -355,6 +355,9 @@ pub struct DatasetRunProvenance {
     /// Dataset language when declared by its metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Language verified for the loaded artifact. Missing for legacy or unverified inputs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_language: Option<String>,
     /// Dataset domain when declared by its metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,

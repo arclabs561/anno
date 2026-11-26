@@ -116,6 +116,9 @@ esac
         } else if name != "empty-offline" {
             cmd.arg("--require-cached");
         }
+        if matches!(name, "local" | "shared") {
+            cmd.args(["--pin-lang", "en"]);
+        }
         let result = cmd
             .env_remove("GITHUB_ACTIONS") // Exercise the ordinary local default in CI as well.
             .current_dir(&cache)
@@ -186,6 +189,25 @@ esac
         assert!(rows
             .iter()
             .all(|r| r["cost_units"] == 1 && r["hard_junk"] == false));
+        if matches!(name, "local" | "shared") {
+            for row in &rows {
+                assert_eq!(row["requested_languages"], serde_json::json!(["en"]));
+                if row["dataset"] == "AnnoNerSmoke" {
+                    assert_eq!(row["observed_language"], "en");
+                } else {
+                    assert_eq!(row["dataset"], "WikiGold");
+                    assert!(
+                        row["observed_language"].is_null(),
+                        "bare cache is unverified"
+                    );
+                }
+                let language_slice = if name == "shared" { "mixed" } else { "en" };
+                assert!(row["slice"]
+                    .as_str()
+                    .unwrap()
+                    .contains(&format!(".lang={language_slice}.")));
+            }
+        }
         if name == "coreference" {
             assert_eq!(rows[0]["coref_gold"], true);
             assert_eq!(rows[0]["backend"], "coref_resolver");
