@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "anno-qa",
+  "description": "Replay and review QA experiments in an Anno checkout.",
+  "repository": "https://github.com/arclabs561/anno"
+}
