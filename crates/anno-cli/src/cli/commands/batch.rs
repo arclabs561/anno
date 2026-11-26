@@ -368,7 +368,7 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
     // backend can use native inference batching.
     let model = args.model.create_model()?;
     let selected_model_name = args.model.name();
-    let model_name = model.name().to_string();
+    let model_name = model.runtime_name().to_string();
     let model_version = model.version();
 
     // Collect (doc_id, text) pairs from the chosen input source.

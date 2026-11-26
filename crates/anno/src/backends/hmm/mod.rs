@@ -192,6 +192,10 @@ pub struct HmmNER {
 mod algorithm;
 // HMM Viterbi, forward-backward, and emission scoring: see algorithm.rs.
 impl Model for HmmNER {
+    fn name(&self) -> &'static str {
+        "hmm"
+    }
+
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if text.trim().is_empty() {
             return Ok(vec![]);
