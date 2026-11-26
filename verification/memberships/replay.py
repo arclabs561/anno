@@ -61,6 +61,7 @@ class Reader:
             self.write(snapshot["rows"])
             self.db.execute("INSERT INTO head VALUES (?)", (json.dumps(snapshot["checkpoint"]),))
         self.cached = {}
+        self.surface_queries = {}
 
     def write(self, rows):
         self.db.executemany("INSERT INTO posting VALUES (?, ?, ?)",
@@ -79,10 +80,11 @@ class Reader:
                 self.db.execute("DELETE FROM posting WHERE key=?", (json.dumps(key),))
             self.write(delta["upserted"])
             self.db.execute("UPDATE head SET checkpoint=?", (json.dumps(delta["target"]),))
-            for key, row in delta["removed"] + delta["upserted"]:
-                changed.add(tuple(key))
-                if row["component"] is not None:
-                    dirty.add(row["component"])
+        for key, row in delta["removed"] + delta["upserted"]:
+            changed.add(tuple(key))
+            self.surface_queries.pop(row["surface"], None)
+            if row["component"] is not None:
+                dirty.add(row["component"])
         self.cached = {key: value for key, value in self.cached.items()
                        if key not in changed and value[0] not in dirty}
 
@@ -107,6 +109,14 @@ class Reader:
         self.cached[key] = (component, result)
         return result
 
+    def search_surface(self, surface):
+        if surface not in self.surface_queries:
+            rows = self.db.execute(
+                "SELECT key FROM posting WHERE json_extract(value, '$.surface') = ?", (surface,)
+            )
+            self.surface_queries[surface] = sorted(tuple(json.loads(key)) for key, in rows)
+        return self.surface_queries[surface]
+
 
 def check(cli):
     docs = {name: document(name, surface) for name, surface in
@@ -114,9 +124,11 @@ def check(cli):
     docs["catalog"] = document("catalog", "Jori", catalog=("folio","17"))
     previous = reader = None
     all_keys = set()
-    # Old groups, single bridge, redundant support, corrected single bridge, full split,
-    # disjoint append, identical-text new source edition, and complete withdrawal.
-    edits = [{}, {"x":document("x","Jori Moss")}, {"y":document("y","Moss Jori")},
+    # Change only the annotation on the bridge. Its source key, direct scores and
+    # component stay the same, but peers must show its new display surface.
+    redisplayed = document("x", "Jori Moss")
+    redisplayed["document"]["tracks"]["0"]["canonical_surface"] = "Moss Jori"
+    edits = [{}, {"x":document("x","Jori Moss")}, {"x":redisplayed}, {"y":document("y","Moss Jori")},
              {"x":document("x","Kite Lake","2")}, {"y":None}, {"z":document("z","Ḧaru")},
              {"a":document("a","Jori","2")}, {id:None for id in [*docs,"x","z"]}]
     calls = 0
@@ -134,14 +146,28 @@ def check(cli):
             reader = Reader(full)
         else:
             delta = capture(cli,current,previous)
+            if changes == {"x": redisplayed}:
+                (old_key, old_row), = delta["removed"]
+                (new_key, new_row), = delta["upserted"]
+                assert new_key == old_key and new_key[0] == "x"
+                assert old_row["surface"] == "Jori Moss"
+                assert new_row == {**old_row, "surface": "Moss Jori"}
             reader.apply(delta)
+            writes = reader.db.total_changes
             reader.apply(delta)
+            assert writes == reader.db.total_changes
         rebuilt = Reader(full)
+        # Warm both an empty and a populated exact-surface query before the
+        # annotation change. The disjoint addition later supplies a first hit too.
+        for surface in ("Jori Moss", "Moss Jori", "Ḧaru", "Oxton"):
+            expected = sorted(tuple(k) for k, row in full["rows"] if row["surface"] == surface)
+            assert reader.search_surface(surface) == expected, (seq, surface)
         current_keys = {k[0]:k for k,_ in full["rows"]}
         all_keys.update(tuple(k) for k in current_keys.values())
         for key, row in full["rows"]:
             source = docs[key[0]]
             text = source["document"]["text"]
+            assert row["surface"] == source["document"]["tracks"]["0"]["canonical_surface"]
             assert key == [key[0], hashlib.sha256(text.encode()).hexdigest(), source["source_revision"], "0"]
             signal, = row["signals"]
             assert signal["location"] == {"Text": {"start": 0, "end": len(text)}} and signal["surface"] == text
@@ -160,7 +186,7 @@ def check(cli):
                 direct[a,b] = direct[b,a] = score
         for key in all_keys:
             found = reader.query(key)
-            assert found == rebuilt.query(key)
+            assert found == rebuilt.query(key), (seq, key)
             if list(key) != current_keys.get(key[0]):
                 assert found == []
                 continue

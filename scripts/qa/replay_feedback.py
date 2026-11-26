@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 
+import replay_coref_corpus
 import replay_crossdoc_case
 import replay_crossdoc_native
 import replay_document_delivery
@@ -22,6 +23,7 @@ import replay_wikigold
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS = {
+    "coref_corpus": replay_coref_corpus,
     "crossdoc_cases": replay_crossdoc_case, "crossdoc_native": replay_crossdoc_native,
     "document_delivery": replay_document_delivery,
     "reader_cases": replay_reader_cases,
@@ -361,6 +363,10 @@ def main():
             os.dup2(sink.fileno(), 2)
         try:
             status, receipt = replay_once(root, args.corpus, args.case)
+        except replay_coref_corpus.MissingLocalInputs:
+            status, receipt = 3, {"outcome": "unavailable", "detail": replay_coref_corpus.LOCAL_INPUTS}
+        except replay_coref_corpus.NoMarkedComparison:
+            status, receipt = 3, {"outcome": "ineligible", "detail": "This case has no scored primary marked comparison."}
         except FileNotFoundError:
             status, receipt = 2, {
                 "outcome": "error",

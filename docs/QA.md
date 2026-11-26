@@ -271,6 +271,8 @@ anno dataset info --dataset WikiGold
 
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
+The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local panels for nested mentions, ambiguous pronouns and missing candidates. Each [source entry](eval/coref-corpus-sources.md) identifies who supplied the data, which labels Anno derived and where source-bearing material belongs.
+
 ### Which datasets do the token counts describe?
 
 ![Format and language shares across 462 registry entries, 43 entries with a readable upstream file, and 13 entries with token counts. Ten of the 13 measured entries use CoNLL.](eval/figures/anno-selection.png)

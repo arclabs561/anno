@@ -1,0 +1,108 @@
+{
+  "litbank": {
+    "source_url": "https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "revision": "3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "terms_url": "https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md",
+    "license": "LitBank CC BY 4.0. The publisher identifies the works as public-domain Project Gutenberg texts.",
+    "input": "Pinned release directory containing the matching coref/brat and entities/brat .ann and .txt files for the 27 selected works.",
+    "transform": "Align source spans across annotation layers. Select contained mentions and competing antecedents by work. Compare source chain identities to label the offered pairs.",
+    "storage": "Use publisher bytes or an authorized local copy. Retain the book, source edition, LitBank attribution, CC BY 4.0 link and change description with derived examples. Shared-cache reads exclude LitBank.",
+    "attribution": "David Bamman and LitBank contributors. Cite the entity study by Bamman, Popat and Shen and the coreference study by Bamman, Lewke and Mansoor. Preserve work author, title and edition information from the release.",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "selected_brat_manifest_sha256": "3ea0274466d12f3731f2007134575282ca2a47aafc4d6ce855a1f239946e3288"
+  },
+  "phrase-detectives": {
+    "source_url": "https://github.com/dali-ambiguity/Phrase-Detectives-Corpus-3.0/tree/6b8012e424d5d4f4309d9d4de028241bff570199",
+    "revision": "6b8012e424d5d4f4309d9d4de028241bff570199",
+    "terms_url": "https://github.com/dali-ambiguity/Phrase-Detectives-Corpus-3.0/blob/6b8012e424d5d4f4309d9d4de028241bff570199/README.md",
+    "license": "No general grant located for the release or all annotations. The 45 expert XML documents contain historical publication statements for their own text.",
+    "input": "Authors’ Phrase Detectives 3.0 ZIP linked by the pinned release README, with paired MASXML and CONLLUA under PD3.0_Train_dev/gold/.",
+    "transform": "Read released expert markable types and entity links. Select pronouns by source group, construct windows and earlier candidates, and classify their coverage. A genuine non-referring label and omission of an earlier referent have separate evidence.",
+    "storage": "Acquire locally only where the intended evaluation and host are authorized. Keep the original, source windows and judgments out of shared caches and remote prompts unless rights for those uses are established.",
+    "attribution": "Juntao Yu, Silviu Paun, Maris Camilleri, Paloma Garcia, Jon Chamberlain, Udo Kruschwitz and Massimo Poesio (2023). Preserve each selected document’s source and publication statement.",
+    "paper_url": "https://aclanthology.org/2023.eacl-main.54/",
+    "archive_sha256": "36d23678198b572ccce2699238716acd50ed80c871b9069d7c40e9b98e0cea23",
+    "expert_xml_text_notices": {
+      "GNU Free Documentation License": 35,
+      "Project Gutenberg License": 5,
+      "J Paul Getty Trust copyright": 4,
+      "Stoke-on-Trent City Council copyright": 1
+    }
+  },
+  "gum": {
+    "source_url": "https://github.com/UniversalDependencies/UD_English-GUM/tree/e92f501b037ebd38387d7479b99aa2a0c45b779e",
+    "revision": "e92f501b037ebd38387d7479b99aa2a0c45b779e",
+    "terms_url": "https://github.com/UniversalDependencies/UD_English-GUM/blob/e92f501b037ebd38387d7479b99aa2a0c45b779e/LICENSE.txt",
+    "license": "UD English GUM treebank distribution CC BY-NC-SA 4.0. Upstream GUM annotations CC BY 4.0. Underlying texts have document- and source-specific terms.",
+    "input": "UD English GUM r2.19 test split en_gum-ud-test.conllu.",
+    "transform": "Align token and mention ranges to sentence text. Find nested proper-headed person mentions, then derive same/different and candidate-choice labels from document-local chains.",
+    "storage": "Read the pinned split locally for covered evaluation. For excerpts retain the treebank notice, annotation credit, document author and source URL, applicable source terms and a description of changes.",
+    "attribution": "Credit the GUM annotators and the author and publisher identified for the individual document. Cite the GUM and UD release used.",
+    "annotation_and_text_terms_url": "https://github.com/amir-zeldes/gum/blob/1d999e5a0327ecb83015007774f6a9be23ecbc41/LICENSE.md",
+    "input_sha256": "40854b004a1475412c8cdd0ba9536d77e4876467238d8e035718dd33bd29c1e3"
+  },
+  "winogender": {
+    "source_url": "https://github.com/rudinger/winogender-schemas/tree/1c7f8b481ad8a234b41e9f76a424d6e856e13f7f",
+    "revision": "1c7f8b481ad8a234b41e9f76a424d6e856e13f7f",
+    "terms_url": "https://github.com/rudinger/winogender-schemas/blob/1c7f8b481ad8a234b41e9f76a424d6e856e13f7f/LICENSE",
+    "license": "MIT, copyright (c) 2018 Rachel Rudinger.",
+    "input": "Publisher data/templates.tsv and data/all_sentences.tsv. The original template and released instantiations provide a matched control.",
+    "transform": "Map each template’s semantic answer to offered role spans in each released sentence. Exact noun-phrase boundaries are evaluation conventions.",
+    "storage": "Use the local pinned files. Retain the upstream copyright and MIT permission notice with copies or substantial portions, including copied templates or sentences.",
+    "attribution": "Rachel Rudinger, Jason Naradowsky, Brian Leonard and Benjamin Van Durme. Gender Bias in Coreference Resolution (2018).",
+    "member_sha256": {
+      "data/templates.tsv": "496f2e2dc77296bcebcdd8865a8dc5715ce22b772de9abb5f531d5b3114c48a0",
+      "data/all_sentences.tsv": "bd69da16bf228cb8df63fd0843aec2d8b5c36a7f21bf8c7b168bcc83932556c8"
+    }
+  },
+  "gap": {
+    "source_url": "https://github.com/google-research-datasets/gap-coreference/tree/83135f26025cdd705c04f77e940d0c9201116b80",
+    "revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+    "terms_url": "https://github.com/google-research-datasets/gap-coreference/blob/83135f26025cdd705c04f77e940d0c9201116b80/LICENSE",
+    "license": "Repository Apache 2.0. Embedded Wikipedia passages retain their applicable text licenses and attribution, notice and share-alike conditions.",
+    "input": "Official gap-test.tsv containing passages, article URLs, target and candidate offsets and two coreference judgments.",
+    "transform": "Construct case identifiers, spans and candidate choices from each publisher row. Neither means both offered names were marked false. It makes no claim about all possible referents.",
+    "storage": "Use the local TSV with the associated article/history attribution and relevant Wikimedia notices. Any text-bearing export must preserve the applicable article credits, license and change notices.",
+    "attribution": "Kellie Webster, Marta Recasens, Vera Axelrod and Jason Baldridge; credit each source Wikipedia article and its contributors using its article or history link.",
+    "text_terms_url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content",
+    "input_sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819"
+  },
+  "dutch-openboek": {
+    "source_url": "https://hdl.handle.net/11234/1-6108",
+    "revision": "CorefUD 1.4",
+    "archive_url": "https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/7e17752e-04e6-4709-a042-6de6fb89a8f4/content",
+    "archive_sha256": "51814a8e2996f459cf3f4fa491c161b4fd59991d3390b4484dac901600cd9173",
+    "transform": "Reconstruct sentences and mention ranges from CorefUD. Compare document-local identities for nesting and pronoun candidate tasks. Syntax and part-of-speech features used for selection include automatic analyses.",
+    "terms_url": "https://creativecommons.org/licenses/by/4.0/",
+    "license": "CC BY 4.0. The component README identifies public-domain Dutch literary texts.",
+    "input": "CorefUD-1.4-public/data/CorefUD_Dutch-OpenBoek/nl_openboek-corefud-dev.conllu",
+    "input_sha256": "0d3a1f1209d8b3c33b8649db14506978a1cb7c89efec1bdeeebabc544a663313",
+    "notice_members": [
+      "CorefUD-1.4-public/data/CorefUD_Dutch-OpenBoek/LICENSE.txt",
+      "CorefUD-1.4-public/data/CorefUD_Dutch-OpenBoek/README.md",
+      "CorefUD-1.4-public/doc/README.txt"
+    ],
+    "storage": "Use the pinned dev member from a local file or ZIP. Keep the component notices, attribution, original work credit and description of Anno’s changes with extracts. Preserve the credit and license with shared adaptations.",
+    "attribution": "Andreas van Cranenburgh and Gertjan van Noord (OpenBoek). The conversion credits Andreas van Cranenburgh and Michal Novák. Cite the CorefUD release and individual works.",
+    "paper_url": "https://clinjournal.org/clinj/article/view/157"
+  },
+  "french-litbankfr": {
+    "source_url": "https://hdl.handle.net/11234/1-6108",
+    "revision": "CorefUD 1.4",
+    "archive_url": "https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/7e17752e-04e6-4709-a042-6de6fb89a8f4/content",
+    "archive_sha256": "51814a8e2996f459cf3f4fa491c161b4fd59991d3390b4484dac901600cd9173",
+    "transform": "Reconstruct sentences and mention ranges from CorefUD. Compare document-local identities for nesting and pronoun candidate tasks. Syntax and part-of-speech features used for selection include automatic analyses.",
+    "terms_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "license": "CC BY-SA 4.0 for the released component and its covered adaptations.",
+    "input": "CorefUD-1.4-public/data/CorefUD_French-LitBankFr/fr_litbankfr-corefud-dev.conllu",
+    "input_sha256": "3d2867ffb5838d0be1b62e57943f4f0d4ea1eae03a14ab90c736d5da1272b674",
+    "notice_members": [
+      "CorefUD-1.4-public/data/CorefUD_French-LitBankFr/LICENSE.txt",
+      "CorefUD-1.4-public/data/CorefUD_French-LitBankFr/README.md",
+      "CorefUD-1.4-public/doc/README.txt"
+    ],
+    "storage": "Use the pinned dev member from a local file or ZIP. Keep the component notices, attribution, original work credit and description of Anno’s changes with extracts. Apply the applicable share-alike terms to shared adaptations.",
+    "attribution": "Frédérique Mélanie-Becquet and colleagues (BookNLP-fr). The conversion credits Frédérique Mélanie-Becquet, Antoine Bourgois, Thierry Poibeau and Michal Novák. Cite the CorefUD release and individual works.",
+    "paper_url": "https://doi.org/10.48694/jcls.3924"
+  }
+}

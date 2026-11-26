@@ -20,6 +20,8 @@ The primary panel includes all 588 rows of the S2AFF validation split. Of these,
 
 Options shown sum the number actually available up to each budget for every row. The count charges for all displayed options even when the first is correct. The study measures neither human review time nor whether a reader would recognize a correct candidate. The full native block included an annotated ID on 184 of 537 validation rows. Seven more were lost between the block and the first five. The location score changed the order on 86 available-target validation rows, including 77 in the entity-disjoint subset, and on 84 available-target test rows. The sensitivity subset requires every annotated ID on the validation row to be absent from the entire test split. [Aggregate results](context-results.json)
 
+The subsequent independent zbMATH panel compares changing candidate generation at the same display budgets. It includes an entity-disjoint subset and a warm-process timing replay. [Segmented retrieval on verified mathematics affiliations](../segments/README.md)
+
 ## Automatic links and unavailable organizations
 
 | Panel | Rows | Native correct / wrong / deferred | Location correct / wrong / deferred |

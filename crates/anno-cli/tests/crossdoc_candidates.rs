@@ -42,14 +42,7 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
             fs::write(dir.join("one-more.txt"), "quiet.").unwrap();
         }
         for (requested, actual) in [
-            (
-                None,
-                if doc_count == 100 {
-                    "exhaustive"
-                } else {
-                    "lsh"
-                },
-            ),
+            (None, "exhaustive"),
             (Some("exhaustive"), "exhaustive"),
             (Some("lsh"), "lsh"),
         ] {
@@ -60,6 +53,7 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
             let result = report(dir, &args);
             let metadata = &result["metadata"];
             assert_eq!(metadata["documents_processed"], doc_count);
+            assert_eq!(metadata["documents_with_mentions"], 2);
             assert_eq!(metadata["total_entities"], 2);
             assert_eq!(metadata["resolver"], "flat_mentions");
             assert_eq!(metadata["candidate_mode"], actual);
@@ -81,6 +75,52 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
 }
 
 #[test]
+fn dense_documents_preserve_the_pell_link_across_100_mentions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(dir.join("first.txt"), "Dr. Nara Pell presented a report.").unwrap();
+    fs::write(dir.join("second.txt"), "Dr. Pell presented a report.").unwrap();
+    for other_mentions in [98, 99] {
+        fs::write(
+            dir.join("other.txt"),
+            "Dr. Alma Reeve presented a report.\n".repeat(other_mentions),
+        )
+        .unwrap();
+        let result = report(dir, &[".", "--model", "heuristic"]);
+        assert_eq!(result["metadata"]["documents_processed"], 3);
+        assert_eq!(result["metadata"]["documents_with_mentions"], 3);
+        assert_eq!(result["metadata"]["total_entities"], other_mentions + 2);
+        assert_eq!(result["metadata"]["candidate_mode"], "exhaustive");
+        assert!(result["clusters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|cluster| {
+                cluster["mentions"] == serde_json::json!([["first", 0], ["second", 0]])
+            }));
+    }
+}
+
+#[test]
+fn raw_auto_mode_switches_at_101_documents_with_mentions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    for i in 0..100 {
+        fs::write(dir.join(format!("contact-{i}.txt")), "reader@example.org").unwrap();
+    }
+    for (count, expected) in [(100, "exhaustive"), (101, "lsh")] {
+        if count == 101 {
+            fs::write(dir.join("another.txt"), "reader@example.org").unwrap();
+        }
+        let result = report(dir, &[".", "--model", "pattern"]);
+        assert_eq!(result["metadata"]["documents_processed"], count);
+        assert_eq!(result["metadata"]["documents_with_mentions"], count);
+        assert_eq!(result["metadata"]["total_entities"], count);
+        assert_eq!(result["metadata"]["candidate_mode"], expected);
+    }
+}
+
+#[test]
 fn imported_tracks_report_their_own_policy_and_reject_raw_options() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
@@ -88,6 +128,7 @@ fn imported_tracks_report_their_own_policy_and_reject_raw_options() {
     fs::write(dir.join("doc.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
     let result = report(dir, &["--import", "doc.json"]);
     assert_eq!(result["metadata"]["resolver"], "grounded_tracks");
+    assert!(result["metadata"].get("documents_with_mentions").is_none());
     assert_eq!(result["metadata"]["candidate_mode"], "exhaustive");
 
     for input in [
@@ -104,5 +145,111 @@ fn imported_tracks_report_their_own_policy_and_reject_raw_options() {
             stderr.contains("--candidates") && stderr.contains("cannot be used with"),
             "{stderr}"
         );
+    }
+}
+
+#[test]
+fn explain_one_pair_reports_actual_candidate_and_threshold_decisions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(dir.join("first.txt"), "Dr. Nara Pell presented a report.").unwrap();
+    fs::write(dir.join("-second page.txt"), "Dr. Pell presented a report.").unwrap();
+    let run = |mode, cutoff| {
+        report(
+            dir,
+            &[
+                ".",
+                "--model",
+                "heuristic",
+                "--candidates",
+                mode,
+                "--threshold",
+                cutoff,
+                "--explain-pair",
+                "-second page",
+                "0",
+                "first",
+                "0",
+                "--min-cluster-size",
+                "10",
+            ],
+        )
+    };
+    let equal = run("exhaustive", "0.6666666666666666");
+    assert_eq!(equal["clusters"], serde_json::json!([]));
+    let receipt = &equal["pair_explanation"];
+    assert_eq!(receipt["left"]["doc_id"], "-second page");
+    assert_eq!(receipt["left"]["text"], "Dr. Pell");
+    assert_eq!(receipt["right"]["entity_idx"], 0);
+    assert_eq!(receipt["decision"]["outcome"], "accepted");
+    assert_eq!(receipt["decision"]["basis"], "string_similarity");
+    assert_eq!(receipt["decision"]["similarity"], 2.0 / 3.0);
+    assert_eq!(receipt["same_component"], true);
+
+    let higher = run("exhaustive", "0.6666666666666667");
+    assert_eq!(
+        higher["pair_explanation"]["decision"]["outcome"],
+        "below_threshold"
+    );
+    assert_eq!(
+        higher["pair_explanation"]["decision"]["similarity"],
+        receipt["decision"]["similarity"]
+    );
+    assert_eq!(higher["pair_explanation"]["same_component"], false);
+
+    let blocked = run("lsh", "0");
+    assert_eq!(
+        blocked["pair_explanation"]["decision"],
+        serde_json::json!({"outcome":"not_proposed"})
+    );
+    assert_eq!(blocked["pair_explanation"]["same_component"], false);
+
+    for (args, expected) in [
+        (
+            vec![
+                ".",
+                "--model",
+                "heuristic",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "2",
+            ],
+            "unknown mention",
+        ),
+        (
+            vec![".", "--explain-pair", "first", "a", "-second page", "0"],
+            "invalid entity index",
+        ),
+        (
+            vec![
+                "--stdin",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "0",
+            ],
+            "cannot be used with",
+        ),
+        (
+            vec![
+                ".",
+                "--format",
+                "jsonl",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "0",
+            ],
+            "requires --format json",
+        ),
+    ] {
+        let output = cross_doc(dir, &args);
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains(expected), "{error}");
     }
 }

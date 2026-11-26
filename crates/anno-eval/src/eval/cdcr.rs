@@ -121,7 +121,7 @@ impl Document {
 }
 
 /// A reference to a mention within a document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MentionRef {
     /// Document ID
     pub doc_id: String,
@@ -133,6 +133,77 @@ pub struct MentionRef {
     pub entity_type: EntityType,
     /// Within-document cluster ID (if resolved)
     pub within_doc_cluster: Option<u64>,
+}
+
+/// The scorer that supplied a flat mention pair's actual decision value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PairScorer {
+    /// Lowercased equality, substring match or word Jaccard, in that order.
+    StringSimilarity,
+    /// Cosine of the configured cluster encoder's outputs.
+    EncoderCosine,
+}
+
+/// The first terminal outcome for a pair during flat cross-document resolution.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum PairDecision {
+    /// Candidate generation never submitted this pair to the matcher.
+    NotProposed,
+    /// The enabled type check rejected the pair before scoring.
+    TypeMismatch,
+    /// The scorer produced NaN or infinity, which has no JSON numeric representation.
+    NonFiniteSimilarity {
+        /// Function that produced the non-finite value.
+        basis: PairScorer,
+        /// Result of the resolver's inclusive threshold comparison on the original value.
+        passed_threshold: bool,
+    },
+    /// The finite score failed the configured threshold.
+    BelowThreshold {
+        /// Similarity measured during resolution.
+        similarity: f64,
+        /// Function that produced the score.
+        basis: PairScorer,
+    },
+    /// The score met the configured threshold and the resolver joined the pair.
+    Accepted {
+        /// Similarity measured during resolution.
+        similarity: f64,
+        /// Function that produced the score.
+        basis: PairScorer,
+    },
+}
+
+/// A pair explanation cannot be produced for this request.
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum PairLookupError {
+    /// A NaN cutoff has no ordering against a measured similarity.
+    #[error("cannot explain a pair with a NaN similarity threshold")]
+    UnorderedThreshold,
+    /// The caller requested the same address twice.
+    #[error("a pair requires two distinct mentions")]
+    Identical,
+    /// No extracted entity has this (document ID, zero-based index).
+    #[error("unknown mention {0}:{1}")]
+    Unknown(String, usize),
+    /// Multiple input documents supply this (document ID, zero-based index).
+    #[error("ambiguous mention {0}:{1}")]
+    Ambiguous(String, usize),
+}
+
+/// Evidence for one requested pair, including its final transitive membership.
+#[derive(Debug, Serialize)]
+pub struct PairExplanation {
+    /// First requested mention in caller order.
+    pub left: MentionRef,
+    /// Second requested mention in caller order.
+    pub right: MentionRef,
+    /// Direct outcome before transitive clustering.
+    pub decision: PairDecision,
+    /// Whether the final partition places both mentions in the same cluster.
+    pub same_component: bool,
 }
 
 /// A cross-document entity cluster.
@@ -549,34 +620,101 @@ impl CDCRResolver {
     /// in document and entity input order. They are local to this resolution.
     #[must_use]
     pub fn resolve(&self, documents: &[Document]) -> Vec<CrossDocCluster> {
-        // 1. Collect all mentions
-        let mentions: Vec<MentionRef> = documents.iter().flat_map(|d| d.all_mentions()).collect();
+        let mentions: Vec<_> = documents.iter().flat_map(Document::all_mentions).collect();
+        self.resolve_mentions(&mentions, |_, _, _| {})
+    }
 
+    /// Resolve normally and retain the actual decision for one pair. Addresses
+    /// are document IDs and zero-based entity indices, as in cluster reports.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a NaN similarity cutoff or a missing, ambiguous or repeated mention address.
+    pub fn resolve_with_pair(
+        &self,
+        documents: &[Document],
+        left: (&str, usize),
+        right: (&str, usize),
+    ) -> Result<(Vec<CrossDocCluster>, PairExplanation), PairLookupError> {
+        if self.config.min_similarity.is_nan() {
+            return Err(PairLookupError::UnorderedThreshold);
+        }
+        if left == right {
+            return Err(PairLookupError::Identical);
+        }
+        let mentions: Vec<_> = documents.iter().flat_map(Document::all_mentions).collect();
+        let locate = |(doc_id, index): (&str, usize)| {
+            let mut hits = mentions
+                .iter()
+                .enumerate()
+                .filter(|(_, m)| m.doc_id == doc_id && m.entity_idx == index);
+            let (position, _) = hits
+                .next()
+                .ok_or_else(|| PairLookupError::Unknown(doc_id.to_owned(), index))?;
+            if hits.next().is_some() {
+                return Err(PairLookupError::Ambiguous(doc_id.to_owned(), index));
+            }
+            Ok(position)
+        };
+        let (a, b) = (locate(left)?, locate(right)?);
+        let target = (a.min(b), a.max(b));
+        let mut decision = PairDecision::NotProposed;
+        let clusters = self.resolve_mentions(&mentions, |i, j, observed| {
+            if (i, j) == target {
+                decision = observed;
+            }
+        });
+        let same_component = clusters.iter().any(|cluster| {
+            let contains = |address| {
+                cluster
+                    .mentions
+                    .iter()
+                    .any(|(doc, idx)| (doc.as_str(), *idx) == address)
+            };
+            contains(left) && contains(right)
+        });
+        let explanation = PairExplanation {
+            left: mentions[a].clone(),
+            right: mentions[b].clone(),
+            decision,
+            same_component,
+        };
+        Ok((clusters, explanation))
+    }
+
+    fn resolve_mentions(
+        &self,
+        mentions: &[MentionRef],
+        mut observe: impl FnMut(usize, usize, PairDecision),
+    ) -> Vec<CrossDocCluster> {
         if mentions.is_empty() {
             return vec![];
         }
 
-        // 2. Get candidate pairs
-        let candidates = if self.config.use_lsh {
-            self.config.lsh.candidate_pairs(&mentions)
-        } else {
-            // Brute force: all pairs
-            let n = mentions.len();
-            let mut pairs = Vec::new();
-            for i in 0..n {
-                for j in (i + 1)..n {
-                    pairs.push((i, j));
-                }
-            }
-            pairs
-        };
-
-        // 3. Compute similarities and cluster
         let mut union_find: Vec<usize> = (0..mentions.len()).collect();
-
-        for (i, j) in candidates {
-            if self.should_cluster(&mentions[i], &mentions[j]) {
+        let mut visit = |i: usize, j: usize| {
+            let decision = self.compare_candidate(&mentions[i], &mentions[j]);
+            observe(i, j, decision);
+            if matches!(
+                decision,
+                PairDecision::Accepted { .. }
+                    | PairDecision::NonFiniteSimilarity {
+                        passed_threshold: true,
+                        ..
+                    }
+            ) {
                 Self::union(&mut union_find, i, j);
+            }
+        };
+        if self.config.use_lsh {
+            for (i, j) in self.config.lsh.candidate_pairs(mentions) {
+                visit(i, j);
+            }
+        } else {
+            for i in 0..mentions.len() {
+                for j in (i + 1)..mentions.len() {
+                    visit(i, j);
+                }
             }
         }
 
@@ -597,23 +735,30 @@ impl CDCRResolver {
         clusters
     }
 
-    /// Check if two mentions should be clustered.
-    fn should_cluster(&self, a: &MentionRef, b: &MentionRef) -> bool {
-        // Type check
+    fn compare_candidate(&self, a: &MentionRef, b: &MentionRef) -> PairDecision {
         if self.config.require_type_match && a.entity_type != b.entity_type {
-            return false;
+            return PairDecision::TypeMismatch;
         }
 
-        // Similarity check
-        let sim = self.mention_similarity(a, b);
-        sim >= self.config.min_similarity
+        let (similarity, basis) = self.mention_similarity(a, b);
+        let passed_threshold = similarity >= self.config.min_similarity;
+        if !similarity.is_finite() {
+            PairDecision::NonFiniteSimilarity {
+                basis,
+                passed_threshold,
+            }
+        } else if passed_threshold {
+            PairDecision::Accepted { similarity, basis }
+        } else {
+            PairDecision::BelowThreshold { similarity, basis }
+        }
     }
 
     /// Compute similarity between two mentions.
     ///
     /// Uses cluster encoder if available (learned embeddings), otherwise
     /// falls back to string similarity (heuristic).
-    fn mention_similarity(&self, a: &MentionRef, b: &MentionRef) -> f64 {
+    fn mention_similarity(&self, a: &MentionRef, b: &MentionRef) -> (f64, PairScorer) {
         #[cfg(feature = "eval")]
         if let Some(ref encoder) = self.config.cluster_encoder {
             // Convert mentions to LocalCluster format for encoding
@@ -658,13 +803,16 @@ impl CDCRResolver {
                 let norm_b: f32 = emb_b.embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
 
                 if norm_a > 0.0 && norm_b > 0.0 {
-                    return (dot / (norm_a * norm_b)) as f64;
+                    return ((dot / (norm_a * norm_b)) as f64, PairScorer::EncoderCosine);
                 }
             }
         }
 
         // Fallback to string similarity
-        anno::similarity::string_similarity(&a.text, &b.text)
+        (
+            anno::similarity::string_similarity(&a.text, &b.text),
+            PairScorer::StringSimilarity,
+        )
     }
 
     /// Union-find: find root with path compression (iterative).
@@ -1201,6 +1349,87 @@ mod tests {
     }
 
     #[test]
+    fn explained_decision_is_direct_even_when_the_partition_joins_the_pair() {
+        let make = |id, text: &str, ty| {
+            Document::new(id, text).with_entities(vec![Entity::new(
+                text,
+                ty,
+                0,
+                text.chars().count(),
+                1.0,
+            )])
+        };
+        let documents = [
+            make("a", "Tavi", EntityType::Person),
+            make("b", "Nera", EntityType::Person),
+            make("bridge", "Tavi Nera", EntityType::Person),
+            make("org", "Tavi", EntityType::Organization),
+        ];
+        let resolver = CDCRResolver::with_config(CDCRConfig {
+            use_lsh: false,
+            min_similarity: 0.8,
+            require_type_match: true,
+            ..Default::default()
+        });
+        let (clusters, indirect) = resolver
+            .resolve_with_pair(&documents, ("a", 0), ("b", 0))
+            .unwrap();
+        assert_eq!(
+            clusters[0].mentions,
+            resolver.resolve(&documents)[0].mentions
+        );
+        assert!(indirect.same_component);
+        assert_eq!(
+            indirect.decision,
+            PairDecision::BelowThreshold {
+                similarity: 0.0,
+                basis: PairScorer::StringSimilarity,
+            }
+        );
+        let (_, rejected) = resolver
+            .resolve_with_pair(&documents, ("a", 0), ("org", 0))
+            .unwrap();
+        assert_eq!(rejected.decision, PairDecision::TypeMismatch);
+        assert!(!rejected.same_component);
+        assert!(resolver
+            .resolve_with_pair(&documents, ("a", 0), ("a", 0))
+            .is_err());
+        let ambiguous = [
+            documents[0].clone(),
+            documents[0].clone(),
+            documents[1].clone(),
+        ];
+        assert!(resolver
+            .resolve_with_pair(&ambiguous, ("a", 0), ("b", 0))
+            .is_err_and(|err| err == PairLookupError::Ambiguous("a".into(), 0)));
+    }
+
+    #[test]
+    fn unordered_cutoff_has_no_pair_explanation() {
+        let docs = ["a", "b"].map(|id| {
+            Document::new(id, "Ira").with_entities(vec![Entity::new(
+                "Ira",
+                EntityType::Person,
+                0,
+                3,
+                1.0,
+            )])
+        });
+        let resolver = CDCRResolver::with_config(CDCRConfig {
+            use_lsh: false,
+            min_similarity: f64::NAN,
+            ..Default::default()
+        });
+        assert_eq!(resolver.resolve(&docs).len(), 2);
+        assert_eq!(
+            resolver
+                .resolve_with_pair(&docs, ("a", 0), ("b", 0))
+                .unwrap_err(),
+            PairLookupError::UnorderedThreshold
+        );
+    }
+
+    #[test]
     fn test_lsh_blocking() {
         // Test with very similar strings that should hash together
         let mentions = vec![
@@ -1278,7 +1507,7 @@ mod tests {
         use crate::eval::cluster_encoder::{ClusterEmbedding, ClusterEncoder, LocalCluster};
         use std::sync::Arc;
 
-        struct SpanCheckingEncoder;
+        struct SpanCheckingEncoder(f32);
         impl ClusterEncoder for SpanCheckingEncoder {
             fn encode_cluster(
                 &self,
@@ -1291,7 +1520,7 @@ mod tests {
                     (0, mention.text.chars().count())
                 );
                 ClusterEmbedding {
-                    embedding: vec![1.0],
+                    embedding: vec![self.0],
                     cluster_id: cluster.id,
                     context_id: cluster.context_id,
                     mention_count: cluster.mentions.len(),
@@ -1323,8 +1552,42 @@ mod tests {
             use_lsh: false,
             ..Default::default()
         })
-        .with_cluster_encoder(Arc::new(SpanCheckingEncoder));
-        assert_eq!(resolver.resolve(&docs).len(), 1);
+        .with_cluster_encoder(Arc::new(SpanCheckingEncoder(1.0)));
+        let (clusters, pair) = resolver
+            .resolve_with_pair(&docs, ("first", 0), ("next", 0))
+            .unwrap();
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(
+            pair.decision,
+            PairDecision::Accepted {
+                similarity: 1.0,
+                basis: PairScorer::EncoderCosine
+            }
+        );
+        let huge_encoder = resolver
+            .clone()
+            .with_cluster_encoder(Arc::new(SpanCheckingEncoder(f32::MAX)));
+        let (clusters, overflow) = huge_encoder
+            .resolve_with_pair(&docs, ("first", 0), ("next", 0))
+            .unwrap();
+        assert_eq!(huge_encoder.resolve(&docs).len(), 2);
+        assert_eq!(clusters.len(), 2);
+        assert!(!overflow.same_component);
+        assert_eq!(
+            serde_json::to_value(overflow.decision).unwrap(),
+            serde_json::json!({"outcome":"non_finite_similarity","basis":"encoder_cosine","passed_threshold":false})
+        );
+        let zero_encoder = resolver.with_cluster_encoder(Arc::new(SpanCheckingEncoder(0.0)));
+        let (_, fallback) = zero_encoder
+            .resolve_with_pair(&docs, ("first", 0), ("next", 0))
+            .unwrap();
+        assert_eq!(
+            fallback.decision,
+            PairDecision::BelowThreshold {
+                similarity: 0.0,
+                basis: PairScorer::StringSimilarity,
+            }
+        );
     }
 
     #[test]

@@ -1,0 +1,242 @@
+{
+  "G2_SHA256": "cedc2611cdde06998a75f8edbbad271f71236fff520c9db66355e6d266cfe329",
+  "ROR_SHA256": "d71fd8d20d753fed8f7b5e08aa2215ad4cda2b2378c7f2a9f977ad17605504a6",
+  "S2AFF_SHA256": "2385f28c6c1275f0114cf15c33d164672af7a2a6a88d0c03178e04236c3de8c3",
+  "catalog_active_owners": 102742,
+  "native_source_sha256": "7aa912adcc40ac197149a2b627a502a11c643d41986b707f169ddafba1b48227",
+  "panels": {
+    "S2AFF_disjoint_target": {
+      "1": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 476,
+        "segment_shown": 1146,
+        "whole": 476,
+        "whole_shown": 1146
+      },
+      "3": {
+        "gain": 379,
+        "loss": 9,
+        "segment": 929,
+        "segment_shown": 3432,
+        "whole": 559,
+        "whole_shown": 3423
+      },
+      "5": {
+        "gain": 449,
+        "loss": 0,
+        "segment": 1023,
+        "segment_shown": 5713,
+        "whole": 574,
+        "whole_shown": 5599
+      },
+      "lookups": {
+        "median": 3.0,
+        "p95": 4,
+        "sum": 3455
+      },
+      "n": 1146,
+      "represented_source_rows": 1238,
+      "segment_misses": {
+        "absent": 80,
+        "below_all_component_fives": 19,
+        "displaced_at_fusion": 24
+      },
+      "union_block": {
+        "median": 2081.5,
+        "p95": 4981,
+        "sum": 2507018
+      },
+      "whole_block": {
+        "median": 136.5,
+        "p95": 892,
+        "sum": 284011
+      },
+      "whole_misses": {
+        "absent": 550,
+        "below_five": 22
+      }
+    },
+    "has_nontrivial_segment": {
+      "1": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 419,
+        "segment_shown": 1259,
+        "whole": 419,
+        "whole_shown": 1259
+      },
+      "3": {
+        "gain": 530,
+        "loss": 18,
+        "segment": 1022,
+        "segment_shown": 3777,
+        "whole": 510,
+        "whole_shown": 3767
+      },
+      "5": {
+        "gain": 631,
+        "loss": 2,
+        "segment": 1153,
+        "segment_shown": 6295,
+        "whole": 524,
+        "whole_shown": 6156
+      },
+      "lookups": {
+        "median": 4,
+        "p95": 4,
+        "sum": 4450
+      },
+      "n": 1259,
+      "represented_source_rows": 1359,
+      "segment_misses": {
+        "absent": 63,
+        "below_all_component_fives": 13,
+        "displaced_at_fusion": 30
+      },
+      "union_block": {
+        "median": 2495,
+        "p95": 5156,
+        "sum": 3280156
+      },
+      "whole_block": {
+        "median": 110,
+        "p95": 459,
+        "sum": 185024
+      },
+      "whole_misses": {
+        "absent": 707,
+        "below_five": 28
+      }
+    },
+    "primary": {
+      "1": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 644,
+        "segment_shown": 1571,
+        "whole": 644,
+        "whole_shown": 1571
+      },
+      "3": {
+        "gain": 530,
+        "loss": 18,
+        "segment": 1277,
+        "segment_shown": 4707,
+        "whole": 765,
+        "whole_shown": 4697
+      },
+      "5": {
+        "gain": 631,
+        "loss": 2,
+        "segment": 1416,
+        "segment_shown": 7838,
+        "whole": 787,
+        "whole_shown": 7699
+      },
+      "lookups": {
+        "median": 3,
+        "p95": 4,
+        "sum": 4762
+      },
+      "n": 1571,
+      "represented_source_rows": 1703,
+      "segment_misses": {
+        "absent": 102,
+        "below_all_component_fives": 23,
+        "displaced_at_fusion": 30
+      },
+      "union_block": {
+        "median": 2133,
+        "p95": 4910,
+        "sum": 3482775
+      },
+      "whole_block": {
+        "median": 139,
+        "p95": 849,
+        "sum": 387643
+      },
+      "whole_misses": {
+        "absent": 746,
+        "below_five": 38
+      }
+    },
+    "whole_only": {
+      "1": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 225,
+        "segment_shown": 312,
+        "whole": 225,
+        "whole_shown": 312
+      },
+      "3": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 255,
+        "segment_shown": 930,
+        "whole": 255,
+        "whole_shown": 930
+      },
+      "5": {
+        "gain": 0,
+        "loss": 0,
+        "segment": 263,
+        "segment_shown": 1543,
+        "whole": 263,
+        "whole_shown": 1543
+      },
+      "lookups": {
+        "median": 1.0,
+        "p95": 1,
+        "sum": 312
+      },
+      "n": 312,
+      "represented_source_rows": 344,
+      "segment_misses": {
+        "absent": 39,
+        "below_all_component_fives": 10
+      },
+      "union_block": {
+        "median": 391.0,
+        "p95": 2191,
+        "sum": 202619
+      },
+      "whole_block": {
+        "median": 391.0,
+        "p95": 2191,
+        "sum": 202619
+      },
+      "whole_misses": {
+        "absent": 39,
+        "below_five": 10
+      }
+    }
+  },
+  "partially_available_primary": 2,
+  "selection": {
+    "S2AFF_distinct_ROR_IDs_all_splits": 1124,
+    "S2AFF_unique_strings_all_splits": 2337,
+    "groups_by_first_exclusion": {
+      "inconsistent_TP_ID_sets": 1,
+      "missing_or_malformed_TP_ID": 5,
+      "no_target_in_ROR_v1_1": 22,
+      "non_TP_or_mixed_status": 302,
+      "normalized_query_overlap_with_S2AFF": 4,
+      "primary": 1571
+    },
+    "normalized_inputs_overlapping_S2AFF_all_statuses": 6,
+    "repeated_row_occurrences": 156,
+    "row_status_counts": {
+      "FN": 38,
+      "FP": 1,
+      "FP_partial": 49,
+      "FP_wrong": 192,
+      "TN": 34,
+      "TP": 1747
+    },
+    "rows": 2061,
+    "unique_normalized_inputs": 1905,
+    "unique_publication_IDs": 1008
+  }
+}
