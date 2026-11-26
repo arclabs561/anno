@@ -58,15 +58,126 @@
 //! let identities = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 //! ```
 
-use crate::core::grounded::CorefTrackType;
-use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackRef};
+pub use crate::core::grounded::CorefTrackType;
+use crate::core::{
+    Corpus, GroundedDocument, Identity, IdentityId, IdentitySource, Track, TrackRef,
+};
 use std::collections::{BTreeMap, HashMap};
 
-#[derive(Clone, Copy, serde::Serialize)]
+/// Evidence used for a native pair comparison.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum PairMeasure {
+pub enum PairMeasure {
+    /// Word-set overlap on the two canonical surfaces.
     WordJaccard,
+    /// Cosine of compatible track vectors scaled into 0..=1.
     ScaledEmbeddingCosine,
+}
+
+/// The native resolver's decision about a direct comparison before transitive closure.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum PairDecision {
+    /// Catalog-bound tracks are excluded from the comparison pool.
+    CatalogBound {
+        /// Whether the first requested track is bound.
+        left: bool,
+        /// Whether the second requested track is bound.
+        right: bool,
+    },
+    /// The required effective track types failed the type guard, before scoring.
+    TypeMismatch,
+    /// No compatible usable vectors or pair of nonblank surfaces were available.
+    NoComparableEvidence,
+    /// The score fell below the inclusive threshold.
+    BelowThreshold {
+        /// Observed comparison score.
+        similarity: f32,
+        /// Method that supplied the score.
+        basis: PairMeasure,
+    },
+    /// The direct edge qualified for union.
+    Accepted {
+        /// Observed comparison score.
+        similarity: f32,
+        /// Method that supplied the score.
+        basis: PairMeasure,
+    },
+}
+
+struct TrackData {
+    track_ref: TrackRef,
+    canonical_surface: String,
+    entity_type: CorefTrackType,
+    embedding: Option<Vec<f32>>,
+}
+
+impl TrackData {
+    fn from_unbound(doc: &GroundedDocument, track: &Track) -> Option<Self> {
+        if doc
+            .identity_for_track(track.id)
+            .is_some_and(|identity| identity.kb_id.is_some())
+        {
+            return None;
+        }
+        Some(Self {
+            track_ref: TrackRef {
+                doc_id: doc.id().to_owned(),
+                track_id: track.id,
+            },
+            canonical_surface: track.canonical_surface.clone(),
+            entity_type: track.coref_type(doc),
+            embedding: track.coref_embedding().cloned(),
+        })
+    }
+
+    fn similarity(&self, other: &Self) -> Option<(f32, PairMeasure)> {
+        match (&self.embedding, &other.embedding) {
+            (Some(left), Some(right)) if left.len() == right.len() => Some((
+                embedding_similarity(left, right),
+                PairMeasure::ScaledEmbeddingCosine,
+            )),
+            _ if self.canonical_surface.trim().is_empty()
+                || other.canonical_surface.trim().is_empty() =>
+            {
+                None
+            }
+            _ => Some((
+                string_similarity(&self.canonical_surface, &other.canonical_surface),
+                PairMeasure::WordJaccard,
+            )),
+        }
+    }
+
+    fn decision(&self, other: &Self, threshold: f32, type_match: bool) -> PairDecision {
+        if type_match && !self.entity_type.matches(&other.entity_type) {
+            return PairDecision::TypeMismatch;
+        }
+        match self.similarity(other) {
+            None => PairDecision::NoComparableEvidence,
+            Some((similarity, basis)) if similarity >= threshold => {
+                PairDecision::Accepted { similarity, basis }
+            }
+            Some((similarity, basis)) => PairDecision::BelowThreshold { similarity, basis },
+        }
+    }
+}
+
+pub(super) fn compare_pair(
+    left: (&GroundedDocument, &Track),
+    right: (&GroundedDocument, &Track),
+    threshold: f32,
+    type_match: bool,
+) -> PairDecision {
+    let left = TrackData::from_unbound(left.0, left.1);
+    let right = TrackData::from_unbound(right.0, right.1);
+    match (&left, &right) {
+        (Some(a), Some(b)) => a.decision(b, threshold, type_match),
+        _ => PairDecision::CatalogBound {
+            left: left.is_none(),
+            right: right.is_none(),
+        },
+    }
 }
 
 /// Coalescer for inter-document entity resolution.
@@ -137,37 +248,11 @@ impl Resolver {
         let type_match = require_type_match.unwrap_or(self.require_type_match);
 
         // 1. Collect all track data (clone what we need to avoid borrow conflicts)
-        #[derive(Debug, Clone)]
-        struct TrackData {
-            track_ref: TrackRef,
-            canonical_surface: String,
-            entity_type: CorefTrackType,
-            embedding: Option<Vec<f32>>,
-        }
-
-        fn similarity(a: &TrackData, b: &TrackData) -> Option<(f32, PairMeasure)> {
-            match (&a.embedding, &b.embedding) {
-                (Some(left), Some(right)) if left.len() == right.len() => Some((
-                    embedding_similarity(left, right),
-                    PairMeasure::ScaledEmbeddingCosine,
-                )),
-                _ if a.canonical_surface.trim().is_empty()
-                    || b.canonical_surface.trim().is_empty() =>
-                {
-                    None
-                }
-                _ => Some((
-                    string_similarity(&a.canonical_surface, &b.canonical_surface),
-                    PairMeasure::WordJaccard,
-                )),
-            }
-        }
-
         fn weakest_pair(members: &[usize], tracks: &[TrackData]) -> Option<crate::Confidence> {
             let mut minimum = None;
             for (position, &left) in members.iter().enumerate() {
                 for &right in &members[position + 1..] {
-                    let (score, _) = similarity(&tracks[left], &tracks[right])?;
+                    let (score, _) = tracks[left].similarity(&tracks[right])?;
                     minimum = Some(minimum.map_or(score, |previous: f32| previous.min(score)));
                 }
             }
@@ -176,23 +261,10 @@ impl Resolver {
 
         let mut track_data = Vec::new();
         for doc in corpus.documents() {
-            for track in doc.tracks() {
-                if doc
-                    .identity_for_track(track.id)
-                    .is_some_and(|identity| identity.kb_id.is_some())
-                {
-                    continue;
-                }
-                track_data.push(TrackData {
-                    track_ref: TrackRef {
-                        doc_id: doc.id().to_owned(),
-                        track_id: track.id,
-                    },
-                    canonical_surface: track.canonical_surface.clone(),
-                    entity_type: track.coref_type(doc),
-                    embedding: track.coref_embedding().cloned(),
-                });
-            }
+            track_data.extend(
+                doc.tracks()
+                    .filter_map(|track| TrackData::from_unbound(doc, track)),
+            );
         }
         track_data.sort_by(|a, b| {
             (&a.track_ref.doc_id, a.track_ref.track_id)
@@ -248,15 +320,10 @@ impl Resolver {
                 let track_a = &track_data[i];
                 let track_b = &track_data[j];
 
-                // Type check
-                if type_match && !track_a.entity_type.matches(&track_b.entity_type) {
-                    continue;
-                }
-
-                if let Some((score, measure)) =
-                    similarity(track_a, track_b).filter(|(score, _)| *score >= threshold)
+                if let PairDecision::Accepted { similarity, basis } =
+                    track_a.decision(track_b, threshold, type_match)
                 {
-                    accept(&track_a.track_ref, &track_b.track_ref, score, measure);
+                    accept(&track_a.track_ref, &track_b.track_ref, similarity, basis);
                     union(&mut union_find, &mut rank, i, j);
                 }
             }

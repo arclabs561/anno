@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use anno::coalesce::memberships::MembershipEdition;
 use anno::publication::IndexSnapshot;
+use anno::TrackRef;
 use clap::Args;
 use serde_json::json;
 use std::fs::File;
@@ -18,6 +19,9 @@ pub struct MembershipArgs {
     /// Read the current component for a source document and submitted numeric track ID.
     #[arg(long, num_args = 2, value_names = ["DOCUMENT", "TRACK"], conflicts_with = "since")]
     neighbors: Vec<String>,
+    /// Explain one native direct comparison between submitted tracks in this edition.
+    #[arg(long, num_args = 4, value_names = ["LEFT_DOC", "LEFT_TRACK", "RIGHT_DOC", "RIGHT_TRACK"], conflicts_with_all = ["neighbors", "since"])]
+    explain_pair: Vec<String>,
 }
 
 pub(super) fn read_edition(path: &Path) -> Result<MembershipEdition, String> {
@@ -37,6 +41,24 @@ fn read(path: &Path) -> Result<IndexSnapshot, String> {
 pub(super) fn run(args: MembershipArgs) -> Result<(), String> {
     if args.current == Path::new("-") && args.since.as_deref() == Some(Path::new("-")) {
         return Err("only one membership edition may read stdin".into());
+    }
+    if let [left_doc, left_track, right_doc, right_track] = args.explain_pair.as_slice() {
+        let track = |document: &str, id: &str| -> Result<TrackRef, String> {
+            Ok(TrackRef {
+                doc_id: document.to_owned(),
+                track_id: id
+                    .parse::<u64>()
+                    .map_err(|_| "track must be an unsigned integer")?
+                    .into(),
+            })
+        };
+        let answer = read_edition(&args.current)?
+            .explain_pair(
+                &track(left_doc, left_track)?,
+                &track(right_doc, right_track)?,
+            )
+            .map_err(|e| e.to_string())?;
+        return serde_json::to_writer(io::stdout().lock(), &answer).map_err(|e| e.to_string());
     }
     let current = read(&args.current)?;
     let output = if let [document, track] = args.neighbors.as_slice() {
