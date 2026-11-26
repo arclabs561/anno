@@ -6,35 +6,23 @@
 Anno is a Rust library for finding entities in text and linking mentions of the
 same person, place, or thing. Each result points back to the words it came from.
 
-## Find a name
+## Find mentions
 
-With Rust 1.91 or later, run `cargo add anno`. Extract the mentions in a
-sentence, then select the people:
+The offline extractor finds two mentions in this sentence:
 
 ```rust,no_run
-use anno::prelude::*;
-
-fn main() -> anno::Result<()> {
-    let mentions = anno::extract("Sophie Wilson designed the ARM processor.")?;
-    for person in mentions.of_type(&EntityType::Person) {
-        println!("{} ({}..{})", person.text, person.start(), person.end());
-    }
-    Ok(())
-}
+let text = "Sophie Wilson designed the ARM processor.";
+let mentions = anno::extract(text)?;
+// Sophie Wilson [PER]  0..13
+// ARM           [ORG] 27..30
 ```
 
-The offline example finds two mentions, *Sophie Wilson* and *ARM*. Selecting
-people leaves one:
-
-```text
-Sophie Wilson (0..13)
-```
-
-The range counts Unicode scalar values from the start of the sentence. To
-highlight a mention in a Rust string, convert its range to byte offsets first.
+Each range counts Unicode scalar values in the original text. To highlight
+a mention in a Rust string, convert the range to byte offsets first.
 [Working with offsets](docs/CONTRACT.md#source-text-and-offsets)
 
-From a checkout, try the same sentence without downloading a model:
+Add the library with `cargo add anno` (Rust 1.91 or later), or run the offline
+example from a checkout:
 
 ```sh
 cargo run -p anno --no-default-features --example quickstart
@@ -55,14 +43,35 @@ Add a microphone emoji and a space before *Émilie*. In the full transcript,
 14.9 seconds. The replay checks the links and cue ranges in both versions
 using a local FP32 model. [Run the caption example](crates/anno/examples/caption_links/README.md)
 
-## CLI
+## Where do pronoun links go missing?
+
+In Anno’s replay of 128 English passages from the GAP test split, 117
+pronoun–name pairs were labeled as referring to the same person. FCoref
+received the raw passages and predicted its own mentions.
+
+| What appeared in FCoref’s output? | True pairs |
+| --- | ---: |
+| Both mentions, linked together | 73 |
+| Both mentions, in separate clusters | 3 |
+| One or both exact spans absent | 41 |
+
+For most missed links on this panel, at least one of the two spans was
+already missing from the output. The study also counts false links and
+compares three resolvers on the same passages.
+[Results, scoring method, and replay](docs/eval/coref-panels.md#gap-pronoun-decisions)
+
+## Command line
 
 ```sh
 cargo install anno-cli --locked
 ```
 
-```console
-$ ANNO_NO_DOWNLOADS=1 anno extract --model heuristic --text "Lynn Conway worked at IBM and Xerox PARC in California."
+```sh
+ANNO_NO_DOWNLOADS=1 anno extract --model heuristic \
+  --text "Lynn Conway worked at IBM and Xerox PARC in California."
+```
+
+```text
 PER:1 "Lynn Conway"
 ORG:2 "IBM" "Xerox PARC"
 LOC:1 "California"
