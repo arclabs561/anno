@@ -19,10 +19,29 @@ def cases():
             text = f"{prefix} — {left}{separator} {right}."
             first = len(prefix) + len(" — ")
             second = first + len(left) + len(separator) + 1
-            gold = {(start + sentence.index("Marie"), start + sentence.index("Acme"))
-                    for sentence, start in [(left, first), (right, second)]
-                    if sentence in (short, long)}
+            gold = set()
+            for sentence, start in [(left, first), (right, second)]:
+                if sentence in (short, long):
+                    head = start + sentence.index("Marie")
+                    tail = start + sentence.index("Acme Inc")
+                    gold.add(((head, head + len("Marie"), "PER"), "WORKS_FOR",
+                              (tail, tail + len("Acme Inc"), "ORG")))
             yield text, gold, second
+
+
+def score(text, relations, gold, second):
+    def endpoint(entity):
+        start, end = entity["start"], entity["end"]
+        if not 0 <= start < end <= len(text) or entity["text"] != text[start:end]:
+            raise ValueError(f"invalid source span at [{start}, {end})")
+        return start, end, entity["type"]
+
+    predicted = Counter((endpoint(r["head"]), r["type"], endpoint(r["tail"])) for r in relations)
+    matches = predicted & Counter(gold)
+    extras = predicted - matches
+    return Counter(matched=matches.total(), missed=len(gold) - matches.total(), extra=extras.total(),
+                   extra_cross_sentence=sum(n for (head, _, tail), n in extras.items()
+                                            if (head[0] < second) != (tail[0] < second)))
 
 
 def trial(binary, backend, threshold, distance, env):
@@ -35,13 +54,7 @@ def trial(binary, backend, threshold, distance, env):
         expected = "tplinker-heuristic" if backend == "tplinker" else "relation-heuristic"
         if report["provenance"]["relation_producer"]["source"] != expected:
             raise ValueError(f"unexpected relation scorer for {backend}")
-        # Score occurrence pairs including duplicate predictions, in source character offsets.
-        predicted = Counter((r["head"]["start"], r["tail"]["start"]) for r in report["relations"])
-        matches = predicted & Counter(gold)
-        extras = predicted - matches
-        counts.update(matched=matches.total(), missed=len(gold) - matches.total(),
-                      extra=extras.total(), extra_cross_sentence=sum(
-                          n for (h, t), n in extras.items() if (h < second) != (t < second)))
+        counts.update(score(text, report["relations"], gold, second))
     return dict(backend=backend, relation_threshold=threshold, max_span_distance=distance, **counts)
 
 

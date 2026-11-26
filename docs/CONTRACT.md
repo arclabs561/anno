@@ -194,7 +194,9 @@ TPLinker and GLiNER multitask heuristic fallbacks apply this limit when scoring.
 On 24 authored documents containing repeated names in two English statements and
 six Unicode prefix/separator variants, the heuristic and TPLinker fallback agreed.
 At relation threshold 0.1, reducing the limit from 120 to 12 characters cut
-unmatched predictions from 44 to 12 and correct matches from 28 to 22 out of 36.
+unmatched predictions from 56 to 20 and correct matches from 16 to 14 out of 36.
+A match requires the full source span and type of both endpoints in the annotated
+direction, together with the exact predicate.
 Of those unmatched predictions, 36 and 12 respectively crossed the statement
 boundary. At threshold 0.55 neither route emitted any relations. These fixtures
 measure sensitivity to the control; corpus-level thresholds require held-out data.
