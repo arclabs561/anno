@@ -25,6 +25,8 @@ Muxer records the requested language pins in `requested_languages` and credits a
 
 Language evidence currently comes from checksum-verified checkout fixtures and the official WikiGold digest, unanimous language annotations on parsed MultiNERD rows, recognized WikiANN or MasakhaNER2 configurations on the actual Hugging Face rows URL, and the resolved MasakhaNER Yoruba test file. Cached publisher metadata must match the payload checksum. To stage multiple configurations of a dataset with the same canonical filename, give each configuration a separate `ANNO_CACHE_DIR`. Preserve the original digest for exact replay.
 
+Estimate counts completed cells from the observed language in the result or its compact checkpoint. A language pin excludes old records without that evidence from the requested language's budget. Stable-language datasets in unpinned runs retain their pooled history. For multilingual dataset selection, cached configuration metadata helps prioritize which candidates to load. Backend selection uses the loaded artifact. The loader compares MasakhaNER2's three-letter codes with their two-letter equivalents where available (for example, `yor` and `yo`), and keeps the publisher configuration in the resolved source URL.
+
 ## Inspect dataset eligibility
 
 Run `anno sampler eligibility --task ner --require-cached` before comparing policies on a local panel. Its JSON lists each registered dataset for that task, whether the standard loader sees a local cache hit, and the first policy exclusion. For a compact list of locally cached sources and why each will or will not enter selection:

@@ -1,6 +1,6 @@
 //! Build the trusted matrix artifact from the scheduling fields the next run reads.
 use super::*;
-use crate::eval::history::{EvalHistory, EvalHistoryEntry};
+use crate::eval::history::{observed_language_in_metadata, EvalHistory, EvalHistoryEntry};
 use crate::eval::task_evaluator::CorefPredictedMentions;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -33,9 +33,14 @@ impl Catalog {
             languages: ["mixed".into(), "unknown".into()].into(),
             domains: ["mixed".into(), "unknown".into()].into(),
         };
-        catalog
-            .languages
-            .extend(crate::eval::dataset_language::verified_config_languages().map(str::to_owned));
+        catalog.languages.extend(
+            crate::eval::dataset_language::verified_config_languages().flat_map(|tag| {
+                [
+                    tag.to_owned(),
+                    crate::eval::dataset_language::comparison_tag(tag).to_owned(),
+                ]
+            }),
+        );
         for dataset in DatasetId::all() {
             let slice = mh::muxer_slice_tag("ner", &[*dataset], true).unwrap();
             let (_, facets) = slice.as_str().split_once(".lang=").unwrap();
@@ -188,6 +193,11 @@ fn project_journal(src: &Path, dest: &Path, catalog: &Catalog) -> Result<(), &'s
             let object: Value =
                 serde_json::from_str(&raw).map_err(|_| "invalid evaluation receipt")?;
             let prior = object.get("checkpoint_retry_version") == Some(&json!(1));
+            let language = observed_language_in_metadata(&object).map(str::to_owned);
+            require(language.as_ref().is_none_or(|lang| {
+                catalog.languages.contains(lang)
+                    && !matches!(lang.as_str(), "mixed" | "unknown" | "mul")
+            }))?;
             let r: TaskEvalResult =
                 serde_json::from_value(object).map_err(|_| "invalid evaluation receipt")?;
             require(
@@ -218,7 +228,7 @@ fn project_journal(src: &Path, dest: &Path, catalog: &Catalog) -> Result<(), &'s
                 e.metadata = Some(
                     json!({"checkpoint_retry_version": 1, "task": task, "dataset": dataset,
                     "backend": e.backend, "success": r.success, "seed": e.seed,
-                    "num_examples": r.num_examples, "metrics": metrics, "error": diagnosis})
+                    "num_examples": r.num_examples, "metrics": metrics, "error": diagnosis, "checkpoint_observed_language": language})
                     .to_string(),
                 );
             }
@@ -444,6 +454,40 @@ mod tests {
                     .iter()
                     .all(|d| d["first"]["reason"] == "outstanding_failure"));
             }
+        }
+    }
+
+    #[test]
+    fn observed_language_survives_repeated_checkpoint_projection() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut source = temp.path().join("raw");
+        let mut row = receipt(0, None, false);
+        let mut r: TaskEvalResult =
+            serde_json::from_str(row.entry.metadata.as_deref().unwrap()).unwrap();
+        r.provenance.dataset.observed_language = Some("en".into());
+        row.entry.metadata = Some(serde_json::to_string(&r).unwrap());
+        let key = row.entry.policy_cohort_key.clone().unwrap();
+        fs::create_dir(&source).unwrap();
+        input(&source, &[row]);
+        for pass in 0..2 {
+            let target = temp.path().join(format!("pass-{pass}"));
+            fs::create_dir(&target).unwrap();
+            project(&source, &target).unwrap();
+            let h = EvalHistory::new(target.join("eval-results.jsonl")).unwrap();
+            let en = CoverageLanguage::Verified(["en".to_owned()].into());
+            let de = CoverageLanguage::Verified(["de".to_owned()].into());
+            assert_eq!(
+                h.cell_observation_counts_for_language(&key, &en)
+                    .unwrap()
+                    .values()
+                    .sum::<u64>(),
+                1
+            );
+            assert!(h
+                .cell_observation_counts_for_language(&key, &de)
+                .unwrap()
+                .is_empty());
+            source = target;
         }
     }
 

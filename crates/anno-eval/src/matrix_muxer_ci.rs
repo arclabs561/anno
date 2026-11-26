@@ -111,6 +111,7 @@ mod checkpoint;
 mod retry;
 
 use crate::eval::backend_factory::BackendFactory;
+use crate::eval::dataset_language::{comparison_tag, CoverageLanguage};
 use crate::eval::loader::{DataSource, DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::provenance::policy_cohort_key;
 use crate::eval::provenance::EvaluationScheduling;
@@ -1636,6 +1637,7 @@ fn select_backends(
     k: usize,
     prior_calls: u64,
     plan: Option<&retry::RetryPlan>,
+    selected_languages: Option<&BTreeMap<String, Option<String>>>,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -2229,6 +2231,7 @@ fn select_backends(
             //
             // Query from SQLite eval-history DB for accurate counts across ALL historical
             // runs, not just the muxer's sliding window.
+            let pins = requested_languages();
             let cohort_counts: Vec<std::collections::HashMap<(String, String), u64>> =
                 {
                     let hist_path = eval_history_jsonl_path();
@@ -2252,8 +2255,19 @@ fn select_backends(
                                                     matrix_predicted_mentions(),
                                                 )
                                                 .and_then(|key| {
-                                                    h.cell_observation_counts_for_policy_cohort(
-                                                        &key,
+                                                    let observed =
+                                                        selected_languages.and_then(|languages| {
+                                                            languages
+                                                                .get(&format!("{dataset:?}"))
+                                                                .and_then(Option::as_deref)
+                                                        });
+                                                    let scope = CoverageLanguage::for_loaded(
+                                                        *dataset,
+                                                        pins.as_ref(),
+                                                        observed,
+                                                    );
+                                                    h.cell_observation_counts_for_language(
+                                                        &key, &scope,
                                                     )
                                                     .ok()
                                                 })
@@ -2867,7 +2881,10 @@ fn check_dataset_usable(
         requested_languages(),
         receipt.dataset.metadata.observed_language.as_ref(),
     ) {
-        if !pins.contains(observed) {
+        if !pins
+            .iter()
+            .any(|pin| comparison_tag(pin) == comparison_tag(observed))
+        {
             return Err(anno::Error::InvalidInput(
                 "loaded dataset language differs from language pin".into(),
             ));
@@ -3197,14 +3214,18 @@ fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
         // runs can still proceed on multilingual datasets when no monolingual dataset is loadable
         // in the current environment.
         let has_exact_lang_match = pin_lang.as_ref().is_some_and(|pins| {
-            candidates
-                .iter()
-                .any(|d| pins.contains(&d.language().to_ascii_lowercase()))
+            candidates.iter().any(|d| {
+                pins.iter()
+                    .any(|pin| comparison_tag(pin) == comparison_tag(d.language()))
+            })
         });
         candidates.retain(|d| {
             let d_lang = d.language().to_ascii_lowercase();
             let lang_ok = pin_lang.as_ref().is_none_or(|pins| {
-                if pins.contains(&d_lang) {
+                if pins
+                    .iter()
+                    .any(|pin| comparison_tag(pin) == comparison_tag(&d_lang))
+                {
                     return true;
                 }
                 // Fallback: allow multilingual datasets if no exact match exists.
@@ -3253,6 +3274,7 @@ fn choose_datasets_for_run(
     } else {
         0xDADA_BEEF
     };
+    let pins = requested_languages();
     let mut scored: Vec<_> = candidates
         .iter()
         .map(|&dataset| {
@@ -3269,11 +3291,19 @@ fn choose_datasets_for_run(
                             matrix_uses_gold_mentions(),
                             matrix_predicted_mentions(),
                         )?;
+                        let hint = loader.cached_language_hint(dataset);
+                        let scope =
+                            CoverageLanguage::for_panel(dataset, pins.as_ref(), hint.as_deref());
                         history
-                            .dataset_observation_counts_for_policy_cohort(&key)
-                            .ok()?
-                            .get(dataset.name())
-                            .copied()
+                            .cell_observation_counts_for_language(&key, &scope)
+                            .ok()
+                            .map(|counts| {
+                                counts
+                                    .into_iter()
+                                    .filter(|((_, name), _)| name == dataset.name())
+                                    .map(|(_, count)| count)
+                                    .sum::<u64>()
+                            })
                     })
                     .sum()
             });
@@ -4468,6 +4498,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 backends_per_run,
                 prior_calls,
                 plan.as_ref(),
+                Some(&selected_languages),
             )
         } else {
             select_backends(
@@ -4484,6 +4515,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 backends_per_run,
                 prior_calls,
                 plan.as_ref(),
+                Some(&selected_languages),
             )
         }
     } else if per_dataset || matches!(strategy, SampleStrategy::WorstFirst) {
@@ -4503,6 +4535,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             backends_per_run,
             prior_calls,
             plan.as_ref(),
+            Some(&selected_languages),
         )
     } else {
         select_backends(
@@ -4519,6 +4552,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             backends_per_run,
             prior_calls,
             plan.as_ref(),
+            Some(&selected_languages),
         )
     };
 
@@ -5494,6 +5528,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         1,
         6,
         None,
+        None,
     );
 
     // With require_measured=1 and no observed calls, we must not pick it.
@@ -5584,6 +5619,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         1,
         6,
         None,
+        None,
     );
     assert_eq!(chosen, vec!["measured_fast".to_string()]);
 }
@@ -5631,6 +5667,7 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         false,
         2,
         0,
+        None,
         None,
     );
     assert!(!chosen.is_empty());
@@ -5702,6 +5739,7 @@ fn test_novelty_still_triggers_under_priors() {
         false,
         1,
         6,
+        None,
         None,
     );
     assert_eq!(
@@ -5779,6 +5817,7 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         1,
         0,
         None,
+        None,
     );
 
     let s = std::fs::read_to_string(&tmp).expect("read decisions log");
@@ -5824,6 +5863,7 @@ fn test_coverage_decision_log_keeps_all_selected_arms() {
         false,
         2,
         0,
+        None,
         None,
     );
     let log = std::fs::read_to_string(&tmp).expect("read decisions log");
@@ -5903,6 +5943,7 @@ fn test_control_only_still_writes_minimal_decision_log_row() {
         false,
         2, // n=2: max_control = min(1, 2-1) = 1 → 1 control arm + 1 MAB pick
         0,
+        None,
         None,
     );
 

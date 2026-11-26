@@ -74,3 +74,138 @@ pub(crate) fn verified_config_languages() -> impl Iterator<Item = &'static str> 
         .chain(WIKIANN_ALIASES.iter().map(|(_, lang)| *lang))
         .chain(MASAKHANER2_LANGUAGES.iter().map(|(code, _)| *code))
 }
+
+/// Compare provider tags using the ISO 639-1 equivalents of MasakhaNER2's ISO 639-3 tags.
+/// The loader keeps the publisher config in the resolved source URL.
+pub(crate) fn comparison_tag(tag: &str) -> &str {
+    match tag {
+        "bam" => "bm",
+        "ewe" => "ee",
+        "hau" => "ha",
+        "ibo" => "ig",
+        "kin" => "rw",
+        "lug" => "lg",
+        "nya" => "ny",
+        "sna" => "sn",
+        "swa" => "sw",
+        "tsn" => "tn",
+        "twi" => "tw",
+        "wol" => "wo",
+        "xho" => "xh",
+        "yor" => "yo",
+        "zul" => "zu",
+        _ => tag,
+    }
+}
+
+/// Resolve a sampling-language alias to this provider's config for cold downloads.
+pub(crate) fn provider_config(dataset: DatasetId, pin: &str) -> &str {
+    match dataset {
+        DatasetId::MasakhaNER2 => MASAKHANER2_LANGUAGES
+            .iter()
+            .find(|(key, _)| comparison_tag(key) == comparison_tag(pin))
+            .map_or(pin, |(key, _)| *key),
+        DatasetId::WikiANN => {
+            let tag = comparison_tag(pin);
+            if WIKIANN_LANGUAGES
+                .split_ascii_whitespace()
+                .any(|config| config == tag)
+            {
+                tag
+            } else {
+                WIKIANN_ALIASES
+                    .iter()
+                    .find(|(_, lang)| *lang == tag)
+                    .map_or(pin, |(key, _)| *key)
+            }
+        }
+        _ => pin,
+    }
+}
+
+/// Which observed inputs may pay down the Estimate scheduler's coverage budget.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) enum CoverageLanguage {
+    #[default]
+    Any,
+    Unknown,
+    Verified(std::collections::BTreeSet<String>),
+}
+
+impl CoverageLanguage {
+    pub(crate) fn for_panel(
+        dataset: DatasetId,
+        pins: Option<&std::collections::BTreeSet<String>>,
+        observed: Option<&str>,
+    ) -> Self {
+        let variable = dataset.language() == "mul" || dataset == DatasetId::MultiNERD;
+        if pins.is_none() && !variable {
+            return Self::Any;
+        }
+        if let Some(observed) = observed.filter(|lang| {
+            pins.is_none_or(|pins| {
+                pins.iter()
+                    .any(|pin| comparison_tag(pin) == comparison_tag(lang))
+            })
+        }) {
+            return Self::Verified([comparison_tag(observed).to_owned()].into());
+        }
+        if let Some(pins) = pins {
+            return Self::Verified(
+                pins.iter()
+                    .map(|pin| comparison_tag(pin).to_owned())
+                    .collect(),
+            );
+        }
+        Self::Unknown
+    }
+
+    /// Once the input is loaded, an unverified result belongs only to the unknown slice.
+    /// A prospective pin is useful before preflight but cannot establish what a backend saw.
+    pub(crate) fn for_loaded(
+        dataset: DatasetId,
+        pins: Option<&std::collections::BTreeSet<String>>,
+        observed: Option<&str>,
+    ) -> Self {
+        if observed.is_none() && pins.is_some() {
+            Self::Unknown
+        } else {
+            Self::for_panel(dataset, pins, observed)
+        }
+    }
+
+    pub(crate) fn includes(&self, observed: Option<&str>) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Unknown => observed.is_none(),
+            Self::Verified(langs) => {
+                observed.is_some_and(|lang| langs.contains(comparison_tag(lang)))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn observed_language_aliases_are_scoped_to_the_source_config() {
+        assert_eq!(provider_config(DatasetId::MasakhaNER2, "yo"), "yor");
+        assert_eq!(provider_config(DatasetId::WikiANN, "yor"), "yo");
+        assert_eq!(provider_config(DatasetId::WikiANN, "yue"), "zh-yue");
+        assert_eq!(provider_config(DatasetId::WikiANN, "en"), "en");
+        let pins = ["yo".to_owned()].into();
+        let scope = CoverageLanguage::for_panel(DatasetId::MasakhaNER2, Some(&pins), Some("yor"));
+        assert!(scope.includes(Some("yo")) && scope.includes(Some("yor")));
+        assert!(!scope.includes(Some("bam")) && !scope.includes(None));
+        assert_eq!(
+            CoverageLanguage::for_panel(DatasetId::WikiGold, None, Some("en")),
+            CoverageLanguage::Any
+        );
+        assert_eq!(
+            CoverageLanguage::for_panel(DatasetId::WikiANN, None, None),
+            CoverageLanguage::Unknown
+        );
+    }
+}

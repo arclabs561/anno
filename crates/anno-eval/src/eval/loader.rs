@@ -1629,6 +1629,13 @@ impl DatasetLoader {
         out
     }
 
+    /// Cheap preselection hint for Estimate. The evaluated receipt rechecks the payload checksum.
+    pub(crate) fn cached_language_hint(&self, id: DatasetId) -> Option<String> {
+        let manifest = self.manifest.read().ok()?;
+        let url = manifest.get(id.cache_filename())?.resolved_url.as_deref()?;
+        Self::artifact_language(id, url)
+    }
+
     /// Upload a locally cached dataset (by `DatasetId`) to S3, using its manifest entry.
     ///
     /// This uses the same object layout as `load_or_download()`'s best-effort upload:
@@ -2397,8 +2404,10 @@ impl DatasetLoader {
         // config, not a random/first config.
         let preferred_hf_config: Option<String> = if id.language().eq_ignore_ascii_case("mul") {
             // Explicit override wins if set.
-            env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
-                .or_else(|| env_single_csv(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"]))
+            env_single_csv(&["ANNO_HF_DATASET_CONFIG"]).or_else(|| {
+                env_single_csv(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"])
+                    .map(|pin| super::dataset_language::provider_config(id, &pin).to_owned())
+            })
         } else {
             env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
         };
@@ -2644,7 +2653,7 @@ impl DatasetLoader {
     // names (such as "all", "pos" or a genre) do not identify a language.
     fn artifact_language(id: DatasetId, resolved_url: &str) -> Option<String> {
         if id == DatasetId::MasakhaNER && resolved_url == id.download_url() {
-            return Some("yor".into());
+            return Some("yo".into());
         }
         if !matches!(id, DatasetId::WikiANN | DatasetId::MasakhaNER2) {
             return None;
@@ -2665,7 +2674,9 @@ impl DatasetLoader {
         if dataset.as_deref()? != id.hf_id()? {
             return None;
         }
-        super::dataset_language::config_language(id, config?).map(str::to_owned)
+        super::dataset_language::config_language(id, config?)
+            .map(super::dataset_language::comparison_tag)
+            .map(str::to_owned)
     }
 
     fn apply_manifest_provenance(dataset: &mut LoadedDataset, entry: &CacheManifestEntry) {
