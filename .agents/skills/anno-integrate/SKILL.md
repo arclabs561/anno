@@ -10,6 +10,7 @@ Use the docs from the checkout or release your application targets. Start with t
 | What does the application need? | Where to start |
 | --- | --- |
 | Extract repeatedly in Rust or Python | See “Library usage” in `docs/QUICKSTART.md` for Rust and `crates/anno-py/README.md` for Python. Both show how to reuse an extractor. The Python bulletin example ties each occurrence to a source edition. |
+| Choose a checkpoint or change a model default | Use the [backend guide](../../../docs/BACKENDS.md) and the [recorded trials](../../../docs/eval/README.md). Compare the same input and output units your application uses, including whether mention boundaries are supplied or predicted. |
 | Highlight the original after cleanup, normalization or HTML rendering | Read “Source text and offsets” in `docs/CONTRACT.md` and the HTML walkthrough in `docs/EXTRACTION_WORKFLOWS.md`. Use the saved map to project analyzed characters to original byte fragments. Check the original digest and whether each fragment is exact enough for the intended use. |
 | Preserve a discontinuous mention or an OCR bounding box | Read `docs/LOCATION.md` before choosing a text projection. Keep individual ranges for a discontinuous mention and retain geometry when the reader needs it. |
 | Exchange brat, CoNLL, JSONL or RDF with another tool | Use the format-specific examples in `docs/EXTRACTION_WORKFLOWS.md`. Check a round trip against the exact source edition, including repeated surfaces and gaps. |

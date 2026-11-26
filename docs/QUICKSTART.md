@@ -64,6 +64,8 @@ Source offsets, runtime provenance and observed-language accounting apply automa
 Operations outside the table, including scoring saved predictions, reject an
 explicit profile. Use `anno help COMMAND` for the options available in your build.
 
+When requesting relations with `anno extract`, `--relation-threshold` overrides the extraction threshold. With neither supplied, the relation cutoff is 0.55. The heuristic relation gap defaults to 120 source characters. [Relation behavior and distance trial](CONTRACT.md#cli-json-provenance)
+
 ## CLI: extract entities
 
 ```console

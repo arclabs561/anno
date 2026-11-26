@@ -94,6 +94,8 @@ arm. The competition occurs well before final cluster selection for most of
 these misses. These results favor investigating span representation and
 training boundary labels before increasing the default candidate budget.
 
+The [aggregate rank receipt](fcoref-boundary-ranks.json) preserves the per-split confusion counts and unrounded rank and score gaps.
+
 The diagnostic used the original FP32 encoder (SHA-256
 `190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4`),
 CPU ONNX Runtime and the Anno Rust mention/antecedent scorer. We enumerated
@@ -103,6 +105,8 @@ used the stock null and union-find decisions for both budgets. The separate
 [public runner comparison](../../scripts/qa/fcoref_proposal_budget.py)
 uses `ceil(tokens / 2)` on different articles. That differs from exactly
 twice the rounded stock count by at most one candidate.
+
+A [follow-up on 256 separate English articles](fcoref-emitted-boundaries.md) tests whether names already emitted elsewhere in a cluster can repair an exact boundary.
 
 ### Reproduce the boundary-rank table
 
