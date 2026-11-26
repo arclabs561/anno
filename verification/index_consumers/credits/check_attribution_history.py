@@ -3,13 +3,15 @@
 """Replay an authored bibliography correction against native anno publications."""
 import argparse
 from copy import deepcopy
+from datetime import date, timedelta
 import hashlib
+from itertools import combinations, product
 import json
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-from attribution_history import History, View
+from attribution_history import DatedEvidence, History, View
 from check_cases import build_cli, publish
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reader_cases" / "bibliography"))
@@ -138,19 +140,52 @@ def reject_delivery(action, label):
     check_answer("accepted", "rejected", label)
 
 
-def partial_dates(pub, evidence):
-    # The reference asserts a nonempty term of whole days but supplies only one boundary.
-    partial = {"person": list(A), "kind": "affiliation", "value": "Reed Observatory",
-               "source": "fixture:partial-date", "start": "2018-06-01", "end": None}
-    proof = (("Reed Observatory", "fixture:partial-date"),)
-    for claim in (partial, dict(partial, start=None, end="2018-06-02")):
-        view = View(pub, dict(evidence, claims=[claim]))
-        check_answer(view.affiliations(A, "2018-06-01").confirmed, proof, "known occupied boundary day")
-        outside, possible = ("2018-05-31", "2018-06-02") if claim["start"] else ("2018-06-02", "2018-05-31")
-        result = view.affiliations(A, outside)
-        check_answer((result.confirmed, result.undetermined), ((), ()), "outside known boundary")
-        result = view.affiliations(A, possible)
-        check_answer((result.confirmed, result.undetermined), ((), proof), "other bound unknown")
+def dated_evidence_answers(pub, evidence, reader):
+    # A missing boundary can lie beyond any query. Reserve a completion day on either side.
+    days = [(date(2020, 2, 26) + timedelta(days=i)).isoformat() for i in range(8)]
+    bounds = [None, *days[2:-2]]
+    completions = list(combinations(days, 2))
+    queries = days[1:-1]
+    claims = []
+    expected = {}
+    for kind, value in (("name", "Rowan Mire"), ("affiliation", "Reed Observatory")):
+        for when in queries:
+            expected[kind, when] = {"confirmed": [], "undetermined": []}
+        for start, end in product(bounds, repeat=2):
+            compatible = [(a, b) for a, b in completions
+                          if (start is None or a == start) and (end is None or b == end)]
+            if not compatible:  # No nonempty term has these bounds.
+                continue
+            # Equal display values from different sources remain independently citable.
+            source = f"fixture:{kind}/{start or '?'}/{end or '?'}"
+            claims.append(dict(person=list(A), kind=kind, value=value, source=source, start=start, end=end))
+            for when in queries:
+                occupied = [a <= when < b for a, b in compatible]
+                if any(occupied):
+                    status = "confirmed" if all(occupied) else "undetermined"
+                    expected[kind, when][status].append((value, source))
+
+    view = reader(pub, dict(evidence, claims=claims))
+    for kind, lookup in (("name", view.names), ("affiliation", view.affiliations)):
+        for when in queries:
+            result = lookup(A, when)
+            for status in ("confirmed", "undetermined"):
+                yield (kind, status, when), getattr(result, status), tuple(sorted(expected[kind, when][status]))
+            namesake = lookup(B, when)
+            yield (kind, "other person", when), (namesake.confirmed, namesake.undetermined), ((), ())
+
+
+def check_dated_evidence(pub, evidence):
+    for (kind, status, when), actual, expected in dated_evidence_answers(pub, evidence, View):
+        check_answer(actual, expected, f"{kind} {status} on {when}")
+
+    class ConfirmedNamesOnly(View):
+        def names(self, person, when):
+            return DatedEvidence(super().names(person, when).confirmed, ())
+
+    failures = {(kind, status) for (kind, status, _), actual, expected
+                in dated_evidence_answers(pub, evidence, ConfirmedNamesOnly) if actual != expected}
+    check_answer(failures, {("name", "undetermined")}, "confirmed-only name reader detected")
 
 
 def rejected_corrections(editions):
@@ -185,7 +220,7 @@ def replay(cli):
     check_answer(papers[TIDE]["byline"]["by1"]["listed"], ("Harbor Institute",), "publisher affiliation on tide")
     check_answer(papers[SALT]["byline"]["by1"]["listed"], ("Quay Archive",), "publisher affiliation on salt")
     editions = deliveries(cli, papers, catalog)
-    partial_dates(*editions[0])
+    check_dated_evidence(*editions[0])
     rejected_corrections(editions)
     correction = editions[1][0].delta
     check_answer([key[0] for key, _ in correction["removed"]], [f"{TIDE}#by1"], "retracted occurrence")
