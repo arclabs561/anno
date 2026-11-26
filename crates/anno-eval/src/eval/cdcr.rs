@@ -685,25 +685,8 @@ impl CDCRResolver {
             return vec![];
         }
 
-        // 2. Get candidate pairs
-        let candidates = if self.config.use_lsh {
-            self.config.lsh.candidate_pairs(mentions)
-        } else {
-            // Brute force: all pairs
-            let n = mentions.len();
-            let mut pairs = Vec::new();
-            for i in 0..n {
-                for j in (i + 1)..n {
-                    pairs.push((i, j));
-                }
-            }
-            pairs
-        };
-
-        // 3. Compute similarities and cluster
         let mut union_find: Vec<usize> = (0..mentions.len()).collect();
-
-        for (i, j) in candidates {
+        let mut visit = |i: usize, j: usize| {
             let decision = self.compare_candidate(&mentions[i], &mentions[j]);
             observe(i, j, decision);
             if matches!(
@@ -715,6 +698,17 @@ impl CDCRResolver {
                     }
             ) {
                 Self::union(&mut union_find, i, j);
+            }
+        };
+        if self.config.use_lsh {
+            for (i, j) in self.config.lsh.candidate_pairs(mentions) {
+                visit(i, j);
+            }
+        } else {
+            for i in 0..mentions.len() {
+                for j in (i + 1)..mentions.len() {
+                    visit(i, j);
+                }
             }
         }
 

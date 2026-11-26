@@ -49,7 +49,7 @@ pub struct CrossDocArgs {
     #[arg(short, long, default_value = "0.6", value_parser = super::parse_similarity_threshold)]
     pub threshold: f64,
 
-    /// Raw directory candidate generation (default: exhaustive up to 100 extracted mentions, then lsh)
+    /// Raw directory candidate generation (default: exhaustive up to 100 documents with mentions, then lsh)
     #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
     pub candidates: Option<CandidateMode>,
 
@@ -416,6 +416,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let doc_count;
     let total_entities: usize;
     let mut pair_explanation = None;
+    let mut raw_documents_with_mentions = None;
     let mut delivery_outcomes = Vec::new();
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
@@ -574,8 +575,12 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             eprintln!("Clustering {total_entities} entities across {doc_count} documents...");
         }
 
-        // Exhaustive generation visits every mention pair, including within a document.
-        candidate_mode = args.candidates.unwrap_or(if total_entities > 100 {
+        let documents_with_mentions = documents
+            .iter()
+            .filter(|doc| !doc.entities.is_empty())
+            .count();
+        raw_documents_with_mentions = Some(documents_with_mentions);
+        candidate_mode = args.candidates.unwrap_or(if documents_with_mentions > 100 {
             CandidateMode::Lsh
         } else {
             CandidateMode::Exhaustive
@@ -669,9 +674,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             if !delivery_outcomes.is_empty() {
                 output.insert("deliveries".into(), serde_json::json!(delivery_outcomes));
             }
-            output.insert(
-                "metadata".to_string(),
-                serde_json::json!({
+            let mut metadata = serde_json::json!({
                 "resolver": if use_corpus { "grounded_tracks" } else { "flat_mentions" },
                 "candidate_mode": candidate_mode,
                 "documents_processed": doc_count,
@@ -681,13 +684,16 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 "threshold": args.threshold,
                 "require_type_match": args.require_type_match,
                 "filters": {
-                "min_cluster_size": args.min_cluster_size,
-                "cross_doc_only": args.cross_doc_only,
-                "entity_types": args.entity_types,
-                "max_clusters": args.max_clusters,
-                    }
-                }),
-            );
+                    "min_cluster_size": args.min_cluster_size,
+                    "cross_doc_only": args.cross_doc_only,
+                    "entity_types": args.entity_types,
+                    "max_clusters": args.max_clusters,
+                }
+            });
+            if let Some(count) = raw_documents_with_mentions {
+                metadata["documents_with_mentions"] = count.into();
+            }
+            output.insert("metadata".to_string(), metadata);
             output.insert(
                 "clusters".to_string(),
                 serde_json::to_value(&final_clusters)

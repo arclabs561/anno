@@ -34,6 +34,10 @@ CASES = {
         "anno-cli", "crossdoc_candidates", "explain_one_pair_reports_actual_candidate_and_threshold_decisions"),
     "grounded-pair-explanation": Contract(
         "anno-cli", "membership_queries", "explain_submitted_pair_from_cli"),
+    "raw-dense-pell": Contract(
+        "anno-cli", "crossdoc_candidates", "dense_documents_preserve_the_pell_link_across_100_mentions"),
+    "raw-nonempty-boundary": Contract(
+        "anno-cli", "crossdoc_candidates", "raw_auto_mode_switches_at_101_documents_with_mentions"),
     "grounded-candidate-policy": Contract(
         "anno-cli", "crossdoc_candidates", "imported_tracks_report_their_own_policy_and_reject_raw_options"),
     "grounded-replacement-order": Contract(
