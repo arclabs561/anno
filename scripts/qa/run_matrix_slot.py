@@ -4,10 +4,10 @@ import argparse
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 
 from compare_matrix_picks import PLAN_TEST, build_test_binary, record
+from replay_matrix_cell import language_tag
 from replay_matrix_feedback import ROOT, TEST
 import replay_feedback
 
@@ -29,7 +29,7 @@ def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed,
         raise ValueError("seed must fit an unsigned 64-bit integer")
     cells = [tuple(cell) for cell in coverage_cells]
     if cells and (policy != "mixed" or len(cells) != len(set(cells))
-                  or any(not task or not re.fullmatch(r"[a-z]+(?:-[a-z0-9]+)*", lang) for task, lang in cells)):
+                  or any(not task or not language_tag(lang) for task, lang in cells)):
         raise ValueError("coverage cells require a mixed policy and distinct task/language pairs")
     target = cells[((slot - 1) // period) % len(cells)] if strategy == "estimate" and cells else None
     cache = cache.resolve()

@@ -499,8 +499,8 @@ jobs:
       - name: Test
         env: *unit-model-cache
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
-      - name: Check prepared model loading and shared dataset staging offline
-        run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache --test offline_gliner_selection
+      - name: Check model loading, dataset staging and Estimate history offline
+        run: cargo test --locked -p anno-eval --features "onnx,eval,discourse" --test nuner_4k_export --test matrix_shared_cache --test offline_gliner_selection --test estimate_panel
       # Reuse the workspace test build and retain the dedicated 100-case run.
       - name: Run property tests
         if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
