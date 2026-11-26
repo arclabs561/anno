@@ -10,7 +10,7 @@ On “Ada founded Acme. She leads it.”, NER can return the typed spans “Ada�
 |---|---|---|---|
 | Text containing emails, dates, URLs or amounts | Typed occurrences, without model weights | `anno extract --model pattern` | Fixed rules determine coverage. `heuristic` adds capitalization/context-based names. `crf` and `hmm` provide classical sequence baselines. [Classical models](#classical-no-feature-gate) |
 | Text and a fixed tag inventory matching a trained model | Conventional named entities | `anno extract --model bert-onnx` with a pinned checkpoint | The checkpoint’s BIO mapping defines the available labels. [Checkpoint selection](#selecting-ner-checkpoints) |
-| Text and entity labels supplied at runtime | Typed mention spans | `anno extract --model gliner --extract-types person,organization` or `--model nuner` | GLiNER v1 scores prompted spans. NuNER Zero and Zero-4k score words and merge adjacent same-label words. NuNER Zero-span scores trained multiword candidates directly. Verify the actual checkpoint and language on your data. [Span export details](#span-width-exports-max_width) · [Native checkpoint replays](../scripts/qa/checkpoint_replay/README.md) |
+| Text and entity labels supplied at runtime | Typed mention spans | `anno extract --model gliner --extract-types person,organization` or `--model nuner` | GLiNER v1 scores prompted spans. NuNER Zero and Zero-4k score words and merge adjacent same-label words. NuNER Zero-span scores trained multiword candidates directly. Verify the actual checkpoint and language on your data. [Span export details](#span-width-exports) · [Native checkpoint replays](../scripts/qa/checkpoint_replay/README.md) |
 | Text and custom labels in the GLiNER2.5 schema budget | A flat set of labeled spans | `anno extract --model gliner25` with `GLINER25_MODEL_DIR` | The native boundary export uses a shared 512-token prompt/text window and rejects oversized input. The separate `anno joint` entry point accepts a relation schema. [GLiNER2.5](#fastino-gliner25) |
 | Text, known entity occurrences and predicate labels | Directed edges among those occurrences | Rust `GLiREL::extract_relations(text, entities, relation_types, threshold)` | Give each occurrence its source span. Missed or misaligned upstream mentions affect which pairs can be scored. [GLiREL API](../crates/anno/src/backends/glirel/onnx.rs) |
 | Text and entity/predicate vocabularies | Mentions and directed relations from a trained joint export | `anno extract --model gliner-relex --extract-types person,organization --extract-relations --relation-types founded` | The entity-only export serves NER. A relation request requires the `--joint` export and a compatible relation head. The prompt’s label inventory materially affects scores. [Export and replay](#architecture-specific-gotchas) · [CrossRE experiments](eval/crossre-full-prompt-comparison.md) |
@@ -21,7 +21,9 @@ The GLiNER name covers several interfaces. When labels repeat across many docume
 
 For NuNER Zero-4k, FP32 and QUInt8 both scored 50.7% exact span-and-label F1 on 24 hash-selected English MultiNERD test sentences at threshold 0.5. Across all 38 inputs, including separate Unicode and constructed long-text cases, the two graphs returned different spans on ten. The checkpoint card lists English, and one long-input case uses Russian. The smaller graph is an experimental option for callers who can check their own labels and threshold. FP32 remains the reference. [Labeled comparison and artifact sizes](https://github.com/arclabs561/anno/blob/31af7a24497bf00cc41731b3d870b5e451b33e16/docs/eval/nuner-4k-labeled.md)
 
-For overlapping or nested mentions, inspect W2NER’s word-grid output and the simplifications in its local export. For a hosted model, UniversalNER uses a configured chat-completions endpoint. API availability, model ID and offset recovery then become part of the run. [W2NER export](#architecture-specific-gotchas) · [LLM setup](#neural-llm-feature-llm)
+See the [backend error analysis](eval/backend-residuals.md) for exact misses, extra predictions, and the stages where they were observed.
+
+For overlapping or nested mentions, inspect W2NER’s word-grid output and the simplifications in its local export. For a hosted model, UniversalNER uses a configured chat-completions endpoint. API availability, model ID and offset recovery then become part of the run. [W2NER export](#architecture-specific-gotchas) · [LLM setup](#hosted-llm-backends)
 
 The extraction default `stacked` combines rules and available models. Its ONNX configuration attempts BERT and NuNER, then tries GLiNER if neither loads. Its rule layers can still extract entities without a neural model. For a deterministic rule-only run, select `pattern` explicitly. `ANNO_NO_DOWNLOADS=1` permits cached weights. Evaluation IDs can differ from CLI names, for example `bert_onnx` and `gliner_onnx` in evaluations versus `--model bert-onnx` and `--model gliner` in extraction. [Evaluation panels](../scripts/qa/core-panel.json) · [CLI model selectors](../crates/anno-cli/src/cli/parser.rs)
 
@@ -163,7 +165,7 @@ GLINER_POLY_MODEL_PATH=/tmp/gliner-bi-edge anno extract --model gliner-poly \
     --extract-types person,location 'Marie Curie worked in Paris.'
 ```
 
-#### Span-width exports (`max_width`)
+#### Span-width exports
 
 `gliner`, `gliner_poly`, and `gliner_multitask` score a fixed grid of word
 spans per position. The grid width is an **export property**, not a runtime
@@ -414,7 +416,9 @@ Do not read a compile check, a declared feature, or a listed backend as runtime
 coverage. Provider behaviour needs evidence from the host you intend to run on;
 use `onnx_cuda_smoke`, `onnx_coreml_smoke`, and the provider probes for that.
 
-### Neural: LLM (feature `llm`)
+### Hosted LLM backends
+
+Enable the `llm` feature for these backends.
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|

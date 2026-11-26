@@ -1,0 +1,25 @@
+diff --git a/crates/anno-eval/src/eval/task_evaluator.rs b/crates/anno-eval/src/eval/task_evaluator.rs
+index 0c8957ff..0de0ec0b 100644
+--- a/crates/anno-eval/src/eval/task_evaluator.rs
++++ b/crates/anno-eval/src/eval/task_evaluator.rs
+@@ -3600,6 +3600,20 @@ impl TaskEvaluator {
+             require_entity_type_match: false,
+             ..RelationEvalConfig::default()
+         };
++        if let Ok(path) = std::env::var("ANNO_DIAGNOSTIC_RELATION_ROWS") {
++            use std::io::Write;
++            let mut f = std::io::BufWriter::new(std::fs::File::create(path).expect("trace file"));
++            for (doc, predictions) in relation_docs.iter().zip(&predictions_by_doc) {
++                let predicted: Vec<_> = predictions.iter().map(|p| serde_json::json!([
++                    p.head_span, p.tail_span, p.relation_type, p.head_type, p.tail_type
++                ])).collect();
++                let gold: Vec<_> = doc.relations.iter().map(|g| serde_json::json!([
++                    g.head_span, g.tail_span, g.relation_type, g.head_type, g.tail_type
++                ])).collect();
++                writeln!(f,"{}",serde_json::json!({"gold":gold,"predicted":predicted,"text":doc.text})).expect("trace row");
++            }
++            f.flush().expect("flush trace");
++        }
+         let metrics_result = evaluate_relation_documents(
+             relation_docs
+                 .iter()
