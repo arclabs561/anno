@@ -61,11 +61,20 @@ def check_case(binary, directory, spec, case):
     producer = result["provenance"]
     if producer["model"].replace("_", "-") != spec["backend"] or producer["checkpoint"] != str(directory):
         raise ValueError(f"Unexpected producer for {spec['backend']}: {producer}")
+    if producer["runtime_model"] != spec["runtime_model"]:
+        raise ValueError(f"Wrong runtime for {spec['backend']}: {producer['runtime_model']}")
     found = []
+    occurrence_ids = set()
     for ent in result["entities"]:
         a, b = ent["start"], ent["end"]
         if not (0 <= a < b <= len(text)) or text[a:b] != ent["text"]:
             raise ValueError(f"Invalid source span: {ent}")
+        byte_range = {"start": len(text[:a].encode()), "end": len(text[:b].encode())}
+        if ent["analyzed_byte_ranges"] != [byte_range]:
+            raise ValueError(f"Wrong analyzed bytes for source span [{a}, {b})")
+        if ent["id"] in occurrence_ids:
+            raise ValueError(f"Duplicate occurrence ID at [{a}, {b}): {ent['id']}")
+        occurrence_ids.add(ent["id"])
         found.append([a, b, ent["type"], ent["confidence"]])
     found.sort()
     expected = sorted(case["entities"])
@@ -75,7 +84,8 @@ def check_case(binary, directory, spec, case):
         if len(ref) == 4 and not math.isclose(actual[3], ref[3], abs_tol=SCORE_TOLERANCE, rel_tol=0):
             raise ValueError(f"{spec['backend']} score outside tolerance: {actual}, reference {ref}")
     return {"source_sha256": hashlib.sha256(text.encode()).hexdigest(), "entities": found,
-            "backend": producer["model"], "elapsed_seconds_including_load": elapsed}
+            "backend": producer["model"], "runtime_model": producer["runtime_model"],
+            "elapsed_seconds_including_load": elapsed}
 
 
 def main():

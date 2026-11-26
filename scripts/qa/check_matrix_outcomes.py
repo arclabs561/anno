@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from export_muxer_summary import WIKIGOLD
-from replay_matrix_cell import FIXTURES, replay_command
+from replay_matrix_cell import FIXTURES, language_tag, replay_command
 
 
 RANDOM_TASKS = ("ner", "re", "intra-coref", "temporal")
@@ -128,6 +128,7 @@ def check(lines, report=False, verify_wikigold=False):
     unverified_wikigold = 0
     attempts = Counter()
     completions = Counter()
+    measured_languages = Counter()
     failures = Counter()
     failure_kinds = Counter()
     failed_cells = Counter()
@@ -159,6 +160,11 @@ def check(lines, report=False, verify_wikigold=False):
                 failed_cells[(task, row["dataset"], row["backend"], kind)] += 1
         elif row["cost_units"] > 0:
             completions[lane] += 1
+            observed_lang = row.get("observed_language")
+            if observed_lang is not None and not language_tag(observed_lang):
+                raise ValueError("invalid observed language in matrix outcome")
+            task = row["slice"].split(".", 1)[0]
+            measured_languages[task, observed_lang or "unverified"] += 1
             if verify_wikigold and row.get("dataset") == "WikiGold" and row.get("dataset_sha256") != WIKIGOLD:
                 unverified_wikigold += 1
 
@@ -168,6 +174,12 @@ def check(lines, report=False, verify_wikigold=False):
         empty = attempts[lane] - completions[lane] - failures[lane]
         label = lane if attempts[lane] else f"{lane} (no outcome)"
         print(f"| {label} | {completions[lane]} | {failures[lane]} | {empty} |")
+
+    if report and measured_languages:
+        print("\n| Task | Observed input language | Completed evaluations |")
+        print("|---|---|---:|")
+        for (task, language), count in sorted(measured_languages.items()):
+            print(f"| {task} | {language} | {count} |")
 
     for digest, datasets in sorted(inputs_by_digest.items()):
         if len(datasets) > 1:

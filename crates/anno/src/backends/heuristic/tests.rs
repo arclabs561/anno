@@ -1159,3 +1159,40 @@ fn entity_text_matches_source_span_with_irregular_whitespace() {
         entities.iter().map(|e| &e.text).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn names_on_either_side_of_unicode_sentence_terminals_stay_distinct() {
+    let model = HeuristicNER::with_threshold(0.0);
+    for boundary in ["。 ", "؟ ", "। ", "！ ", "？", "॥", "። ", "。”"] {
+        let text = format!("At Acme Inc{boundary}Marie works.");
+        let entities = model.extract_entities(&text, None).unwrap();
+        let end = text[..text.find("Marie").unwrap()].chars().count();
+        for (surface, start) in [("Acme Inc", 3), ("Marie", end)] {
+            assert!(
+                entities.iter().any(|e| e.text == surface
+                    && e.start() == start
+                    && e.end() == start + surface.chars().count()),
+                "{boundary:?}: {entities:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn unicode_sentence_segmentation_preserves_internal_name_punctuation() {
+    let model = HeuristicNER::new();
+    for name in [
+        "Yahoo! Inc",
+        "Yahoo！ Inc",
+        "Yahoo！Japan",
+        "Acme (UK) Ltd",
+        "U.S.A",
+    ] {
+        let source = format!("At {name}. work continues.");
+        let output = model.extract_entities(&source, None).unwrap();
+        assert!(
+            output.iter().any(|e| e.text == name && e.start() == 3),
+            "{source}: {output:?}"
+        );
+    }
+}

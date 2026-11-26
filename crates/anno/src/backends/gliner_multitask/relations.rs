@@ -12,6 +12,7 @@ pub(crate) fn extract_relations_heuristic(
     text: &str,
     relation_types: &[&str],
     threshold: f32,
+    max_span_distance: usize,
 ) -> Vec<crate::backends::inference::RelationTriple> {
     use crate::backends::inference::relation_extraction::{
         extract_relation_triples_simple, RelationExtractionConfig,
@@ -19,7 +20,7 @@ pub(crate) fn extract_relations_heuristic(
 
     let config = RelationExtractionConfig {
         threshold: crate::Confidence::new(threshold as f64),
-        max_span_distance: 120,
+        max_span_distance,
         extract_triggers: false,
     };
     extract_relation_triples_simple(entities, text, relation_types, &config)
@@ -46,7 +47,7 @@ mod tests {
             entity("Acme Corp", crate::EntityType::Organization, 16, 25),
         ];
         let rel_types: Vec<&str> = vec!["WORKS_FOR", "LOCATED_IN"];
-        let rels = extract_relations_heuristic(&entities, text, &rel_types, 0.0);
+        let rels = extract_relations_heuristic(&entities, text, &rel_types, 0.0, 120);
         let labels: Vec<&str> = rels.iter().map(|r| r.relation_type.as_str()).collect();
         assert!(
             labels.contains(&"WORKS_FOR"),
@@ -56,14 +57,14 @@ mod tests {
 
     #[test]
     fn empty_entities_returns_empty() {
-        let rels = extract_relations_heuristic(&[], "some text", &["WORKS_FOR"], 0.0);
+        let rels = extract_relations_heuristic(&[], "some text", &["WORKS_FOR"], 0.0, 120);
         assert!(rels.is_empty());
     }
 
     #[test]
     fn single_entity_returns_empty() {
         let entities = vec![entity("Alice", crate::EntityType::Person, 0, 5)];
-        let rels = extract_relations_heuristic(&entities, "Alice is here", &[], 0.0);
+        let rels = extract_relations_heuristic(&entities, "Alice is here", &[], 0.0, 120);
         assert!(rels.is_empty(), "need at least two entities for a relation");
     }
 
@@ -74,7 +75,7 @@ mod tests {
             entity("Alice", crate::EntityType::Person, 0, 5),
             entity("Bob", crate::EntityType::Person, 16, 19),
         ];
-        let rels = extract_relations_heuristic(&entities, text, &[], 0.99);
+        let rels = extract_relations_heuristic(&entities, text, &[], 0.99, 120);
         // With threshold 0.99, most heuristic relations should be filtered out.
         // (proximity * base_score * avg_confidence will rarely exceed 0.99)
         assert!(
@@ -92,7 +93,7 @@ mod tests {
             entity("Alice", crate::EntityType::Person, 0, 5),
             entity("Paris", crate::EntityType::Location, 14, 19),
         ];
-        let rels = extract_relations_heuristic(&entities, text, &[], 0.0);
+        let rels = extract_relations_heuristic(&entities, text, &[], 0.0, 120);
         let pair_count = rels
             .iter()
             .filter(|r| r.head_idx == 0 && r.tail_idx == 1)
@@ -113,7 +114,7 @@ mod tests {
             entity("Apple Inc.", crate::EntityType::Organization, 18, 28),
             entity("Cupertino", crate::EntityType::Location, 32, 41),
         ];
-        let rels = extract_relations_heuristic(&entities, text, &[], 0.0);
+        let rels = extract_relations_heuristic(&entities, text, &[], 0.0, 120);
 
         // For each undirected pair, there should be at most one relation
         let mut seen_undirected = std::collections::HashSet::new();

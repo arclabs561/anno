@@ -908,6 +908,7 @@ impl TaskEvaluator {
                 split: input.dataset.metadata.split.clone(),
                 version: input.dataset.metadata.version.clone(),
                 language: input.dataset.metadata.language.clone(),
+                observed_language: input.dataset.metadata.observed_language.clone(),
                 domain: input.dataset.metadata.domain.clone(),
                 sentence_count: input.dataset.sentences.len(),
                 entity_count: input.dataset.entity_count(),

@@ -105,6 +105,21 @@ pub struct EvalHistoryEntry {
     pub policy_cohort_key: Option<String>,
 }
 
+/// Recover language evidence recorded in a full run or its bounded checkpoint projection.
+pub(crate) fn observed_language_in_metadata(metadata: &serde_json::Value) -> Option<&str> {
+    if metadata
+        .get("checkpoint_retry_version")
+        .and_then(|v| v.as_u64())
+        == Some(1)
+    {
+        metadata.get("checkpoint_observed_language")?.as_str()
+    } else {
+        metadata
+            .pointer("/provenance/dataset/observed_language")?
+            .as_str()
+    }
+}
+
 impl EvalHistoryEntry {
     fn counts_toward_coverage(&self) -> bool {
         self.n > 0 && self.error.is_none()
@@ -1031,36 +1046,68 @@ impl EvalHistory {
         &self,
         policy_cohort_key: &str,
     ) -> std::io::Result<HashMap<(String, String), u64>> {
+        self.cell_observation_counts_for_language(
+            policy_cohort_key,
+            &super::dataset_language::CoverageLanguage::Any,
+        )
+    }
+
+    pub(crate) fn cell_observation_counts_for_language(
+        &self,
+        policy_cohort_key: &str,
+        scope: &super::dataset_language::CoverageLanguage,
+    ) -> std::io::Result<HashMap<(String, String), u64>> {
+        use super::dataset_language::CoverageLanguage;
+        let mut counts = HashMap::new();
         if let Some(ref db_path) = self.sqlite_path {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                // Unpinned, stable-language panels keep their pooled history without parsing
+                // stored receipts. Only the verified artifact field may count toward a pin.
                 let mut stmt = conn
                     .prepare(
-                        "SELECT backend, dataset, COUNT(*) FROM eval_results \
-                         WHERE policy_cohort_key = ?1 AND error IS NULL AND n > 0 GROUP BY backend, dataset",
+                        "SELECT backend, dataset, CASE
+                        WHEN ?2 = 0 OR NOT json_valid(metadata) THEN NULL
+                        WHEN json_extract(metadata, '$.checkpoint_retry_version') = 1
+                            THEN json_extract(metadata, '$.checkpoint_observed_language')
+                        ELSE json_extract(metadata, '$.provenance.dataset.observed_language')
+                     END AS measured_language, COUNT(*)
+                     FROM eval_results WHERE policy_cohort_key = ?1 AND error IS NULL AND n > 0
+                     GROUP BY backend, dataset, measured_language",
                     )
-                    .map_err(|e| std::io::Error::other(e.to_string()))?;
-                let mut counts = HashMap::new();
+                    .map_err(std::io::Error::other)?;
                 let rows = stmt
-                    .query_map([policy_cohort_key], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, u64>(2)?,
-                        ))
-                    })
-                    .map_err(|e| std::io::Error::other(e.to_string()))?;
-                for (backend, dataset, count) in rows.flatten() {
-                    counts.insert((backend, dataset), count);
+                    .query_map(
+                        rusqlite::params![policy_cohort_key, *scope != CoverageLanguage::Any],
+                        |row| {
+                            let language = row.get_ref(2)?.as_str().ok().map(str::to_owned);
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                language,
+                                row.get::<_, u64>(3)?,
+                            ))
+                        },
+                    )
+                    .map_err(std::io::Error::other)?;
+                for row in rows {
+                    let (backend, dataset, language, count) = row.map_err(std::io::Error::other)?;
+                    if scope.includes(language.as_deref()) {
+                        *counts.entry((backend, dataset)).or_insert(0) += count;
+                    }
                 }
                 return Ok(counts);
             }
         }
-
-        let mut counts = HashMap::new();
         for entry in self.load_all()? {
-            if entry.counts_toward_coverage()
-                && entry.policy_cohort_key.as_deref() == Some(policy_cohort_key)
+            if !entry.counts_toward_coverage()
+                || entry.policy_cohort_key.as_deref() != Some(policy_cohort_key)
             {
+                continue;
+            }
+            let metadata = (*scope != CoverageLanguage::Any)
+                .then(|| serde_json::from_str::<serde_json::Value>(entry.metadata.as_deref()?).ok())
+                .flatten();
+            if scope.includes(metadata.as_ref().and_then(observed_language_in_metadata)) {
                 *counts.entry((entry.backend, entry.dataset)).or_insert(0) += 1;
             }
         }
@@ -1792,6 +1839,47 @@ mod tests {
             .query_recent("test-backend", 1)
             .expect("query failed")
             .is_empty());
+    }
+
+    #[test]
+    fn observed_language_estimate_counts_separate_verified_and_legacy_rows() {
+        use super::super::dataset_language::CoverageLanguage;
+        use serde_json::json;
+        let temp = TempDir::new().unwrap();
+        let history = EvalHistory::new(temp.path().join("history.jsonl")).unwrap();
+        let mut row = test_entry(0, 1);
+        row.policy_cohort_key = Some("one".into());
+        for evidence in [
+            json!({"provenance":{"dataset":{"observed_language":"de"}}}),
+            json!({"provenance":{"dataset":{"observed_language":"en"}}}),
+            json!({"checkpoint_retry_version":1, "checkpoint_observed_language":"en"}),
+            json!({"provenance":{"dataset":{"language":"de"}}, "requested_languages":["de"]}),
+            json!({"checkpoint_retry_version":1}),
+        ] {
+            row.metadata = Some(evidence.to_string());
+            history.append_entry(&row).unwrap();
+        }
+        let jsonl = EvalHistory {
+            jsonl_path: history.jsonl_path.clone(),
+            sqlite_path: None,
+        };
+        for store in [&history, &jsonl] {
+            for (scope, count) in [
+                (CoverageLanguage::Any, 5),
+                (CoverageLanguage::Unknown, 2),
+                (CoverageLanguage::Verified(["de".to_owned()].into()), 1),
+                (CoverageLanguage::Verified(["en".to_owned()].into()), 2),
+                (
+                    CoverageLanguage::Verified(["de".to_owned(), "en".to_owned()].into()),
+                    3,
+                ),
+            ] {
+                let counts = store
+                    .cell_observation_counts_for_language("one", &scope)
+                    .unwrap();
+                assert_eq!(counts.values().sum::<u64>(), count, "{scope:?}");
+            }
+        }
     }
 
     #[test]

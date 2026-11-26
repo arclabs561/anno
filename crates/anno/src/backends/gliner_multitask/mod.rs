@@ -92,6 +92,7 @@ fn extract_relations_neural_or_heuristic(
     text: &str,
     relation_types: &[&str],
     threshold: f32,
+    max_span_distance: usize,
 ) -> (
     Vec<crate::backends::inference::RelationTriple>,
     crate::Provenance,
@@ -142,7 +143,13 @@ fn extract_relations_neural_or_heuristic(
 
     // Heuristic fallback
     (
-        relations::extract_relations_heuristic(entities, text, relation_types, threshold),
+        relations::extract_relations_heuristic(
+            entities,
+            text,
+            relation_types,
+            threshold,
+            max_span_distance,
+        ),
         crate::Provenance::from_producer("relation-heuristic", crate::ExtractionMethod::Heuristic),
     )
 }
@@ -464,9 +471,25 @@ impl RelationExtractor for GLiNERMultitaskOnnx {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        self.extract_with_heuristic_distance(text, types, relation_types, threshold, 120)
+    }
+
+    fn extract_with_heuristic_distance(
+        &self,
+        text: &str,
+        types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+        max_span_distance: usize,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
         let entities = self.extract_ner(text, types, threshold)?;
-        let (relations, provenance) =
-            extract_relations_neural_or_heuristic(&entities, text, relation_types, threshold);
+        let (relations, provenance) = extract_relations_neural_or_heuristic(
+            &entities,
+            text,
+            relation_types,
+            threshold,
+            max_span_distance,
+        );
         Ok((
             ExtractionWithRelations {
                 entities,
@@ -486,18 +509,10 @@ impl RelationExtractor for GLiNERMultitaskCandle {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<ExtractionWithRelations> {
-        let type_strings: Vec<String> = types.iter().map(|s| s.to_string()).collect();
-        let entities = self.extract_entities(text, &type_strings, threshold)?;
-
-        // Use heuristic relations for Candle backend (GLiREL is ONNX-only)
-        let relations =
-            relations::extract_relations_heuristic(&entities, text, relation_types, threshold);
-
-        Ok(ExtractionWithRelations {
-            entities,
-            relations,
-        })
+        self.extract_with_relation_provenance(text, types, relation_types, threshold)
+            .map(|(output, _)| output)
     }
+
     fn extract_with_relation_provenance(
         &self,
         text: &str,
@@ -505,7 +520,30 @@ impl RelationExtractor for GLiNERMultitaskCandle {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
-        let output = self.extract_with_relations(text, types, relation_types, threshold)?;
+        self.extract_with_heuristic_distance(text, types, relation_types, threshold, 120)
+    }
+
+    fn extract_with_heuristic_distance(
+        &self,
+        text: &str,
+        types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+        max_span_distance: usize,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        let type_strings: Vec<String> = types.iter().map(|s| s.to_string()).collect();
+        let entities = self.extract_entities(text, &type_strings, threshold)?;
+        let relations = relations::extract_relations_heuristic(
+            &entities,
+            text,
+            relation_types,
+            threshold,
+            max_span_distance,
+        );
+        let output = ExtractionWithRelations {
+            entities,
+            relations,
+        };
         Ok((
             output,
             Some(crate::Provenance::from_producer(
@@ -610,7 +648,7 @@ mod tests {
 
         // Should not panic on Unicode text; should detect at least one trigger relation.
         let rels: Vec<RelationTriple> =
-            relations::extract_relations_heuristic(&entities, text, &[], 0.0);
+            relations::extract_relations_heuristic(&entities, text, &[], 0.0, 120);
         assert!(
             rels.iter()
                 .any(|r| r.relation_type == "CEO_OF" || r.relation_type == "WORKS_FOR"),
