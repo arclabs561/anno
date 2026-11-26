@@ -8,16 +8,17 @@ same person, place, or thing. Each result points back to the words it came from.
 
 ## Find mentions
 
-The offline extractor finds two mentions in this sentence:
+> **Sophie Wilson** designed the **ARM** processor.
 
-```rust,no_run
-let text = "Sophie Wilson designed the ARM processor.";
-let mentions = anno::extract(text)?;
-// Sophie Wilson [PER]  0..13
-// ARM           [ORG] 27..30
+The offline extractor returns two mentions:
+
+```text
+Sophie Wilson   PER    0..13
+ARM             ORG   27..30
 ```
 
-Each range counts Unicode scalar values in the original text. To highlight
+Pass the sentence to `anno::extract` to get the label and range for each
+mention. Each range counts Unicode scalar values in the original text. To highlight
 a mention in a Rust string, convert the range to byte offsets first.
 [Working with offsets](docs/CONTRACT.md#source-text-and-offsets)
 
@@ -30,9 +31,8 @@ cargo run -p anno --no-default-features --example quickstart
 
 ## Follow a pronoun across captions
 
-> Émilie Durand inspected the east gate.
->
-> She said it would reopen on Monday.
+> **Émilie Durand** inspected *the east gate*.\
+> **She** said *it* would reopen on Monday.
 
 Here FCoref links *She* to *Émilie Durand* and *it* to *the east gate*. A
 caption editor can use either link to highlight the earlier words or play
@@ -49,11 +49,11 @@ In Anno’s replay of 128 English passages from the GAP test split, 117
 pronoun–name pairs were labeled as referring to the same person. FCoref
 received the raw passages and predicted its own mentions.
 
-| What appeared in FCoref’s output? | True pairs |
+| FCoref output | Pairs |
 | --- | ---: |
-| Both mentions, linked together | 73 |
-| Both mentions, in separate clusters | 3 |
-| One or both exact spans absent | 41 |
+| Both mentions linked | 73 |
+| Mentions in separate clusters | 3 |
+| At least one span missing | 41 |
 
 For most missed links on this panel, at least one of the two spans was
 already missing from the output. The study also counts false links and
