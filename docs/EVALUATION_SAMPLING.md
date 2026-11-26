@@ -278,6 +278,15 @@ for slot in 1 2 3 4; do
 done
 ```
 
+Repeat `--coverage-cell TASK LANG` to reserve estimate slots for a rotation of
+task and language pairs. For example, adding `--coverage-cell ner en
+--coverage-cell ner de` to every invocation assigns slots 2, 6 and 10 to
+English, German and English. Other slots retain their existing selector.
+Use canonical observed language tags and the corresponding authorized caches.
+A completed slot requires at least one nonempty, successful evaluation on the
+requested task and verified input language. An empty pool, ambiguous input or
+wrong language leaves the target unfilled. A plan-only run earns no coverage.
+
 The period repeats if the trial continues. The reserved fraction counts
 selection slots. Record observed cost and completed task/dataset/backend cells
 when choices run different numbers of examples. Each fresh receipt directory
