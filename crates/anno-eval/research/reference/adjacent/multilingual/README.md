@@ -93,3 +93,19 @@ done
 python predicted_heads.py /tmp/corefud-dev.parquet /tmp/udpipe-models replay.json
 cmp predicted-head-results.json replay.json
 ```
+
+**Implementation references.** Three interface decisions affect how to interpret
+these results and reproduce them in downstream tools.
+
+- brat represents discontinuous text-bound annotations as multiple half-open
+  character ranges in an unchanged UTF-8 source. Preserve each range and the
+  identity of the source revision when exchanging annotations. [brat standoff specification](https://brat.nlplab.org/standoff.html)
+- spaCy's original LLM NER task reconstructs offsets from returned strings.
+  Its configuration exposes repeated matching, case sensitivity and alignment
+  modes. Repeated identical strings can therefore receive different occurrence
+  assignments across adapters. Score the individual occurrences and record the
+  alignment policy when evaluating a string-returning adapter. [spaCy LLM task reference](https://spacy.io/api/large-language-models)
+- UDPipe distinguishes loading pretokenized words from segmenting raw text.
+  Our replay constructs a sentence from the supplied words before tagging and
+  parsing. A raw-text comparison must also measure tokenizer boundaries and
+  count alignment failures in its denominator. [UDPipe 1 API reference](https://ufal.mff.cuni.cz/udpipe/1/api-reference)
