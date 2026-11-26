@@ -129,7 +129,7 @@ def main():
         check_file(a.model / name, digest)
     env = dict(os.environ, FCOREF_MODEL_PATH=str(a.model.resolve()), ANNO_NO_DOWNLOADS="1",
                HF_HUB_OFFLINE="1", OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
-    for opt in ("ANNO_FCOREF_DOUBLE_K", "ANNO_FCOREF_BOUNDARY_RANKS", "ANNO_EXPERIMENT_COREf_POOL"):
+    for opt in ("ANNO_FCOREF_DOUBLE_K", "ANNO_FCOREF_BOUNDARY_RANKS"):
         env.pop(opt, None)
     inputs = "".join(json.dumps({"id": r["ID"], "text": r["Text"]}) + "\n" for r in rows)
     out = subprocess.run([a.binary.resolve(), "fcoref"], input=inputs, text=True,
