@@ -1,11 +1,13 @@
 name: Verify S3 dataset cache
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
 
 permissions: {}
 
 jobs:
   verify:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -40,6 +42,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          figures="$RUNNER_TEMP/s3-dataset-cache-figures"
+          mkdir -p "$figures"
           work=$(mktemp -d)
           trap 'rm -rf -- "$work"' EXIT
           # JSON output lets the AWS CLI combine all pages before applying the query.
@@ -62,7 +66,8 @@ jobs:
                 exit 1
               }
               echo "Verified $key (SHA-256 $WIKIGOLD_SHA256)." | tee -a "$GITHUB_STEP_SUMMARY"
-              target/debug/examples/cache_inventory "$work/keys.json" "$key" "$work/sample" | tee -a "$GITHUB_STEP_SUMMARY"
+              target/debug/examples/cache_inventory "$work/keys.json" "$key" "$work/sample" > "$figures/s3-cache-inventory.json"
+              tee -a "$GITHUB_STEP_SUMMARY" < "$figures/s3-cache-inventory.json"
               exit 0
             fi
           done
@@ -72,7 +77,7 @@ jobs:
         env:
           ANNO_S3_CACHE: "0"
           ANNO_CACHE_DIR: ${{ runner.temp }}/wikigold-upstream
-        run: target/debug/examples/wikigold_cache_probe > "$RUNNER_TEMP/wikigold-upstream.json"
+        run: target/debug/examples/wikigold_cache_probe > "$RUNNER_TEMP/s3-dataset-cache-figures/wikigold-upstream.json"
       - name: Compare cold S3 and warm local loader results with upstream
         env:
           ANNO_S3_CACHE: "1"
@@ -82,9 +87,10 @@ jobs:
         run: |
           set -euo pipefail
           probe=target/debug/examples/wikigold_cache_probe
-          "$probe" > "$RUNNER_TEMP/wikigold-cold.json"
-          "$probe" > "$RUNNER_TEMP/wikigold-warm.json"
-          results=("$RUNNER_TEMP"/wikigold-{upstream,cold,warm}.json)
+          figures="$RUNNER_TEMP/s3-dataset-cache-figures"
+          "$probe" > "$figures/wikigold-cold.json"
+          "$probe" > "$figures/wikigold-warm.json"
+          results=("$figures"/wikigold-{upstream,cold,warm}.json)
           jq -cs '.' "${results[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
           jq -es --arg sha "$WIKIGOLD_SHA256" '
             map(.source) == ["OriginalUrl", "S3Cache", "LocalCache"]
@@ -92,3 +98,28 @@ jobs:
             and (map(.dataset) | unique | length == 1)
             and (map(.heuristic_score) | unique | length == 1)
           ' "${results[@]}" >/dev/null
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Plot the verified cache inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          figures="$RUNNER_TEMP/s3-dataset-cache-figures"
+          uv run --python 3.12 --with matplotlib==3.10.8 python scripts/plot_s3_cache_inventory.py \
+            "$figures/s3-cache-inventory.json" "$figures"
+          test -s "$figures/s3-cache-inventory.png"
+          test -s "$figures/s3-cache-inventory.svg"
+      - name: Save the cache figure and verification receipts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: s3-dataset-cache-figures
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/s3-dataset-cache-figures/s3-cache-inventory.png
+            ${{ runner.temp }}/s3-dataset-cache-figures/s3-cache-inventory.svg
+            ${{ runner.temp }}/s3-dataset-cache-figures/s3-cache-inventory.json
+            ${{ runner.temp }}/s3-dataset-cache-figures/wikigold-upstream.json
+            ${{ runner.temp }}/s3-dataset-cache-figures/wikigold-cold.json
+            ${{ runner.temp }}/s3-dataset-cache-figures/wikigold-warm.json

@@ -338,6 +338,11 @@ regenerate-datasets:
         --stats
     python3 scripts/generate_catalog_html.py
 
+# Render all published dataset figures. Pass --update to refresh the docs or --check to verify them.
+[positional-arguments]
+dataset-figures *args:
+    @uv run --python 3.12 --script scripts/refresh_dataset_figures.py "$@"
+
 # Curated benchmark profiles (official; avoids parsing markdown and avoids “sweep everything”).
 # Examples:
 # - just eval-profile ner-standard 20
