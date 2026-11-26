@@ -1,0 +1,45 @@
+{
+  "splits": {
+    "validation": {
+      "stock_fn": 40,
+      "double_fn": 40,
+      "changed_decisions": 0,
+      "stock_tn": 105,
+      "double_tn": 105,
+      "stock_tp": 43,
+      "double_tp": 43,
+      "stock_fp": 4,
+      "double_fp": 4
+    },
+    "test": {
+      "stock_tn": 170,
+      "double_tn": 170,
+      "changed_decisions": 0,
+      "stock_tp": 88,
+      "double_tp": 88,
+      "stock_fn": 55,
+      "double_fn": 55,
+      "stock_fp": 7,
+      "double_fp": 7
+    }
+  },
+  "missing_exact_name": 67,
+  "with_linked_boundary_rival": 53,
+  "admitted_by_double": 2,
+  "linked_by_double": 0,
+  "rival_logit_gap": {
+    "min": 3.155036211013794,
+    "median": 11.875972986221313,
+    "max": 22.376245498657227
+  },
+  "cutoff_logit_gap": {
+    "min": 0.6086182594299316,
+    "median": 8.651898860931396,
+    "max": 18.824544429779053
+  },
+  "ranks_below_cut": {
+    "min": 13,
+    "median": 524,
+    "max": 2469
+  }
+}

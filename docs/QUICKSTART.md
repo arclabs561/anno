@@ -54,6 +54,21 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
   --text "Aspirin can treat headaches and reduce fever."
 ```
 
+### Reuse extraction settings
+
+Plain `anno extract` uses the stacked backend and human-readable output. It applies an extra entity confidence filter only when you supply a threshold. To reuse the same model and output choices across commands, save a named profile once.
+
+```sh
+anno config save review --model stacked --format json
+anno config ls
+anno config show review
+anno extract --config review --text "Mira works in Paris."
+```
+
+An extract profile accepts model, format and an optional threshold. Explicit CLI values override the corresponding saved ones. The saved coreference and KB-linking switches are consumed by `anno debug`. For example, adding `--format tsv` to the last command changes the output for that invocation.
+
+When requesting relations, `--relation-threshold` takes precedence over the entity threshold. With neither threshold supplied, the relation cutoff is 0.55. The heuristic relation gap defaults to 120 source characters. Both relation-specific overrides are command-line options. [Relation behavior and distance trial](CONTRACT.md#cli-json-provenance) · [Backend settings and experiments](BACKENDS.md)
+
 ## Save annotations with the source text
 
 ```bash
