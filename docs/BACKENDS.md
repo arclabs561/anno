@@ -1,34 +1,64 @@
 # Backends
 
-This page avoids benchmark numbers and "working set" claims that drift. Use `anno benchmark` for measurements.
-
 ## Choosing a backend
 
-Start with the labels and domain you need, then compare explicit backends on
-your own annotated text. `bert_onnx` is a candidate for conventional named
-entities; GLiNER supports configurable labels. `pattern` is useful for structured
-values such as emails and URLs. Capability matching determines which evaluations
-are meaningful; it does not establish accuracy.
+On “Ada founded Acme. She leads it.”, NER can return the typed spans “Ada” and “Acme”. A coreference resolver can group “Ada” with “She”. A relation extractor can return a directed `founded` edge from the Ada mention to the Acme mention. A document-level model can also predict an edge between two clusters. Each output answers a different question, and each can be evaluated separately. [Grounded representation](decisions/grounded-extraction.md) · [Joint extraction design](decisions/joint-extraction.md)
 
-`stacked` combines outputs and is convenient for mixed extraction, but is not a
-fixed model or a guarantee of higher F1. With the `onnx` feature, its default
-construction attempts BERT and NuNER, then GLiNER if neither loads, alongside
-patterns and heuristics. Without an available ML layer it falls back to patterns
-and heuristics. `ANNO_NO_DOWNLOADS=1` still permits already-cached models, so
-record the entity provenance and available model artifacts when comparing runs.
+### Which inputs do you have?
 
-For a repeatable starting comparison, use the tracked
-[QA procedure](../.agents/skills/anno-qa/SKILL.md) and
-[fixed panel](../scripts/qa/core-panel.json). The `ner-baseline` suite compares
-four backends on news, Wikipedia, and social-media data; `classical-ner` adds
-the classical implementations. Both use fixed seeds and example budgets, and
-produce validated JSON plus a Markdown table. Prepare datasets and models first;
-the panel itself disables downloads. Do not interpret a successful run, a
-declared incompatibility, or a small sampled score as broad benchmark coverage.
+| You have | You need | Route to try | What controls the result |
+|---|---|---|---|
+| Text containing emails, dates, URLs or amounts | Typed occurrences, without model weights | `anno extract --model pattern` | Fixed rules determine coverage. `heuristic` adds capitalization/context-based names. `crf` and `hmm` provide classical sequence baselines. [Classical models](#classical-no-feature-gate) |
+| Text and a fixed tag inventory matching a trained model | Conventional named entities | `anno extract --model bert-onnx` with a pinned checkpoint | The checkpoint’s BIO mapping defines the available labels. [Checkpoint selection](#selecting-ner-checkpoints) |
+| Text and entity labels supplied at runtime | Typed mention spans | `anno extract --model gliner --extract-types person,organization` or `--model nuner` | GLiNER v1 scores prompted spans. NuNER Zero and Zero-4k score words and merge adjacent same-label words. NuNER Zero-span scores trained multiword candidates directly. Verify the actual checkpoint and language on your data. [Span export details](#span-width-exports-max_width) · [Native checkpoint replays](../scripts/qa/checkpoint_replay/README.md) |
+| Text and custom labels in the GLiNER2.5 schema budget | A flat set of labeled spans | `anno extract --model gliner25` with `GLINER25_MODEL_DIR` | The native boundary export uses a shared 512-token prompt/text window and rejects oversized input. The separate `anno joint` entry point accepts a relation schema. [GLiNER2.5](#fastino-gliner25) |
+| Text, known entity occurrences and predicate labels | Directed edges among those occurrences | Rust `GLiREL::extract_relations(text, entities, relation_types, threshold)` | Give each occurrence its source span. Missed or misaligned upstream mentions affect which pairs can be scored. [GLiREL API](../crates/anno/src/backends/glirel/onnx.rs) |
+| Text and entity/predicate vocabularies | Mentions and directed relations from a trained joint export | `anno extract --model gliner-relex --extract-types person,organization --extract-relations --relation-types founded` | The entity-only export serves NER. A relation request requires the `--joint` export and a compatible relation head. The prompt’s label inventory materially affects scores. [Export and replay](#architecture-specific-gotchas) · [CrossRE experiments](eval/crossre-full-prompt-comparison.md) |
+| Text and a typed relation schema with graph constraints | Mention IDs and a constrained document graph | `anno joint --checkpoint CHECKPOINT --schema schema.json --text 'Ada founded Acme.'` | The upstream Python JointIE provider scores overlapping windows, then decodes one graph. Only co-window candidates have direct model scores. Output exposes scored windows, feasibility and derived edges. [Schema, example and runtime](#fastino-gliner25) |
+| DocRED sentences in token order | Mention detections, coreference clusters and directed **concept** edges | JEREX Python prediction, then the Rust `import_jerex` example | The predictor takes tokens with a closed label set. The importer aligns them against your exact source and retains endpoint memberships. Upstream supplies no relation probability or mention-pair witness. [Real checkpoint and import commands](eval/joint-stage-baseline.md) |
 
-Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
-`gliner_onnx` in the evaluation panel, versus `--model bert-onnx` and
-`--model gliner` with `anno extract`.
+The GLiNER name covers several interfaces. When labels repeat across many documents, `gliner-poly` can use a split text encoder, label encoder and fusion head. When the desired output is a document category or structured fields, the Fastino GLiNER2 Rust backend exposes `classify` and `extract_structure`. Those return different output types from the GLiNER2.5 boundary NER and JointIE routes above. [Split encoder setup](#selecting-ner-checkpoints) · [Fastino API](../crates/anno/src/backends/gliner2_fastino/mod.rs)
+
+For NuNER Zero-4k, FP32 and QUInt8 both scored 50.7% exact span-and-label F1 on 24 hash-selected English MultiNERD test sentences at threshold 0.5. Across all 38 inputs, including separate Unicode and constructed long-text cases, the two graphs returned different spans on ten. The checkpoint card lists English, and one long-input case uses Russian. The smaller graph is an experimental option for callers who can check their own labels and threshold. FP32 remains the reference. [Labeled comparison and artifact sizes](https://github.com/arclabs561/anno/blob/31af7a24497bf00cc41731b3d870b5e451b33e16/docs/eval/nuner-4k-labeled.md)
+
+For overlapping or nested mentions, inspect W2NER’s word-grid output and the simplifications in its local export. For a hosted model, UniversalNER uses a configured chat-completions endpoint. API availability, model ID and offset recovery then become part of the run. [W2NER export](#architecture-specific-gotchas) · [LLM setup](#neural-llm-feature-llm)
+
+The extraction default `stacked` combines rules and available models. Its ONNX configuration attempts BERT and NuNER, then tries GLiNER if neither loads. Its rule layers can still extract entities without a neural model. For a deterministic rule-only run, select `pattern` explicitly. `ANNO_NO_DOWNLOADS=1` permits cached weights. Evaluation IDs can differ from CLI names, for example `bert_onnx` and `gliner_onnx` in evaluations versus `--model bert-onnx` and `--model gliner` in extraction. [Evaluation panels](../scripts/qa/core-panel.json) · [CLI model selectors](../crates/anno-cli/src/cli/parser.rs)
+
+### Which mentions should coreference use?
+
+| Resolver | Input → output | Calling and interpreting it |
+|---|---|---|
+| Native mention-ranking | Raw text → predicted mention clusters. The entity-only entry point also accepts supplied detections. | Runs without model weights. The entity-only arm receives surfaces/types in source order and lacks surrounding prose, which changes the available antecedent features. [Resolver](../crates/anno/src/backends/coref/mention_ranking) · [Comparison](eval/coref-panels.md) |
+| FCoref | Raw text → detected mentions grouped by antecedent links | Anno implements the f-coref DistilRoBERTa encoder in ONNX with Rust mention and antecedent scoring. Call `FCoref::from_path(dir)?.resolve(text)` to require that model. The public resolver proposes its own mentions. An input beyond the configured document token budget returns an error. [Upstream model](https://huggingface.co/biu-nlp/f-coref) · [Rust implementation and input limits](../crates/anno/src/backends/coref/fcoref/mod.rs) |
+| Maverick | Raw text → predicted clusters, or source text plus supplied spans → clusters over caller-proposed mentions | Select the persistent Python worker with `anno pipeline --model heuristic --coref --maverick-model CHECKPOINT`. The Rust `resolve_mentions` entry point checks supplied character offsets against spaCy tokens. Token-splitting spans return an error. Singleton handling depends on the checkpoint and entry point. [Runtime, license and API](#maverick-coreference) |
+
+In `anno pipeline`, `--model` selects mention extraction. Plain `--coref` tries FCoref on ONNX builds and can fall back to native mention-ranking. A grounded document’s `coref_run` distinguishes a completed run with zero tracks, a failed run, and prior failed attempts before a fallback completed. Explicit Maverick worker errors propagate to the caller. [Pipeline routing](../crates/anno-cli/src/cli/commands/pipeline.rs) · [Default coreference attempts](../crates/anno-cli/src/cli/utils.rs)
+
+With the `discourse` feature, speaker-turn mode links English first-person singular mentions to the supplied speaker and omits general name and third-person chains. For identities spanning files, `pipeline --cross-doc` takes a separate step over document tracks. [Pipeline options](../crates/anno-cli/src/cli/commands/pipeline.rs) · [Cross-document identity](decisions/cross-document-coreference.md)
+
+For English pronoun resolution, a fixed GAP panel of 128 Wikipedia excerpts yielded raw-text pair F1 of 0.094 for native mention-ranking, 0.745 for FCoref, and 0.784 for Maverick. Maverick reached 0.930 when supplied the annotated mention boundaries. That measures a different input contract. The native raw clusters contained both exact candidate spans for only 8 of 117 true GAP links. In 65 cases the exact name was missing at proposal. In another 44 both endpoints survived proposal and deduplication but at least one was absent from the emitted clusters. Maverick’s supplied-span LitBank arm accepted nine of ten works because a supplied boundary split a token in the tenth. Cluster-level CoNLL scores and document refusals are reported separately. Both panels identify the weights, mention source, exact matching rules and singleton policy. [Measurements and replay](eval/coref-panels.md) · [Native loss trace](https://github.com/arclabs561/anno/blob/543ac50b9cbc6d6bd37a02348b122b1d88c16039/docs/eval/native-gap-loss.md)
+
+On another 128 GAP excerpts from disjoint articles, FCoref raw text linked 68 of 118 true pairs with three false links. Native raw text linked seven with two false links. Supplying the three spans to native mention-ranking made all 118 true pairs visible, but its entity-only entry point linked just one. For callers who already have mentions and contextual text, evaluate the supplied-span interface directly. [Independent GAP replay](https://github.com/arclabs561/anno/blob/acb0012ea895cf228dac422717d570d64f4a727b/docs/eval/gap-decision-audit.md)
+
+### How do I verify what produced an answer?
+
+For `extract --extract-relations`, a backend without a relation interface can produce `relation-heuristic` edges over its extracted mentions. GLiNER multitask can score entities with its own weights and use GLiREL or heuristics for relations. TPLinker can return `tplinker-heuristic` when its graph is absent. Check the producer on the **edge**, the actual checkpoint and the prompt. In the full-domain CrossRE AI comparison, the trained GLiNER-Relex export scored 24.1% strict F1 with the training inventory and 56.3% with labels drawn from each test document’s gold relations. The latter assumes knowledge of the answer vocabulary. The TPLinker heuristic emitted no edges with either inventory on that domain. [CLI routing](../crates/anno-cli/src/cli/commands/extract.rs) · [Multitask scoring](../crates/anno/src/backends/gliner_multitask/mod.rs) · [CrossRE results](eval/crossre-full-prompt-comparison.md)
+
+A source map locates the original bytes that support an analyzed span. This offline example extracts an email at analyzed character range `6..21` and resolves it to original HTML bytes `12..27`.
+
+```sh
+printf '<p>Email <b>ada@example.org</b>.</p>\n' > page.html
+ANNO_NO_DOWNLOADS=1 anno extract --model pattern --file page.html \
+  --html-source-spans --clean --normalize --format grounded > doc.json
+anno query source-span doc.json 6 21 --original page.html
+```
+
+A normalized character can have several disjoint original byte ranges. Transformed, approximate, synthetic and unmapped fragments carry their own kinds. An original digest identifies a file even when a PDF or HTML extraction path cannot locate an individual span in it. Keep the model’s analyzed span, source edition and projected fragments together when showing evidence to a reader. [Source-span contract](CONTRACT.md) · [HTML workflow](EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
+
+For JointIE, inspect candidate and decoded edges separately. With a 384-word ceiling on the first 64 CrossRE AI test sentences, all 161 annotated edges fit in a scored window. The broad training vocabulary produced 22 exact annotated edge candidates and the decoder selected zero. Shorter windows produced one exact match in 27 predictions. For JEREX, inspect clusters before interpreting relation recall. On the first 32 DocRED joint test documents, 140 of 406 directed labeled relations matched exact cluster endpoints. Another 110 lost an endpoint at cluster construction even though every required mention survived. These are two distinct tasks, corpora and denominators. [Expanded stage counts and schema comparison](https://github.com/arclabs561/anno/blob/e1e9e7bd86414a03db1f8a489e7b7162ebdba2c9/docs/eval/joint-edge-loss.md)
+
+For a reproducible comparison, use the tracked QA procedure with fixed example budgets and seeds. A replay against real weights establishes that a checkpoint runs on its fixtures. A labeled held-out comparison measures a task on its sampled domain. A synthetic decoder test can establish offset or edge conventions even when trained weights are unavailable. For example, TPLinkerPlus has a verified sparse-tag decoder. A compatible, licensed trained joint checkpoint and reference replay are still needed for a text-to-edge claim. The Grenander 2025 generative coreference and Du 2026 document-level joint models also lack verified end-to-end artifacts in Anno. [Artifact inventory](https://github.com/arclabs561/anno/blob/31af7a24497bf00cc41731b3d870b5e451b33e16/docs/eval/outstanding-model-artifacts.md) · [QA procedure](../.agents/skills/anno-qa/SKILL.md) · [Joint extraction stage replay](eval/joint-stage-baseline.md)
 
 ## Model Families
 
@@ -36,7 +66,7 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
+| `gliner` (canonical) / `gliner_onnx` (low-level) | Shared text/label encoder with a span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `gliner2_fastino` | Fastino GLiNER2, eight-graph ONNX pipeline | Yes | experimental | `jugaadsrl/gliner2-multi-v1-onnx` at `4241d7c66b648e618c89c150bf4cf418d2f83159` |
 | `nuner` | Label-conditioned word or span scoring | Yes | stable | `deepanwa/NuNerZero_onnx` (default export of `numind/NuNER_Zero`), or a prepared NuNER Zero-4k FP32 export for `nuner_4k` |
@@ -50,12 +80,12 @@ Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
 
-Note: `gliner` is a smart-default alias. Under `--features onnx` it
+In the Rust backend factory, `gliner` is a smart-default alias. Under `--features onnx` it
 resolves to `anno::GLiNEROnnx`; under `--features candle` only (no
 `onnx`) it falls back to `anno::GLiNERCandle`. Pick `gliner` when you
 want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
-or `gliner_candle` explicitly to force one backend and fail at
-construction time if its feature isn't enabled.
+or `gliner_candle` explicitly to select a runtime. The extraction CLI exposes
+`--model gliner` with `onnx`. [CLI selectors](../crates/anno-cli/src/cli/parser.rs)
 
 #### Selecting NER checkpoints
 
@@ -139,12 +169,10 @@ GLINER_POLY_MODEL_PATH=/tmp/gliner-bi-edge anno extract --model gliner-poly \
 spans per position. The grid width is an **export property**, not a runtime
 knob: the decoder reads it from the output tensor (`[1, words, max_width,
 classes]`, or derives it from `[1, words * max_width, classes]`). An export
-built with `max_width = 1` can only score single-word spans; multi-word
-entities come back as separate words, and a downstream evaluation has
-reported mention-F1 around 0.22 for that path versus 0.75 for the offline
-regex path.
+built with `max_width = 1` scores only single-word spans. Returning a multiword
+mention from such scores requires a merging rule, as in NuNER Zero.
 
-Requirement: export with `max_width >= 12`. The default
+For parity with a checkpoint trained at width 12, keep all 12 candidates per word position in the export. The default
 `onnx-community/gliner_small-v2.1` export satisfies this (its
 `gliner_config.json` records `max_width: 12`). Check any other model
 directory before benchmarking:
@@ -631,15 +659,6 @@ Notes:
   the runtime falls back to a heuristic mode when no ONNX is present.
 - `gliner_onnx` runs `export_gliner_poly_onnx.py` automatically on first
   load if no ONNX file is in the cache (no manual step required).
-
-## Choose by constraints
-
-- **No ML deps**: `--model pattern`, `heuristic`, or `stacked` with `default-features = false`
-- **Zero-shot custom types**: `--model gliner --extract-types "TYPE1,TYPE2"` (requires `onnx`)
-- **Relations (best-effort)**: `--model gliner-multitask --extract-relations` (requires `onnx`) or `--model tplinker --extract-relations` (heuristic baseline). Use `--relation-types "FOUNDED,WORKS_FOR"` to constrain labels.
-- **Nested entities**: `--model w2ner` (requires `onnx`)
-- **Pure Rust inference**: Candle backends (requires `candle`)
-- **Offline**: set `ANNO_NO_DOWNLOADS=1` after prefetching with `anno models download`
 
 ## Helpers (not NER backends)
 
