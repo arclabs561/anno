@@ -262,6 +262,10 @@ The candidate dropped 12 correct and nine wrong standalone highlights. In `posse
 
 ## Find a dataset or add a case
 
+Start with the output your application needs. A typed mention needs exact span and type labels. Resolving two mentions to the same person needs a gold mention cluster. Scoring a place-of-birth relation between people and places needs a directed predicate with both endpoints. The names in the figure are benchmarks for those three decisions. The passage itself comes from one checked-in Anno example. [JEREX fixture and predictions](../scripts/qa/joint_baseline) · [Joint extraction scoring](eval/joint-stage-baseline.md)
+
+![One JEREX example shows which typed mentions, mention cluster and directed relation WikiGold or WNUT-17, LitBank and DocRED can score respectively.](eval/figures/benchmark-chooser.png)
+
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
 
 ```sh
@@ -272,6 +276,14 @@ anno dataset info --dataset WikiGold
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
 The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local panels for nested mentions, ambiguous pronouns and missing candidates. Each [source entry](eval/coref-corpus-sources.md) identifies who supplied the data, which labels Anno derived and where source-bearing material belongs.
+
+### Which datasets do the token counts describe?
+
+The survey inventories every registered dataset and counts the records, tokens or annotations it could read. Use the first panel to see how many registry entries contribute. An entry can appear under several sources in the second panel. The [coverage report and exclusions](eval/dataset-coverage.md) identifies the files, languages and splits behind each count.
+
+![All registry entries, entries with measured records and entries with tagged-token counts, followed by the contribution of each source.](eval/figures/dataset-coverage.png)
+
+Choose the split and annotation convention closest to your input before estimating review volume. For example, the WikiANN language and split measurements range from 9.1% of tokens marked as entities in Pashto training to 88.9% in Volapük test. The latter split has just 423 tokens. The report gives both endpoints and denominators for every measured entry. To see what the evaluator can load on your machine, run `anno sampler eligibility --task ner --require-cached`. [Annotation density by dataset](eval/dataset-coverage.md#how-much-of-the-text-carries-an-annotation) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
 
 ### Decide what to keep
 
