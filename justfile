@@ -313,6 +313,8 @@ qa-domain-spans ANNO_BIN MODEL="stacked": (qa-spans ANNO_BIN MODEL "scripts/qa/f
 # Run the offline Python QA contracts discovered by CI.
 qa-test:
     python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
+    python3 -m unittest discover -v -s scripts/qa/joint_baseline -p 'test_*.py'
+    python3 -m unittest discover -v -s scripts/qa/backend_residuals -p 'test_*.py'
 
 # Exercise the fixed-panel failure gates without models or network access.
 qa-panel-test:

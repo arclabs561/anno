@@ -74,6 +74,7 @@ def main():
     baseline = json.loads(args.baseline.read_bytes())
     arms = {}
     for domain in ("ai", "literature"):
+        reference_rows = None
         for backend in ("tplinker", "gliner_relex"):
             for policy in ("fixed", "oracle"):
                 stem = f"{domain}-{backend}-{policy}"
@@ -88,11 +89,23 @@ def main():
                 if len(rows) != sample["unit_count"]:
                     raise ValueError(f"{stem}: incomplete diagnostic rows")
                 missed, extras, totals, documents = Counter(), Counter(), Counter(), []
+                first_arm = reference_rows is None
+                if first_arm:
+                    reference_rows = []
+                elif len(rows) != len(reference_rows):
+                    raise ValueError(f"{stem}: different source count across arms")
                 for index, row in enumerate(rows):
                     if (row["index"] != index or row["sample_sha256"] != sample["sample_sha256"]
                             or not re.fullmatch(r"[0-9a-f]{64}", row["text_sha256"])):
                         raise ValueError(f"{stem}: wrong row order or source identity")
                     gold = Counter(map(edge, row["gold"]))
+                    # Prompt and producer can change predictions. The paired comparison
+                    # still requires the same ordered sources and directed gold multiset.
+                    identity = (row["text_sha256"], gold)
+                    if first_arm:
+                        reference_rows.append(identity)
+                    elif reference_rows[index] != identity:
+                        raise ValueError(f"{stem}: source or gold relations differ across arms at row {index}")
                     pred = Counter(map(edge, row["predicted"]))
                     matched = (gold & pred).total()
                     totals.update(

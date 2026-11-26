@@ -18,6 +18,16 @@ To challenge a corrected byline, attribution, catalog redirect, or visibility de
 >
 > Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
+## Challenge a backend result
+
+Start with what the caller observed. A valid empty relation list, a rejected input, and a failed model load lead to different decisions. Run the public CLI with a fixed input and an isolated offline cache when testing that distinction. For a persisted edge, follow its endpoint IDs and scorer through extraction, reload, and query. [CLI integration tests](../crates/anno-cli/tests/grounded_relations.rs)
+
+To challenge an evaluation, construct two tiny, invented runs with **identical headline counts**. Change one source digest, reverse the head and tail of both a gold edge and its prediction in one arm, or exchange which mention disappears. Keep a valid neighboring case in the same test, such as permuting the storage order of a gold multiset. The check should detect the corrupted comparison and accept the equivalent representation. Run the offline scorer and receipt controls with `just qa-test`. [Relation controls](../scripts/qa/backend_residuals/test_relation_ledgers.py) · [Joint-stage controls](../scripts/qa/joint_baseline/test_jointie_loss.py) · [Coreference controls](../scripts/qa/test_coref_panels.py)
+
+For a model-quality claim, follow a labeled occurrence through proposal, scoring, selection and final decoding on a pinned checkpoint. A token that falls below a threshold and a token whose winning label changes can produce the same wrong span. Lowering the threshold can rescue the former and still leave the latter wrong. Apply one intervention and record the first decision it changes, including the identity of candidates gained and lost downstream. Keep detailed model and corpus traces in the external replay directory. [Checkpoint replay](../scripts/qa/checkpoint_replay/README.md) · [External residual replay](../scripts/qa/backend_residuals/README.md)
+
+Before looking at a confirmation cohort, fix its selection, the baseline, and the comparison metric. Use the same documents and label information in both arms. Include sentences without gold relations, count extra predictions and refusals, and score the final output as well as the stage being repaired. A cap change can admit more distinct span pairs while displacing the correct endpoint types. Wider coverage alone gives no reason to change the default.
+
 ## Challenge cross-document identity decisions
 
 Choose the claim before choosing a binary. A production report groups supplied tracks and qualified catalog records. The ECB+ evaluator measures a different heuristic on annotated mentions in known topics. Each accepts a small, independently authored JSON case. The scout can propose a new source history in a private directory, and an independent oracle can freeze its assertions before either version of the producer runs.
