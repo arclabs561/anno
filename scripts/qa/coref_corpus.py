@@ -192,9 +192,11 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("list", help="show source locations, transformations and reuse terms")
-    for cmd in ("check", "inputs", "run", "score"):
+    for cmd in ("check", "inputs", "run", "score", "score-document"):
         op = sub.add_parser(cmd)
         choices = sorted(READERS) + (["all"] if cmd == "check" else [])
+        if cmd == "score-document":
+            choices = ["dutch-openboek", "french-litbankfr"]
         op.add_argument("corpus", choices=choices)
         source = op.add_mutually_exclusive_group(required=True)
         source.add_argument("--source", type=Path, help="local publisher file or directory for one corpus")
@@ -209,6 +211,9 @@ def parser():
             op.add_argument("--runner", type=Path, required=True, help="local fcoref_word_spans-compatible executable")
             op.add_argument("--model-dir", type=Path, required=True)
             op.add_argument("--batch-size", type=positive, default=64)
+        if cmd == "score-document":
+            op.add_argument("--predictions", type=Path, required=True, help="full aligned CorefUD prediction .conllu")
+            op.add_argument("--include-cases", action="store_true", help="include per-case outcomes by opaque ID")
         if cmd == "score":
             op.add_argument("--predictions", type=Path, required=True, help="existing source-bound prediction JSON")
     return p
@@ -254,6 +259,14 @@ def main():
                 raise ValueError("model directory is unavailable")
             report.update(producer_identity(args.runner, args.model_dir))
             report["records"] = run_native(cases, args.runner, args.model_dir, args.batch_size)
+        elif args.command == "score-document":
+            from coref_corpora.system_output import score_document_predictions
+            try:
+                report["document_scores"] = score_document_predictions(
+                    cases, source, name, args.predictions, include_cases=args.include_cases)
+            except (ValueError, KeyError, OSError, BadZipFile) as exc:
+                raise CorpusError(f"{name}: cannot score document predictions; check the component, "
+                                  "sentence and token alignment, and supported Entity layout") from exc
         elif args.command == "score":
             data = args.predictions.read_bytes()
             report["predictions_sha256"] = hashlib.sha256(data).hexdigest()

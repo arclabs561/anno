@@ -46,3 +46,29 @@ For a nested pair, missing either endpoint produces `unresolved`, including when
 ## Promote a measured case to adversarial replay
 
 Set `ANNO_COREF_SOURCES` to the local path map, `ANNO_COREF_RUNNER` to the native executable, and `ANNO_COREF_MODEL_DIR` to the local export. Copy the opaque case ID from a scored receipt. For a read-only replay use `just qa-replay coref_corpus SLUG/ID`. A nested pair with a missing endpoint produces an explicit failure. An unscored gold case is ineligible for feedback. To retain a reproducible failure, use the existing [reviewed corpus witness workflow](../EVALUATION_SAMPLING.md#replay-a-reviewed-corpus-witness-in-a-triage-slot). The replay ledger binds the source, oracle, producer and model fingerprints and retains a compact outcome without passages or source notices.
+
+## Score a full-document CorefUD system output
+
+A resolver that processed a whole work can link a mention to material outside a short QA window. To evaluate a Dutch or French system submission with that context intact, use `score-document` and supply the matching development source plus the predicted CoNLL-U file. For example, extract the component from the organizers’ CRAC 2026 minidev archive on an authorized local machine. [Published system outputs](https://ufal.mff.cuni.cz/corefud/crac26) · [Source and reuse terms](coref-corpus-sources.md)
+
+```sh
+unzip -p "$SUBMISSIONS_ZIP" CorPipeLarge/fr_litbankfr-corefud-minidev.conllu > "$PRIVATE_DIR/fr-system.conllu"
+just qa-coref-corpora score-document french-litbankfr --source "$COREFUD_DEV_ZIP" \
+    --predictions "$PRIVATE_DIR/fr-system.conllu"
+```
+
+The scorer checks the entire predicted component against the pinned source, including document order, sentence IDs, source strings, tokens and spacing. The reader supports the declared `eid-etype-head` and `eid-etype-head-other` layouts with contiguous, sentence-local mentions. Some submissions omit spacing flags. The scorer recovers spacing from the matching source text and reports omitted flags. An explicit flag contradicting the reference fails validation. It then maps the selected cases back to document-relative Unicode offsets. `--case`, `--tag` and `--limit` narrow the scored cases while retaining full-document alignment. Use `--include-cases` for individual outcomes. Save the receipt with the producing system's name and release. Published spans and chains support identity and boundary comparisons. An intermediate proposal or a discarded candidate requires instrumentation from the producing system.
+
+A published singleton supplies an exact mention and a distinct cluster identity. Missing either nested endpoint yields an unresolved decision. Where several entity IDs share an exact interval, the result is ambiguous if those assignments lead to different decisions. For pronouns, count an answer as uniquely correct only when the target links to the correct offered candidate alone.
+
+### Reference results on the 2026 development submissions
+
+| Full-document submission | Dutch correct-only / 601 | French correct-only / 1,037 |
+|---|---:|---:|
+| Organizers’ multilingual BERT baseline | 71 | 381 |
+| Stanza | 395 | 762 |
+| CorPipeLarge | 443 | 883 |
+
+CorPipeLarge linked both options in 8 Dutch and 10 French cases and uniquely linked the wrong option in 28 Dutch and 7 French cases. All three submissions missed the correct identity decision on all six same-identity nested pairs. The components contain 1,360 different-identity pairs. Report both classes separately when studying nesting.
+
+These are exact-span diagnostic counts on two Dutch and four French development works. The sources supplied the two candidate mentions for scoring, and the submissions predicted full-document chains. The counts do not establish independent test accuracy, local inference cost or compatibility with a short-window caller. The submission archive used for these reference counts has SHA-256 `34a670c598a81943dd2a89889da5eb53aec510cc6b717b79e15d8f3ddba4f389`. [Task findings](https://aclanthology.org/2026.codi-1.21/) · [CorPipe system paper](https://aclanthology.org/2026.codi-1.27/)
