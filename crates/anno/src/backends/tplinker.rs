@@ -67,6 +67,7 @@ use crate::backends::inference::{ExtractionWithRelations, RelationExtractor};
 #[cfg(feature = "onnx")]
 use crate::EntityCategory;
 use crate::{Confidence, Entity, EntityType, Language, Model, Result};
+#[cfg(feature = "onnx")]
 use std::borrow::Cow;
 
 /// Check the exporter's three batch-one handshaking tensors before flat indexing.
@@ -653,6 +654,7 @@ mod heuristic_impl {
     pub struct TPLinkerHeuristic {
         pub entity_threshold: f32,
         pub relation_threshold: f32,
+        pub max_span_distance: usize,
     }
 
     impl TPLinkerHeuristic {
@@ -675,7 +677,7 @@ mod heuristic_impl {
             ))
         }
 
-        /// Apply TPLinker's entity filtering, provenance, and relation matching
+        /// Apply TPLinker's entity filtering and relation matching
         /// to entity predictions supplied by the caller.
         pub(super) fn extract_with_supplied_entities(
             &self,
@@ -722,17 +724,6 @@ mod heuristic_impl {
 
             entities.retain(|e| e.confidence >= f64::from(ent_threshold));
 
-            for entity in &mut entities {
-                entity.provenance = Some(crate::Provenance {
-                    source: Cow::Borrowed("tplinker"),
-                    method: crate::ExtractionMethod::Heuristic,
-                    pattern: None,
-                    raw_confidence: Some(entity.confidence),
-                    model_version: Some(Cow::Borrowed("heuristic-fallback")),
-                    timestamp: None,
-                });
-            }
-
             const DEFAULT_RELATIONS: &[&str] = &[
                 "CEO_OF",
                 "WORKS_FOR",
@@ -763,7 +754,7 @@ mod heuristic_impl {
 
             let rel_config = RelationExtractionConfig {
                 threshold: Confidence::new(rel_threshold as f64),
-                max_span_distance: 120,
+                max_span_distance: self.max_span_distance,
                 extract_triggers: false,
             };
 
@@ -851,10 +842,11 @@ impl TPLinker {
         }
     }
 
-    fn heuristic(&self) -> heuristic_impl::TPLinkerHeuristic {
+    fn heuristic(&self, max_span_distance: usize) -> heuristic_impl::TPLinkerHeuristic {
         heuristic_impl::TPLinkerHeuristic {
             entity_threshold: self.entity_threshold,
             relation_threshold: self.relation_threshold,
+            max_span_distance,
         }
     }
 }
@@ -914,14 +906,10 @@ impl RelationExtractor for TPLinker {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<ExtractionWithRelations> {
-        #[cfg(feature = "onnx")]
-        if let Some(ref onnx) = self.onnx {
-            return onnx.extract_joint(text, relation_types, threshold);
-        }
-
-        self.heuristic()
-            .extract_with_handshaking(text, entity_types, relation_types, threshold)
+        self.extract_with_relation_provenance(text, entity_types, relation_types, threshold)
+            .map(|(output, _)| output)
     }
+
     fn extract_with_relation_provenance(
         &self,
         text: &str,
@@ -929,16 +917,41 @@ impl RelationExtractor for TPLinker {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
-        let output = self.extract_with_relations(text, entity_types, relation_types, threshold)?;
-        let provenance = if self.is_neural() {
-            crate::Provenance::from_producer("tplinker", crate::ExtractionMethod::Neural)
-        } else {
-            crate::Provenance::from_producer(
+        self.extract_with_heuristic_distance(text, entity_types, relation_types, threshold, 120)
+    }
+
+    fn extract_with_heuristic_distance(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+        max_span_distance: usize,
+    ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
+        #[cfg(feature = "onnx")]
+        if let Some(ref onnx) = self.onnx {
+            let output = onnx.extract_joint(text, relation_types, threshold)?;
+            return Ok((
+                output,
+                Some(crate::Provenance::from_producer(
+                    "tplinker",
+                    crate::ExtractionMethod::Neural,
+                )),
+            ));
+        }
+        let output = self.heuristic(max_span_distance).extract_with_handshaking(
+            text,
+            entity_types,
+            relation_types,
+            threshold,
+        )?;
+        Ok((
+            output,
+            Some(crate::Provenance::from_producer(
                 "tplinker-heuristic",
                 crate::ExtractionMethod::Heuristic,
-            )
-        };
-        Ok((output, Some(provenance)))
+            )),
+        ))
     }
 }
 
@@ -1007,6 +1020,7 @@ mod tests {
         let out = heuristic_impl::TPLinkerHeuristic {
             entity_threshold: 0.15,
             relation_threshold: 0.55,
+            max_span_distance: 120,
         }
         .extract_with_supplied_entities(
             text,
@@ -1089,25 +1103,29 @@ mod tests {
     }
 
     #[test]
-    fn test_tplinker_provenance_metadata() {
-        let out = TP_ZERO
-            .extract_with_relations(
-                "Steve Jobs founded Apple in 1976.",
-                &["person", "organization"],
-                &["founded"],
-                0.0,
-            )
-            .unwrap();
-
-        for entity in &out.entities {
-            let prov = entity
-                .provenance
-                .as_ref()
-                .expect("every tplinker entity should have provenance");
-            assert_eq!(
-                prov.source, "tplinker",
-                "provenance source should be 'tplinker'"
-            );
+    fn heuristic_relations_preserve_supplied_mention_producers() {
+        let text = "Marie works for Acme.";
+        let mut person = Entity::new("Marie", EntityType::Person, 0, 5, 0.9);
+        person.provenance = Some(crate::Provenance::from_producer(
+            "trained-ner",
+            crate::ExtractionMethod::Neural,
+        ));
+        let mut org = Entity::new("Acme", EntityType::Organization, 16, 20, 0.9);
+        org.provenance = Some(crate::Provenance::from_producer(
+            "dictionary",
+            crate::ExtractionMethod::Heuristic,
+        ));
+        let entities = vec![person, org];
+        let result = TP_ZERO.heuristic(120).extract_with_supplied_entities(
+            text,
+            &[],
+            &["WORKS_FOR"],
+            0.1,
+            entities.clone(),
+        );
+        assert_eq!(result.entities.len(), 2);
+        for (actual, expected) in result.entities.iter().zip(&entities) {
+            assert_eq!(actual.provenance, expected.provenance);
         }
     }
 

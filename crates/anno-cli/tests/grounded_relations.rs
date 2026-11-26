@@ -63,6 +63,18 @@ fn extract_and_enhance_preserve_edge_endpoints_and_scorer() {
         edge["relation"]["confidence"],
         flat["relations"][0]["confidence"]
     );
+    let entities_only = run(
+        temp.path(),
+        &[
+            "extract",
+            "--model",
+            "tplinker",
+            "--text",
+            "Marie works for Acme Inc.",
+            "--format",
+            "json",
+        ],
+    );
     for role in ["head", "tail"] {
         let id = &edge[format!("{role}_signal_id")];
         let signal = saved["signals"]
@@ -72,7 +84,17 @@ fn extract_and_enhance_preserve_edge_endpoints_and_scorer() {
             .find(|signal| signal["id"] == *id)
             .unwrap();
         assert_eq!(signal["surface"], flat["relations"][0][role]["text"]);
-        assert_eq!(signal["provenance"]["source"], "tplinker");
+        let source = entities_only["entities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entity| {
+                entity["start"] == edge["relation"][role]["start"]
+                    && entity["end"] == edge["relation"][role]["end"]
+            })
+            .unwrap();
+        assert!(signal["provenance"]["source"].is_string());
+        assert_eq!(signal["provenance"], source["provenance"]);
         assert_eq!(
             signal["location"]["Text"]["start"],
             edge["relation"][role]["start"]
@@ -85,4 +107,79 @@ fn extract_and_enhance_preserve_edge_endpoints_and_scorer() {
     assert_eq!(loaded["relation_evidence"], saved["relation_evidence"]);
     let queried = run(temp.path(), &["query", "relations", path_str]);
     assert_eq!(queried["mentions"][0]["evidence"], *edge);
+}
+
+#[test]
+fn empty_relation_results_still_identify_the_scorer() {
+    let cache = tempfile::tempdir().unwrap();
+    for (backend, scorer) in [
+        ("pattern", "relation-heuristic"),
+        ("tplinker", "tplinker-heuristic"),
+    ] {
+        let args = [
+            "extract",
+            "--model",
+            backend,
+            "--extract-relations",
+            "--text",
+            "東京。",
+            "--format",
+        ];
+        let mut json_args = args.to_vec();
+        json_args.push("json");
+        let json = run(cache.path(), &json_args);
+        assert_eq!(json["relations"], serde_json::json!([]));
+        assert_eq!(json["provenance"]["relation_producer"]["source"], scorer);
+        let mut stream_args = args.to_vec();
+        stream_args.push("jsonl");
+        let output = stdout(cache.path(), &stream_args);
+        let header = serde_json::Deserializer::from_slice(&output)
+            .into_iter::<Value>()
+            .next()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            header["provenance"]["relation_producer"],
+            json["provenance"]["relation_producer"]
+        );
+    }
+}
+
+#[test]
+fn character_distance_controls_the_direct_and_joint_heuristic_routes() {
+    let cache = tempfile::tempdir().unwrap();
+    let text = format!("東京 — Marie works for {}Acme Inc.", "près ".repeat(24));
+    let head = text[..text.find("Marie").unwrap()].chars().count();
+    let tail = text[..text.find("Acme").unwrap()].chars().count();
+    let distance = tail - (head + "Marie".chars().count());
+    assert!(distance > 120);
+    for backend in ["heuristic", "tplinker"] {
+        for (limit, expected) in [(distance - 1, 0), (distance, 1)] {
+            let report = run(
+                cache.path(),
+                &[
+                    "extract",
+                    "--model",
+                    backend,
+                    "--extract-relations",
+                    "--relation-types",
+                    "WORKS_FOR",
+                    "--relation-threshold",
+                    "0.1",
+                    "--relation-max-span-distance",
+                    &limit.to_string(),
+                    "--text",
+                    &text,
+                    "--format",
+                    "json",
+                ],
+            );
+            let edges = report["relations"].as_array().unwrap();
+            assert_eq!(edges.len(), expected, "{backend}, {limit}");
+            if let Some(edge) = edges.first() {
+                assert_eq!(edge["head"]["start"], head);
+                assert_eq!(edge["tail"]["start"], tail);
+            }
+        }
+    }
 }

@@ -221,6 +221,10 @@ impl Model for HmmNER {
         true
     }
 
+    fn name(&self) -> &'static str {
+        "hmm"
+    }
+
     fn capabilities(&self) -> crate::ModelCapabilities {
         // HMM has no specialized batch or streaming impl; all defaults are false.
         crate::ModelCapabilities::default()

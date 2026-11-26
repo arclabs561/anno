@@ -182,8 +182,23 @@ top-level `provenance.model`. The instantiated backend reports its own name in
 `stacked(regex+heuristic)`. Each emitted entity that carries library provenance also has a
 nested `provenance` object with its actual `source`, extraction `method`, and available
 pattern, raw-confidence, model-version, and timestamp metadata. A relation row
-includes its scorer’s reported provenance when available. For example, a
-`tplinker` run may report `tplinker-heuristic` as the relation producer.
+includes its scorer’s reported provenance when available. The JSON document or JSONL
+header also records this object in `provenance.relation_producer` when the scorer
+reports its identity, including runs that retain zero edges. For example, a
+`tplinker` run may report `tplinker-heuristic`. That fallback preserves the
+underlying stacked detector’s provenance on each mention.
+
+For heuristic relations, `--relation-max-span-distance` limits the gap between
+occurrences in Unicode scalar values. Both the standalone heuristic and the
+TPLinker and GLiNER multitask heuristic fallbacks apply this limit when scoring.
+On 24 authored documents containing repeated names in two English statements and
+six Unicode prefix/separator variants, the heuristic and TPLinker fallback agreed.
+At relation threshold 0.1, reducing the limit from 120 to 12 characters cut
+unmatched predictions from 44 to 12 and correct matches from 28 to 22 out of 36.
+Of those unmatched predictions, 36 and 12 respectively crossed the statement
+boundary. At threshold 0.55 neither route emitted any relations. These fixtures
+measure sensitivity to the control; corpus-level thresholds require held-out data.
+[Reproduce with `--binary PATH`](../scripts/qa/relation_distance_trial.py).
 
 With `--detect-lang`, a fetched HTML page's recognized language declaration
 supplies `provenance.language` (its primary language code) and
