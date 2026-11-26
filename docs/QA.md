@@ -14,7 +14,7 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 
 ## Use the QA skill with an agent
 
-The Agent Plugins package root is the checkout’s `.agents/` directory. For clients that accept a local plugin directory, select that directory. The package supplies the `anno-qa` skill and its campaign reference. Run its commands from the Anno checkout whose behavior you want to measure, using that checkout’s scripts, binary and datasets. For example, ask the agent to compare a saved paired-arm summary and report which final predictions improved in each cohort. [Plugin manifest](../.agents/plugin.json) · [QA skill](../.agents/skills/anno-qa/SKILL.md) · [Agent Plugins specification](https://agent-plugins.org/specification)
+The Agent Plugins package root is the checkout’s `.agents/` directory. For clients that accept a local plugin directory, select that directory. The package supplies `anno-cli` for general CLI use and `anno-qa` for investigations. Run its commands from the Anno checkout whose behavior you want to measure, using that checkout’s scripts, binary and datasets. For example, ask the agent to compare a saved paired-arm summary and report which final predictions improved in each cohort. [Plugin manifest](../.agents/plugin.json) · [QA skill](../.agents/skills/anno-qa/SKILL.md) · [Agent Plugins specification](https://agent-plugins.org/specification)
 
 ## Checks for silent data loss and false passes
 
