@@ -4,6 +4,8 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 For a dated bibliography export, generate an original edition history, replay its frozen answers, or shrink a failing cut with the [bibliography challenge](../verification/index_consumers/reader_cases/bibliography/README.md#challenge-a-date-cut). Local histories can be passed to the same command by a developer, a headless harness or an agent.
 
+Use the [coreference corpus guide](eval/coref-corpus-qa.md) to replay a pinned nested-mention, pronoun or abstention case with the local model and feed a confirmed outcome to the replay ledger.
+
 ## Coordinator prompt
 
 To challenge a corrected byline, attribution, catalog redirect, or visibility decision, propose a short event history and run the [credit reader replay](../verification/index_consumers/reader_cases/README.md#propose-and-judge-another-history). It checks the Rust and SQLite readers against a separate answer key and accepts local proposals without contacting a model provider.

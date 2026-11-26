@@ -271,6 +271,8 @@ anno dataset info --dataset WikiGold
 
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
+The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local panels for nested mentions, ambiguous pronouns and missing candidates. Each [source entry](eval/coref-corpus-sources.md) identifies who supplied the data, which labels Anno derived and where source-bearing material belongs.
+
 ### Decide what to keep
 
 Promote a discovery when a small input and an independent expected result reproduce the behavior. For a repair, run both revisions and include a neighboring case the change could break. Preserve the offset units. Once a patch author or agent has seen a holdout, count it as exposed in future comparisons. [Source and offset contract](CONTRACT.md)
