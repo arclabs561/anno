@@ -12,7 +12,7 @@ Start with the study closest to the decision you are making. Each study names wh
 
 The sampler summary covers two WikiGold backends and three seeds. For a particular CI run, inspect that run’s uploaded decision journal and dataset-pool evidence while its artifacts are retained. The [matrix workflow](../../.github/workflows/ci.yml) sets a 60-day lifetime for the separate trusted sampler checkpoint. Git preserves selected summaries and the reasoning behind them. Use `git log -- docs/eval/` for the history of those notes. The [research reference index](../../crates/anno-eval/research/reference/README.md) also covers experiments maintained with the evaluator.
 
-For a new extraction, use the built-in defaults or a [named extraction profile](../QUICKSTART.md#reuse-extraction-settings). For a sampling campaign, choose the task and budget, then reserve [task and language coverage](../EVALUATION_SAMPLING.md#reserve-part-of-a-trial-for-coverage) when needed. A study's recorded checkpoints, thresholds and cohort pins reconstruct that experiment. Changing them defines a new comparison.
+For a new extraction, use the built-in defaults or a [named extraction profile](../QUICKSTART.md#reuse-a-cli-workflow-profile). For a sampling campaign, choose the task and budget, then reserve [task and language coverage](../EVALUATION_SAMPLING.md#reserve-part-of-a-trial-for-coverage) when needed. A study's recorded checkpoints, thresholds and cohort pins reconstruct that experiment. Changing them defines a new comparison.
 
 ## Record a trial
 
