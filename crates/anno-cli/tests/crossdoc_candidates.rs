@@ -53,6 +53,7 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
             let result = report(dir, &args);
             let metadata = &result["metadata"];
             assert_eq!(metadata["documents_processed"], doc_count);
+            assert_eq!(metadata["documents_with_mentions"], 2);
             assert_eq!(metadata["total_entities"], 2);
             assert_eq!(metadata["resolver"], "flat_mentions");
             assert_eq!(metadata["candidate_mode"], actual);
@@ -74,17 +75,47 @@ fn raw_candidate_policy_controls_pell_pair_across_size_boundary() {
 }
 
 #[test]
-fn raw_auto_mode_counts_mentions_in_a_single_document() {
+fn dense_documents_preserve_the_pell_link_across_100_mentions() {
     let tmp = tempfile::tempdir().unwrap();
-    for (mentions, expected) in [(100, "exhaustive"), (101, "lsh")] {
+    let dir = tmp.path();
+    fs::write(dir.join("first.txt"), "Dr. Nara Pell presented a report.").unwrap();
+    fs::write(dir.join("second.txt"), "Dr. Pell presented a report.").unwrap();
+    for other_mentions in [98, 99] {
         fs::write(
-            tmp.path().join("contacts.txt"),
-            "reader@example.org\n".repeat(mentions),
+            dir.join("other.txt"),
+            "Dr. Alma Reeve presented a report.\n".repeat(other_mentions),
         )
         .unwrap();
-        let result = report(tmp.path(), &[".", "--model", "pattern"]);
-        assert_eq!(result["metadata"]["documents_processed"], 1);
-        assert_eq!(result["metadata"]["total_entities"], mentions);
+        let result = report(dir, &[".", "--model", "heuristic"]);
+        assert_eq!(result["metadata"]["documents_processed"], 3);
+        assert_eq!(result["metadata"]["documents_with_mentions"], 3);
+        assert_eq!(result["metadata"]["total_entities"], other_mentions + 2);
+        assert_eq!(result["metadata"]["candidate_mode"], "exhaustive");
+        assert!(result["clusters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|cluster| {
+                cluster["mentions"] == serde_json::json!([["first", 0], ["second", 0]])
+            }));
+    }
+}
+
+#[test]
+fn raw_auto_mode_switches_at_101_documents_with_mentions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    for i in 0..100 {
+        fs::write(dir.join(format!("contact-{i}.txt")), "reader@example.org").unwrap();
+    }
+    for (count, expected) in [(100, "exhaustive"), (101, "lsh")] {
+        if count == 101 {
+            fs::write(dir.join("another.txt"), "reader@example.org").unwrap();
+        }
+        let result = report(dir, &[".", "--model", "pattern"]);
+        assert_eq!(result["metadata"]["documents_processed"], count);
+        assert_eq!(result["metadata"]["documents_with_mentions"], count);
+        assert_eq!(result["metadata"]["total_entities"], count);
         assert_eq!(result["metadata"]["candidate_mode"], expected);
     }
 }
@@ -97,6 +128,7 @@ fn imported_tracks_report_their_own_policy_and_reject_raw_options() {
     fs::write(dir.join("doc.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
     let result = report(dir, &["--import", "doc.json"]);
     assert_eq!(result["metadata"]["resolver"], "grounded_tracks");
+    assert!(result["metadata"].get("documents_with_mentions").is_none());
     assert_eq!(result["metadata"]["candidate_mode"], "exhaustive");
 
     for input in [
