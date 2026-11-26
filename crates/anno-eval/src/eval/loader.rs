@@ -892,6 +892,7 @@ impl DatasetId {
             // The catalog describes the corpus, not the particular bytes being parsed.
             split: None,
             language: Some(self.language().to_string()),
+            observed_language: None,
             domain: Some(self.domain().to_string()),
             original_source: Some(self.download_url().to_string()),
             version: None,
@@ -1182,6 +1183,9 @@ pub struct DatasetMetadata {
     pub split: Option<String>,
     /// Language code (e.g., "en", "de", "zh").
     pub language: Option<String>,
+    /// Single language verified for the loaded artifact, independent of sampling pins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_language: Option<String>,
     /// Domain (e.g., "news", "biomedical", "social-media").
     pub domain: Option<String>,
     /// Original source repository or homepage.
@@ -1279,6 +1283,28 @@ pub struct DatasetLoadReceipt {
     pub content_sha256: String,
     /// Set when a publisher load followed an unsuccessful configured S3 lookup.
     pub s3_fallback: Option<S3FallbackReason>,
+}
+
+impl DatasetLoadReceipt {
+    fn new(
+        mut dataset: LoadedDataset,
+        content_sha256: String,
+        s3_fallback: Option<S3FallbackReason>,
+    ) -> Self {
+        // The matrix can stage this release without a manifest. Recognize the same
+        // public bytes independently of whether they came from a file, S3 or the publisher.
+        const WIKIGOLD_SHA256: &str =
+            "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
+        if dataset.id == DatasetId::WikiGold && content_sha256 == WIKIGOLD_SHA256 {
+            dataset.metadata.observed_language = Some("en".into());
+            dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
+        }
+        Self {
+            dataset,
+            content_sha256,
+            s3_fallback,
+        }
+    }
 }
 
 /// A loaded dataset with metadata.
@@ -1603,6 +1629,13 @@ impl DatasetLoader {
         out
     }
 
+    /// Cheap preselection hint for Estimate. The evaluated receipt rechecks the payload checksum.
+    pub(crate) fn cached_language_hint(&self, id: DatasetId) -> Option<String> {
+        let manifest = self.manifest.read().ok()?;
+        let url = manifest.get(id.cache_filename())?.resolved_url.as_deref()?;
+        Self::artifact_language(id, url)
+    }
+
     /// Upload a locally cached dataset (by `DatasetId`) to S3, using its manifest entry.
     ///
     /// This uses the same object layout as `load_or_download()`'s best-effort upload:
@@ -1726,11 +1759,11 @@ impl DatasetLoader {
         let dataset_id = id.0;
         if let Some(fixture) = dataset_id.checkout_fixture() {
             let content = self.read_checkout_fixture(dataset_id, &fixture)?;
-            return Ok(DatasetLoadReceipt {
-                dataset: self.parse_content_impl(&content, dataset_id)?,
-                content_sha256: fixture.digest.to_string(),
-                s3_fallback: None,
-            });
+            return Ok(DatasetLoadReceipt::new(
+                self.parse_content_impl(&content, dataset_id)?,
+                fixture.digest.to_string(),
+                None,
+            ));
         }
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
@@ -1775,20 +1808,7 @@ impl DatasetLoader {
         if matches!(parse_content, std::borrow::Cow::Owned(_)) {
             dataset.metadata.version = Some(format!("sha256:{content_sha256}"));
         }
-        // The matrix stages the verified WikiGold release without a cache manifest.
-        // Only identify these public bytes; other bare WikiGold caches may be local fixtures.
-        if dataset_id == DatasetId::WikiGold && dataset.metadata.version.is_none() {
-            const RELEASE_SHA256: &str =
-                "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f";
-            if content_sha256 == RELEASE_SHA256 {
-                dataset.metadata.version = Some(format!("sha256:{RELEASE_SHA256}"));
-            }
-        }
-        Ok(DatasetLoadReceipt {
-            dataset,
-            content_sha256,
-            s3_fallback: None,
-        })
+        Ok(DatasetLoadReceipt::new(dataset, content_sha256, None))
     }
 
     /// Load or download a dataset.
@@ -1911,11 +1931,7 @@ impl DatasetLoader {
                             manifest.save(&self.cache_dir)?;
                         }
                     }
-                    return Ok(DatasetLoadReceipt {
-                        dataset,
-                        content_sha256,
-                        s3_fallback: None,
-                    });
+                    return Ok(DatasetLoadReceipt::new(dataset, content_sha256, None));
                 }
                 Err((reason, error)) => {
                     if publisher == PublisherFallback::Forbid {
@@ -1946,6 +1962,10 @@ impl DatasetLoader {
         dataset.source_url = resolved_url.clone();
         dataset.metadata.original_source = Some(resolved_url.clone());
         dataset.metadata.split = Self::evaluation_split_from_url(&resolved_url);
+        dataset.metadata.observed_language = dataset
+            .metadata
+            .observed_language
+            .or_else(|| Self::artifact_language(dataset_id, &resolved_url));
         dataset.metadata.version = Some(format!("sha256:{sha256}"));
 
         // 5. Update manifest with download metadata
@@ -1970,11 +1990,7 @@ impl DatasetLoader {
             let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
         }
 
-        Ok(DatasetLoadReceipt {
-            dataset,
-            content_sha256: sha256,
-            s3_fallback,
-        })
+        Ok(DatasetLoadReceipt::new(dataset, sha256, s3_fallback))
     }
 
     #[cfg(not(feature = "eval"))]
@@ -2388,8 +2404,10 @@ impl DatasetLoader {
         // config, not a random/first config.
         let preferred_hf_config: Option<String> = if id.language().eq_ignore_ascii_case("mul") {
             // Explicit override wins if set.
-            env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
-                .or_else(|| env_single_csv(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"]))
+            env_single_csv(&["ANNO_HF_DATASET_CONFIG"]).or_else(|| {
+                env_single_csv(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"])
+                    .map(|pin| super::dataset_language::provider_config(id, &pin).to_owned())
+            })
         } else {
             env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
         };
@@ -2631,6 +2649,36 @@ impl DatasetLoader {
         Some((split_rank, extension_rank, filename.len()))
     }
 
+    // These publishers use language tags for their dataset configs. Arbitrary HF config
+    // names (such as "all", "pos" or a genre) do not identify a language.
+    fn artifact_language(id: DatasetId, resolved_url: &str) -> Option<String> {
+        if id == DatasetId::MasakhaNER && resolved_url == id.download_url() {
+            return Some("yo".into());
+        }
+        if !matches!(id, DatasetId::WikiANN | DatasetId::MasakhaNER2) {
+            return None;
+        }
+        let query = resolved_url.strip_prefix("https://datasets-server.huggingface.co/rows?")?;
+        let mut dataset = None;
+        let mut config = None;
+        for (key, value) in query.split('&').filter_map(|pair| pair.split_once('=')) {
+            match key {
+                "dataset" if dataset.is_none() => {
+                    dataset = Some(value.replace("%2F", "/").replace("%2f", "/"))
+                }
+                "config" if config.is_none() => config = Some(value),
+                "dataset" | "config" => return None,
+                _ => {}
+            }
+        }
+        if dataset.as_deref()? != id.hf_id()? {
+            return None;
+        }
+        super::dataset_language::config_language(id, config?)
+            .map(super::dataset_language::comparison_tag)
+            .map(str::to_owned)
+    }
+
     fn apply_manifest_provenance(dataset: &mut LoadedDataset, entry: &CacheManifestEntry) {
         let source = entry.resolved_url.as_ref().unwrap_or(&entry.source_url);
         dataset.source_url = source.clone();
@@ -2639,6 +2687,12 @@ impl DatasetLoader {
             .resolved_url
             .as_deref()
             .and_then(Self::evaluation_split_from_url);
+        if dataset.metadata.observed_language.is_none() {
+            dataset.metadata.observed_language = entry
+                .resolved_url
+                .as_deref()
+                .and_then(|url| Self::artifact_language(dataset.id, url));
+        }
         dataset.metadata.version = Some(format!("sha256:{}", entry.sha256));
     }
 
@@ -3552,6 +3606,7 @@ impl DatasetLoader {
             result.metadata.original_source = Some(fixture.path.into());
             result.metadata.version = Some(format!("sha256:{}", fixture.digest));
             result.metadata.split = Some("fixture".into());
+            result.metadata.observed_language = Some(id.language().into());
         }
 
         // Validate parsed dataset is not empty
@@ -3763,6 +3818,7 @@ impl DatasetLoader {
     /// becomes `TAG_<n>`, since another dataset's ids would give wrong labels.
     fn parse_jsonl_ner(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
+        let mut row_languages = std::collections::BTreeSet::new();
 
         // MultiNERD tag mapping (index -> label)
         let multinerd_labels = [
@@ -3813,6 +3869,17 @@ impl DatasetLoader {
             }
 
             if !annotated_tokens.is_empty() {
+                if id == DatasetId::MultiNERD {
+                    // Consider only rows actually scored. A missing or mixed language
+                    // is insufficient evidence for any single-language coverage claim.
+                    let language = parsed.get("lang").and_then(|v| v.as_str()).filter(|s| {
+                        matches!(
+                            *s,
+                            "de" | "en" | "es" | "fr" | "it" | "nl" | "pl" | "pt" | "ru" | "zh"
+                        )
+                    });
+                    row_languages.insert(language.map(str::to_owned));
+                }
                 sentences.push(AnnotatedSentence {
                     tokens: annotated_tokens,
                     source_dataset: id,
@@ -3832,6 +3899,10 @@ impl DatasetLoader {
             )));
         }
 
+        let mut metadata = id.default_metadata();
+        if row_languages.len() == 1 {
+            metadata.observed_language = row_languages.pop_first().flatten();
+        }
         let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
@@ -3840,7 +3911,7 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
-            metadata: id.default_metadata(),
+            metadata,
         })
     }
 
@@ -7944,6 +8015,79 @@ mod tests {
         assert_eq!(receipt.dataset.metadata.split, None);
         let reopened = DatasetLoader::with_cache_dir(dir.path()).unwrap();
         assert_eq!(reopened.load_with_receipt(id).unwrap().content_sha256, pin);
+    }
+
+    #[test]
+    fn observed_language_requires_agreement_across_scored_multinerd_rows() {
+        let temp = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(temp.path()).unwrap();
+        let row = r#"{"tokens":["Ort"],"ner_tags":[0],"lang":"de"}"#;
+        let other = row.replace("de", "ru");
+        let unknown = r#"{"tokens":["X"],"ner_tags":[0]}"#;
+        for (extra, expected) in [(row, Some("de")), (&other, None), (unknown, None)] {
+            let content = format!("{row}\n{extra}");
+            let data = loader
+                .parse_content_str(&content, DatasetId::MultiNERD)
+                .unwrap();
+            assert_eq!(data.metadata.observed_language.as_deref(), expected);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn observed_language_follows_the_actual_config_through_the_cache() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut loader = DatasetLoader::with_cache_dir(temp.path()).unwrap();
+        loader.s3_bucket = None;
+        let id = LoadableDatasetId(DatasetId::WikiANN);
+        let content = r#"{"rows":[{"row_idx":0,"row":{"tokens":["Ort"],"ner_tags":["O"]}}]}"#;
+        let url = DatasetLoader::hf_rows_url("unimelb-nlp/wikiann", "de", "test");
+        let receipt = loader
+            .load_with_fetchers(
+                id,
+                None,
+                PublisherFallback::Allow,
+                |_| unreachable!(),
+                || Ok((content.into(), url.clone())),
+            )
+            .unwrap();
+        assert_eq!(receipt.dataset.metadata.language.as_deref(), Some("mul"));
+        assert_eq!(
+            receipt.dataset.metadata.observed_language.as_deref(),
+            Some("de")
+        );
+        let reopened = DatasetLoader::with_cache_dir(temp.path()).unwrap();
+        assert_eq!(
+            reopened
+                .load(id)
+                .unwrap()
+                .metadata
+                .observed_language
+                .as_deref(),
+            Some("de")
+        );
+        let mut entry = reopened.cached_manifest_entries().pop().unwrap();
+        entry.resolved_url = None;
+        reopened.manifest.write().unwrap().update_entry(entry);
+        assert_eq!(reopened.load(id).unwrap().metadata.observed_language, None);
+        assert_eq!(
+            loader
+                .parse_content_str(content, id.0)
+                .unwrap()
+                .metadata
+                .observed_language,
+            None
+        );
+
+        for url in [
+            url.replace("unimelb-nlp", "another"),
+            url.replace("huggingface.co", "unrelated.example"),
+            url.replace("config=de", "config=default"),
+            url.replace("config=de", "config=en&config=de"),
+            url.replace("config=de", "config=mul"),
+        ] {
+            assert_eq!(DatasetLoader::artifact_language(id.0, &url), None);
+        }
     }
 
     #[test]
