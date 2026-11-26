@@ -106,3 +106,109 @@ fn imported_tracks_report_their_own_policy_and_reject_raw_options() {
         );
     }
 }
+
+#[test]
+fn explain_one_pair_reports_actual_candidate_and_threshold_decisions() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(dir.join("first.txt"), "Dr. Nara Pell presented a report.").unwrap();
+    fs::write(dir.join("-second page.txt"), "Dr. Pell presented a report.").unwrap();
+    let run = |mode, cutoff| {
+        report(
+            dir,
+            &[
+                ".",
+                "--model",
+                "heuristic",
+                "--candidates",
+                mode,
+                "--threshold",
+                cutoff,
+                "--explain-pair",
+                "-second page",
+                "0",
+                "first",
+                "0",
+                "--min-cluster-size",
+                "10",
+            ],
+        )
+    };
+    let equal = run("exhaustive", "0.6666666666666666");
+    assert_eq!(equal["clusters"], serde_json::json!([]));
+    let receipt = &equal["pair_explanation"];
+    assert_eq!(receipt["left"]["doc_id"], "-second page");
+    assert_eq!(receipt["left"]["text"], "Dr. Pell");
+    assert_eq!(receipt["right"]["entity_idx"], 0);
+    assert_eq!(receipt["decision"]["outcome"], "accepted");
+    assert_eq!(receipt["decision"]["basis"], "string_similarity");
+    assert_eq!(receipt["decision"]["similarity"], 2.0 / 3.0);
+    assert_eq!(receipt["same_component"], true);
+
+    let higher = run("exhaustive", "0.6666666666666667");
+    assert_eq!(
+        higher["pair_explanation"]["decision"]["outcome"],
+        "below_threshold"
+    );
+    assert_eq!(
+        higher["pair_explanation"]["decision"]["similarity"],
+        receipt["decision"]["similarity"]
+    );
+    assert_eq!(higher["pair_explanation"]["same_component"], false);
+
+    let blocked = run("lsh", "0");
+    assert_eq!(
+        blocked["pair_explanation"]["decision"],
+        serde_json::json!({"outcome":"not_proposed"})
+    );
+    assert_eq!(blocked["pair_explanation"]["same_component"], false);
+
+    for (args, expected) in [
+        (
+            vec![
+                ".",
+                "--model",
+                "heuristic",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "2",
+            ],
+            "unknown mention",
+        ),
+        (
+            vec![".", "--explain-pair", "first", "a", "-second page", "0"],
+            "invalid entity index",
+        ),
+        (
+            vec![
+                "--stdin",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "0",
+            ],
+            "cannot be used with",
+        ),
+        (
+            vec![
+                ".",
+                "--format",
+                "jsonl",
+                "--explain-pair",
+                "first",
+                "0",
+                "-second page",
+                "0",
+            ],
+            "requires --format json",
+        ),
+    ] {
+        let output = cross_doc(dir, &args);
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains(expected), "{error}");
+    }
+}

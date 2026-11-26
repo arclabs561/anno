@@ -53,6 +53,11 @@ pub struct CrossDocArgs {
     #[arg(long, value_enum, conflicts_with_all = ["import", "stdin"])]
     pub candidates: Option<CandidateMode>,
 
+    /// Include one raw pair's decision in JSON, using document IDs and zero-based entity indices.
+    #[arg(long, num_args = 4, value_names = ["LEFT_DOC", "LEFT_INDEX", "RIGHT_DOC", "RIGHT_INDEX"],
+          allow_hyphen_values = true, conflicts_with_all = ["import", "stdin", "delivery_manifest"])]
+    pub explain_pair: Vec<String>,
+
     /// Require entity type match for clustering
     #[arg(long)]
     pub require_type_match: bool,
@@ -350,6 +355,21 @@ fn import_deliveries(
 #[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
+    let requested_pair = match args.explain_pair.as_slice() {
+        [] => None,
+        [left, i, right, j] => {
+            if !matches!(args.format, OutputFormat::Json) {
+                return Err("--explain-pair requires --format json".into());
+            }
+            let index = |raw: &str| {
+                raw.parse::<usize>().map_err(|_| {
+                    format!("invalid entity index '{raw}': expected a nonnegative integer")
+                })
+            };
+            Some(((left.as_str(), index(i)?), (right.as_str(), index(j)?)))
+        }
+        _ => return Err("--explain-pair expects LEFT_DOC LEFT_INDEX RIGHT_DOC RIGHT_INDEX".into()),
+    };
     if args.verbose {
         if let Some(ref dir) = args.directory {
             eprintln!("Scanning directory: {}", dir);
@@ -393,6 +413,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
     let candidate_mode;
+    let mut pair_explanation = None;
     let mut delivery_outcomes = Vec::new();
 
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
@@ -570,7 +591,15 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         };
 
         let resolver = CDCRResolver::with_config(config);
-        let clusters = resolver.resolve(&documents);
+        let clusters = if let Some((left, right)) = requested_pair {
+            let (clusters, explanation) = resolver
+                .resolve_with_pair(&documents, left, right)
+                .map_err(|error| error.to_string())?;
+            pair_explanation = Some(explanation);
+            clusters
+        } else {
+            resolver.resolve(&documents)
+        };
 
         // Filter clusters
         let mut filtered_clusters: Vec<_> = clusters
@@ -655,6 +684,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         OutputFormat::Json => {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
+            if let Some(explanation) = pair_explanation {
+                output.insert("pair_explanation".into(), serde_json::json!(explanation));
+            }
             if !delivery_outcomes.is_empty() {
                 output.insert("deliveries".into(), serde_json::json!(delivery_outcomes));
             }
