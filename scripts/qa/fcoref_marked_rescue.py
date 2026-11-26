@@ -63,6 +63,17 @@ def partition_pairs(groups):
     return {pair for group in groups for pair in combinations(sorted(group), 2)}
 
 
+def recovered_by_stock_state(docs, before, after):
+    counts = {"missing_endpoint": 0, "both_emitted_separate": 0}
+    for doc, old, new in zip(docs, before["per_id"], after["per_id"], strict=True):
+        truth = doc[3]
+        for pos, gold in enumerate(truth):
+            if gold and old[3 + pos] == "0" and new[3 + pos] == "1":
+                emitted = old[0] == "1" and old[pos + 1] == "1"
+                counts["both_emitted_separate" if emitted else "missing_endpoint"] += 1
+    return counts
+
+
 def summarize(docs, before, after, native_stats, expected):
     stock = measure(docs, before, "fcoref")
     candidate = measure(docs, after, "fcoref")
@@ -84,6 +95,7 @@ def summarize(docs, before, after, native_stats, expected):
     return dict(cohort_ids_sha256=cohort_sha, stock_partitions_sha256=digest(partitions[0]),
                 marked_partitions_sha256=digest(partitions[1]), stock=stock["counts"],
                 marked=candidate["counts"], paired=compare(docs, stock, candidate),
+                recovered_by_stock_state=recovered_by_stock_state(docs, stock, candidate),
                 output_pair_changes=dict(changed),
                 proposals=dict(requested=sum(s[0] for s in native_stats), legal=sum(s[1] for s in native_stats),
                                promoted=sum(s[2] for s in native_stats),

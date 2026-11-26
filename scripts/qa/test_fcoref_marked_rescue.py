@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 import hashlib
+import json
 import types
 import unittest
 from unittest.mock import patch
 
-from fcoref_marked_rescue import digest, documents, measure, run_arm, summarize
+from fcoref_marked_rescue import digest, documents, measure, recovered_by_stock_state, run_arm, summarize
 
 
 class MarkedRescueTests(unittest.TestCase):
@@ -20,8 +21,7 @@ class MarkedRescueTests(unittest.TestCase):
                                     stderr="FCOREF_RESERVE 3 3 1 5\n")
         with patch("fcoref_marked_rescue.subprocess.run", return_value=out) as run:
             _, stats = run_arm("binary", {}, self.docs, True)
-            from json import loads
-            self.assertEqual(loads(run.call_args.kwargs["input"]), {
+            self.assertEqual(json.loads(run.call_args.kwargs["input"]), {
                 "id": "doc", "text": self.row["Text"], "marked_bytes": [[13, 16], [0, 4], [9, 11]]})
             self.assertEqual(stats, [(3, 3, 1, 5)])
 
@@ -39,6 +39,12 @@ class MarkedRescueTests(unittest.TestCase):
         self.assertEqual(result["output_pair_changes"]["added_unscored_pairs"], 0)
         with self.assertRaisesRegex(ValueError, "stock panel"):
             summarize(self.docs, marked, stock, [(3, 3, 1, 5)], expected)
+
+    def test_recovered_link_reports_its_stock_endpoint_state(self):
+        before = {"per_id": ["01100", "11100", "11110"]}
+        after = {"per_id": ["11110", "11111", "11110"]}
+        self.assertEqual(recovered_by_stock_state(self.docs * 3, before, after),
+                         {"missing_endpoint": 1, "both_emitted_separate": 1})
 
     def test_bad_native_candidate_budget_fails(self):
         out = types.SimpleNamespace(stdout="", stderr="FCOREF_RESERVE 3 2 3 2\n")
