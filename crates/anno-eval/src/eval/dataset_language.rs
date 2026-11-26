@@ -67,7 +67,7 @@ pub(crate) fn config_language(dataset: DatasetId, config: &str) -> Option<&'stat
     }
 }
 
-#[cfg(feature = "eval")]
+#[cfg(all(feature = "eval", test))]
 pub(crate) fn verified_config_languages() -> impl Iterator<Item = &'static str> {
     WIKIANN_LANGUAGES
         .split_ascii_whitespace()
