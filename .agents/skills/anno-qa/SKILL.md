@@ -9,6 +9,7 @@ Choose the entry point for the question. Run commands from the repository root.
 
 | Task | First action |
 |---|---|
+| Inspect a nested-name, competing-antecedent or abstention case | Start with `just qa-coref-corpora list` for rights and pinned input formats. Use the [corpus replay guide](../../../docs/eval/coref-corpus-qa.md) for local checking, blinded inputs and source-bound scoring. |
 | Reproduce a named case | Run its fixed replay with the binary from the checkout being tested. For example, use `ANNO_BIN=target/debug/anno just qa-replay typed_spans currency-print-spacing`. |
 | Find how a CI benchmark loaded its data | Open the run’s `eval-sanity-report.json` or benchmark JSON and inspect each result’s `provenance.dataset.data_source`. A bucket count measures objects. A workflow setting shows S3 was enabled. The result records which source supplied the input. |
 | Explain a selected, missing or zero-scoring matrix cell | Run the compact handoff below on the decisions JSONL. It cites the observed rows and flags named selections without a matching run, strategy, slice, dataset and backend. Some selectors log only part of the selection. For the full denominator, compare the same run’s `matrix-muxer:` dispatch lines. Replay a measured cell at its recorded revision and features. |
