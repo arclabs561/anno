@@ -73,6 +73,43 @@ fn trimmed_mention(text: &str, span: Range<usize>) -> Option<(&str, Range<usize>
     (!mention.is_empty()).then_some((mention, start..start + mention.len()))
 }
 
+/// Project selected token pairs to source spans, preserving the scorer's mention indices
+/// when a zero-width special token or whitespace-only mention drops out.
+fn source_clusters(
+    text: &str,
+    offsets: &[(usize, usize)],
+    starts: &[usize],
+    ends: &[usize],
+    antecedents: &[usize],
+) -> Vec<CorefCluster> {
+    let converter = SpanConverter::new(text);
+    let mut mentions = Vec::with_capacity(starts.len());
+    let mut retained = vec![None; starts.len()];
+    for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
+        let (Some(&(begin, _)), Some(&(_, finish))) = (offsets.get(start), offsets.get(end)) else {
+            continue;
+        };
+        if let Some((surface, span)) = trimmed_mention(text, begin..finish) {
+            retained[i] = Some(mentions.len());
+            mentions.push(MentionSpan {
+                char_start: converter.byte_to_char(span.start),
+                char_end: converter.byte_to_char(span.end),
+                text: surface.to_string(),
+            });
+        }
+    }
+
+    let mut links = Vec::with_capacity(mentions.len());
+    for (i, &new_index) in retained.iter().enumerate() {
+        if let Some(new_index) = new_index {
+            // A filtered antecedent leaves the surviving mention unlinked.
+            let target = antecedents.get(i).and_then(|&old| retained.get(old));
+            links.push(target.copied().flatten().unwrap_or(new_index));
+        }
+    }
+    clustering::build_clusters(&mentions, &links)
+}
+
 const DEFAULT_DOCUMENT_BUDGET: Option<usize> = Some(512);
 
 /// Configuration for f-coref model loading.
@@ -353,69 +390,13 @@ impl FCoref {
             .max(1);
         let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
 
-        // 5. Map token indices to character offsets
-        let offsets = encoding.get_offsets();
-        let span_converter = SpanConverter::new(text);
-
-        let mentions: Vec<MentionSpan> = mentions_result
-            .top_k_starts
-            .iter()
-            .zip(mentions_result.top_k_ends.iter())
-            .filter_map(|(&ts, &te)| {
-                if ts >= offsets.len() || te >= offsets.len() {
-                    return None;
-                }
-                let (byte_start, _) = offsets[ts];
-                let (_, byte_end) = offsets[te];
-                let (mention_text, span) = trimmed_mention(text, byte_start..byte_end)?;
-                Some(MentionSpan {
-                    token_start: ts,
-                    token_end: te,
-                    char_start: span_converter.byte_to_char(span.start),
-                    char_end: span_converter.byte_to_char(span.end),
-                    text: mention_text.to_string(),
-                })
-            })
-            .collect();
-
-        // 6. Build clusters
-        // Re-index antecedents to match the filtered mentions
-        let original_count = mentions_result.top_k_starts.len();
-        let mut index_map = vec![None; original_count];
-        for (new_idx, mention) in mentions.iter().enumerate() {
-            // Find original index by matching token positions
-            for (old_idx, (&os, &oe)) in mentions_result
-                .top_k_starts
-                .iter()
-                .zip(mentions_result.top_k_ends.iter())
-                .enumerate()
-            {
-                if os == mention.token_start && oe == mention.token_end {
-                    index_map[old_idx] = Some(new_idx);
-                    break;
-                }
-            }
-        }
-
-        let filtered_antecedents: Vec<usize> = mentions
-            .iter()
-            .enumerate()
-            .map(|(new_i, mention)| {
-                // Find original index
-                let old_i = mentions_result
-                    .top_k_starts
-                    .iter()
-                    .zip(mentions_result.top_k_ends.iter())
-                    .position(|(&os, &oe)| os == mention.token_start && oe == mention.token_end)
-                    .unwrap_or(new_i);
-
-                let old_ante = antecedents.get(old_i).copied().unwrap_or(old_i);
-                // Map to new index
-                index_map.get(old_ante).and_then(|&x| x).unwrap_or(new_i) // null if antecedent was filtered out
-            })
-            .collect();
-
-        Ok(clustering::build_clusters(&mentions, &filtered_antecedents))
+        Ok(source_clusters(
+            text,
+            encoding.get_offsets(),
+            &mentions_result.top_k_starts,
+            &mentions_result.top_k_ends,
+            &antecedents,
+        ))
     }
 
     fn score_encoding(
@@ -582,6 +563,19 @@ fn encode_segments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_clusters_remap_links_after_empty_mentions() {
+        let text = "Zoë Zoë met Ada";
+        let offsets = [(0, 0), (0, 4), (4, 5), (5, 9), (10, 13), (14, 17)];
+        let tokens = [0, 1, 2, 3, 4, 5];
+        // The second Zoë links to the first after an empty and a space-only
+        // span drop out. A link to the dropped space becomes a self-link.
+        let clusters = source_clusters(text, &offsets, &tokens, &tokens, &[0, 0, 2, 1, 2, 4]);
+        assert_eq!(clusters.len(), 2);
+        assert!(clusters.iter().any(|c| c.spans == [(0, 3), (4, 7)]));
+        assert!(clusters.iter().any(|c| c.spans == [(8, 11), (12, 15)]));
+    }
 
     #[test]
     fn trimmed_mentions_keep_their_source_occurrence() {

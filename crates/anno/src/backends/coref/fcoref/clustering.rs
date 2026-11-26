@@ -54,10 +54,6 @@ impl UnionFind {
 /// A mention with its character span in the original text.
 #[derive(Debug, Clone)]
 pub(crate) struct MentionSpan {
-    /// Token-level start index.
-    pub token_start: usize,
-    /// Token-level end index (inclusive).
-    pub token_end: usize,
     /// Character-level start offset.
     pub char_start: usize,
     /// Character-level end offset.
@@ -169,22 +165,16 @@ mod tests {
     fn build_clusters_filters_singletons() {
         let mentions = vec![
             MentionSpan {
-                token_start: 0,
-                token_end: 1,
                 char_start: 0,
                 char_end: 4,
                 text: "John".into(),
             },
             MentionSpan {
-                token_start: 5,
-                token_end: 5,
                 char_start: 20,
                 char_end: 22,
                 text: "He".into(),
             },
             MentionSpan {
-                token_start: 10,
-                token_end: 11,
                 char_start: 40,
                 char_end: 44,
                 text: "Mary".into(),
@@ -228,15 +218,11 @@ mod tests {
     fn build_clusters_all_singletons() {
         let mentions = vec![
             MentionSpan {
-                token_start: 0,
-                token_end: 0,
                 char_start: 0,
                 char_end: 3,
                 text: "one".into(),
             },
             MentionSpan {
-                token_start: 1,
-                token_end: 1,
                 char_start: 4,
                 char_end: 7,
                 text: "two".into(),
@@ -251,8 +237,6 @@ mod tests {
     fn build_clusters_long_chain() {
         let mentions: Vec<MentionSpan> = (0..4)
             .map(|i| MentionSpan {
-                token_start: i * 3,
-                token_end: i * 3 + 1,
                 char_start: i * 10,
                 char_end: i * 10 + 5,
                 text: format!("m{}", i),
@@ -269,29 +253,21 @@ mod tests {
     fn build_clusters_two_clusters() {
         let mentions = vec![
             MentionSpan {
-                token_start: 0,
-                token_end: 0,
                 char_start: 0,
                 char_end: 5,
                 text: "Alice".into(),
             },
             MentionSpan {
-                token_start: 2,
-                token_end: 2,
                 char_start: 10,
                 char_end: 13,
                 text: "Bob".into(),
             },
             MentionSpan {
-                token_start: 5,
-                token_end: 5,
                 char_start: 20,
                 char_end: 23,
                 text: "She".into(),
             },
             MentionSpan {
-                token_start: 8,
-                token_end: 8,
                 char_start: 30,
                 char_end: 32,
                 text: "He".into(),

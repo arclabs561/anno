@@ -1,6 +1,6 @@
 --- a/crates/anno/src/backends/coref/fcoref/mod.rs
 +++ b/crates/anno/src/backends/coref/fcoref/mod.rs
-@@ -351,6 +351,12 @@
+@@ -388,6 +388,12 @@
              * self.config.top_lambda)
              .ceil() as usize)
              .max(1);
@@ -12,7 +12,7 @@
 +        };
          let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
 
-         // 5. Map token indices to character offsets
+         Ok(source_clusters(
 --- a/crates/anno/src/backends/coref/fcoref/scoring.rs
 +++ b/crates/anno/src/backends/coref/fcoref/scoring.rs
 @@ -231,6 +231,10 @@
