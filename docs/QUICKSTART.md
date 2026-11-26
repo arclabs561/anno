@@ -31,6 +31,39 @@ root with those features.
 cargo install --locked --path crates/anno-cli --bin anno --features "onnx eval"
 ```
 
+## Reuse a CLI workflow profile
+
+In this checkout, save the model and output format once and select the profile
+before or after the command. Each explicit option overrides the corresponding
+saved setting, even when the explicit value equals the command's built-in default.
+Omitted fields keep their command-specific defaults.
+
+```sh
+anno config save standard --model stacked --format json
+anno config ls
+anno config show standard
+anno --config standard -- "Zoë met Jane in Lyon."
+anno batch --config standard --dir ./docs --quiet
+```
+
+| Command | Saved settings used |
+| --- | --- |
+| Positional text, `extract` | `model`, `format`, `threshold` |
+| `batch`, `pipeline` | `model`, `format`, `coref`, `link_kb` |
+| `debug` | `model`, `coref`, `link_kb` |
+| `enhance` | `format`, `coref`, `link_kb` |
+| `cross-doc` (eval build) | `model` for raw inputs, `format` |
+| `query FILE` | `format` |
+| `eval` with live extraction, `dataset eval`, `privacy`, `export`, `explain`, `watch`, `domain`, `singleton` | `model` |
+
+Use `--coref=false` or `--link-kb=false` to override a saved switch. The profile
+threshold is extraction confidence. Cross-document similarity, relation distance,
+checkpoint paths, and benchmark sampling have their own command options.
+Export encodings and command-specific report formats also use their own options.
+Source offsets, runtime provenance and observed-language accounting apply automatically.
+Operations outside the table, including scoring saved predictions, reject an
+explicit profile. Use `anno help COMMAND` for the options available in your build.
+
 ## CLI: extract entities
 
 ```console

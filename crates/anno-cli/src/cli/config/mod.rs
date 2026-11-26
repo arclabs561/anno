@@ -6,8 +6,8 @@ use clap::ValueEnum;
 use serde::Deserialize;
 
 use crate::cli::{
-    commands::{DebugArgs, ExtractArgs},
-    parser::{ModelBackend, OutputFormat},
+    commands::dataset::{DatasetAction, DatasetArgs},
+    parser::{Commands, ModelBackend, OutputFormat},
     utils::{get_config_dir, validate_path_component},
 };
 
@@ -72,107 +72,120 @@ fn parse_value<T: ValueEnum + Clone>(
         .transpose()
 }
 
-/// Merge a saved config into extract arguments. Explicit command-line values win.
-pub fn apply_to_extract(mut args: ExtractArgs) -> Result<ExtractArgs, String> {
-    let selected = args.config.as_deref().map(load).transpose()?;
-    if let Some(config) = selected {
-        args = apply_selected_to_extract(args, config);
+/// Apply only settings with the same meaning on the selected command.
+pub fn apply(
+    name: &str,
+    command: Option<&mut Commands>,
+    root: &clap::ArgMatches,
+) -> Result<(), String> {
+    apply_selected(load(name)?, command, root)
+}
+
+fn apply_selected(
+    config: SelectedConfig,
+    command: Option<&mut Commands>,
+    root: &clap::ArgMatches,
+) -> Result<(), String> {
+    let matches = root.subcommand().map(|(_, m)| m);
+    macro_rules! inherit {
+        ($args:ident, $($field:ident),+) => {{
+            $(inherit(matches, stringify!($field), config.$field, &mut $args.$field);)+
+        }};
     }
-    Ok(args)
-}
-
-fn apply_selected_to_extract(mut args: ExtractArgs, config: SelectedConfig) -> ExtractArgs {
-    args.model = args.model.or(config.model);
-    args.format = args.format.or(config.format);
-    args.threshold = args.threshold.or(config.threshold);
-    args
-}
-
-/// Merge a saved config into debug arguments. Explicit command-line flags win when set.
-pub fn apply_to_debug(mut args: DebugArgs) -> Result<DebugArgs, String> {
-    let selected = args.config.as_deref().map(load).transpose()?;
-    if let Some(config) = selected {
-        args = apply_selected_to_debug(args, config);
+    match command {
+        Some(Commands::Extract(a)) => inherit!(a, model, format, threshold),
+        Some(Commands::Debug(a)) => inherit!(a, model, coref, link_kb),
+        Some(Commands::Batch(a)) => inherit!(a, model, format, coref, link_kb),
+        Some(Commands::Pipeline(a)) => inherit!(a, model, format, coref, link_kb),
+        Some(Commands::Enhance(a)) => inherit!(a, format, coref, link_kb),
+        Some(Commands::Query(a)) if a.command.is_none() => {
+            inherit!(a, format)
+        }
+        #[cfg(feature = "eval")]
+        Some(Commands::CrossDoc(a)) => inherit!(a, model, format),
+        Some(Commands::Eval(a)) if a.predictions.is_none() => inherit!(a, model),
+        Some(Commands::Dataset(DatasetArgs {
+            action: DatasetAction::Eval { model, .. },
+        })) => {
+            let action = matches.and_then(|m| m.subcommand()).map(|(_, m)| m);
+            inherit(action, "model", config.model, model);
+        }
+        Some(Commands::Export(a)) => inherit!(a, model),
+        Some(Commands::Explain(a)) => inherit!(a, model),
+        Some(Commands::Privacy(a)) => inherit!(a, model),
+        Some(Commands::Singleton(a)) => inherit!(a, model),
+        Some(Commands::Domain(a)) => inherit!(a, model),
+        Some(Commands::Watch(a)) => inherit!(a, model),
+        _ => return Err("This operation has no saved workflow settings. Omit --config.".into()),
     }
-    Ok(args)
+    Ok(())
 }
 
-fn apply_selected_to_debug(mut args: DebugArgs, config: SelectedConfig) -> DebugArgs {
-    args.model = args.model.or(config.model);
-    args.coref = args.coref.or(config.coref);
-    args.link_kb = args.link_kb.or(config.link_kb);
-    args
+fn inherit<T, U: From<T>>(
+    matches: Option<&clap::ArgMatches>,
+    field: &str,
+    saved: Option<T>,
+    target: &mut U,
+) {
+    if matches.and_then(|m| m.value_source(field)) != Some(clap::parser::ValueSource::CommandLine) {
+        if let Some(value) = saved {
+            *target = value.into();
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use super::*;
-    use clap::Parser;
+    use crate::cli::parser::Cli;
+    use clap::{CommandFactory, FromArgMatches};
 
-    #[test]
-    fn selected_config_is_typed_and_cli_values_take_precedence() {
-        let temp = tempfile::tempdir().unwrap();
-        fs::write(
-            temp.path().join("workflow.toml"),
-            "model = 'pattern'\nformat = 'json'\nthreshold = 0.9\n",
-        )
-        .unwrap();
-
-        let args = ExtractArgs::try_parse_from([
-            "anno",
-            "--config",
-            "workflow",
-            "--model",
-            "heuristic",
-            "--format",
-            "tsv",
-            "--threshold",
-            "0.4",
-            "--text",
-            "Alice",
-        ])
-        .unwrap();
-        let args = apply_selected_to_extract(args, load_from_dir("workflow", temp.path()).unwrap());
-
-        assert!(matches!(args.model, Some(ModelBackend::Heuristic)));
-        assert!(matches!(args.format, Some(OutputFormat::Tsv)));
-        assert_eq!(args.threshold, Some(0.4));
+    fn configured(args: &[&str]) -> Result<Commands, String> {
+        let matches = Cli::command().try_get_matches_from(args).unwrap();
+        let mut command = Cli::from_arg_matches(&matches).unwrap().command.unwrap();
+        let profile = SelectedConfig {
+            model: Some(ModelBackend::Pattern),
+            format: Some(OutputFormat::Json),
+            threshold: Some(0.95),
+            coref: Some(true),
+            link_kb: Some(true),
+        };
+        apply_selected(profile, Some(&mut command), &matches)?;
+        Ok(command)
     }
 
     #[test]
-    fn invalid_saved_value_names_its_config_and_field() {
-        let temp = tempfile::tempdir().unwrap();
-        fs::write(temp.path().join("broken.toml"), "model = 'missing-model'\n").unwrap();
-
-        let error = load_from_dir("broken", temp.path()).unwrap_err();
-        assert!(error.contains("model"));
-        assert!(error.contains("broken"));
+    fn pipeline_preserves_clustering_threshold_and_explicit_false() {
+        let Commands::Pipeline(a) = configured(&["anno", "p", "--link-kb=false"]).unwrap() else {
+            unreachable!()
+        };
+        assert!(matches!(a.model, ModelBackend::Pattern));
+        assert!(matches!(a.format, OutputFormat::Json));
+        assert!(a.coref);
+        assert!(!a.link_kb);
+        assert_eq!(a.threshold, 0.6);
     }
 
     #[test]
-    fn explicit_false_debug_flags_override_saved_true_values() {
-        let temp = tempfile::tempdir().unwrap();
-        fs::write(
-            temp.path().join("debug.toml"),
-            "coref = true\nlink_kb = true\n",
-        )
-        .unwrap();
+    fn nested_dataset_model_respects_action_level_override() {
+        for explicit in [false, true] {
+            let mut args = vec!["anno", "ds", "e"];
+            if explicit {
+                args.extend(["--model", "stacked"]);
+            }
+            let Commands::Dataset(DatasetArgs {
+                action: DatasetAction::Eval { model, .. },
+            }) = configured(&args).unwrap()
+            else {
+                unreachable!()
+            };
+            assert_eq!(model.name(), if explicit { "stacked" } else { "pattern" });
+        }
+    }
 
-        let args = DebugArgs::try_parse_from([
-            "anno",
-            "--config",
-            "debug",
-            "--coref=false",
-            "--link-kb=false",
-            "--text",
-            "Alice",
-        ])
-        .unwrap();
-        let args = apply_selected_to_debug(args, load_from_dir("debug", temp.path()).unwrap());
-
-        assert_eq!(args.coref, Some(false));
-        assert_eq!(args.link_kb, Some(false));
+    #[test]
+    fn non_extraction_operations_reject_a_profile() {
+        assert!(configured(&["anno", "info"]).is_err());
+        assert!(configured(&["anno", "eval", "--predictions", "saved.json"]).is_err());
     }
 }

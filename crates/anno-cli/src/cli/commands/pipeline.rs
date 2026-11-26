@@ -28,28 +28,23 @@ pub struct PipelineArgs {
     pub model: ModelBackend,
 
     /// Run coreference resolution
-    #[arg(long)]
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value = "false", require_equals = true)]
     pub coref: bool,
 
     /// Resolve with Maverick using prepared MES safetensors or a locally prepared official model ID (optional Python runtime).
     /// Set MAVERICK_PYTHON to a Python executable with maverick-coref installed.
-    #[arg(long, requires = "coref", value_name = "CHECKPOINT")]
+    #[arg(long, value_name = "CHECKPOINT")]
     pub maverick_model: Option<String>,
 
     /// Select speaker-only coreference (English first-person singular) in place of general coreference.
     /// General name and third-person chains are omitted.
     /// Each turn has speaker, text, start and end (character offsets in one input document).
     #[cfg(feature = "discourse")]
-    #[arg(
-        long,
-        requires = "coref",
-        conflicts_with = "maverick_model",
-        value_name = "JSON"
-    )]
+    #[arg(long, conflicts_with = "maverick_model", value_name = "JSON")]
     pub speaker_turns: Option<std::path::PathBuf>,
 
     /// Attach offline demo KB identifiers to tracks (including generated names).
-    #[arg(long)]
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value = "false", require_equals = true)]
     pub link_kb: bool,
 
     /// Resolve tracks across inputs. General coreference also includes unmatched detections.
@@ -84,6 +79,13 @@ pub struct PipelineArgs {
 
 /// Execute the pipeline command.
 pub fn run(args: PipelineArgs) -> Result<(), String> {
+    if !args.coref && args.maverick_model.is_some() {
+        return Err("--maverick-model requires --coref".into());
+    }
+    #[cfg(feature = "discourse")]
+    if !args.coref && args.speaker_turns.is_some() {
+        return Err("--speaker-turns requires --coref".into());
+    }
     #[cfg(not(feature = "eval"))]
     if args.cross_doc {
         return Err("Cross-document clustering requires 'eval' feature".into());
