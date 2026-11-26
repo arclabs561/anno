@@ -2,6 +2,16 @@
 
 Run the [quickstart](QUICKSTART.md) for a first CLI or Rust extraction. Before saving annotations or highlighting a result, check which source text and offset units the caller must retain. [Source text and offsets](CONTRACT.md#source-text-and-offsets)
 
+## Use Anno with an agent
+
+For clients that load a local Agent Plugins package, select the checkout’s `.agents/` directory. Choose a skill by the result you need.
+
+| Goal | Skill |
+|---|---|
+| Run an operation with the installed binary and inspect its output | [Anno CLI](../.agents/skills/anno-cli/SKILL.md) |
+| Use Anno from Rust or Python, highlight a source occurrence or exchange annotations | [Integrate Anno](../.agents/skills/anno-integrate/SKILL.md) |
+| Reproduce a failure or compare two backend or scorer revisions | [Anno QA](../.agents/skills/anno-qa/SKILL.md) |
+
 ## Verify a user-visible result
 
 | Goal | Replay and expected result |

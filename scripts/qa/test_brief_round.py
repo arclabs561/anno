@@ -217,7 +217,7 @@ class RoundEvidenceTest(unittest.TestCase):
     def test_arm_comparisons_keep_cohorts_and_final_error_counts(self):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "summary.json"
-            base = dict(tp=0, fp=2, fn=4, gold_solver=1)
+            base = dict(tp=0, fp=2, fn=4, gold_solver=1, typed_solver_edges=128)
             discovery = dict(common=dict(documents=3, gold=4), baseline=base,
                              candidate=dict(tp=1, fp=1, fn=3, gold_solver=2,
                                             new_solver_gold=1, lost_solver_gold=0, retained_solver_gold=1))
@@ -229,6 +229,7 @@ class RoundEvidenceTest(unittest.TestCase):
             first, second = output.split("confirmation (")
             self.assertIn("discovery (3 documents, 4 gold items)", first)
             self.assertIn("TP +1, FP -1, FN -1", first)
+            self.assertIn("Typed edges in solver input: 128", first)
             self.assertIn("gained 1, lost 0 and retained 1", first)
             self.assertIn("2 documents, 3 gold items", second)
             self.assertIn("4 predicted, micro F1 0.0000", second)
@@ -250,6 +251,12 @@ class RoundEvidenceTest(unittest.TestCase):
                     path.write_text(json.dumps(dict(paired_arms={"discovery": dict(
                         common=dict(documents=2, gold=3), baseline=base, alternative=dict(base, **change))})))
                     evidence(path)
+            # Even without solver telemetry, a final match must have reached scoring.
+            final = dict(tp=2, fp=0, fn=1)
+            path.write_text(json.dumps(dict(paired_arms={"discovery": dict(
+                common=dict(documents=2, gold=3, gold_scored=1), baseline=final, alternative=final)})))
+            with self.assertRaises(ValueError):
+                evidence(path)
             empty = dict(tp=0, fp=0, fn=0)
             path.write_text(json.dumps(dict(paired_arms={"confirmation": dict(
                 common=dict(documents=2, gold=0), baseline=empty, alternative=empty)})))

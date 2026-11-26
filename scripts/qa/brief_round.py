@@ -268,7 +268,7 @@ def paired_arm_evidence(cohorts):
             registry_id(name)
             arm = group[name]
             tp, fp, fn = arm_counts(arm, "tp", "fp", "fn")
-            if tp + fn != gold or (not docs and tp + fp):
+            if tp + fn != gold or tp > eligible or (not docs and tp + fp):
                 raise ValueError("final counts disagree with cohort totals")
             for key, expected in (("documents", docs), ("gold", gold), ("predicted", tp + fp)):
                 if key in arm and arm_counts(arm, key) != (expected,):
@@ -285,7 +285,10 @@ def paired_arm_evidence(cohorts):
                 reached, = arm_counts(arm, "gold_solver")
                 if not tp <= reached <= eligible:
                     raise ValueError("solver gold inconsistent with scored gold or final matches")
-                lines.append(f"  Gold items in solver input: {reached}/{gold}.")
+                lines.append(f"  Gold items in solver input: {reached}/{gold} total.")
+            if "typed_solver_edges" in arm:
+                edges, = arm_counts(arm, "typed_solver_edges")
+                lines.append(f"  Typed edges in solver input: {edges}.")
             churn = ("new_solver_gold", "lost_solver_gold", "retained_solver_gold")
             if any(k in arm for k in churn):
                 gained, lost, kept = arm_counts(arm, *churn)
