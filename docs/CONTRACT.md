@@ -219,7 +219,7 @@ The following counts describe only the edited punctuation cases.
 | French | 113 | 46 | 0 | +52 |
 | Italian | 85 | 52 | 0 | +34 |
 
-The comparison procedure takes authorized local RED-FM inputs. [Companion evaluation](https://github.com/arclabs561/anno/pull/397)
+The comparison procedure takes authorized local RED-FM inputs. [Source-verified sentence-boundary replay](../scripts/qa/check_heuristic_sentence_boundaries.py)
 
 With `--detect-lang`, a fetched HTML page's recognized language declaration
 supplies `provenance.language` (its primary language code) and
