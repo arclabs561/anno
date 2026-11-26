@@ -18,6 +18,16 @@ The native Rust default uses threshold 0.7 with type matching. Both CLI commands
 
 Raw directory mode compares every pair through 100 extracted mentions (4,950 pairs) and selects lexical locality-sensitive hashing (LSH) from 101 mentions. Files yielding no mentions add no pairs. A single dense document can cross the cutoff because the flat resolver also compares mentions within each document. Pin `--candidates exhaustive` or `--candidates lsh` when comparing editions that cross the cutoff. JSON metadata records the actual policy and mention count. The regression checks that adding a file with no detections preserves the “Dr. Nara Pell” / “Dr. Pell” link, and that explicit LSH still misses this pair. [CLI regression](../../crates/anno-cli/tests/crossdoc_candidates.rs)
 
+## Inspecting one flat mention pair
+
+Use the document ID and zero-based entity index from the JSON cluster rows to ask how the raw directory resolver treated two mentions.
+
+```sh
+anno cross-doc ./reports --format json --explain-pair first 0 second 0
+```
+
+The optional `pair_explanation` includes each extracted surface and type. Its `decision.outcome` records `not_proposed` when candidate generation omitted the pair, `type_mismatch` when the type guard rejected it, or `below_threshold` or `accepted` with the measured `similarity` and its `basis`. The report metadata supplies the candidate mode and threshold. An accepted edge includes equality at the threshold. `same_component` records the final membership before display filters. An indirect connection through a third mention can produce a shared component even when the pair itself was rejected. The Rust entry point is `CDCRResolver::resolve_with_pair`. [Flat resolver](../../crates/anno-eval/src/eval/cdcr.rs)
+
 ## Looking for a predecessor in a prior edition
 
 A reviewer can ask which tracks in an earlier roster have names resembling a particular current track. Supply two complete membership-edition JSON files from the same publication stream. Use the document ID and submitted local track ID from the current edition. The prior sequence must be strictly earlier. The sequence describes publication order; a source can publish a correction long after the events it describes.
