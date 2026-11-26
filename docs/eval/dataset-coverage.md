@@ -2,7 +2,7 @@
 
 The November 26, 2026 survey accounts for all **462 Anno registry entries**. It measured records, annotations or tokens for **124** of them. Of those, **49** supplied a tagged-token numerator and a token denominator. The other **75** have counts such as documents, mentions or questions. For the remaining **338** entries, the inventory gives the reason each surveyed source stopped. A registry ID can represent a full corpus, a named subset or an authored fixture. [One row per registry ID, including exclusions](dataset-coverage.csv) · [Registry revision](https://github.com/arclabs561/anno/blob/d2e00aa/crates/anno-eval/src/eval/dataset_registry.rs)
 
-![Share and count of entries with tagged-token measurements, other measurements, or no measurement in each of the eight largest registered domains, with a row for the remaining 81.](figures/dataset-coverage.png)
+![Share and count of entries with tagged-token measurements, other measurements, or no measurement in each of the eight largest registered domains, with a row for the remaining 81.](../figures/dataset-coverage.png)
 
 News, biomedical and Wikipedia each have 13 measured entries, out of 63 news entries, 35 biomedical entries and 21 Wikipedia entries. None of the 17 entries classified as clinical supplied a corpus count. When sizing a clinical review, collect a sample from the intended source before borrowing a rate from the biomedical entries. The chart shows the eight largest domains by registry size. The CSV includes all 89 domain labels and counts each ID once. [Counts by domain](dataset-coverage-by-domain.csv)
 
@@ -23,7 +23,7 @@ The three Zenodo releases count different units.
 - **Distant Listening Corpus.** The combined table and the per-piece archive both contain the same 242,867 catalogued harmonic annotations, with matching positions and labels across 1,283 annotated scores. The project archive also has 3,100 repeated rows from older tables and 199 rows from an alternate analysis. [Publisher release](https://zenodo.org/records/15150283) · [File-level totals and comparison digest](dataset-direct-files.csv)
 - **MedievalCharterNER.** All four annotated text files cover 7,659 distinct charter IDs. Person or place annotations cover 243,719 of 2,398,381 nonempty tokens across training, validation, test and the separate Nesle/Eslonza collection. The reader verified the text members and ZIP directory. Embeddings, model files and logs are outside the figure. [Publisher release](https://zenodo.org/records/6463699) · [Four member hashes and split counts](dataset-direct-files.csv)
 
-The same source can be reached several ways. For example, 15 CrossNER and 59 MasakhaNER2 partitions agree across publisher files and their Hub conversions. FabNER offers several encodings of the same sentences. TweetNER7 publishes the yearly training sets and their union. Adding the record or token columns across these rows would count some text more than once. The coverage figure counts each registry ID once across routes. Use the source ledgers to select a partition before adding observations. [Per-ID source routes](dataset-coverage.csv) · [Hugging Face partition notes](dataset-hf-splits.csv) · [Format and language coverage of the direct reader](figures/anno-selection.png)
+The same source can be reached several ways. For example, 15 CrossNER and 59 MasakhaNER2 partitions agree across publisher files and their Hub conversions. FabNER offers several encodings of the same sentences. TweetNER7 publishes the yearly training sets and their union. Adding the record or token columns across these rows would count some text more than once. The coverage figure counts each registry ID once across routes. Use the source ledgers to select a partition before adding observations. [Per-ID source routes](dataset-coverage.csv) · [Hugging Face partition notes](dataset-hf-splits.csv) · [Format and language coverage of the direct reader](../figures/anno-selection.png)
 
 ## How much of the text carries an annotation?
 
@@ -31,13 +31,13 @@ The same source can be reached several ways. For example, 15 CrossNER and 59 Mas
 
 To estimate how much text a reviewer will see highlighted, start with the target language’s training split. Across all 176 measured WikiANN languages, its tagged-token rate came within **5 percentage points** of the test rate for **143 languages**. Using the median training rate of the other 175 languages did so for **52**. The median absolute error fell from **9.36 to 1.17 points**. On development splits the corresponding errors were 9.19 and 0.93 points. Each language has equal weight. The rates measure token positions covered by WikiANN’s automatically generated annotations. [Counts, estimates and errors for every language and split](dataset-wikiann-split-density.csv)
 
-![Across 176 WikiANN languages, the curves show how many held-out splits fall within a given error when predicting tagged-token share from the same language or from the other languages.](figures/wikiann-split-density.png)
+![Across 176 WikiANN languages, the curves show how many held-out splits fall within a given error when predicting tagged-token share from the same language or from the other languages.](../figures/wikiann-split-density.png)
 
 ### Compare annotation density across datasets
 
 The chart below covers **49 registry entries and 908 measured files or partitions** after collapsing known duplicates within each ID. Each file contributes one tagged-token percentage. The dot gives the median, the thin line gives the observed range, and the thick line gives the middle 50% for entries with at least four observations. Overlapping entity annotations count a covered token once. The first group has enough measured units to show variation, while the 11 entries in the last group have just one observed rate each. [Medians, quartiles, endpoints and source denominators](dataset-density-ranges.csv)
 
-![All 49 datasets with measured tagged-token rates, grouped by the number of measured files or partitions. Within each group, entries are ordered by their median rate.](figures/dataset-density.png)
+![All 49 datasets with measured tagged-token rates, grouped by the number of measured files or partitions. Within each group, entries are ordered by their median rate.](../figures/dataset-density.png)
 
 | Planning question | What the source shows | How to use it |
 |---|---|---|

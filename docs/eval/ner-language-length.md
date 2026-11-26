@@ -27,7 +27,7 @@ On this panel, long paragraphs had lower external checkpoint F1 in three languag
 
 ### Paired GLiNEREL and heuristic results
 
-![Paired change in exact-span F1 when switching from Anno heuristic to GLiNEREL-72m. The 95% intervals lie above zero in all ten RED-FM groups and in one of the four MultiNERD groups. Each row gives gold mentions and matches gained or lost.](figures/ner-language-length.png)
+![Paired change in exact-span F1 when switching from Anno heuristic to GLiNEREL-72m. The 95% intervals lie above zero in all ten RED-FM groups and in one of the four MultiNERD groups. Each row gives gold mentions and matches gained or lost.](../figures/ner-language-length.png)
 
 With 12 test inputs per group, the paired 95% interval favors GLiNEREL in all ten RED-FM groups (436 gold mentions altogether). On MultiNERD (48 test sentences, 68 gold mentions), only long English has an interval wholly above zero, from +24.4 to +68.0 F1 points. On long Russian sentences the checkpoint gained two matches and lost four among nine references. The estimate was −18.1 points, with an interval from −67.5 to +40.0. Each interval compares the two models by resampling whole inputs within one language and length group. [Paired counts and intervals](ner-language-length.json)
 

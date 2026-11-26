@@ -23,38 +23,43 @@ the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.s
 
 ### Reproduce the dataset figures
 
-Run from the repository root with Python 3 and Matplotlib 3.6 or later. The following commands render PNG and SVG figures offline from the checked-in counts, evaluation results and fixture. [Figures, source ledgers and exclusions](../docs/eval/dataset-coverage.md)
+Every published dataset figure is in **`docs/figures/`** as a regular Git-tracked PNG. The figure index links each image to its guide and Python generator. The checked-in CSV and JSON measurements live in `docs/eval/`. [Figure index](../docs/figures/README.md) · [Coverage and exclusions](../docs/eval/dataset-coverage.md)
+
+Run these commands from the repository root with `just` and `uv` installed. On first use, `uv` installs the plotting dependencies. The render reads only files in the checkout.
+
+```sh
+just dataset-figures           # Preview all PNGs, SVGs and four derived CSVs in .generated/dataset-figures/
+just dataset-figures --update  # Refresh the published PNGs and derived CSVs after a change
+just dataset-figures --check   # Verify the published pixels and CSV contents
+```
+
+With `uv` alone, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Pass `--output PATH` for a separate preview directory. Each figure generator also runs independently with Python and Matplotlib. [Single entry point and renderer dependencies](refresh_dataset_figures.py)
+
+**When the figures change.** For new source data or model results, first refresh the relevant pinned measurements using the source commands below. For a change to the chart design, edit its generator. Run `--update`, review the figures and captions, then commit the changed inputs, code and outputs together. CI renders the figures on Linux for pull requests that touch figure inputs, generators or published PNGs. It compares image dimensions and pixels, checks the four derived CSVs, and names any stale result. Maintainers can also run the check on demand. [CI workflow](../.github/workflows/dataset-figures.yml)
+
+Each figure build saves its PNGs, SVGs and four derived CSVs as the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. Its separate `s3-dataset-cache-figures` artifact contains the live inventory figure and its verification results. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
+
+```sh
+gh workflow run dataset-figures.yml --ref main
+gh run download RUN_ID --name dataset-figures --dir .generated/ci-figures
+gh run download RUN_ID --name s3-dataset-cache-figures --dir .generated/ci-s3
+```
+
+The source refresh examples below use these paths.
 
 ```sh
 out=.generated/dataset-figures
 ledgers=docs/eval
 mkdir -p "$out"
-python3 scripts/plot_measurement_coverage.py "$ledgers/dataset-figure-inventory.csv" "$out" \
-  --direct-files "$ledgers/dataset-direct-files.csv" \
-  --repo-files "$ledgers/dataset-repo-files.csv" \
-  --hf-splits "$ledgers/dataset-hf-splits.csv" \
-  --github-sources "$ledgers/dataset-github-sources.csv" \
-  --ci-prechecks "$ledgers/dataset-matrix-evidence.csv"
-python3 scripts/plot_density_ranges.py "$ledgers/dataset-figure-inventory.csv" "$out" \
-  --direct-files "$ledgers/dataset-direct-files.csv" \
-  --repo-files "$ledgers/dataset-repo-files.csv" \
-  --hf-splits "$ledgers/dataset-hf-splits.csv" \
-  --github-sources "$ledgers/dataset-github-sources.csv"
-python3 scripts/plot_wikiann_split_density.py "$ledgers/dataset-hf-splits.csv" "$out"
-python3 scripts/plot_wnut_novelty.py "$out" --from-results "$ledgers/wnut-submission-results.csv"
-python3 scripts/plot_ner_language_length.py "$out"
-python3 scripts/plot_benchmark_examples.py "$out"
 ```
-
-The coverage generator writes one row per registry ID in `dataset-coverage.csv`, counts for every domain in `dataset-coverage-by-domain.csv`, and the direct-reader `anno-selection` figure. The density generator records per-dataset medians, quartiles and endpoints in `dataset-density-ranges.csv`. The WikiANN generator writes the source counts and both estimates for each language to `dataset-wikiann-split-density.csv`.
-
-The WNUT figure reads counts for seven historical submissions and plots the six with identical full test input. The multilingual NER figure reads paired F1 intervals and gained/lost mentions from `ner-language-length.json`. The benchmark generator renders the JEREX task chooser and the CrossRE comparison of gold and fixed prompts. [WNUT scoring choices](../docs/DOMAIN_QA.md#test-recognition-of-unfamiliar-names) · [Language panel and inference replay](../docs/eval/ner-language-length.md) · [CrossRE model replay](../docs/eval/crossre-full-prompt-comparison.md)
 
 **Recompute from publisher annotations.** WNUT reads the three gold splits and all seven archived submissions. GENIA verifies its three split files against their recorded SHA-256 digests. CrossRE verifies all 18 domain/split files and compares each held-out split with the same domain’s training labels.
 
 ```sh
 python3 scripts/plot_wnut_novelty.py "$out"
+cmp "$out/wnut-submission-results.csv" "$ledgers/wnut-submission-results.csv"
 python3 scripts/plot_genia_nesting.py "$out"
+cmp "$out/genia-nesting-counts.json" "$ledgers/genia-nesting-counts.json"
 python3 scripts/survey_crossre_prompts.py "$out/crossre-prompt-scope.csv"
 cmp "$out/crossre-prompt-scope.csv" "$ledgers/crossre-prompt-scope.csv"
 ```

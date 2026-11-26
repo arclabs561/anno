@@ -2,7 +2,7 @@
 
 GLiNER-Relex received either a fixed vocabulary from the domain's 100 training sentences or the entity and relation labels occurring in each test sentence's gold relations. All four producer–prompt combinations predicted their own mention endpoints. Moving from the train vocabulary to the reference-conditioned prompt changed strict F1 by 32.2 percentage points on AI and 26.4 on literature. The comparison uses all 847 sentences and 2,787 gold relations in the two official test splits. [Measurements](crossre-full-prompt-comparison.json) · [Dataset paper](https://aclanthology.org/2022.findings-emnlp.263/)
 
-![Gold prompts disclose zero or one predicate type in 350 of 400 news sentences and 141 of 416 literature sentences. On AI and literature, removing predictions on sentences with no gold relations adds 2.0 and 1.6 F1 points. The full gold prompts add 32.2 and 26.4 points.](figures/crossre-prompts.png)
+![Gold prompts disclose zero or one predicate type in 350 of 400 news sentences and 141 of 416 literature sentences. On AI and literature, removing predictions on sentences with no gold relations adds 2.0 and 1.6 F1 points. The full gold prompts add 32.2 and 26.4 points.](../figures/crossre-prompts.png)
 
 Across all six test domains, the reference prompt tells the extractor that **620 of 2,446 sentences have no relation** and gives it exactly one possible predicate type in another **718**. A single predicate can still connect several different pairs. Report which vocabulary the caller will have at prediction time. For an application that knows only the training labels, compare the fixed-prompt scores. [All 18 split measurements](crossre-prompt-scope.csv)
 

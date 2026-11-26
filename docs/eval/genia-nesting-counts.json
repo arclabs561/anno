@@ -1,0 +1,150 @@
+{
+  "dataset_id": "GENIANested",
+  "splits": {
+    "train": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.train.iob2",
+        "sha256": "3ed32dcec4813c7af2b7add3803d6007162acf9967b26388441ac5d132f0455d",
+        "token_records": 454882,
+        "tagged_tokens": 121306
+      },
+      "mentions": 45929,
+      "highlights": 41862,
+      "hidden_mentions": 4067,
+      "strictly_contained_mentions": 4067,
+      "tokens_by_active_layer_count": [
+        333576,
+        112105,
+        8998,
+        203,
+        0
+      ],
+      "strict_pairs_by_outer_inner_label": {
+        "DNA": {
+          "DNA": 312,
+          "RNA": 1,
+          "cell_line": 3,
+          "cell_type": 9,
+          "protein": 1228
+        },
+        "RNA": {
+          "DNA": 42,
+          "RNA": 7,
+          "cell_line": 1,
+          "protein": 269
+        },
+        "cell_line": {
+          "DNA": 6,
+          "cell_line": 58,
+          "cell_type": 62,
+          "protein": 167
+        },
+        "cell_type": {
+          "RNA": 2,
+          "cell_line": 3,
+          "cell_type": 249,
+          "protein": 62
+        },
+        "protein": {
+          "DNA": 63,
+          "RNA": 3,
+          "cell_line": 2,
+          "cell_type": 50,
+          "protein": 1554
+        }
+      }
+    },
+    "dev": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.dev.iob2",
+        "sha256": "b8565cf774e8fceb38af62bbab0b84981640accc63fc5680223b97007da35903",
+        "token_records": 48932,
+        "tagged_tokens": 12386
+      },
+      "mentions": 4337,
+      "highlights": 3964,
+      "hidden_mentions": 373,
+      "strictly_contained_mentions": 373,
+      "tokens_by_active_layer_count": [
+        36546,
+        11312,
+        1074,
+        0,
+        0
+      ],
+      "strict_pairs_by_outer_inner_label": {
+        "DNA": {
+          "DNA": 19,
+          "cell_type": 2,
+          "protein": 115
+        },
+        "RNA": {
+          "DNA": 3,
+          "cell_line": 1,
+          "protein": 39
+        },
+        "cell_line": {
+          "DNA": 2,
+          "cell_line": 12,
+          "cell_type": 4,
+          "protein": 14
+        },
+        "cell_type": {
+          "cell_type": 26,
+          "protein": 1
+        },
+        "protein": {
+          "DNA": 7,
+          "cell_line": 1,
+          "cell_type": 1,
+          "protein": 126
+        }
+      }
+    },
+    "test": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.test.iob2",
+        "sha256": "607cfab2744aff2d8af5c5613320c8138605aca64a987c8ab2d98e5dfe067691",
+        "token_records": 57021,
+        "tagged_tokens": 14456
+      },
+      "mentions": 5474,
+      "highlights": 4883,
+      "hidden_mentions": 591,
+      "strictly_contained_mentions": 591,
+      "tokens_by_active_layer_count": [
+        42565,
+        13045,
+        1375,
+        36,
+        0
+      ],
+      "strict_pairs_by_outer_inner_label": {
+        "DNA": {
+          "DNA": 52,
+          "cell_type": 1,
+          "protein": 190
+        },
+        "RNA": {
+          "DNA": 14,
+          "protein": 52
+        },
+        "cell_line": {
+          "cell_line": 15,
+          "cell_type": 14,
+          "protein": 14
+        },
+        "cell_type": {
+          "cell_line": 4,
+          "cell_type": 41,
+          "protein": 2
+        },
+        "protein": {
+          "DNA": 19,
+          "cell_type": 5,
+          "protein": 183
+        }
+      }
+    }
+  }
+}

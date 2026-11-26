@@ -268,7 +268,7 @@ The candidate dropped 12 correct and nine wrong standalone highlights. In `posse
 
 Start with the output your application needs. A typed mention needs exact span and type labels. Resolving two mentions to the same person needs a gold mention cluster. Scoring a place-of-birth relation between people and places needs a directed predicate with both endpoints. The names in the figure are benchmarks for those three decisions. The passage itself comes from one checked-in Anno example. [JEREX fixture and predictions](../scripts/qa/joint_baseline) · [Joint extraction scoring](eval/joint-stage-baseline.md)
 
-![One JEREX example shows which typed mentions, mention cluster and directed relation WikiGold or WNUT-17, LitBank and DocRED can score respectively.](eval/figures/benchmark-chooser.png)
+![One JEREX example shows which typed mentions, mention cluster and directed relation WikiGold or WNUT-17, LitBank and DocRED can score respectively.](figures/benchmark-chooser.png)
 
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
 
@@ -285,7 +285,7 @@ The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local pane
 
 Check whether the survey measured the kind of text you plan to review. It measured 13 of 63 registered news entries and 13 of 21 Wikipedia entries. Five news entries and seven Wikipedia entries supply a fraction of tokens inside annotations. All 17 entries classified as clinical lack a corpus measurement in this survey. [Counts for every domain](eval/dataset-coverage-by-domain.csv) · [Sources and exclusions](eval/dataset-coverage.md)
 
-![Survey coverage in the eight largest registered domains and the remainder. For each, the bars and counts distinguish tagged tokens, other measured records and missing corpus measurements.](eval/figures/dataset-coverage.png)
+![Survey coverage in the eight largest registered domains and the remainder. For each, the bars and counts distinguish tagged tokens, other measured records and missing corpus measurements.](figures/dataset-coverage.png)
 
 For a WikiANN review, estimate the share of highlighted text from the training split in the language you plan to review. Its median error on test was 1.17 percentage points across 176 languages, compared with 9.36 points using the other languages’ median training rate. To see which inputs your evaluator can load, run `anno sampler eligibility --task ner --require-cached`. [WikiANN split comparison](eval/dataset-coverage.md#estimate-review-volume-for-a-wikiann-language) · [Measured density across 49 entries](eval/dataset-coverage.md#compare-annotation-density-across-datasets) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
 
