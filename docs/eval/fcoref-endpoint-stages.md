@@ -12,7 +12,7 @@ On the [256 English GAP articles used in the emitted-boundary trial](fcoref-emit
 
 The 57 and 12 explain the previous trial's 69 missing-endpoint cases. For all 56 pairs whose exact name ranked below the cutoff, at least one longer retained span strictly enclosed that occurrence. None had a shorter retained span inside the exact name. In 43 of those pairs, the pronoun's own returned cluster contained a longer rival. Names fell a median of 559.5 proposal slots below the cutoff (range 12–1,850). Doubling the stock slot count would admit both exact endpoints for only one of the 57 pairs. That count concerns admission. Whether an admitted pair links depends on antecedent scoring and cluster construction.
 
-A boundary-aware name scorer is worth testing at the existing budget. Track wrong links and exact links already recovered by the stock model when changing which proposals get a slot. A broad or nested referring expression can be linguistically valid while missing the particular name occurrence that GAP scores. This English panel measures exact agreement with those marked occurrences.
+In the [fixed-budget intervention](fcoref-marked-rescue.md), we admitted all three marked spans before running the native antecedent scorer. This changed 186 proposal slots and zero labeled links. The scorer still used the original mention scores. A boundary-aware name scorer is worth testing at the existing budget. Track wrong links and exact links already recovered by the stock model when changing which proposals get a slot. A broad or nested referring expression can be linguistically valid while missing the particular name occurrence that GAP scores. This English panel measures exact agreement with those marked occurrences.
 
 ## Replay the stage counts
 
