@@ -176,9 +176,12 @@ pub enum PairDecision {
     },
 }
 
-/// A requested mention address cannot identify a distinct pair in this input.
+/// A pair explanation cannot be produced for this request.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PairLookupError {
+    /// A NaN cutoff has no ordering against a measured similarity.
+    #[error("cannot explain a pair with a NaN similarity threshold")]
+    UnorderedThreshold,
     /// The caller requested the same address twice.
     #[error("a pair requires two distinct mentions")]
     Identical,
@@ -626,13 +629,16 @@ impl CDCRResolver {
     ///
     /// # Errors
     ///
-    /// Returns an error for a missing, ambiguous or repeated mention address.
+    /// Returns an error for a NaN similarity cutoff or a missing, ambiguous or repeated mention address.
     pub fn resolve_with_pair(
         &self,
         documents: &[Document],
         left: (&str, usize),
         right: (&str, usize),
     ) -> Result<(Vec<CrossDocCluster>, PairExplanation), PairLookupError> {
+        if self.config.min_similarity.is_nan() {
+            return Err(PairLookupError::UnorderedThreshold);
+        }
         if left == right {
             return Err(PairLookupError::Identical);
         }
@@ -1402,6 +1408,31 @@ mod tests {
         assert!(resolver
             .resolve_with_pair(&ambiguous, ("a", 0), ("b", 0))
             .is_err_and(|err| err == PairLookupError::Ambiguous("a".into(), 0)));
+    }
+
+    #[test]
+    fn unordered_cutoff_has_no_pair_explanation() {
+        let docs = ["a", "b"].map(|id| {
+            Document::new(id, "Ira").with_entities(vec![Entity::new(
+                "Ira",
+                EntityType::Person,
+                0,
+                3,
+                1.0,
+            )])
+        });
+        let resolver = CDCRResolver::with_config(CDCRConfig {
+            use_lsh: false,
+            min_similarity: f64::NAN,
+            ..Default::default()
+        });
+        assert_eq!(resolver.resolve(&docs).len(), 2);
+        assert_eq!(
+            resolver
+                .resolve_with_pair(&docs, ("a", 0), ("b", 0))
+                .unwrap_err(),
+            PairLookupError::UnorderedThreshold
+        );
     }
 
     #[test]
