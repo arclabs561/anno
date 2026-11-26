@@ -52,3 +52,44 @@ individual resource licenses and attribution. [CorefUD 1.4](https://hdl.handle.n
 python -m pip install pyarrow==20.0.0
 python corefud_retrieval.py /tmp/corefud-dev.parquet results.json
 ```
+
+### Predicted heads and abstention
+
+We sampled up to three development documents per corpus by SHA-256 of filename.
+Eighty documents were scored across 18 languages. Biblical Hebrew accounts for
+three additional selected documents with no matching parser. UDPipe tags and
+parses the supplied sentence and token boundaries. All methods receive the same
+gold mention boundaries. A head is usable only for an aligned span with one
+token governed from outside the span (or the sentence root). We retain first
+mentions to measure the cost of offering a suggestion where none is valid.
+
+| Predecessor policy | Correct | Wrong on returning mentions | Wrong without eligible antecedent | Abstained |
+| --- | ---: | ---: | ---: | ---: |
+| Exact normalized surface | 7,724 | 2,774 | 639 | 10,362 |
+| Word and punctuation sequence | 7,725 | 2,774 | 639 | 10,361 |
+| Surface, then matching predicted head | 8,444 | 3,103 | 1,463 | 8,489 |
+
+Keep head matching experimental. Of 1,873 additional suggestions, 720 were
+correct and 1,153 were wrong. Effects varied across the sample. In Spanish,
+head fallback added 15 correct suggestions and three errors on mentions with
+no eligible antecedent. In Dutch those counts were 139 and 356. Neither
+language estimate is a release threshold. The punctuation comparison measures
+one normalization rule on supplied mention spans. End-to-end mention discovery,
+learned segmentation and out-of-domain accuracy need separate evaluation.
+Next compare a gated fallback against surface matching on held-out documents,
+reporting both added correct links and added wrong links per language and domain.
+
+Reproduce from this directory with the development shard linked above.
+The manifest pins the Git blob of every model. The results include document IDs
+and counts for each language. Download models subject to their source licenses.
+[UDPipe model repository](https://github.com/jwijffels/udpipe.models.ud.2.5/tree/17d6bbfb7f138f9ba2cf04692f15d892becf0246)
+
+```bash
+python -m pip install ufal.udpipe==1.4.0.1 pyarrow==26.0.1
+mkdir -p /tmp/udpipe-models
+jq -r '.[].path' udpipe-models.json | while read -r path; do
+  curl -fL "https://raw.githubusercontent.com/jwijffels/udpipe.models.ud.2.5/17d6bbfb7f138f9ba2cf04692f15d892becf0246/$path" -o "/tmp/udpipe-models/${path##*/}" || exit 1
+done
+python predicted_heads.py /tmp/corefud-dev.parquet /tmp/udpipe-models replay.json
+cmp predicted-head-results.json replay.json
+```
