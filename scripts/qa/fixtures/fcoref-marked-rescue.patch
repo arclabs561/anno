@@ -1,0 +1,158 @@
+diff --git a/crates/anno/examples/coref_gap_panel.rs b/crates/anno/examples/coref_gap_panel.rs
+index 1d9de127..b284d6c9 100644
+--- a/crates/anno/examples/coref_gap_panel.rs
++++ b/crates/anno/examples/coref_gap_panel.rs
+@@ -15,2 +15,3 @@ struct Input {
+     mentions: Option<Vec<Span>>,
++    marked_bytes: Option<Vec<Span>>,
+ }
+@@ -51,2 +52,19 @@ fn main() -> Result<(), Box<dyn Error>> {
+     let requested = std::env::args().nth(1).ok_or("expected backend name")?;
++    if requested == "fcoref-marked-study" {
++        let resolver = FCoref::from_path(&std::env::var("FCOREF_MODEL_PATH")?)?;
++        for line in io::stdin().lock().lines() {
++            let doc: Input = serde_json::from_str(&line?)?;
++            let marks = doc.marked_bytes.ok_or("missing explicit marks")?;
++            let clusters: Vec<_> = resolver
++                .resolve_marked_for_study(&doc.text, &marks)?
++                .into_iter()
++                .map(|c| c.spans)
++                .collect();
++            println!(
++                "{}",
++                serde_json::json!({"id":doc.id, "producer":"fcoref", "clusters":clusters})
++            );
++        }
++        return Ok(());
++    }
+     let native = MentionRankingCoref::new();
+diff --git a/crates/anno/src/backends/coref/fcoref/mod.rs b/crates/anno/src/backends/coref/fcoref/mod.rs
+index b281757f..171a4b28 100644
+--- a/crates/anno/src/backends/coref/fcoref/mod.rs
++++ b/crates/anno/src/backends/coref/fcoref/mod.rs
+@@ -338,2 +338,11 @@ impl FCoref {
+     pub fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
++        self.resolve_marked_for_study(text, &[])
++    }
++
++    /// Study-only control. Each mark is an exact UTF-8 source byte range.
++    pub fn resolve_marked_for_study(
++        &self,
++        text: &str,
++        marks: &[(usize, usize)],
++    ) -> Result<Vec<CorefCluster>> {
+         if text.is_empty() {
+@@ -353,3 +362,27 @@ impl FCoref {
+             .max(1);
+-        let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
++        let mut variants = vec![Vec::new(); marks.len()];
++        if !marks.is_empty() {
++            if marks.len() > max_candidates
++                || marks
++                    .iter()
++                    .any(|&(a, b)| a >= b || text.get(a..b).is_none())
++            {
++                return Err(Error::InvalidInput(
++                    "invalid marked spans or insufficient stock budget".into(),
++                ));
++            }
++            let offsets = encoding.get_offsets();
++            for i in 0..offsets.len() {
++                for j in i..(i + self.config.max_span_length).min(offsets.len()) {
++                    if let Some((_, span)) = trimmed_mention(text, offsets[i].0..offsets[j].1) {
++                        if let Some(mark) = marks.iter().position(|&m| m == (span.start, span.end))
++                        {
++                            variants[mark].push((i, j));
++                        }
++                    }
++                }
++            }
++        }
++        let (mentions_result, antecedents) =
++            self.score_encoding(&encoding, max_candidates, &variants)?;
+
+@@ -424,2 +457,3 @@ impl FCoref {
+         max_candidates: usize,
++        variants: &[Vec<(usize, usize)>],
+     ) -> Result<(scoring::MentionScoringResult, Vec<usize>)> {
+@@ -447,2 +481,3 @@ impl FCoref {
+             max_candidates,
++            variants,
+         );
+diff --git a/crates/anno/src/backends/coref/fcoref/scoring.rs b/crates/anno/src/backends/coref/fcoref/scoring.rs
+index 6f78ff5d..88393f9e 100644
+--- a/crates/anno/src/backends/coref/fcoref/scoring.rs
++++ b/crates/anno/src/backends/coref/fcoref/scoring.rs
+@@ -169,2 +169,30 @@ impl ScorerWeights {
+
++// Reserve the best token realization of each exact marked source span.
++fn reserve_marked(ranked: &mut [(usize, usize, f32)], k: usize, variants: &[Vec<(usize, usize)>]) {
++    if variants.is_empty() {
++        return;
++    }
++    let best: Vec<_> = variants
++        .iter()
++        .filter_map(|options| {
++            ranked
++                .iter()
++                .position(|&(i, j, _)| options.contains(&(i, j)))
++        })
++        .map(|rank| (rank, (ranked[rank].0, ranked[rank].1)))
++        .collect();
++    let promoted = best.iter().filter(|(rank, _)| *rank >= k).count();
++    if promoted > 0 {
++        // Stable sort keeps the stock order when filling the remaining slots.
++        ranked.sort_by_key(|&(i, j, _)| !best.iter().any(|(_, pair)| *pair == (i, j)));
++    }
++    eprintln!(
++        "FCOREF_RESERVE {} {} {} {}",
++        variants.len(),
++        best.len(),
++        promoted,
++        k.min(ranked.len())
++    );
++}
++
+ /// Compute mention logits from hidden states.
+@@ -191,2 +219,3 @@ pub(crate) fn score_mentions(
+     max_candidates: usize,
++    variants: &[Vec<(usize, usize)>],
+ ) -> MentionScoringResult {
+@@ -233,2 +262,3 @@ pub(crate) fn score_mentions(
+     candidates.sort_by(|a, b| b.2.total_cmp(&a.2));
++    reserve_marked(&mut candidates, max_candidates, variants);
+     candidates.truncate(max_candidates);
+@@ -376,2 +406,24 @@ mod tests {
+
++    #[test]
++    fn marked_reservation_keeps_best_variant_at_fixed_budget() {
++        let original = vec![
++            (0, 0, 8.0),
++            (1, 1, 7.0),
++            (2, 2, 6.0),
++            (3, 3, 5.0),
++            (4, 4, 4.0),
++        ];
++        let mut empty = original.clone();
++        reserve_marked(&mut empty, 3, &[]);
++        assert_eq!(empty, original);
++        let mut ranked = original;
++        reserve_marked(
++            &mut ranked,
++            3,
++            &[vec![(4, 4), (3, 3)], vec![(1, 1)], vec![]],
++        );
++        ranked.truncate(3);
++        assert_eq!(ranked, vec![(1, 1, 7.0), (3, 3, 5.0), (0, 0, 8.0)]);
++    }
++
+     #[test]
+diff --git a/crates/anno/src/backends/coref/fcoref/words.rs b/crates/anno/src/backends/coref/fcoref/words.rs
+index 5505482b..cfce2884 100644
+--- a/crates/anno/src/backends/coref/fcoref/words.rs
++++ b/crates/anno/src/backends/coref/fcoref/words.rs
+@@ -50,3 +50,3 @@ impl FCoref {
+         }
+-        let (top, antecedents) = self.score_encoding(&encoding, max_candidates)?;
++        let (top, antecedents) = self.score_encoding(&encoding, max_candidates, &[])?;
+         let candidates = top
