@@ -176,6 +176,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     } else {
         args.format.unwrap_or_default()
     };
+    if matches!(
+        format,
+        OutputFormat::Html | OutputFormat::Tree | OutputFormat::Summary
+    ) {
+        return Err(CliError::from("Unsupported extraction format in profile. Override --format or use anno debug --html for an HTML report."));
+    }
     // Level 1 (Signal): Raw entity extraction from single document
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
@@ -737,15 +743,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 serde_json::to_string_pretty(&doc).map_err(CliError::from)?
             );
         }
-        OutputFormat::Html => {
-            return Err(CliError::from(
-                "HTML format not supported for extract command. Use 'debug --format html' instead.",
-            ));
-        }
-        OutputFormat::Tree | OutputFormat::Summary => {
-            return Err(CliError::from(
-                "Tree/Summary formats are only available for cross-doc command.",
-            ));
+        OutputFormat::Html | OutputFormat::Tree | OutputFormat::Summary => {
+            unreachable!("format was validated before extraction")
         }
         OutputFormat::Inline => {
             print_annotated_signals(&text, doc.signals());

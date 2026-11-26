@@ -91,7 +91,7 @@ pub struct QueryArgs {
     pub unlinked: bool,
 
     /// Output format
-    #[arg(long, default_value = "human", value_parser = super::super::parser::output_formats(&["json", "grounded", "tree", "summary", "human"]))]
+    #[arg(long, default_value = "human", value_parser = super::super::parser::output_formats(&["json", "tree", "summary", "human"]))]
     pub format: OutputFormat,
 
     /// Output file
@@ -260,7 +260,7 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
 
         // Output results
         match args.format {
-            OutputFormat::Json | OutputFormat::Grounded => {
+            OutputFormat::Json => {
                 let output = serde_json::to_string_pretty(&signals)
                     .map_err(|e| format!("Failed to serialize: {}", e))?;
                 if let Some(output_path) = &args.output {
@@ -273,16 +273,30 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             OutputFormat::Human | OutputFormat::Summary => {
                 use std::fmt::Write;
                 let mut output = format!("Found {} entities:\n", signals.len());
-                for s in &signals {
-                    let (start, end) = s.text_offsets().unwrap_or((0, 0));
-                    writeln!(output, "  [{start}:{end}] {} ({}) - {:.2}", s.surface(), s.label(), s.confidence).unwrap();
+                if matches!(args.format, OutputFormat::Human) {
+                    for s in &signals {
+                        let (start, end) = s.text_offsets().unwrap_or((0, 0));
+                        writeln!(
+                            output,
+                            "  [{start}:{end}] {} ({}) - {:.2}",
+                            s.surface(),
+                            s.label(),
+                            s.confidence
+                        )
+                        .unwrap();
+                    }
                 }
                 if let Some(path) = &args.output {
                     fs::write(path, output).map_err(|e| format!("Failed to write {path}: {e}"))?;
-                } else { print!("{output}"); }
+                } else {
+                    print!("{output}");
+                }
             }
-            other => return Err(format!("Format {other:?} is unsupported for signal queries. Use human, summary, grounded or json.")),
-
+            other => {
+                return Err(format!(
+                "Format {other:?} is unsupported for signal queries. Use human, summary or json."
+            ))
+            }
         }
     } else {
         #[cfg(feature = "eval")]
@@ -377,7 +391,10 @@ fn query_clusters(
         }
         OutputFormat::Human | OutputFormat::Summary => {
             let mut output = format!("Found {} clusters:\n", clusters.len());
-            for cluster in clusters {
+            for cluster in clusters
+                .into_iter()
+                .filter(|_| matches!(args.format, OutputFormat::Human))
+            {
                 output.push_str(&format!(
                     "  {}: {} mentions across {} documents\n",
                     cluster.canonical_name,

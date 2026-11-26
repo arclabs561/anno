@@ -49,7 +49,7 @@ See the [quickstart](QUICKSTART.md) for profile applicability.
 | `anno cross-doc [OPTIONS] [DIR]` | `-m, --model`, `-t, --threshold`, `--candidates`, `--explain-pair`, `--require-type-match`, `-f, --format`, `--import`, `--delivery-manifest`, `--stdin`, `--extensions`, `-r, --recursive`, `--min-cluster-size`, `--cross-doc-only`, `--type`, `--max-clusters`, `-o, --output`, `-v, --verbose` |
 | `anno enhance [OPTIONS] <FILE>` | `--coref`, `--link-kb`, `-e, --export`, `--export-format`, `--format`, `-q, --quiet`, `--export-graph` |
 | `anno pipeline [OPTIONS] [TEXT]...` | `-f, --files`, `-d, --dir`, `-m, --model`, `--coref`, `--maverick-model`, `--speaker-turns`, `--link-kb`, `--cross-doc`, `--threshold`, `--require-type-match`, `--format`, `-o, --output`, `--progress`, `-q, --quiet` |
-| `anno query [OPTIONS] <FILE>` | `--catalog-record`, `-t, --type`, `-e, --entity`, `--min-confidence`, `-f, --filter`, `--start-offset`, `--end-offset`, `--negated`, `--quantified`, `--untracked`, `--linked`, `--unlinked`, `--format`, `-o, --output` |
+| `anno query [OPTIONS] <FILE>`<br>`anno query <COMMAND>` | `--catalog-record`, `-t, --type`, `-e, --entity`, `--min-confidence`, `-f, --filter`, `--start-offset`, `--end-offset`, `--negated`, `--quantified`, `--untracked`, `--linked`, `--unlinked`, `--format`, `-o, --output` |
 | `anno query publication [OPTIONS] <CURRENT>` | `--since`, `--catalog-record` |
 | `anno query edition [OPTIONS] --collection <COLLECTION> --source <SOURCE> --audience <AUDIENCE> <COMMAND>` | `--collection`, `--source`, `--audience` |
 | `anno query edition --collection <COLLECTION> --source <SOURCE> --audience <AUDIENCE> manifest [OPTIONS] <EDITION> [SNAPSHOTS]...` | — |

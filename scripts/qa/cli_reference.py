@@ -26,8 +26,9 @@ def visit(binary, path):
             match = re.match(r"^ {2,6}(-[\w], )?(--[\w-]+)\b", line)
             if match and match[2] not in GLOBAL:
                 options.append(f"`{match[0].strip()}`")
-    usage = re.search(r"^Usage: (.+)$", help_text, re.MULTILINE)[1]
-    print(f"| `{usage}` | {', '.join(options) or '—'} |")
+    block = re.search(r"^Usage: (.+(?:\n +anno .+)*)", help_text, re.MULTILINE)[1]
+    usage = "<br>".join(f"`{line.strip()}`" for line in block.splitlines())
+    print(f"| {usage} | {', '.join(options) or '—'} |")
     for child in children:
         visit(binary, [*path, child])
 

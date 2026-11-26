@@ -13,6 +13,7 @@ fn invoke(dir: &Path, args: &[&str]) -> Output {
         .env("ANNO_NO_DOWNLOADS", "1")
         .env("HF_HUB_OFFLINE", "1")
         .env("XDG_CACHE_HOME", dir)
+        .env("ANNO_CONFIG_DIR", dir)
         .output()
         .unwrap()
 }
@@ -387,4 +388,148 @@ fn model_comparison_json_and_jsonl_have_the_same_rows() {
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["model"], "pattern");
     assert_eq!(rows[0]["entities"][0]["text"], "hi@example.org");
+}
+
+#[test]
+fn saved_queries_and_evaluation_respect_the_destination_and_payload() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    let text = "x@y.com and a@b.com";
+    fs::write(
+        dir.join("saved.json"),
+        ok(
+            dir,
+            &[
+                "extract", "-m", "pattern", "-t", text, "--format", "grounded",
+            ],
+        ),
+    )
+    .unwrap();
+    for format in ["summary", "human", "json"] {
+        let args = ["query", "saved.json", "--format", format];
+        let expected = ok(dir, &args);
+        let mut to_file = args.to_vec();
+        to_file.extend(["-o", "report"]);
+        assert!(ok(dir, &to_file).is_empty());
+        let report = fs::read_to_string(dir.join("report")).unwrap();
+        assert_eq!(
+            report.trim_end(),
+            std::str::from_utf8(&expected).unwrap().trim_end()
+        );
+        match format {
+            "json" => assert_eq!(
+                serde_json::from_str::<Vec<Value>>(&report).unwrap().len(),
+                2
+            ),
+            "summary" => assert_eq!(report.trim(), "Found 2 entities:"),
+            _ => assert!(report.contains(text.split_whitespace().next().unwrap())),
+        }
+    }
+    let stdout = ok(
+        dir,
+        &[
+            "eval",
+            "-m",
+            "pattern",
+            "-t",
+            "x@y.com",
+            "--gold",
+            "x@y.com:EMAIL:0:7",
+            "--json",
+            "--output",
+            "score.json",
+        ],
+    );
+    assert!(stdout.is_empty());
+    let score: Value = serde_json::from_slice(&fs::read(dir.join("score.json")).unwrap()).unwrap();
+    assert_eq!(score["f1"], 1.0);
+    ok(
+        dir,
+        &["export", "-i", "saved.json", "-o", "out", "-f", "graph-csv"],
+    );
+    let edges = fs::read_to_string(dir.join("out/saved-edges.csv")).unwrap();
+    assert_eq!(edges.lines().count(), 1, "invented edges: {edges}");
+}
+
+#[test]
+fn compact_predictions_and_malformed_late_records_fail_before_writing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    for format in ["json", "grounded"] {
+        let record = ok(
+            dir,
+            &[
+                "extract",
+                "-m",
+                "pattern",
+                "-t",
+                "🌍 x@y.com",
+                "--format",
+                format,
+            ],
+        );
+        let mut data = serde_json::from_slice::<Value>(&record)
+            .unwrap()
+            .to_string();
+        if format == "grounded" {
+            data.push_str("\n{broken");
+        }
+        fs::write(dir.join("in.jsonl"), data).unwrap();
+        let output = invoke(dir, &["export", "-i", "in.jsonl", "-o", "files"]);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("grounded"));
+        assert!(!dir.join("files").exists());
+    }
+}
+
+#[test]
+fn profile_errors_precede_work_and_explicit_alias_invocations_override_them() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(
+        dir.join("review.toml"),
+        "model = 'pattern'\nformat = 'tree'\n",
+    )
+    .unwrap();
+    for command in ["extract", "x"] {
+        let args = ["--config", "review", command, "--file", "absent.txt"];
+        let output = invoke(dir, &args);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("format"));
+        let output = ok(
+            dir,
+            &[
+                command,
+                "-t",
+                "hi@example.org",
+                "--config",
+                "review",
+                "--format",
+                "json",
+            ],
+        );
+        let data: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(data["provenance"]["model"], "pattern");
+    }
+    for spelling in ["dataset", "ds"] {
+        let output = ok(
+            dir,
+            &[
+                spelling,
+                "ctx",
+                "--model",
+                "pattern",
+                "-t",
+                "hi@example.org",
+                "--format",
+                "json",
+                "--config",
+                "review",
+            ],
+        );
+        assert!(String::from_utf8(output)
+            .unwrap()
+            .contains("hi@example.org"));
+    }
 }
