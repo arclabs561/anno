@@ -1,0 +1,40 @@
+name: Verify mention overlap
+on:
+  pull_request:
+    paths:
+      - crates/anno/src/core/coref.rs
+      - crates/anno/src/core/coref/**
+      - verification/mention_spans/**
+      - .github/workflows/mention-spans.yml
+  push:
+    branches: [main]
+    paths:
+      - crates/anno/src/core/coref.rs
+      - crates/anno/src/core/coref/**
+      - verification/mention_spans/**
+      - .github/workflows/mention-spans.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier --version 0.68.0
+          cargo kani setup
+      - name: Verify the production overlap predicate
+        run: kani verification/mention_spans/check.rs
+      - name: Check the mathematical span specification
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends elan
+          elan toolchain install leanprover/lean4:v4.19.0
+          elan run leanprover/lean4:v4.19.0 lean verification/mention_spans/MentionSpans.lean
