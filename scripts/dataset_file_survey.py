@@ -17,7 +17,10 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+from medieval_charter_survey import survey_charter_files
 from survey_repo_files import crossre_counts, measure
+from tweetnerd_survey import describe as describe_tweetnerd
+from zenodo_file_survey import describe_distant_listening
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "crates/anno-eval/src/eval/dataset_registry.rs"
@@ -397,6 +400,10 @@ def describe(path, source, row):
         return dict(
             reason="Linked bitstream contains a PDF; no validated annotation file"
         )
+    if ident == "DistantListeningCorpus":
+        return describe_distant_listening(path)
+    if ident == "TweetNERD":
+        return describe_tweetnerd(path)
     if ident == "FINER" and header.startswith(b"rar!"):
         try:
             import libarchive
@@ -572,6 +579,12 @@ def survey_entry(row, cache, local_only):
                 "2018 BRAT release" if member == "17493650" else "2020 BRAT release"
             )
         obs.update(id=row["id"], source=source, scope=scope, split_or_subset=subset)
+        if row["id"] == "MedievalCharterNER":
+            try:
+                evidence.extend(survey_charter_files(source, cache))
+            except (OSError, ValueError, zipfile.BadZipFile, KeyError) as exc:
+                evidence.append(dict(obs, status="read failed", reason=str(exc)[:160]))
+            continue
         try:
             path = cached_file(source, cache)
             obs.update(bytes=path.stat().st_size, sha256=file_digest(path))

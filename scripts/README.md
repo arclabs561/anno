@@ -66,7 +66,7 @@ python3 scripts/survey_github_sources.py --inventory "$out/anno-all.csv" \
 python3 scripts/survey_matrix_evidence.py --limit 100 --output "$out/dataset-matrix-evidence.csv"
 ```
 
-To rebuild coverage for this refresh, use `$out/anno-all.csv` as the inventory and the five new ledgers in `$out`. For replay, `survey_repo_files.py` already checks files against the supplied manifest. Add `--pins "$ledgers/dataset-github-sources.csv"` to the GitHub survey to select the recorded repository revisions. The following commands verify previously measured Hugging Face splits and rerun the recorded CI prechecks, subject to log availability.
+To rebuild coverage for this refresh, use `$out/anno-all.csv` as the inventory and the five new ledgers in `$out`. The direct reader accepts `--source-cache PATH` to reuse downloaded bytes. For the 15 GB medieval charter release it reads the ZIP directory and all four annotated text members in about 7.5 MB of verified ranges. For replay, `survey_repo_files.py` checks files against the supplied manifest. Add `--pins "$ledgers/dataset-github-sources.csv"` to the GitHub survey to select the recorded repository revisions. The following commands verify previously measured Hugging Face splits and rerun the recorded CI prechecks, subject to log availability.
 
 ```sh
 python3 scripts/survey_hf_splits.py --replay "$ledgers/dataset-hf-splits.csv" "$out/hf-replay.csv"

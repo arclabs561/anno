@@ -8,7 +8,9 @@ Data: Derczynski, Nichols, van Erp & Limsopatham (2017), CC BY 4.0.
 
 import argparse
 import csv
+import hashlib
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -21,12 +23,30 @@ REVISION = "e52a2d2a71ac1a051ca2d532eef28653c5c02603"
 SOURCE = f"https://raw.githubusercontent.com/leondz/emerging_entities_17/{REVISION}"
 
 
+@lru_cache(maxsize=1)
+def split_hashes():
+    manifest = Path(__file__).resolve().parents[1] / "docs/eval/dataset-repo-files.csv"
+    with manifest.open(newline="", encoding="utf-8") as source:
+        return {
+            row["path"]: row["sha256"]
+            for row in csv.DictReader(source)
+            if row["id"] == "Wnut17"
+            and row["revision"] == REVISION
+            and row["status"] == "ok"
+        }
+
+
 def mentions(filename, data_dir):
     if data_dir:
-        text = (data_dir / filename).read_text(encoding="utf-8")
+        raw = (data_dir / filename).read_bytes()
     else:
         with urlopen(f"{SOURCE}/{filename}", timeout=60) as response:
-            text = response.read().decode("utf-8")
+            raw = response.read()
+    if hashlib.sha256(raw).hexdigest() != split_hashes().get(filename):
+        raise ValueError(
+            f"WNUT-17 split differs from the pinned file manifest: {filename}"
+        )
+    text = raw.decode("utf-8")
     words = []
     entity_type = None
     for line in [*text.splitlines(), ""]:

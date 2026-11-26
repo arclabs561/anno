@@ -150,13 +150,19 @@ class PublishedCoverageTest(unittest.TestCase):
         for row in density:
             with self.subTest(dataset=row["id"]):
                 for end in ("min", "max"):
-                    tagged, tokens = int(row[end + "_tagged"]), int(row[end + "_tokens"])
+                    tagged, tokens = int(row[end + "_tagged"]), int(
+                        row[end + "_tokens"]
+                    )
                     self.assertGreater(tokens, 0)
                     self.assertGreaterEqual(tagged, 0)
                     self.assertLessEqual(tagged, tokens)
-                    self.assertAlmostEqual(100 * tagged / tokens, float(row[end + "_percent"]))
+                    self.assertAlmostEqual(
+                        100 * tagged / tokens, float(row[end + "_percent"])
+                    )
                     self.assertTrue(row[end + "_source"])
-                self.assertLessEqual(float(row["min_percent"]), float(row["max_percent"]))
+                self.assertLessEqual(
+                    float(row["min_percent"]), float(row["max_percent"])
+                )
 
 
 if __name__ == "__main__":
