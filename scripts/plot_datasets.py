@@ -24,6 +24,7 @@ root.mkdir(exist_ok=True, parents=True)
 repo = pathlib.Path(__file__).resolve().parents[1]
 task_counts = collections.Counter()
 comparison = {}
+query_densities = {}
 
 registry = (
     (repo / "crates/anno-eval/src/eval/dataset_registry.rs")
@@ -56,7 +57,7 @@ def measure(row):
     if not (
         "raw.githubusercontent.com/" in url
         or "/resolve/" in url
-        or re.search(r"\.(?:conllu|tsv|jsonl|csv|txt|zip|gz|json)$", url)
+        or re.search(r"\.(?:bio|conllu|tsv|jsonl|csv|txt|zip|gz|json)$", url)
     ) or not url.startswith("https://"):
         return
     try:
@@ -71,6 +72,16 @@ def measure(row):
             for line in data.decode().splitlines()
             if line.strip() and not line.startswith(("-DOCSTART-",))
         ]
+        # The MIT slot-filling files put the BIO tag before the token.
+        if row["id"] in {"MitMovie", "MitRestaurant"}:
+            records = [record[::-1] for record in records]
+            queries = re.split(r"\n\s*\n", data.decode().strip())
+            densities = []
+            for query in queries:
+                tags = [line.split()[0] for line in query.splitlines() if line.strip()]
+                if tags:
+                    densities.append(100 * sum(tag != "O" for tag in tags) / len(tags))
+            query_densities[row["name"]] = densities
         if row["id"] == "ZELDA":
             records = [record for record in records if record[0] != "#"]
         if row["id"] == "GENIANested":
@@ -206,3 +217,25 @@ for i, title in enumerate(
     axes[i].set_title(title)
 for ext in ("png", "svg"):
     fig.savefig(root / f"anno-corpora.{ext}", dpi=150)
+
+if query_densities:
+    fig, axis = plt.subplots(figsize=(8, 4), layout="constrained")
+    for name, densities in sorted(query_densities.items()):
+        ordered = sorted(densities)
+        cumulative = [100 * rank / len(ordered) for rank in range(1, len(ordered) + 1)]
+        axis.step(
+            [0, *ordered, 100],
+            [0, *cumulative, 100],
+            where="post",
+            label=f"{name} ({len(ordered):,} queries)",
+        )
+    axis.set(
+        xlim=(0, 100),
+        ylim=(0, 101),
+        xlabel="Tokens tagged in a query (%)",
+        ylabel="Queries at or below threshold (%)",
+        title="How concentrated are slot annotations within individual queries?",
+    )
+    axis.legend()
+    for ext in ("png", "svg"):
+        fig.savefig(root / f"anno-query-density.{ext}", dpi=150)
