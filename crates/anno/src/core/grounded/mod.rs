@@ -831,11 +831,15 @@ pub struct Track {
     pub embedding: Option<Vec<f32>>,
 }
 
-/// Evidence available to the native resolver's type guard.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CorefTrackType {
+/// Effective track type used by the native resolver's type guard.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "label", rename_all = "snake_case")]
+pub enum CorefTrackType {
+    /// Explicit type or unanimous nonempty member label.
     Known(super::types::TypeLabel),
+    /// An untyped track with no members.
     Unspecified,
+    /// Blank, conflicting, or missing member evidence precludes a type match.
     Ambiguous,
 }
 

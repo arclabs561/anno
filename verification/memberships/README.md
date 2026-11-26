@@ -54,3 +54,16 @@ On the shared x86-64 development container with Rust 1.95, dev profile with symb
 |---:|---:|---:|---:|
 | 32 | 20.54 ms | 23.24 ms | 0.39 ms |
 | 128 | 164.32 ms | 295.98 ms | 0.53 ms |
+
+## Explain one direct comparison
+
+Run `anno query memberships edition.json --explain-pair doc-a 0 doc-b 3` with the original complete edition and the submitted track IDs. The response includes each full source address and effective track type, the publication checkpoint, the active threshold and type policy. Its `decision.outcome` is one of the following.
+
+| Direct outcome | What the resolver did |
+|---|---|
+| `catalog_bound` | Preserved a prior catalog binding. The `left` and `right` flags identify the excluded endpoint(s). |
+| `type_mismatch` | Applied the type guard before comparing surfaces or embeddings. |
+| `no_comparable_evidence` | Found neither compatible usable embeddings nor two nonblank canonical surfaces. |
+| `below_threshold` or `accepted` | Evaluated the pair. `similarity` gives the observed score and `basis` names the measure. |
+
+The `same_component` flag describes the final published group. A pair can score below threshold and still share a component through a third track. A checkpoint fingerprints published rows. Distinct grounded inputs can yield identical rows, so retain the original editions to reproduce their direct decisions. This query rebuilds the ordinary complete publication and replays one direct comparison with the same admission rule. Rust callers can use `MembershipEdition::explain_pair`.
