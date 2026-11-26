@@ -84,11 +84,12 @@ def decision_counts(rows, observations):
     return counts
 
 
-def from_clusters(row, result, producer):
+def from_clusters(row, result, producer, policy):
     if result["id"] != row["ID"] or result["producer"] != producer:
         raise ValueError("unexpected source document or producer")
     if "unsupported" in result:
-        if "clusters" in result or result["unsupported"] != "supplied_span_splits_token":
+        if ((producer, policy) != ("maverick", "supplied") or "clusters" in result
+                or result["unsupported"] != "supplied_span_splits_token"):
             raise ValueError("unrecognized refusal or ambiguous refusal with clusters")
         return None, "refused:" + result["unsupported"]
     groups = result["clusters"]
@@ -154,7 +155,14 @@ def main():
             if labels != stored["gold_pairs"]:
                 raise ValueError("reference labels differ from original TSV")
             for arm, record in stored["arms"].items():
-                counts = decision_counts(rows, record["per_id"])
+                bits = []
+                for item in record["per_id"]:
+                    if isinstance(item, dict):
+                        if arm != "maverick/supplied" or item != {"unsupported": "supplied_span_splits_token"}:
+                            raise ValueError(f"{arm}: unexpected saved refusal")
+                        item = None
+                    bits.append(item)
+                counts = decision_counts(rows, bits)
                 for k in ("tp", "fp", "fn", "tn", "gold_links"):
                     if counts[k] != record["counts"][k]:
                         raise ValueError(f"{name} {arm}: saved {k} differs")
@@ -167,7 +175,7 @@ def main():
         for arm in arms:
             backend, policy = arm.split("/")
             outputs = run(rows, backend, policy, args.binary)
-            decoded = [from_clusters(row, out, backend) for row, out in zip(rows, outputs, strict=True)]
+            decoded = [from_clusters(row, out, backend, policy) for row, out in zip(rows, outputs, strict=True)]
             bits = [v for v, _ in decoded]
             if name == "published" and bits != stored["arms"][arm]["per_id"]:
                 raise ValueError(f"{arm}: native cluster replay does not reproduce saved per-ID decisions")
@@ -184,7 +192,7 @@ def main():
         for mode in ("predicted", "supplied"):
             before = report["panels"]["article_holdout"]["arms"]["mention-ranking/" + mode]["per_id"]
             raw = run(rows, "mention-ranking", mode, args.candidate)
-            after = [from_clusters(r, o, "mention-ranking")[0] for r, o in zip(rows, raw, strict=True)]
+            after = [from_clusters(r, o, "mention-ranking", mode)[0] for r, o in zip(rows, raw, strict=True)]
             changes = []
             transitions = {"both_correct": 0, "won": 0, "lost": 0, "both_wrong": 0}
             for r, old, new in zip(rows, before, after, strict=True):

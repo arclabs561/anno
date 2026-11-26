@@ -1,7 +1,7 @@
 """Rebuild JointIE CrossRE denominators and co-window eligibility from source annotations."""
 
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 from hashlib import sha256
 from itertools import accumulate
 import json
@@ -61,6 +61,27 @@ def check_doc(doc, record):
             raise ValueError(f"{doc['doc_key']} {k}: source {v}, receipt {record['counts'].get(k)}")
 
 
+def verify_training_routes(training, report):
+    if sha256(training).hexdigest() != report["training_sha256"]:
+        raise ValueError("different training corpus")
+    heads, tails = defaultdict(set), defaultdict(set)
+    for line in training.splitlines():
+        row = json.loads(line)
+        types = {(a, b): t for a, b, t in row["ner"]}
+        for a, b, c, d, label, *_ in row["relations"]:
+            heads[label].add(types[a, b])
+            tails[label].add(types[c, d])
+    routes = {p: [sorted(heads[p]), sorted(tails[p])] for p in heads}
+    if routes != report["allowed_endpoint_types"]:
+        raise ValueError("saved route policy differs from training annotations")
+    for doc in report["documents"]:
+        for edge in doc["edge_trace"]:
+            p = edge["predicate"]
+            allowed = p in routes and edge["head"][0] in heads[p] and edge["tail"][0] in tails[p]
+            if allowed != edge["schema_allows_gold_types"]:
+                raise ValueError("trace disagrees with independently reconstructed train schema")
+
+
 def audit(source, report):
     if sha256(source).hexdigest() != report["dataset_sha256"]:
         raise ValueError("dataset hash mismatch")
@@ -79,6 +100,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("receipts", nargs="+", type=Path)
+    parser.add_argument("--train", type=Path, help="verify restricted schemas from the original training split")
     args = parser.parse_args()
     for path in args.receipts:
-        print(json.dumps({path.name: audit(args.source.read_bytes(), json.loads(path.read_text()))}))
+        report = json.loads(path.read_text())
+        if args.train and "training_sha256" in report:
+            verify_training_routes(args.train.read_bytes(), report)
+        print(json.dumps({path.name: audit(args.source.read_bytes(), report)}))
