@@ -34,6 +34,61 @@ def endpoint(span, proposed, retained, seen, decisions):
     raise ValueError("eligible antecedent not selected by the default ranker")
 
 
+def selected_path(start, end, decisions):
+    def ancestors(index):
+        chain = [index]
+        while (parent := decisions[chain[-1]]["selected"]) is not None:
+            if not 0 <= parent < chain[-1]:
+                raise ValueError("expected a strictly earlier selected antecedent")
+            chain.append(parent)
+        return chain
+
+    left, right = ancestors(start), ancestors(end)
+    common = next((i for i in left if i in right), None)
+    if common is None:
+        raise ValueError("returned positive pair lacks a selected-edge path")
+    return left[: left.index(common) + 1] + right[: right.index(common)][::-1]
+
+
+def output_errors(panel):
+    """Account for each missed or spurious decision using the saved five output bits."""
+    results = {}
+    for arm, run in panel["arms"].items():
+        missing, extra = Counter(), Counter()
+        for mask, gold in zip(run["per_id"], panel["gold_pairs"], strict=True):
+            for target in range(2):
+                if gold[target] == mask[3 + target]:
+                    continue
+                if gold[target] == "1":
+                    visible = mask[0] + mask[1 + target]
+                    missing[
+                        {
+                            "00": "both_absent",
+                            "01": "pronoun_absent",
+                            "10": "name_absent",
+                            "11": "returned_separately",
+                        }[visible]
+                    ] += 1
+                elif gold == "00":
+                    extra["neither_name_gold"] += 1
+                elif mask[4 - target] == "1":
+                    extra["both_names_linked"] += 1
+                elif mask[2 - target] == "1":
+                    extra["wrong_name_only_correct_name_visible"] += 1
+                else:
+                    extra["wrong_name_only_correct_name_absent"] += 1
+        if (missing.total(), extra.total()) != (
+            run["counts"]["fn"],
+            run["counts"]["fp"],
+        ):
+            raise ValueError(f"unreconciled errors for {arm}")
+        results[arm] = {
+            "missed": dict(sorted(missing.items())),
+            "spurious": dict(sorted(extra.items())),
+        }
+    return results
+
+
 def audit(docs, traces, published):
     predictions = [
         dict(id=r["id"], producer="mention-ranking", clusters=r["clusters"])
@@ -46,6 +101,7 @@ def audit(docs, traces, published):
         raise ValueError("native outputs differ from published decisions or counts")
     counts, combinations, relations = Counter(), Counter(), Counter()
     rows = []
+    false_links = []
     names = Counter()
     for (doc_id, text, targets, labels), trace in zip(docs, traces, strict=True):
         proposed = set(map(tuple, trace["proposed"]))
@@ -54,9 +110,20 @@ def audit(docs, traces, published):
         seen = set().union(*groups)
         decisions = trace["decisions"]
         for side, g in enumerate(labels, 1):
-            if not g:
-                continue
             p, n = targets[0], targets[side]
+            if not g:
+                if any(p in group and n in group for group in groups):
+                    path = selected_path(
+                        retained.index(p), retained.index(n), decisions
+                    )
+                    false_links.append(
+                        {
+                            "id": doc_id,
+                            "candidate": "AB"[side - 1],
+                            "selected_path_chars": [retained[i] for i in path],
+                        }
+                    )
+                continue
             statuses = [
                 endpoint(s, proposed, retained, seen, decisions) for s in (p, n)
             ]
@@ -141,6 +208,8 @@ def audit(docs, traces, published):
         stages=dict(sorted(counts.items())),
         endpoint_status_pairs=dict(sorted(combinations.items())),
         direct_pair_when_retained=dict(sorted(relations.items())),
+        false_links=false_links,
+        output_errors=output_errors(published),
         rows=rows,
     )
 

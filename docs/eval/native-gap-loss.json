@@ -36,6 +36,120 @@
     "beyond_distance": 11,
     "selected": 6
   },
+  "false_links": [
+    {
+      "id": "test-910",
+      "candidate": "B",
+      "selected_path_chars": [
+        [
+          98,
+          101
+        ],
+        [
+          91,
+          96
+        ]
+      ]
+    },
+    {
+      "id": "test-428",
+      "candidate": "B",
+      "selected_path_chars": [
+        [
+          351,
+          353
+        ],
+        [
+          341,
+          349
+        ]
+      ]
+    },
+    {
+      "id": "test-1137",
+      "candidate": "B",
+      "selected_path_chars": [
+        [
+          287,
+          290
+        ],
+        [
+          276,
+          281
+        ]
+      ]
+    },
+    {
+      "id": "test-1863",
+      "candidate": "B",
+      "selected_path_chars": [
+        [
+          195,
+          198
+        ],
+        [
+          180,
+          187
+        ]
+      ]
+    }
+  ],
+  "output_errors": {
+    "mention-ranking/predicted": {
+      "missed": {
+        "both_absent": 48,
+        "name_absent": 54,
+        "pronoun_absent": 7,
+        "returned_separately": 2
+      },
+      "spurious": {
+        "neither_name_gold": 1,
+        "wrong_name_only_correct_name_absent": 3
+      }
+    },
+    "mention-ranking/supplied": {
+      "missed": {
+        "returned_separately": 117
+      },
+      "spurious": {
+        "wrong_name_only_correct_name_visible": 1
+      }
+    },
+    "fcoref/predicted": {
+      "missed": {
+        "both_absent": 4,
+        "name_absent": 37,
+        "returned_separately": 3
+      },
+      "spurious": {
+        "both_names_linked": 1,
+        "neither_name_gold": 1,
+        "wrong_name_only_correct_name_absent": 2,
+        "wrong_name_only_correct_name_visible": 2
+      }
+    },
+    "maverick/predicted": {
+      "missed": {
+        "name_absent": 40,
+        "returned_separately": 1
+      },
+      "spurious": {
+        "wrong_name_only_correct_name_visible": 1
+      }
+    },
+    "maverick/supplied": {
+      "missed": {
+        "both_absent": 1,
+        "name_absent": 2,
+        "pronoun_absent": 1
+      },
+      "spurious": {
+        "both_names_linked": 9,
+        "neither_name_gold": 2,
+        "wrong_name_only_correct_name_absent": 2
+      }
+    }
+  },
   "rows": [
     {
       "id": "test-1768",

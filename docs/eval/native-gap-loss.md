@@ -23,6 +23,22 @@ cmp /tmp/native-gap-loss.json docs/eval/native-gap-loss.json
 
 The receipt includes one row per true pair with the GAP ID and the designated candidate. Rows are ordered by the original frozen panel, and include the earliest loss, each endpoint’s state, and the direct edge decision when both exact endpoints entered ranking.
 
+## Which failures are visible in the returned clusters?
+
+On GAP, each decision asks whether one designated name belongs in the pronoun’s cluster. Among missed true links, the saved panel masks distinguish missing exact output boundaries from endpoints returned in separate clusters. Counts below refer to decisions across the same 128 excerpts. [Frozen five-bit output masks](coref-panels.json) · [Reconciliation code](../../scripts/qa/native_gap_loss.py)
+
+| Backend / input | Only name absent | Only pronoun absent | Both absent | Both returned separately | Total missed |
+|---|---:|---:|---:|---:|---:|
+| Native / raw | 54 | 7 | 48 | 2 | 111 |
+| FCoref / raw | 37 | 0 | 4 | 3 | 44 |
+| Maverick / raw | 40 | 0 | 0 | 1 | 41 |
+| Native / supplied | 0 | 0 | 0 | 117 | 117 |
+| Maverick / supplied | 2 | 1 | 1 | 0 | 4 |
+
+FCoref's six false links comprise two wrong-only decisions where the correct name was absent, two where it was visible, one linking both names and one where neither candidate was gold. Maverick’s one raw false link, on `test-841`, linked the wrong name while the correct name was visible. FCoref also made that error. On supplied spans Maverick emitted 13 false links. Of those, nine linked both names in positive cases, two linked a wrong name while omitting the correct name, and two linked both candidates in the same negative case (`test-1964`). These counts describe exact output spans. The historical neural receipts omit internal proposals, antecedent logits, pruning decisions and cluster paths, so the model-internal reasons remain unknown. Maverick’s supplied run received all three spans and emitted only linked mentions.
+
+On native raw text, three of four false links attached the wrong name while omitting the correct name. The fourth linked B in a neither-name case. All four were direct selections of the preceding wrong name. No intermediate cluster member connected the endpoints. The receipt records their half-open character spans in source text. The supplied native resolver made one false link (`test-428`, B), with the correct name visible. Its saved output does not identify a deciding feature or rank margin.
+
 ## Removing English possessive clitics from proposed names
 
 Ten of the diagnostic panel's missing name proposals included their following possessive marker. We froze one change to the English proper-name heuristic before scoring new excerpts. After its existing trailing-punctuation cleanup, the candidate strips a final ASCII or curly apostrophe followed by lowercase `s`. It preserves internal apostrophes, as in `O'Neil's`, and leaves ranking, multiword detection and sentence-initial detection alone. The fixture includes a character-boundary regression covering both apostrophe forms and Unicode names. [Frozen candidate](../../scripts/qa/fixtures/native-gap-possessive.patch)
