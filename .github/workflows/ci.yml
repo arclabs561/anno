@@ -154,6 +154,7 @@ jobs:
         run: |
           python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
           python3 -m unittest discover -v -s scripts/qa/joint_baseline -p 'test_*.py'
+          python3 -m unittest discover -v -s scripts/qa/backend_residuals -p 'test_*.py'
       - name: Test reference resolution and NuNER scoring on offline fixtures
         run: |
           uv run --python 3.12 --with numpy==2.3.5 --with scipy==1.17.0 bash crates/anno-eval/research/reference/check.sh

@@ -1,0 +1,68 @@
+diff --git a/crates/anno-eval/src/eval/task_evaluator.rs b/crates/anno-eval/src/eval/task_evaluator.rs
+index 0c8957ff..bd6ca3da 100644
+--- a/crates/anno-eval/src/eval/task_evaluator.rs
++++ b/crates/anno-eval/src/eval/task_evaluator.rs
+@@ -3600,6 +3600,37 @@ impl TaskEvaluator {
+             require_entity_type_match: false,
+             ..RelationEvalConfig::default()
+         };
++        if let Some(path) = std::env::var_os("ANNO_DIAGNOSTIC_RELATION_ROWS") {
++            use std::io::Write;
++            let path = std::path::PathBuf::from(path);
++            let parent = path.parent().filter(|_| path.is_absolute()).ok_or_else(|| {
++                crate::Error::InvalidInput("use an absolute external diagnostic path".into())
++            })?;
++            if parent.canonicalize()?.ancestors().any(|p| {
++                p.join(".git").is_file() || p.join(".git/HEAD").is_file()
++            }) {
++                return Err(crate::Error::InvalidInput("store relation rows outside Git checkouts".into()));
++            }
++            let mut output = std::io::BufWriter::new(std::fs::File::create_new(path)?);
++            let hex = |bytes: &[u8]| -> String {
++                bytes.iter().map(|byte| format!("{byte:02x}")).collect()
++            };
++            let sample_sha256 = hex(&sample_hash.clone().finalize());
++            for (index, (doc, predictions)) in relation_docs.iter().zip(&predictions_by_doc).enumerate() {
++                let predicted: Vec<_> = predictions.iter().map(|p| serde_json::json!([
++                    p.head_span, p.tail_span, p.relation_type
++                ])).collect();
++                let gold: Vec<_> = doc.relations.iter().map(|g| serde_json::json!([
++                    g.head_span, g.tail_span, g.relation_type
++                ])).collect();
++                writeln!(output, "{}", serde_json::json!({
++                    "index": index, "sample_sha256": sample_sha256,
++                    "text_sha256": hex(&Sha256::digest(doc.text.as_bytes())),
++                    "gold": gold, "predicted": predicted
++                }))?;
++            }
++            output.flush()?;
++        }
+         let metrics_result = evaluate_relation_documents(
+             relation_docs
+                 .iter()
+diff --git a/scripts/qa/crossre_prompt_replay.py b/scripts/qa/crossre_prompt_replay.py
+index dcd57344..166a5216 100644
+--- a/scripts/qa/crossre_prompt_replay.py
++++ b/scripts/qa/crossre_prompt_replay.py
+@@ -162,6 +162,10 @@ def main():
+         p.error("--cpus must be contained in this process's CPU affinity")
+     if args.arm_timeout <= 0:
+         p.error("--arm-timeout must be positive")
++    if any((folder / ".git").is_file() or (folder / ".git/HEAD").is_file()
++           for path in (args.data.resolve(), args.out.resolve())
++           for folder in (path, *path.parents)):
++        p.error("use external directories for source data and diagnostic rows")
+     args.out.mkdir(parents=True, exist_ok=False)
+     binary = args.anno.resolve()
+     env = {**os.environ, "ANNO_NO_DOWNLOADS": "1", "ANNO_RELATION_ORACLE_ENTITIES": "0",
+@@ -183,7 +187,9 @@ def main():
+                 if policy == "fixed":
+                     argv.extend(["--relation-schema", str(args.out / f"{domain}-schema.json")])
+                 print(f"Running {domain} {backend} {policy}", flush=True)
+-                cost = measure(argv, env, cpus, base.with_suffix(".log"), args.arm_timeout)
++                trace_env = {**env, "ANNO_DIAGNOSTIC_RELATION_ROWS": str(base.with_suffix(".rows").resolve()),
++                             "ANNO_RELATION_TPLINKER_ORACLE_ENTITIES": "0"}
++                cost = measure(argv, trace_env, cpus, base.with_suffix(".log"), args.arm_timeout)
+                 native = json.loads(base.with_suffix(".json").read_text())["results"][0]
+                 validate_row(native, corpus, backend, policy)
+                 sample = native["provenance"]["evaluated_sample"]

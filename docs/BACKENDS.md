@@ -4,6 +4,8 @@
 
 On “Ada founded Acme. She leads it.”, NER can return the typed spans “Ada” and “Acme”. A coreference resolver can group “Ada” with “She”. A relation extractor can return a directed `founded` edge from the Ada mention to the Acme mention. A document-level model can also predict an edge between two clusters. Each output answers a different question, and each can be evaluated separately. [Grounded representation](decisions/grounded-extraction.md) · [Joint extraction design](decisions/joint-extraction.md)
 
+The backend error analysis breaks down which mentions, links, relations, and entity spans were missed or added on each evaluated sample. [Backend error analysis](eval/backend-residuals.md)
+
 ### Which inputs do you have?
 
 | You have | You need | Route to try | What controls the result |
