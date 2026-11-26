@@ -1,0 +1,23 @@
+{
+  "license": "MIT OR Apache-2.0",
+  "decisions": {
+    "tide-import": {"work": "10.0000/anno-tide", "occurrence": "by1", "person": ["archive", "17"]},
+    "salt-import": {"work": "10.0000/anno-salt", "occurrence": "by1", "person": ["archive", "17"]},
+    "tide-coauthor": {"work": "10.0000/anno-tide", "occurrence": "by2", "person": ["archive", "26"]},
+    "tide-correction": {"work": "10.0000/anno-tide", "occurrence": "by1", "person": ["university", "17"]}
+  },
+  "claims": {
+    "harbor-term": {"person": ["university", "17"], "kind": "affiliation", "value": "Harbor Institute", "start": "2016-01-01", "end": "2021-01-01"},
+    "quay-term": {"person": ["archive", "17"], "kind": "affiliation", "value": "Quay Archive", "start": "2015-01-01", "end": "2025-01-01"},
+    "early-name": {"person": ["university", "17"], "kind": "name", "value": "Rowan Mire", "start": "2015-01-01", "end": "2021-01-01"},
+    "archive-name": {"person": ["archive", "17"], "kind": "name", "value": "Rowan Mire", "start": "2015-01-01", "end": "2025-01-01"},
+    "reed-term": {"person": ["university", "17"], "kind": "affiliation", "value": "Reed Observatory", "start": "2018-06-01", "end": "2018-09-01"},
+    "later-name": {"person": ["university", "17"], "kind": "name", "value": "Rowan Vale", "start": "2021-01-01", "end": "2025-01-01"},
+    "undated": {"person": ["university", "17"], "kind": "affiliation", "value": "Marsh Library", "start": null, "end": null}
+  },
+  "editions": [
+    {"decisions": ["tide-import", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name"]},
+    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name"]},
+    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name", "reed-term", "later-name", "undated"]}
+  ]
+}
