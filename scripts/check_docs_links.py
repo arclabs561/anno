@@ -35,15 +35,15 @@ def github_anchor_slug(text: str) -> str:
     - We intentionally keep this simple (offline, deterministic).
     - It should be "good enough" for validating common `(#anchor)` links in our docs.
     """
-    # Drop inline code + basic HTML tags.
-    text = re.sub(r"`[^`]*`", "", text)
+    # GitHub retains inline code text in the heading ID.
+    text = text.replace("`", "")
     text = re.sub(r"<[^>]+>", "", text)
     text = text.strip().lower()
     out: list[str] = []
     for ch in text:
-        if ch.isalnum():
+        if ch.isalnum() or ch == "_":
             out.append(ch)
-        elif ch.isspace() or ch in {"-", "_"}:
+        elif ch.isspace() or ch == "-":
             out.append("-")
         else:
             # Drop punctuation/symbols.
