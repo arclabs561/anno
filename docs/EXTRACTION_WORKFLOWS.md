@@ -163,16 +163,20 @@ grounded document and import the resulting annotation file.
 
 ```sh
 anno export --input v1/report.json --output v1/brat --format brat --include-confidence
-anno dataset import --input v1/brat/report.ann --output v1/rows.jsonl --format brat --include-text
-sha256sum v1/brat/report.txt
+anno dataset import --input v1/brat/report.ann --output v1/rows.jsonl --format brat --include-text --require-brat-manifest
 ```
 
-The companion `report.txt` contains the grounded document’s source text.
-Keep the SHA-256 digest of those exact UTF-8 bytes with your document ID,
-revision ID and annotation path in the corpus manifest. The digest distinguishes
-text changes, including changes in Unicode normalization. Two documents can
-contain the same text, and an annotation edit can leave the text digest unchanged.
-Version the annotation file separately when tracking annotation edits.
+Anno writes `report.anno-pair` with the SHA-256 digests of the annotation
+and the exact UTF-8 source bytes. Keep it with `report.ann` and `report.txt`.
+All three can move or take a new common stem. Import checks a present manifest
+against the files it actually reads, including an explicit `--source-text`.
+A changed file invalidates that pairing. Preserve the original trio when editing
+annotations and track the edited pair as a new revision.
+
+Legacy BRAT input without a manifest remains readable. Normal progress output
+marks the revision unverified. Use `--require-brat-manifest` when every input
+must have verified digests. Keep the publisher's document and revision IDs in
+your corpus manifest because distinct documents can contain identical bytes.
 
 Each imported row’s `source` records the annotation path supplied to the
 importer. Running from the same root retains the revision directory in that

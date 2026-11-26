@@ -10,6 +10,8 @@ On 1,571 distinct, verified zbMATH affiliations, the whole-string query showed a
 
 At five, the two methods displayed 7,699 and 7,838 cards respectively. Among the 1,146 inputs whose complete sets of source-labeled organizations also had no ID in common with any S2AFF gold label, hits increased from 574 to 1,023. All 312 inputs without a usable extra part had identical suggestions under the two methods. Both found an organization on 263. These subsets overlap. The missing-target, wrong-commitment and geographic-score questions have separate controls in the preceding study. [Affiliation comparison and target withholding](../context/README.md)
 
+The follow-up scores commitments on these verified targets, the same targets withheld, and affiliations whose source marks the organization absent. Authored controls retain independent source affiliation references for a single contributor. [Commitments and deferrals](../commitments/README.md)
+
 ## How the pairs were scored
 
 Use the unchanged compiled Rust trigram index on all 102,742 active ROR v1.1 owners. Search the full input first, then up to three distinct nonempty comma- or semicolon-delimited parts in source order, excluding any part equal to the full input under the existing Unicode normalization. Interleave by depth, taking a whole-query candidate first, skipping repeated owners and stopping after five. Both arms use the same frozen ranking rules. This study measures suggestions displayed before an automatic or human decision. [Native ranking](../ngrams.rs) · [Executable comparison](replicate.py)

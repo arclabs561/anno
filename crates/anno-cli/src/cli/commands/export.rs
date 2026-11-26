@@ -458,7 +458,7 @@ pub(super) fn write_output(
 
 fn output_paths(input: &Path, dir: &Path, format: ExportFormat) -> Vec<PathBuf> {
     let suffixes: &[&str] = match format {
-        ExportFormat::Brat => &[".ann", ".txt"],
+        ExportFormat::Brat => &[".ann", ".txt", ".anno-pair"],
         ExportFormat::Conll => &[".conll"],
         ExportFormat::Jsonl => &[".jsonl"],
         ExportFormat::NTriples => &[".nt"],
@@ -554,6 +554,14 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
             ))
         }
     };
+
+    if matches!(format, ExportFormat::Brat) {
+        let pair = super::brat_pair::BratPair::new(&output_content, content);
+        let manifest = serde_json::to_vec_pretty(&pair).map_err(|e| e.to_string())?;
+        // Publish the expected digests first. A partial replacement then fails verification.
+        write_output(&paths[2], manifest, overwrite)
+            .map_err(|e| format!("Failed to write {}: {e}", paths[2].display()))?;
+    }
 
     write_output(output_path, output_content, overwrite)
         .map_err(|e| format!("Failed to write output: {}", e))?;
