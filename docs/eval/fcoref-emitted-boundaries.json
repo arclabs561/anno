@@ -1,0 +1,76 @@
+{
+  "cohort_ids_sha256": "12575e21f545a394ed20318e04c9518af7be7526317c45d2ac113dd18c7c95c0",
+  "development_sha256": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+  "test_sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+  "validation_sha256": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98",
+  "binary_sha256": "f1aa5efcfc7db961ebe1071a65436c2892b53ab0ce1eda6ac8cc895bd3b38d06",
+  "model_revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
+  "model_files": {
+    "encoder.onnx": "190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4",
+    "scorer_weights.safetensors": "54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7",
+    "tokenizer.json": "5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1",
+    "config.json": "2d96a29d2ebd497d34580594f40ded241440411bcd83885b89d8fbb86189bc3b"
+  },
+  "stock_partitions_sha256": "7cfcb6e687e0177119f66b88cca1a7f182b9ab0f94371fe059c800d2f0a9acf1",
+  "candidate_partitions_sha256": "74f62b42e3a88c6fbe0553aeefd33ce34bc14871483c4b2098670139d6daf111",
+  "stock": {
+    "documents": 256,
+    "gold_links": 231,
+    "predicted_links": 161,
+    "tp": 149,
+    "fp": 12,
+    "fn": 82,
+    "tn": 269,
+    "exact_decisions": 171,
+    "gold_both_covered": 162,
+    "eligible_pairs": 228,
+    "all_output_spans": 2311,
+    "linked_output_span_coverage_pronoun_A_B": [
+      249,
+      110,
+      119
+    ],
+    "precision": 0.925466,
+    "recall": 0.645022,
+    "f1": 0.760204
+  },
+  "candidate": {
+    "documents": 256,
+    "gold_links": 231,
+    "predicted_links": 161,
+    "tp": 149,
+    "fp": 12,
+    "fn": 82,
+    "tn": 269,
+    "exact_decisions": 171,
+    "gold_both_covered": 162,
+    "eligible_pairs": 229,
+    "all_output_spans": 2311,
+    "linked_output_span_coverage_pronoun_A_B": [
+      249,
+      111,
+      119
+    ],
+    "precision": 0.925466,
+    "recall": 0.645022,
+    "f1": 0.760204
+  },
+  "paired": {
+    "gold_links_recovered": 0,
+    "gold_links_lost": 0,
+    "unmatched_links_added": 0,
+    "unmatched_links_removed": 0,
+    "exact_document_wins": 0,
+    "exact_document_losses": 0,
+    "exact_document_delta_ci95": [
+      0,
+      0
+    ]
+  },
+  "documents_with_replacements": 14,
+  "replaced_output_spans": 15,
+  "removed_marked_spans": 0,
+  "added_marked_spans": 1,
+  "removed_spans_outside_marked": 15,
+  "added_spans_outside_marked": 14
+}
