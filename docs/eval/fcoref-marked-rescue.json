@@ -1,0 +1,76 @@
+{
+  "cohort_ids_sha256": "12575e21f545a394ed20318e04c9518af7be7526317c45d2ac113dd18c7c95c0",
+  "stock_partitions_sha256": "7cfcb6e687e0177119f66b88cca1a7f182b9ab0f94371fe059c800d2f0a9acf1",
+  "marked_partitions_sha256": "4d4d600e495da042cc16b3c99ab24bc2d761509db1b8a1c63055877bbe91fd11",
+  "stock": {
+    "documents": 256,
+    "gold_links": 231,
+    "predicted_links": 161,
+    "tp": 149,
+    "fp": 12,
+    "fn": 82,
+    "tn": 269,
+    "exact_decisions": 171,
+    "gold_both_covered": 162,
+    "eligible_pairs": 228,
+    "all_output_spans": 2311,
+    "linked_output_span_coverage_pronoun_A_B": [
+      249,
+      110,
+      119
+    ],
+    "precision": 0.925466,
+    "recall": 0.645022,
+    "f1": 0.760204
+  },
+  "marked": {
+    "documents": 256,
+    "gold_links": 231,
+    "predicted_links": 161,
+    "tp": 149,
+    "fp": 12,
+    "fn": 82,
+    "tn": 269,
+    "exact_decisions": 171,
+    "gold_both_covered": 162,
+    "eligible_pairs": 228,
+    "all_output_spans": 2309,
+    "linked_output_span_coverage_pronoun_A_B": [
+      249,
+      110,
+      119
+    ],
+    "precision": 0.925466,
+    "recall": 0.645022,
+    "f1": 0.760204
+  },
+  "paired": {
+    "gold_links_recovered": 0,
+    "gold_links_lost": 0,
+    "unmatched_links_added": 0,
+    "unmatched_links_removed": 0,
+    "exact_document_wins": 0,
+    "exact_document_losses": 0,
+    "exact_document_delta_ci95": [
+      0,
+      0
+    ]
+  },
+  "recovered_by_stock_state": {
+    "missing_endpoint": 0,
+    "both_emitted_separate": 0
+  },
+  "output_pair_changes": {
+    "documents_with_pair_changes": 1,
+    "added_unscored_pairs": 0,
+    "removed_unscored_pairs": 1
+  },
+  "proposals": {
+    "requested": 768,
+    "legal": 768,
+    "promoted": 186,
+    "retained_slots": 6460,
+    "documents_with_promotions": 146
+  },
+  "diagnostic_binary_sha256": "3cccf345ed24fad3f8730fbe2e568f8712cfb98ffa9a564f640336db857e9641"
+}
