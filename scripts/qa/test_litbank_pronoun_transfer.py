@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Original controls for the independent pronoun transfer selector."""
 from collections import Counter
+import os
+from pathlib import Path
+import stat
+import tempfile
 import unittest
 
 from coref_corpora.litbank import Mention
-from litbank_pronoun_transfer import choices, phrases
+from litbank_pronoun_transfer import choices, export_panel, phrases
 
 
 class TransferChoices(unittest.TestCase):
@@ -40,6 +44,24 @@ class TransferChoices(unittest.TestCase):
         self.assertEqual(phrases(words), phrases(words.upper().replace(" ", ", ")))
         self.assertEqual(len(phrases(words)), 1)
         self.assertFalse(phrases(words.replace("word5 ", "")))
+
+    def test_private_export_checks_before_publish_and_preserves_existing_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "local.tsv"
+            with self.assertRaisesRegex(ValueError, "frozen selection"):
+                export_panel(path, [{"ID": "synthetic"}], {}, {"wrong": "digest"})
+            self.assertEqual(list(path.parent.iterdir()), [])
+            saved_umask = os.umask(0)
+            try:
+                export_panel(path, [{"ID": "synthetic"}], {})
+            finally:
+                os.umask(saved_umask)
+            if os.name == "posix":
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            old = path.read_bytes()
+            with self.assertRaises(FileExistsError):
+                export_panel(path, [{"ID": "replacement"}], {})
+            self.assertEqual(old, path.read_bytes())
 
 
 if __name__ == "__main__":

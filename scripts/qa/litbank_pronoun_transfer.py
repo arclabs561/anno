@@ -5,8 +5,10 @@ from collections import Counter
 import csv
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import tempfile
 
 from coref_corpora import litbank
 from native_gap_neutral_type import ROOT, read_sources
@@ -72,7 +74,7 @@ def phrases(text):
     return {tuple(words[i:i + 20]) for i in range(len(words) - 19)}
 
 
-def prepare(source, gap, destination):
+def prepare(source, gap):
     fold_zero = json.loads((ROOT / "docs/eval/coref-panels.json").read_text())["litbank"]["documents"]
     previous_works = litbank.WORKS | {int(row["id"].split("_")[0]) for row in fold_zero}
     if WORKS & previous_works:
@@ -102,15 +104,29 @@ def prepare(source, gap, destination):
                                                       "same_candidate_identity", "eligible"))
             or len(rows) + counts["overlap_with_gap"] != counts["eligible"]):
         raise ValueError("selection denominators differ")
-    with destination.open("x", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, FIELDS, delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-    return {"litbank_brat_manifest_sha256": SOURCE_SHA256, "gap_sha256": gap_hashes,
-            "source_works": len(works), "excluded_prior_works": len(previous_works),
-            "selected_works": len({r["URL"] for r in rows}), "selected_rows": len(rows),
-            "selection": dict(counts), "gold": dict(gold),
-            "panel_tsv_sha256": hashlib.sha256(destination.read_bytes()).hexdigest()}
+    return rows, {"litbank_brat_manifest_sha256": SOURCE_SHA256, "gap_sha256": gap_hashes,
+                  "source_works": len(works), "excluded_prior_works": len(previous_works),
+                  "selected_works": len({r["URL"] for r in rows}), "selected_rows": len(rows),
+                  "selection": dict(counts), "gold": dict(gold)}
+
+
+def export_panel(destination, rows, selection, expected=None):
+    # Stage privately and link only complete, checked bytes to a fresh destination.
+    staged = tempfile.NamedTemporaryFile(dir=destination.parent, mode="w", newline="",
+                                         encoding="utf-8", delete=False)
+    path = Path(staged.name)
+    try:
+        with staged:
+            writer = csv.DictWriter(staged, FIELDS, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+        receipt = dict(selection, panel_tsv_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        if expected is not None and receipt != expected:
+            raise ValueError("LitBank transfer panel differs from the frozen selection")
+        os.link(path, destination)
+        return receipt
+    finally:
+        path.unlink()
 
 
 if __name__ == "__main__":
@@ -120,9 +136,6 @@ if __name__ == "__main__":
     parser.add_argument("private_tsv", type=Path, help="new local file with source text and labels")
     parser.add_argument("--check", action="store_true", help="check the frozen panel and aggregate selection")
     args = parser.parse_args()
-    selection = prepare(args.litbank, args.gap, args.private_tsv)
-    if args.check:
-        expected = json.loads((ROOT / "docs/eval/litbank-pronoun-transfer.json").read_text())
-        if selection != expected:
-            raise SystemExit("LitBank transfer panel differs from the frozen selection")
-    print(json.dumps(selection, indent=2, sort_keys=True))
+    expected = json.loads((ROOT / "docs/eval/litbank-pronoun-transfer.json").read_text()) if args.check else None
+    rows, selection = prepare(args.litbank, args.gap)
+    print(json.dumps(export_panel(args.private_tsv, rows, selection, expected), indent=2, sort_keys=True))
