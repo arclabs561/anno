@@ -5,6 +5,15 @@
 //! separate `MetricWithVariance` and `MetricWithCI` types.
 
 use serde::{Deserialize, Serialize};
+use statrs::distribution::{ContinuousCDF, StudentsT};
+
+fn mean_ci_half_width(n: usize, std_dev: f64) -> f64 {
+    if n < 2 || std_dev == 0.0 {
+        return 0.0;
+    }
+    let t = StudentsT::new(0.0, 1.0, (n - 1) as f64).expect("positive degrees of freedom");
+    t.inverse_cdf(0.975) * std_dev / (n as f64).sqrt()
+}
 
 /// Statistical metrics with variance and confidence intervals.
 ///
@@ -66,7 +75,7 @@ impl MetricStats {
     /// Create from a slice of sample values.
     ///
     /// Uses sample standard deviation (Bessel's correction) and
-    /// t-distribution approximation for 95% CI.
+    /// a two-sided Student’s t interval for the mean.
     ///
     /// # Examples
     ///
@@ -95,23 +104,7 @@ impl MetricStats {
             0.0
         };
 
-        // 95% CI using t-distribution approximation
-        // For n >= 30, use z = 1.96; otherwise approximate with t
-        let t_value = if n >= 30 {
-            1.96
-        } else if n >= 10 {
-            2.0 + 0.1 / (n as f64).sqrt()
-        } else {
-            // More conservative for very small samples
-            2.5
-        };
-
-        let ci_half_width = if n > 1 {
-            t_value * std_dev / (n as f64).sqrt()
-        } else {
-            0.0
-        };
-
+        let ci_half_width = mean_ci_half_width(n, std_dev);
         let ci_lower = mean - ci_half_width;
         let ci_upper = mean + ci_half_width;
 
@@ -250,16 +243,7 @@ impl MetricStats {
             0.0
         };
 
-        let t_value = if n >= 30 {
-            1.96
-        } else {
-            2.0 + 0.1 / (n as f64).sqrt()
-        };
-        let ci_half_width = if n > 1 {
-            t_value * std_dev / (n as f64).sqrt()
-        } else {
-            0.0
-        };
+        let ci_half_width = mean_ci_half_width(n, std_dev);
 
         MetricStats {
             mean,
@@ -283,6 +267,30 @@ impl std::fmt::Display for MetricStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn student_intervals_agree_across_sample_partitions() {
+        // Two-sided 95% t critical values for df = 1, 2, 4, 29 and 30.
+        for (n, critical) in [
+            (2, 12.706205),
+            (3, 4.302653),
+            (5, 2.776445),
+            (30, 2.045230),
+            (31, 2.042272),
+        ] {
+            // One unit observation among zeros gives standard error exactly 1/n.
+            let mut samples = vec![0.0; n];
+            samples[0] = 1.0;
+            let expected = critical / n as f64;
+            let whole = MetricStats::from_samples(&samples);
+            assert!((whole.ci_half_width - expected).abs() < 1e-6);
+            for split in 0..=n {
+                let merged = MetricStats::from_samples(&samples[..split])
+                    .merge(&MetricStats::from_samples(&samples[split..]));
+                assert!((merged.ci_half_width - expected).abs() < 1e-6);
+            }
+        }
+    }
 
     #[test]
     fn test_from_samples() {

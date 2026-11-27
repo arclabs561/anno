@@ -47,7 +47,7 @@ log = { workspace = true }
 parking_lot = "0.12"
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
-statrs = { version = "0.19.1", optional = true, default-features = false }
+statrs = { version = "0.19.1", default-features = false }
 
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.
@@ -96,7 +96,7 @@ default = ["onnx", "heuristic-fr"]
 heuristic-fr = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
-analysis = ["dep:statrs"]
+analysis = []
 discourse = []
 schema = ["dep:schemars"]
 # Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed

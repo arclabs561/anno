@@ -17,7 +17,8 @@ BIBLIOGRAPHY = CREDITS.parent / "reader_cases/bibliography"
 FIXTURES = [CREDITS / "bibliography" / name for name in ("tide.xml", "salt.xml", "catalog.json")]
 CHECKER = CREDITS / "check_attribution_history.py"
 READERS = (CREDITS / "attribution_history.py", CREDITS / "check_cases.py",
-           Path("verification/memberships/replay.py"), BIBLIOGRAPHY / "reader.py",
+           Path("verification/memberships/replay.py"), Path("verification/temporal_identity/check_replay.py"),
+           BIBLIOGRAPHY / "reader.py",
            BIBLIOGRAPHY / "sources/capture.py")
 
 

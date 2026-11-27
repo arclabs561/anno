@@ -1523,10 +1523,12 @@ impl SignificanceTest {
         );
         let n = scores_a.len();
         if n < 2 {
+            let mean_a = scores_a.first().copied().unwrap_or(0.0);
+            let mean_b = scores_b.first().copied().unwrap_or(0.0);
             return Self {
-                mean_a: scores_a.first().copied().unwrap_or(0.0),
-                mean_b: scores_b.first().copied().unwrap_or(0.0),
-                difference: 0.0,
+                mean_a,
+                mean_b,
+                difference: mean_a - mean_b,
                 std_error: 0.0,
                 t_statistic: 0.0,
                 p_value: 1.0,
@@ -1763,6 +1765,7 @@ mod tests {
         ] {
             let t = SignificanceTest::paired_t_test(a, b);
             assert_eq!((t.t_statistic, t.p_value), (0.0, 1.0));
+            assert_eq!(t.difference, t.mean_a - t.mean_b);
             assert!(!t.significant_05);
         }
         let constant = SignificanceTest::paired_t_test(&[0.0; 5], &[0.1; 5]);

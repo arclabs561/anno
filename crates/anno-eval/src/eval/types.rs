@@ -26,7 +26,7 @@ pub struct MetricValue(f64);
 ///
 /// let metric = MetricWithVariance::from_samples(&[0.85, 0.87, 0.82, 0.88, 0.84]);
 /// println!("F1: {:.1}% ± {:.1}% (95% CI)", metric.mean * 100.0, metric.ci_95 * 100.0);
-/// // F1: 85.2% ± 2.1% (95% CI)
+/// // F1: 85.2% ± 3.0% (95% CI)
 /// ```
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct MetricWithVariance {
@@ -48,52 +48,16 @@ impl MetricWithVariance {
     /// Create from a slice of sample values.
     ///
     /// Uses sample standard deviation (Bessel's correction) and
-    /// t-distribution approximation for 95% CI.
+    /// a two-sided Student’s t interval for the mean.
     pub fn from_samples(samples: &[f64]) -> Self {
-        if samples.is_empty() {
-            return Self {
-                mean: 0.0,
-                std_dev: 0.0,
-                ci_95: 0.0,
-                min: 0.0,
-                max: 0.0,
-                n: 0,
-            };
-        }
-
-        let n = samples.len();
-        let mean = samples.iter().sum::<f64>() / n as f64;
-        let min = samples.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = samples.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        let std_dev = if n > 1 {
-            let variance = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
-            variance.sqrt()
-        } else {
-            0.0
-        };
-
-        // 95% CI using t-distribution approximation
-        // For n >= 30, use z = 1.96; otherwise approximate with t
-        let t_value = if n >= 30 {
-            1.96
-        } else {
-            // Conservative t-value approximation for smaller samples
-            2.0 + 0.1 / (n as f64).sqrt()
-        };
-        let ci_95 = if n > 1 {
-            t_value * std_dev / (n as f64).sqrt()
-        } else {
-            0.0
-        };
-
+        let stats = anno::core::MetricStats::from_samples(samples);
         Self {
-            mean,
-            std_dev,
-            ci_95,
-            min,
-            max,
-            n,
+            mean: stats.mean,
+            std_dev: stats.std_dev,
+            ci_95: stats.ci_half_width,
+            min: stats.min,
+            max: stats.max,
+            n: stats.n,
         }
     }
 
@@ -1219,7 +1183,7 @@ mod tests {
         assert!((m.min - 0.82).abs() < 0.001);
         assert!((m.max - 0.88).abs() < 0.001);
         assert!(m.std_dev > 0.0);
-        assert!(m.ci_95 > 0.0);
+        assert!((m.ci_95 - 0.02964432).abs() < 1e-8);
     }
 
     #[test]

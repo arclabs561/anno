@@ -1262,3 +1262,16 @@ mod tests {
 #[cfg(all(test, target_os = "linux"))]
 #[path = "coref_publication_rss.rs"]
 mod coref_publication_rss;
+
+/// Parse a finite confidence or confidence tolerance in the closed unit interval.
+pub(crate) fn parse_confidence(value: &str) -> Result<f64, String> {
+    let confidence = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid confidence threshold: {value}"))?;
+    if !(0.0..=1.0).contains(&confidence) {
+        return Err(format!(
+            "confidence threshold must be finite and within 0..=1: {value}"
+        ));
+    }
+    Ok(confidence)
+}
