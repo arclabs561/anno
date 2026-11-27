@@ -223,7 +223,6 @@ required-features = ["onnx"]
 
 [[example]]
 name = "coref_gap_panel"
-required-features = ["onnx"]
 
 [[example]]
 name = "nuner_panel"

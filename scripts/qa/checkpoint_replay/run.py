@@ -88,6 +88,14 @@ def check_case(binary, directory, spec, case):
             "elapsed_seconds_including_load": elapsed}
 
 
+def verify_runtime(binary):
+    linked = subprocess.check_output(["ldd", binary], text=True)
+    ort = next((Path(row.split()[2]) for row in linked.splitlines()
+                if row.strip().startswith("libonnxruntime.so") and "=>" in row), None)
+    if not ort or not ort.is_file() or digest(ort) != ORT_SHA256:
+        raise SystemExit("Expected the Linux x86_64 ONNX Runtime 1.24.2 library from the pinned Python wheel")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
@@ -96,11 +104,7 @@ def main():
     parser.add_argument("--fetch", action="store_true", help="Download missing or incorrect pinned artifacts")
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
-    linked = subprocess.check_output(["ldd", binary], text=True)
-    ort = next((Path(row.split()[2]) for row in linked.splitlines()
-                if row.strip().startswith("libonnxruntime.so") and "=>" in row), None)
-    if not ort or not ort.is_file() or digest(ort) != ORT_SHA256:
-        raise SystemExit("Expected the Linux x86_64 ONNX Runtime 1.24.2 library from the pinned Python wheel")
+    verify_runtime(binary)
     os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:2])
     manifest = HERE / "models.json"
     report = {"binary_sha256": digest(binary), "manifest_sha256": digest(manifest),

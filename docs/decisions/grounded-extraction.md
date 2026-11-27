@@ -18,6 +18,18 @@ Other tools expose the same interoperability problem at their API boundaries. Go
 
 Aurelius provides a concrete public Rust integration. Its language lane accepts a document budget of 2–4,096 tokens and one or two inference threads. Its manifest pins a vendored Anno dependency. The upstream fixture demonstrates an integration path. Deployment of that upstream revision and a caller latency target remain unverified. [Caller configuration](https://github.com/arlyon/aurelius/blob/1319bcdcee28ee5b668b41a2a4f85dd0722b460f/lanes/src/language.rs) · [Caller manifest](https://github.com/arlyon/aurelius/blob/1319bcdcee28ee5b668b41a2a4f85dd0722b460f/lanes/Cargo.toml)
 
+Aurelius passes source byte ranges to `analyze_words`. When updating its vendored dependency, pass the caller's document budget into the model constructor as well. The compatible `from_path_with_config` constructor uses a default of 512 encoded tokens, including special tokens. With a caller budget of 2,048, a 521-token input can pass caller validation and then fail inside FCoref.
+
+```rust
+let coref = FCoref::from_path_with_document_budget(
+    &config.model_dir,
+    FCorefConfig { num_threads: config.threads, ..Default::default() },
+    Some(config.max_document_tokens),
+)?;
+```
+
+The [caller replay](../../scripts/qa/aurelius/check.sh) points the pinned Aurelius manifest at the checked-out Anno and runs its original language test. It then applies the constructor migration in a temporary checkout and tests the same 521-token input at limits of 520 and 521. The admitted case must retain the final pronoun's cluster. To run locally, set `FCOREF_MODEL_PATH` to the pinned FP32 export and `ORT_DYLIB_PATH` to the runtime library, then run `bash scripts/qa/aurelius/check.sh` from the Anno checkout.
+
 A release-profile replay of the pinned 521-token input on one Linux logical CPU measured median warm calls of 703 ms with one ONNX encoder thread and 1,164 ms with two. Each setting had three fresh processes and five warm calls per process. The largest process peak RSS across those two settings was 498 MiB. CPU affinity and a 2 GiB virtual-address-space limit were enforced. The shared memory cgroup allowed 16 GiB. These timings cover word-aligned inference on one synthetic input.
 
 A hosted Linux replay ran the same FP32 model in 42 fresh containers, each with one logical CPU, one CPU of quota, a hard 2 GiB memory ceiling and swap disabled. At 521 tokens, the median of 15 warm calls per setting was 414 ms with one encoder thread and 691 ms with two. Peak cgroup memory across the matrix was 481.6 MiB, with zero OOM events. The accepted reference kept all 126 mention scores within tolerance and returned the three expected clusters. A 520-token budget rejected the 521-token input. A workload near 4,096 tokens and end-to-end latency in the caller remain open. [Hosted run and receipt](https://github.com/arclabs561/anno/actions/runs/45157157111) · [Reproduction instructions](../../scripts/qa/fcoref_cgroup/README.md)

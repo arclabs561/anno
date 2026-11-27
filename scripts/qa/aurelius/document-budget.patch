@@ -1,0 +1,19 @@
+diff --git a/lanes/src/language.rs b/lanes/src/language.rs
+index 69b2632..6c45d13 100644
+--- a/lanes/src/language.rs
++++ b/lanes/src/language.rs
+@@ -159,12 +159,13 @@ mod runtime {
+         pub fn load(config: LanguageConfig) -> Result<Self> {
+             let profile = Self::profile_for(&config)?;
+             let dir = Path::new(&config.model_dir);
+-            let coref = FCoref::from_path_with_config(
++            let coref = FCoref::from_path_with_document_budget(
+                 &config.model_dir,
+                 FCorefConfig {
+                     num_threads: config.threads,
+                     ..Default::default()
+                 },
++                Some(config.max_document_tokens),
+             )?;
+             let nlp = nlprule::Tokenizer::new(dir.join("en_tokenizer.bin"))?;
+             ensure!(

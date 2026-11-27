@@ -2,6 +2,8 @@
 
 When BERT was unavailable, running NuNER on the 313 WikiGold sentences the default stack skipped raised exact entity matches from **231 to 435** and reduced unmatched predictions from **307 to 274**. With BERT loaded, the same extra calls gained four exact matches and added 21 net unmatched predictions. Keep the fast path when BERT succeeds. A caller who wants higher recall when BERT fails has evidence for paying for the additional calls on both WikiGold and WNUT. The time and review costs differ by corpus. [WikiGold counts and model identities](wikigold-nuner-routing.json) · [WNUT routing trial](nuner-fallback-routing.md)
 
+Rust callers can select the measured fallback with `StackedNER::default().with_nuner_fallback()`. A separate native replay of the BERT-absent configuration on the same WikiGold release reproduced the exact gains and losses. [Caller behavior and independent replay](nuner-fallback-routing.md#does-the-fallback-help-on-encyclopedia-text)
+
 ![Exact matches and unmatched predictions per 100 stock-skipped sentences, comparing stock and extra NuNER inference on WikiGold and WNUT, with and without BERT.](../figures/wikigold-routing-tradeoff.svg)
 
 | Corpus and BERT state | Extra calls | Gold on these inputs | Exact gained / lost | Unmatched added / removed | F1 on full corpus or test split, stock → extra call |

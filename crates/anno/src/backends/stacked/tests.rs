@@ -510,6 +510,33 @@ fn test_large_entity_set() {
 }
 
 #[test]
+fn nuner_fallback_uses_only_an_earlier_successful_bert_on_this_input() {
+    let text = "Alice Smith works at Apple in California.";
+    for (names, should_run) in [
+        (vec!["nuner"], true),
+        (vec!["regex", "nuner", "bert-onnx"], true),
+        (vec!["bert-onnx", "nuner"], false),
+    ] {
+        let mut builder = StackedNER::builder();
+        for name in names {
+            builder = builder.layer(mock_model(name, vec![]));
+        }
+        let model = builder.build().with_nuner_fallback();
+        for (input, expected) in [(text, should_run), ("alice", true)] {
+            let report = model
+                .extract_entities_with_report(input, None, StackedExtractionPolicy::Strict)
+                .unwrap();
+            assert_eq!(
+                report.layer_outcomes().iter().any(|outcome| matches!(
+                    outcome, StackedLayerOutcome::Succeeded { layer, .. } if layer == "nuner"
+                )),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
 fn test_layer_error_handling() {
     // Test that errors from one layer don't crash the whole stack.
     //
@@ -611,6 +638,24 @@ fn test_layer_error_handling() {
             StackedLayerOutcome::Skipped { layer: skipped, reason },
         ] if failed == "fail" && skipped == "nuner" && reason.contains("well-capitalized")
     ));
+
+    let fallback = StackedNER::builder()
+        .layer(FailingModel { name: "bert-onnx" })
+        .layer(mock_model("nuner", vec![]))
+        .build()
+        .with_nuner_fallback();
+    let text = "Alice Smith works at Apple in California.";
+    let partial = fallback
+        .extract_entities_with_report(text, None, StackedExtractionPolicy::BestEffort)
+        .unwrap();
+    assert!(matches!(
+        partial.layer_outcomes(),
+        [StackedLayerOutcome::Failed { .. }, StackedLayerOutcome::Succeeded { layer, .. }] if layer == "nuner"
+    ));
+    let strict = fallback
+        .extract_entities_with_report(text, None, StackedExtractionPolicy::Strict)
+        .unwrap_err();
+    assert_eq!(partial.layer_outcomes(), strict.report().layer_outcomes());
 
     // Test 2: Failing layer AFTER working layer that produces entities
     // - partial results are returned when subsequent layers fail

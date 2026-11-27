@@ -1,7 +1,9 @@
 //! Stream labeled-corpus excerpts into one resolver without exposing gold links.
 //! For supplied native mentions, `--trace-ranking` emits JSON decisions on stderr and
 //! `--classify-mentions` sets the mention type using only its supplied surface.
-use anno::backends::coref::{fcoref::FCoref, mention_ranking::MentionRankingCoref, MaverickCoref};
+#[cfg(feature = "onnx")]
+use anno::backends::coref::fcoref::FCoref;
+use anno::backends::coref::{mention_ranking::MentionRankingCoref, MaverickCoref};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType, MentionType};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -92,6 +94,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let native = MentionRankingCoref::new();
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
         "mention-ranking" => None,
+        #[cfg(not(feature = "onnx"))]
+        "fcoref" => return Err("fcoref requires the onnx feature".into()),
+        #[cfg(feature = "onnx")]
         "fcoref" => Some(Box::new(FCoref::from_path(&std::env::var(
             "FCOREF_MODEL_PATH",
         )?)?)),
