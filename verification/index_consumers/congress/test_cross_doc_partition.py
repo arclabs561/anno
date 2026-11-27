@@ -3,7 +3,7 @@
 import unittest
 
 from cross_doc_partition import Observation, evaluate, reader_metrics, resolve_chamber_conflict
-from transfer_rollcalls import PRIOR, QUERY, read_roll, score_lookup
+from transfer_rollcalls import PRIOR, QUERY, prior_rows, read_roll, score_lookup
 
 
 def score(placements, latest):
@@ -54,6 +54,18 @@ class CrossDocumentControls(unittest.TestCase):
                                           ("b", "prior_target_absent", "wrong")):
             docs = {PRIOR: [Observation("Vale", "a", "rep")], QUERY: [Observation("Vale", person, "rep")]}
             self.assertEqual(score_lookup(docs, groups)["queries"][stratum][expected], 1)
+
+    def test_compare_prior_occurrences_across_local_group_renumbering(self):
+        docs = {PRIOR: [Observation("Vale", "a", "rep"), Observation("Alder", "b", "rep")],
+                QUERY: [Observation("Reed", "c", "rep"), Observation("Quay", "d", "rep")]}
+        original = {(PRIOR, 0): 3, (PRIOR, 1): 8, (QUERY, 0): 3, (QUERY, 1): 8}
+        renumbered = {address: 11 - group for address, group in original.items()}
+        switched = dict(original)
+        switched[QUERY, 0], switched[QUERY, 1] = switched[QUERY, 1], switched[QUERY, 0]
+        self.assertEqual(prior_rows(docs, original), prior_rows(docs, renumbered))
+        self.assertEqual(score_lookup(docs, original), score_lookup(docs, switched))
+        self.assertEqual(prior_rows(docs, original), [(0,), (1,)])
+        self.assertEqual(prior_rows(docs, switched), [(1,), (0,)])
 
     def test_prior_lookup_requires_distinct_dates(self):
         lookup = score({

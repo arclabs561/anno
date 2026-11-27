@@ -58,38 +58,65 @@ def read_roll(raw, excluded):
     return rows, {"votes": dict(votes), "omitted": dict(omissions), "eligible": len(rows)}
 
 
-def score_lookup(docs, groups):
-    # Each returned prior occurrence is available to the reader. Its person ID
-    # is only used after deciding whether the answer is unique.
+def prior_rows(docs, groups):
+    # Group handles belong to one resolver run. Keep positions in the fixed
+    # prior document so each query's actual candidates can be compared across runs.
     prior_groups = defaultdict(list)
-    for i, member in enumerate(docs[PRIOR]):
-        prior_groups[groups[PRIOR, i]].append(member)
+    for i in range(len(docs[PRIOR])):
+        prior_groups[groups[PRIOR, i]].append(i)
+    return [tuple(prior_groups[groups[QUERY, i]]) for i in range(len(docs[QUERY]))]
+
+
+def individual_lookups(binary, docs):
+    answers = []
+    for query in docs[QUERY]:
+        single = {PRIOR: docs[PRIOR], QUERY: [query]}
+        answer, = prior_rows(single, run_native(binary, single))
+        answers.append(answer)
+    return answers
+
+
+def score_candidates(docs, answers):
     prior_ids = {member.person for member in docs[PRIOR]}
     outcomes = ("queries", "correct", "wrong", "no_prior_in_component", "multiple_priors_in_component")
     counts = {key: dict.fromkeys(outcomes, 0) for key in ("prior_target_present", "prior_target_absent")}
     wrong_same_spelling = 0
-    for i, query in enumerate(docs[QUERY]):
+    for query, candidates in zip(docs[QUERY], answers, strict=True):
         stratum = counts["prior_target_present" if query.person in prior_ids else "prior_target_absent"]
-        candidates = prior_groups[groups[QUERY, i]]
         if not candidates:
             outcome = "no_prior_in_component"
         elif len(candidates) > 1:
             outcome = "multiple_priors_in_component"
-        elif candidates[0].person == query.person:
+        elif docs[PRIOR][candidates[0]].person == query.person:
             outcome = "correct"
         else:
             outcome = "wrong"
-            wrong_same_spelling += candidates[0].name == query.name
+            wrong_same_spelling += docs[PRIOR][candidates[0]].name == query.name
         stratum[outcome] += 1
         stratum["queries"] += 1
     for stratum in counts.values():
         if sum(stratum[o] for o in outcomes[1:]) != stratum["queries"]:
             raise ValueError("query outcomes do not account for every lookup")
+    return {"queries": counts, "wrong_unique_with_identical_printing": wrong_same_spelling}
+
+
+def score_lookup(docs, groups):
     pairs = evaluate(docs, groups)
     pair_counts = {key: pairs[key] for key in ("cross_document_pairs", "tp", "fp", "fn", "tn")}
     if sum(pair_counts[key] for key in ("tp", "fp", "fn", "tn")) != len(docs[PRIOR]) * len(docs[QUERY]):
         raise ValueError("pair counts do not account for the two rolls")
-    return {"queries": counts, "pairs": pair_counts, "wrong_unique_with_identical_printing": wrong_same_spelling}
+    return {**score_candidates(docs, prior_rows(docs, groups)), "pairs": pair_counts}
+
+
+def check_bridge(binary):
+    # At the default threshold the three-word query joins both four-word
+    # labels (3/4). Without that bridge the other query scores only 3/5.
+    docs = {PRIOR: [Observation("Arin Sei Kin Tor", "a", "rep")],
+            QUERY: [Observation("Arin Sei Kin Poe", "b", "rep"), Observation("Arin Sei Kin", "c", "rep")]}
+    bulk = prior_rows(docs, run_native(binary, docs))
+    individual = individual_lookups(binary, docs)
+    if bulk != [(0,), (0,)] or individual != [(), (0,)]:
+        raise ValueError(f"unexpected bridge control answers: bulk {bulk}, individual {individual}")
 
 
 def measure(directory, binary, hashes):
@@ -102,7 +129,10 @@ def measure(directory, binary, hashes):
     if not selected.isdisjoint(excluded):
         raise ValueError("earlier pilot identity leaked into the held-out panel")
     literal = {(doc, i): member.name for doc, rows in docs.items() for i, member in enumerate(rows)}
+    check_bridge(binary)
     native = run_native(binary, docs)
+    bulk = prior_rows(docs, native)
+    individual = individual_lookups(binary, docs)
     prior_names = {m.person: m.name for m in docs[PRIOR]}
     changed = [(prior_names[m.person], m.name) for m in docs[QUERY]
                if m.person in prior_names and m.name != prior_names[m.person]]
@@ -115,6 +145,11 @@ def measure(directory, binary, hashes):
             state_suffix.sub("", a) == state_suffix.sub("", b) for a, b in changed),
         "same_partition_as_literal": partition(native) == partition(literal),
         "literal": score_lookup(docs, literal), "native_default": score_lookup(docs, native),
+        "query_at_a_time": {
+            **score_candidates(docs, individual),
+            "compared_queries": len(individual),
+            "changed_prior_sets_vs_bulk": sum(a != b for a, b in zip(individual, bulk, strict=True)),
+        },
     }
 
 

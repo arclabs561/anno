@@ -63,6 +63,27 @@
       },
       "wrong_unique_with_identical_printing": 1
     },
+    "query_at_a_time": {
+      "changed_prior_sets_vs_bulk": 0,
+      "compared_queries": 333,
+      "queries": {
+        "prior_target_absent": {
+          "correct": 0,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 29,
+          "queries": 30,
+          "wrong": 1
+        },
+        "prior_target_present": {
+          "correct": 296,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 7,
+          "queries": 303,
+          "wrong": 0
+        }
+      },
+      "wrong_unique_with_identical_printing": 1
+    },
     "same_partition_as_literal": true,
     "selection": {
       "2003-01-07/house/roll001": {
