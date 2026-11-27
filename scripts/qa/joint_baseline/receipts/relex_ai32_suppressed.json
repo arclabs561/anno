@@ -1,0 +1,28 @@
+{
+  "source_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+  "weights_sha256": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+  "schema_sha256": "f67a35c0f8551cce648fd979c14c54277573ae505c0c5a43a06e4a8cae50acc7",
+  "first_index": 64,
+  "documents": 32,
+  "threshold": 0.5,
+  "totals": {
+    "gold": 90,
+    "matched": 17,
+    "predicted": 85,
+    "directed_pairs": 3526
+  },
+  "missed": {
+    "predicate_below_threshold": 49,
+    "flat_overlap_suppression": 16,
+    "below_mention_threshold_head": 2,
+    "below_mention_threshold_tail": 6
+  },
+  "suppressed_at_stock_threshold": {
+    "recoverable_distinct_edges": 3,
+    "duplicate_occurrences_of_recoverable_edges": 0,
+    "disjoint_endpoints_predicate_at_or_below_gate": 13,
+    "overlapping_endpoints_predicate_above_gate": 0,
+    "overlapping_endpoints_predicate_at_or_below_gate": 0,
+    "unavailable_predicate_score": 0
+  }
+}

@@ -5,6 +5,7 @@ import argparse
 from collections import Counter
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -47,6 +48,41 @@ def classify(reference, output, labels, grid, proposed, pairs, kept):
     return missed
 
 
+def suppressed_edge_scores(reference, kept, predicates, pair_scores, threshold):
+    """What can changing only flat mention selection recover at the stock gate?"""
+    counts = Counter({
+        "recoverable_distinct_edges": 0,
+        "duplicate_occurrences_of_recoverable_edges": 0,
+        "disjoint_endpoints_predicate_at_or_below_gate": 0,
+        "overlapping_endpoints_predicate_above_gate": 0,
+        "overlapping_endpoints_predicate_at_or_below_gate": 0,
+        "unavailable_predicate_score": 0,
+    })
+    columns = {label: i for i, label in enumerate(predicates)}
+    for (head, predicate, tail), copies in reference.items():
+        if head in kept and tail in kept:
+            continue
+        row = pair_scores.get((head, tail))
+        if row is None or predicate not in columns:
+            continue  # An earlier stage lost this edge.
+        score = row[columns[predicate]]
+        if not math.isfinite(score):
+            counts["unavailable_predicate_score"] += copies
+            continue
+        above = score > threshold
+        if head[0] < tail[1] and tail[0] < head[1]:
+            key = ("overlapping_endpoints_predicate_above_gate" if above
+                   else "overlapping_endpoints_predicate_at_or_below_gate")
+            counts[key] += copies
+        elif above:
+            # The graph emits a particular directed pair and predicate once.
+            counts["recoverable_distinct_edges"] += 1
+            counts["duplicate_occurrences_of_recoverable_edges"] += copies - 1
+        else:
+            counts["disjoint_endpoints_predicate_at_or_below_gate"] += copies
+    return counts
+
+
 def measure(model, wrapper, doc, schema, threshold, predicate_gate):
     from export_gliner_relex_joint import prepare
 
@@ -64,9 +100,11 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
     proposed = {chars(i) for i in selected.nonzero().flatten().tolist()}
     kept = {(m["start"], m["end"]) for m in entities}
     pairs = [(chars(h), chars(t)) for h, t in pair_slots.tolist()]
-    scored_rows = scores.tolist()
+    pair_scores = dict(zip(pairs, scores.tolist(), strict=True))
+    if len(pair_scores) != len(pairs):
+        raise ValueError("trained export returned a duplicate directed span pair")
     def decode(gate):
-        return Counter((h, r, t) for (h, t), row in zip(pairs, scored_rows, strict=True)
+        return Counter((h, r, t) for (h, t), row in pair_scores.items()
                        if h in kept and t in kept for r, score in zip(predicates, row, strict=True) if score > gate)
     graph = decode(threshold)
     expected = Counter(((r["head"]["start"], r["head"]["end"]), r["relation"],
@@ -75,9 +113,12 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
         raise ValueError("trained export path disagrees with upstream predict_relations")
     reference = gold(doc)
     matched = (graph & reference).total()
-    missed = classify(reference, graph, predicates, grid, proposed, set(pairs), kept)
+    missed = classify(reference, graph, predicates, grid, proposed, pair_scores, kept)
     if missed.total() + matched != reference.total():
         raise ValueError("stage counts do not reconcile")
+    suppressed = suppressed_edge_scores(reference, kept, predicates, pair_scores, threshold)
+    if suppressed.total() != missed["flat_overlap_suppression"]:
+        raise ValueError("suppressed predicate scores do not reconcile to the first-loss count")
     comparison = Counter()
     if predicate_gate is not None:
         alternate = decode(predicate_gate)
@@ -87,7 +128,8 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
             comparison[name + "_matched"] = correct
             comparison[name + "_unmatched"] = delta.total() - correct
         comparison.update(predicted=alternate.total(), matched=(reference & alternate).total())
-    return Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pairs)), missed, comparison
+    totals = Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pairs))
+    return totals, missed, comparison, suppressed
 
 
 def main():
@@ -115,18 +157,20 @@ def main():
 
     model = GLiNER.from_pretrained(str(args.checkpoint), local_files_only=True, low_cpu_mem_usage=True).eval()
     wrapper = JointRelex(model.model).eval()
-    totals, missed, comparison = Counter(), Counter(), Counter()
+    totals, missed, comparison, suppressed = Counter(), Counter(), Counter(), Counter()
     schema = json.loads(SCHEMA.read_bytes())
     with torch.inference_mode():
         for line in lines[args.first_index:args.first_index + args.documents]:
-            counts, losses, paired = measure(model, wrapper, json.loads(line), schema, 0.5, args.predicate_threshold)
+            counts, losses, paired, eligible = measure(model, wrapper, json.loads(line), schema, 0.5, args.predicate_threshold)
             comparison.update(paired)
             totals.update(counts)
             missed.update(losses)
+            suppressed.update(eligible)
     result = {"source_sha256": TEST_SHA, "weights_sha256": SOURCE_SHA,
                       "schema_sha256": hashlib.sha256(SCHEMA.read_bytes()).hexdigest(),
                       "first_index": args.first_index, "documents": args.documents,
-                      "threshold": 0.5, "totals": totals, "missed": missed}
+                      "threshold": 0.5, "totals": totals, "missed": missed,
+                      "suppressed_at_stock_threshold": suppressed}
     if args.predicate_threshold is not None:
         result.update(alternative_predicate_threshold=args.predicate_threshold, comparison=comparison)
     print(json.dumps(result, indent=2))

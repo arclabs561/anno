@@ -15,6 +15,16 @@ class CrossREPromptScopeTest(unittest.TestCase):
             sys.path.pop(0)
         cls.survey = survey_crossre_prompts
 
+    def test_overlap_uses_inclusive_offsets_and_distinct_spans(self):
+        records = [
+            {"ner": [(0, 0, "A"), (0, 0, "A"), (1, 1, "B")]},
+            {"ner": [(2, 4, "A"), (3, 4, "B"), (4, 5, "C")]},
+        ]
+        self.assertEqual(self.survey.span_overlap_counts(records), {
+            "distinct_entity_spans": 5, "overlapping_entity_span_pairs": 3,
+            "sentences_with_overlapping_entity_spans": 1,
+        })
+
     def test_sentence_types_and_annotation_occurrences_use_separate_units(self):
         # The training edges are (author, book) and (artist, song). The
         # marginal role rule permits (artist, book) in the test sentence.
