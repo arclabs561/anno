@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import subprocess
 import time
@@ -17,6 +18,7 @@ MODEL_SHA = {
 }
 CASES = [(511, 521), (512, 521), (513, 521), (520, 521),
          (521, 521), (522, 521), (521, 520)]
+CALLER_CASES = [(521, 521), (4097, 4096), (4096, 4096)]
 
 
 def sha(path):
@@ -109,7 +111,7 @@ def verify(row, cpu):
 
     tokens, budget = row["tokens"], row["budget"]
     suffix = "Alice reviewed the proposal. She approved it. Bob objected. She overruled him."
-    text = "x " * (tokens - 19) + suffix
+    text = ("\u00a0" if tokens >= 4096 else "") + "x " * (tokens - 19) + suffix
     if m["text"] != text:
         raise RuntimeError("unexpected fixture text for this token count")
     predictions = m["predictions"]
@@ -126,6 +128,21 @@ def verify(row, cpu):
         if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text)
                 or text[start:end] != surface or type(score) not in (int, float) or not math.isfinite(score)):
             raise RuntimeError("unexpected mention span or score")
+
+    if (tokens, budget) == (4096, 4096):
+        # The caller-boundary fixture has no gold clusters. Check the public
+        # source alignment contract independently of the model's link choices.
+        words = list(re.finditer(r"\w+|[^\s\w]", text))
+        starts, ends = {word.start() for word in words}, {word.end() for word in words}
+        spans = [(start, end) for start, end, _, _ in mentions]
+        if spans != sorted(set(spans)) or any(s not in starts or e not in ends for s, e in spans):
+            raise RuntimeError("long-document mentions must be unique, sorted word ranges")
+        observed = set(spans)
+        for cluster in predictions["clusters"]:
+            members = [tuple(span) for span in cluster]
+            if len(members) < 2 or len(set(members)) != len(members) or not observed.issuperset(members):
+                raise RuntimeError("long-document clusters must link distinct source mentions")
+        return
 
     # Only the repeated ASCII prefix changes; the discourse and its three
     # expected source-grounded clusters are the same at each accepted length.
@@ -174,12 +191,15 @@ def main():
     p.add_argument("--ort", required=True, type=Path, help="CPU libonnxruntime.so.1.24.4")
     p.add_argument("--cpu", required=True, type=int)
     p.add_argument("--repeats", type=int, choices=range(1, 11), default=3)
+    p.add_argument("--caller-budget", action="store_true",
+                   help="run the pinned 521-token control and 4097/4096 inputs at a 4096-token cap")
     p.add_argument("--timeout", type=int, default=180)
     p.add_argument("--output", required=True, type=Path, help="new JSON receipt path")
     args = p.parse_args()
     if args.cpu < 0 or args.timeout < 1:
         p.error("CPU must be nonnegative and timeout must be positive")
-    receipt = {"status": "incomplete", "runs": []}
+    cases = CALLER_CASES if args.caller_budget else CASES
+    receipt = {"status": "incomplete", "runs": [], "cases": cases}
     checkpoint(args.output, receipt, create=True)
     try:
         info = json.loads(docker("info", "--format", "{{json .}}"))
@@ -195,7 +215,7 @@ def main():
                        binary_sha256=sha(args.binary), cpu=args.cpu, repeats=args.repeats)
         receipt["status"] = "in_progress"
         for rep in range(args.repeats):
-            for n, b in (CASES if rep % 2 == 0 else reversed(CASES)):
+            for n, b in (cases if rep % 2 == 0 else reversed(cases)):
                 for t in ((1, 2) if (rep+n) % 2 == 0 else (2, 1)):
                     receipt["active_case"] = {"repeat": rep + 1, "threads": t, "tokens": n, "budget": b}
                     checkpoint(args.output, receipt)

@@ -9,8 +9,9 @@ use std::collections::HashMap;
 
 /// A type-safe metric value bounded to [0.0, 1.0].
 ///
-/// Ensures metrics like precision, recall, and F1 are always valid.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
+/// Serialized as a number. Deserialization rejects nonfinite and out-of-range
+/// values using the same rules as [`MetricValue::try_new`].
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct MetricValue(f64);
 
@@ -112,7 +113,7 @@ impl std::fmt::Display for MetricWithVariance {
 }
 
 impl MetricValue {
-    /// Create a new MetricValue, clamping to [0.0, 1.0].
+    /// Clamp the value to [0.0, 1.0], mapping NaN to zero.
     ///
     /// # Example
     /// ```
@@ -121,7 +122,11 @@ impl MetricValue {
     /// assert!((v.get() - 0.95).abs() < 1e-6);
     /// ```
     pub fn new(value: f64) -> Self {
-        MetricValue(value.clamp(0.0, 1.0))
+        MetricValue(if value.is_nan() {
+            0.0
+        } else {
+            value.clamp(0.0, 1.0)
+        })
     }
 
     /// Try to create a MetricValue, returning error if out of bounds.
@@ -139,6 +144,15 @@ impl MetricValue {
     #[inline]
     pub fn get(&self) -> f64 {
         self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for MetricValue {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let value = f64::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
     }
 }
 
@@ -1148,6 +1162,31 @@ mod tests {
         assert_eq!(MetricValue::new(0.5).get(), 0.5);
         assert_eq!(MetricValue::new(-0.5).get(), 0.0);
         assert_eq!(MetricValue::new(1.5).get(), 1.0);
+    }
+
+    #[test]
+    fn metric_value_public_boundaries() {
+        use serde::de::value::{Error as ValueError, F64Deserializer};
+
+        for value in [0.0, 0.375, 1.0] {
+            let metric = MetricValue::try_new(value).unwrap();
+            let json = serde_json::to_string(&metric).unwrap();
+            assert_eq!(serde_json::from_str::<f64>(&json).unwrap(), value);
+            assert_eq!(serde_json::from_str::<MetricValue>(&json).unwrap(), metric);
+        }
+        for (value, clamped) in [
+            (-0.25, 0.0),
+            (1.25, 1.0),
+            (f64::NEG_INFINITY, 0.0),
+            (f64::INFINITY, 1.0),
+            (f64::NAN, 0.0),
+        ] {
+            assert_eq!(MetricValue::new(value).get(), clamped);
+            assert_eq!(MetricValue::from(value).get(), clamped);
+            assert!(MetricValue::try_new(value).is_err());
+            assert!(MetricValue::deserialize(F64Deserializer::<ValueError>::new(value)).is_err());
+        }
+        assert!(serde_json::from_str::<MetricValue>("1.5").is_err());
     }
 
     #[test]

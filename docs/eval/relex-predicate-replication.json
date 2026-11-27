@@ -1,0 +1,39 @@
+{
+  "source_sha256": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+  "weights_sha256": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+  "schema_sha256": "f67a35c0f8551cce648fd979c14c54277573ae505c0c5a43a06e4a8cae50acc7",
+  "first_index": 128,
+  "documents": 32,
+  "threshold": 0.5,
+  "totals": {
+    "gold": 93,
+    "matched": 10,
+    "predicted": 63,
+    "directed_pairs": 3518
+  },
+  "missed": {
+    "predicate_below_threshold": 66,
+    "below_mention_threshold_head": 4,
+    "predicate_outside_schema": 3,
+    "below_mention_threshold_both": 1,
+    "below_mention_threshold_tail": 4,
+    "flat_overlap_suppression": 5
+  },
+  "suppressed_at_stock_threshold": {
+    "recoverable_distinct_edges": 0,
+    "duplicate_occurrences_of_recoverable_edges": 0,
+    "disjoint_endpoints_predicate_at_or_below_gate": 5,
+    "overlapping_endpoints_predicate_above_gate": 0,
+    "overlapping_endpoints_predicate_at_or_below_gate": 0,
+    "unavailable_predicate_score": 0
+  },
+  "alternative_predicate_threshold": 0.4,
+  "comparison": {
+    "added_matched": 2,
+    "added_unmatched": 23,
+    "removed_matched": 0,
+    "removed_unmatched": 0,
+    "predicted": 88,
+    "matched": 12
+  }
+}

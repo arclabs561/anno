@@ -4,7 +4,18 @@ on:
   pull_request:
     paths:
       - '.github/workflows/bench-coref.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'crates/anno/Cargo.toml'
       - 'crates/anno/benches/coref.rs'
+      - 'crates/anno/src/backends/coref/mention_ranking/**'
+      - 'crates/anno/examples/coref_gap_panel.rs'
+      - 'scripts/qa/check_native_gap_stock.py'
+      - 'scripts/qa/audit_gap_decisions.py'
+      - 'scripts/qa/native_gap_neutral_type.py'
+      - 'scripts/qa/gap_receipts.py'
+      - 'scripts/qa/coref_gap.py'
+      - 'docs/eval/native-gap-neutral-mention.json'
 permissions:
   contents: read
 jobs:
@@ -15,6 +26,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Replay native pronoun decisions on the three pinned GAP splits
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+        run: |
+          cargo build --locked -p anno --no-default-features --example coref_gap_panel
+          mkdir -p "$RUNNER_TEMP/gap"
+          for split in development test validation; do
+            curl --fail --silent --show-error --location --retry 2 \
+              "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/gap-$split.tsv" \
+              -o "$RUNNER_TEMP/gap/gap-$split.tsv"
+          done
+          python3 scripts/qa/check_native_gap_stock.py "$RUNNER_TEMP/gap" target/debug/examples/coref_gap_panel
       - name: Measure mention-ranking coreference
         run: |
           mkdir -p bench-results
