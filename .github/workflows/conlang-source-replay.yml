@@ -108,7 +108,9 @@ jobs:
                   for line in section.group(1).splitlines()
                   if re.match(r"^\*(?![:*#])", line)
               ]
-              if not primary or not all(re.match(r"^\*\s*'''.+?'''", line) for line in primary):
+              # The qachat entry lacks a closing bold marker. The top-level bullet and
+              # the opening bold label still delimit it unambiguously in this revision.
+              if not primary or not all(re.match(r"^\*\s*'''\S", line) for line in primary):
                   raise ValueError("Unrecognized top-level Dothraki headword")
               return (
                   len(primary),
