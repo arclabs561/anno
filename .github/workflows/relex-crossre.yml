@@ -1,0 +1,113 @@
+name: Held-out native relation extraction
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/relex-crossre.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'crates/anno/Cargo.toml'
+      - 'crates/anno-cli/Cargo.toml'
+      - 'crates/anno/src/backends/hf_loader.rs'
+      - 'crates/anno/src/backends/gliner_onnx/**'
+      - 'crates/anno-cli/src/cli/commands/extract.rs'
+      - 'scripts/export_gliner_relex_*.py'
+      - 'scripts/qa/check_gliner_relex_cli.py'
+      - 'scripts/qa/test_check_gliner_relex_cli.py'
+      - 'scripts/qa/joint_baseline/relex_roles.py'
+      - 'scripts/qa/joint_baseline/jointie_coverage.py'
+      - 'docs/eval/crossre-ai-prompt-schema.json'
+      - 'docs/eval/relex-predicate-heldout.json'
+      - 'testdata/grounded/gliner_relex_reference.json'
+permissions:
+  contents: read
+concurrency:
+  group: relex-crossre-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_INCREMENTAL: 0
+      OMP_NUM_THREADS: 2
+      MKL_NUM_THREADS: 2
+      TOKENIZERS_PARALLELISM: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Check negative controls for empty extraction
+        run: python -m unittest discover -s scripts/qa -p test_check_gliner_relex_cli.py
+      - name: Install the measured CPU inference packages
+        run: |
+          python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.15.0+cpu
+          python -m pip install --no-cache-dir gliner==0.2.30 transformers==5.22.2 onnx==1.23.2 onnxruntime==1.32.0 sentencepiece==0.2.3
+      - name: Prepare the pinned native runtime
+        run: |
+          mkdir -p "$RUNNER_TEMP/ort"
+          cd "$RUNNER_TEMP/ort"
+          python -m pip download --no-deps --only-binary=:all: onnxruntime==1.24.2
+          wheel=onnxruntime-1.24.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+          echo "09aa6f8d766b4afc3cfba68dd10be39586b49f9462fbd1386c5d5644239461ca  $wheel" | sha256sum -c -
+          unzip -j "$wheel" 'onnxruntime/capi/libonnxruntime*.so*'
+          ln -s libonnxruntime.so.1.24.2 libonnxruntime.so
+          ln -s libonnxruntime.so.1.24.2 libonnxruntime.so.1
+          echo "ORT_LIB_LOCATION=$PWD" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PWD" >> "$GITHUB_ENV"
+          echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
+      - name: Build the native CLI
+        run: cargo build --locked -p anno-cli --no-default-features --features onnx,extractor-html2text
+      - name: Fetch the publisher split and checkpoint
+        run: |
+          curl -fsSL --retry 3 https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data/ai-test.json -o "$RUNNER_TEMP/ai-test.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from huggingface_hub import snapshot_download
+          fixture = json.loads(Path("testdata/grounded/gliner_relex_reference.json").read_bytes())
+          weights = snapshot_download(fixture["checkpoint"], revision=fixture["revision"], allow_patterns=[
+              "model.safetensors", "gliner_config.json", "tokenizer*.json", "added_tokens.json",
+              "special_tokens_map.json", "spm.model"])
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              print("RELEX_WEIGHTS=" + weights, file=env)
+              print("HF_HUB_OFFLINE=1", file=env)
+          PY
+      - name: Compare the fixed predicate gates and capture upstream predictions
+        run: |
+          python scripts/qa/joint_baseline/relex_roles.py "$RUNNER_TEMP/ai-test.json" "$RELEX_WEIGHTS" \
+            --first-index 96 --documents 32 --predicate-threshold 0.4 --native-cases "$RUNNER_TEMP/cases.json" > "$RUNNER_TEMP/counts.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          expected = json.loads(Path("docs/eval/relex-predicate-heldout.json").read_bytes())
+          actual = json.loads((Path(os.environ["RUNNER_TEMP"]) / "counts.json").read_bytes())
+          if actual != expected:
+              raise SystemExit(f"CrossRE held-out counts changed: {actual}")
+          PY
+      - name: Verify native mentions, directed edges, confidence and grounded round trips
+        run: |
+          python scripts/export_gliner_relex_onnx.py --joint --revision 4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290
+          python scripts/qa/check_gliner_relex_cli.py --anno target/debug/anno --crossre-cases "$RUNNER_TEMP/cases.json" --receipt relex-receipt.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("relex-receipt.json").read_bytes())
+          counts = json.loads(Path("docs/eval/relex-predicate-heldout.json").read_bytes())
+          native = [row for row in receipt["cases"] if row["name"].startswith("crossre-ai-test-")]
+          start = counts["first_index"]
+          expected_names = [f"crossre-ai-test-{i}" for i in range(start, start + counts["documents"])]
+          if [row["name"] for row in native] != expected_names:
+              raise SystemExit("Native receipt did not cover the pinned held-out panel")
+          if sum(row["directed_edges"] for row in native) != counts["totals"]["predicted"]:
+              raise SystemExit("Native directed-edge total differs from the fixed stock result")
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: relex-parity
+          path: relex-receipt.json
+          if-no-files-found: error
