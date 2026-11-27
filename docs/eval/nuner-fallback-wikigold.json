@@ -1,0 +1,50 @@
+{
+  "already_routed_controls": 16,
+  "checkpoint": "deepanwa/NuNerZero_onnx@40349bb15d985ced384bed5c35115fd70069f4b9",
+  "checkpoint_sha256": {
+    "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+    "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+    "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+  },
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "dataset": "WikiGold",
+  "input_panel_sha256": "b1a278793e956cc7d67bf3ad5fbd175cf6c4caec5f3be76f05e5e08e375fec8c",
+  "ort_sha256": "7d5242d7bfbb8b0a2c6ae4d4883adac34c883129c8091f74f3e1bc9f740b1d62",
+  "sentences": 1696,
+  "skipped_subset": {
+    "candidate_exact": 435,
+    "candidate_outside_inventory": 102,
+    "candidate_unmatched": 274,
+    "exact_gained": 220,
+    "exact_lost": 16,
+    "gold": 731,
+    "new_unmatched": 115,
+    "removed_unmatched": 148,
+    "stock_exact": 231,
+    "stock_outside_inventory": 102,
+    "stock_unmatched": 307
+  },
+  "source_sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+  "stock_skipped": 313,
+  "warm_skipped_latency": {
+    "candidate": {
+      "calls": 313,
+      "median_ms": 871.11,
+      "p95_ms": 1720.75,
+      "total_seconds": 295.163
+    },
+    "stock": {
+      "calls": 313,
+      "median_ms": 0.23,
+      "p95_ms": 1.56,
+      "total_seconds": 0.136
+    }
+  },
+  "workers_sha256": {
+    "candidate": "41cf7e7a43fb6fe818ce106a9a86dceac9afc45318e0d500febdb3eddff14355",
+    "stock": "289ea9d7d8c45900d77256ac717cb8dbfefb006b6ecd6c85e4a4a750bfe2eb5f"
+  }
+}

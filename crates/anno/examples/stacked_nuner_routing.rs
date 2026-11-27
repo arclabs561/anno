@@ -11,25 +11,32 @@ use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let arg = std::env::args()
-        .nth(1)
-        .ok_or("expected --probe or a local checkpoint directory")?;
+    let arg = std::env::args().nth(1).ok_or(
+        "expected --probe, --default-no-bert, --default-with-bert, or a local checkpoint directory",
+    )?;
     let probe = arg == "--probe";
-    let nuner = if probe {
-        NuNER::new()
-    } else {
-        NuNER::from_pretrained(&arg)?
-    };
     let bert = std::env::args().nth(2);
-    let mut builder = StackedNER::builder();
-    if let Some(ref path) = bert {
-        builder = builder.layer(BertNEROnnx::new(path)?);
-    }
-    let model = builder
-        .layer(nuner.with_threshold(0.9))
-        .layer(RegexNER::new())
-        .layer(HeuristicNER::new())
-        .build();
+    let expect_bert = arg == "--default-with-bert" || bert.is_some();
+    let model = if matches!(arg.as_str(), "--default-no-bert" | "--default-with-bert") {
+        // The CLI Auto and Stacked routes use this constructor. The replay controls
+        // model availability with an isolated, offline Hugging Face cache.
+        StackedNER::default()
+    } else {
+        let nuner = if probe {
+            NuNER::new()
+        } else {
+            NuNER::from_pretrained(&arg)?
+        };
+        let mut builder = StackedNER::builder();
+        if let Some(ref path) = bert {
+            builder = builder.layer(BertNEROnnx::new(path)?);
+        }
+        builder
+            .layer(nuner.with_threshold(0.9))
+            .layer(RegexNER::new())
+            .layer(HeuristicNER::new())
+            .build()
+    };
     let policy = if probe {
         StackedExtractionPolicy::BestEffort
     } else {
@@ -45,17 +52,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         let start = Instant::now();
         let report = model.extract_entities_with_report(&text, None, policy)?;
         let seconds = start.elapsed().as_secs_f64();
-        if bert.is_some()
+        if expect_bert
             && !matches!(report.layer_outcomes().first(), Some(StackedLayerOutcome::Succeeded { layer, .. }) if layer == "bert-onnx")
         {
             return Err("BERT did not successfully process this input".into());
         }
-        let ran = match report.layer_outcomes().get(usize::from(bert.is_some())) {
+        let ran = match report.layer_outcomes().get(usize::from(expect_bert)) {
             Some(StackedLayerOutcome::Succeeded { layer, .. }) if layer == "nuner" => true,
             Some(StackedLayerOutcome::Skipped { layer, .. }) if layer == "nuner" => false,
             Some(StackedLayerOutcome::Failed { layer, .. }) if probe && layer == "nuner" => true,
             _ => return Err("unexpected NuNER layer outcome".into()),
         };
+        let layers: Vec<_> = report
+            .layer_outcomes()
+            .iter()
+            .map(|outcome| match outcome {
+                StackedLayerOutcome::Succeeded { layer, .. } => (layer.as_str(), "succeeded"),
+                StackedLayerOutcome::Skipped { layer, .. } => (layer.as_str(), "skipped"),
+                StackedLayerOutcome::Failed { layer, .. } => (layer.as_str(), "failed"),
+                _ => ("unknown", "unknown"),
+            })
+            .collect();
         let mut spans = Vec::new();
         if !probe {
             let chars: Vec<_> = text.chars().collect();
@@ -75,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         serde_json::to_writer(
             &mut out,
-            &json!({"input_sha256": source_sha256(&text), "ran": ran, "spans": spans, "seconds": seconds}),
+            &json!({"input_sha256": source_sha256(&text), "ran": ran, "layers": layers, "spans": spans, "seconds": seconds}),
         )?;
         writeln!(&mut out)?;
     }
