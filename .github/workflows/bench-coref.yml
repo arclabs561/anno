@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - '.github/workflows/bench-coref.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'crates/anno/Cargo.toml'
       - 'crates/anno/benches/coref.rs'
       - 'crates/anno/src/backends/coref/mention_ranking/**'
       - 'crates/anno/examples/coref_gap_panel.rs'
