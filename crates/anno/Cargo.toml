@@ -43,6 +43,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
 percent-encoding = "2.3"
+unicode-width = "0.2"
 log = { workspace = true }
 parking_lot = "0.12"
 ureq = { workspace = true, optional = true }

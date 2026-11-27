@@ -183,6 +183,63 @@ the output includes a coreference track for the two mentions of “Curie”.
 ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
 ```
 
+## Visualize evaluation results
+
+In this checkout, inspect what an extraction got wrong by piping its evaluation
+directly into the errors view. This example produces one wrong entity type and one
+missed name. Use `--metric char-masking` on `anno eval` to also see Unicode
+character coverage. An errors input may also contain a whitespace-separated
+stream of reports, including JSONL. It pools their counts before computing
+percentages and counts a repeated input once per report. Save a compact,
+replayable summary with `anno viz errors reports.jsonl --title 'Validation errors' -o summary.json`,
+then use `anno viz errors summary.json -o errors.svg` to redraw it.
+
+```sh
+anno eval --model pattern --text 'Mail x@y.com to Ada.' \
+  --gold 'x@y.com:ORG:5:12' --gold 'Ada:PER:16:19' --json | anno viz errors -o errors.svg
+```
+
+To compare extractor settings, render a measured operating-point report from the
+checkout root. The chart shows how many correct matches each setting buys for
+its unmatched-prediction cost. Each cohort uses the same axes, normalized to
+100 input units. Filled points mark its best observed settings at each budget.
+The table gives the exact counts and recall for every setting.
+
+```sh
+anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json -o wikigold.svg
+anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json -o wikigold.html
+```
+
+To supply your own study, write `anno.tradeoff/v1` JSON with one series per
+cohort. Each series holds settings scored on the same observations and gold
+items. `observations` includes inputs with zero gold. `correct` and
+`unmatched` count matched and unmatched predictions under your scoring rule.
+Recall is `correct / gold` and appears as a dash when gold is zero. For example,
+these illustrative counts compare two settings on ten sentences.
+
+```json
+{
+  "schema": "anno.tradeoff/v1",
+  "title": "What does the fallback recover?",
+  "unit": "sentences",
+  "series": [{
+    "label": "Review sample", "observations": 10, "gold": 8,
+    "points": [
+      {"label": "Stock", "correct": 4, "unmatched": 1},
+      {"label": "Fallback", "correct": 6, "unmatched": 3}
+    ]
+  }]
+}
+```
+
+Both views accept a JSON file or stdin and write standalone SVG to stdout by
+default. A `.html` output file or `--format html` produces a self-contained
+page with an accessible data table. A `.json` output file or `--format json`
+writes the validated operating points or a pooled `anno.errors/v1` summary.
+Rust callers can read either report using
+`anno::viz::Tradeoff::from_json` or `anno::viz::errors::EvalErrors::from_json` and call
+`render_svg` or `render_html`. Rendering runs offline in the standard CLI.
+
 ## CLI: batch processing
 
 Process a directory of `.txt` or `.md` files:

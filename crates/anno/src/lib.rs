@@ -115,6 +115,8 @@ pub mod rag;
 pub mod schema;
 pub mod similarity;
 pub mod types;
+/// Offline charts for reviewing extraction quality and experiment results.
+pub mod viz;
 
 // Note: research-only geometry experiments were archived out of `anno` to keep the public
 // surface grounded. Prefer `docs/` for repo-local design notes and experiments.
