@@ -1,0 +1,41 @@
+{
+  "packet_sha256": "2ce4977caf0e5b9378ffa2bb78c1cea9c04fe0f2dfe0d27d8e2494fdc5ba8fa3",
+  "dataset_pairs": 43,
+  "exact_highlight_matches": 0,
+  "highlight_extra_characters": {
+    "min": 1,
+    "median": 14,
+    "max": 86
+  },
+  "highlight_extended_on": {
+    "left": 16,
+    "right": 19,
+    "both": 8
+  },
+  "reviewer_cross_tab": {
+    "same": {
+      "same": 42,
+      "different": 0,
+      "uncertain": 0
+    },
+    "different": {
+      "same": 0,
+      "different": 1,
+      "uncertain": 0
+    },
+    "uncertain": {
+      "same": 0,
+      "different": 0,
+      "uncertain": 0
+    }
+  },
+  "controls": 8,
+  "control_correct": [
+    8,
+    8
+  ],
+  "review_fingerprints": [
+    "5a7617ecdd62e2d685ed44fbfcae9114a1f60405f684ca40d38fab42c8f9023c",
+    "5a7617ecdd62e2d685ed44fbfcae9114a1f60405f684ca40d38fab42c8f9023c"
+  ]
+}

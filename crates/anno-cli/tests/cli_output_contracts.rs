@@ -533,3 +533,95 @@ fn profile_errors_precede_work_and_explicit_alias_invocations_override_them() {
             .contains("hi@example.org"));
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn query_bounds_and_labels_intersect(
+        prefix in prop::sample::select(vec!["猫 ", "👩‍🔬 ", "e\u{301} ", ""]),
+        lower in prop::option::of(0usize..28),
+        upper in prop::option::of(0usize..28),
+        label in prop::sample::select(vec![None, Some("EMAIL"), Some("DATE")]),
+    ) {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let text = format!("{prefix}x@y.com and a@b.com");
+        fs::write(dir.join("doc.json"), ok(dir, &["extract","-m","pattern","-t",&text,"--format","grounded"])).unwrap();
+        let mut args = vec!["query","doc.json","--format","json"];
+        let start = lower.map(|n| n.to_string());
+        let end = upper.map(|n| n.to_string());
+        if let Some(v) = &start { args.extend(["--start-offset",v]); }
+        if let Some(v) = &end { args.extend(["--end-offset",v]); }
+        if let Some(v) = label { args.extend(["--type",v]); }
+        let out = invoke(dir,&args);
+        if lower.zip(upper).is_some_and(|(a,b)| a>b) {
+            prop_assert!(!out.status.success());
+            prop_assert!(out.stdout.is_empty());
+            prop_assert!(String::from_utf8_lossy(&out.stderr).contains("--start-offset"));
+        } else {
+            prop_assert!(out.status.success());
+            let rows:Vec<Value> = serde_json::from_slice(&out.stdout).unwrap();
+            let actual:Vec<_> = rows.iter().map(|r| r["surface"].as_str().unwrap()).collect();
+            let expected:Vec<_> = ["x@y.com","a@b.com"].into_iter().filter(|email| {
+                let offset = text[..text.find(email).unwrap()].chars().count();
+                label != Some("DATE") && lower.is_none_or(|n| offset>=n) && upper.is_none_or(|n| offset+email.len()<=n)
+            }).collect();
+            prop_assert_eq!(actual,expected);
+        }
+    }
+}
+
+#[test]
+fn query_keeps_one_sided_bounds_and_composes_type_with_range() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(
+        dir.join("doc.json"),
+        ok(
+            dir,
+            &[
+                "extract",
+                "-m",
+                "pattern",
+                "-t",
+                "猫 x@y.com and a@b.com",
+                "--format",
+                "grounded",
+            ],
+        ),
+    )
+    .unwrap();
+    for (filters, expected) in [
+        (vec!["--start-offset", "14"], vec!["a@b.com"]),
+        (vec!["--end-offset", "9"], vec!["x@y.com"]),
+        (
+            vec![
+                "--type",
+                "DATE",
+                "--start-offset",
+                "0",
+                "--end-offset",
+                "21",
+            ],
+            vec![],
+        ),
+        (vec!["--start-offset", "2", "--end-offset", "8"], vec![]),
+    ] {
+        let mut args = vec!["query", "doc.json", "--format", "json"];
+        args.extend(filters);
+        let rows: Vec<Value> = serde_json::from_slice(&ok(dir, &args)).unwrap();
+        assert_eq!(
+            rows.iter()
+                .map(|r| r["surface"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+    for invalid in ["NaN", "inf", "1.01", "-0.01"] {
+        let flag = format!("--min-confidence={invalid}");
+        let result = invoke(dir, &["query", "doc.json", &flag, "--output", "report"]);
+        assert!(!result.status.success());
+        assert!(result.stdout.is_empty());
+        assert!(!dir.join("report").exists());
+    }
+}
