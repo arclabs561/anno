@@ -1,7 +1,8 @@
 //! Render measured extraction results as standalone SVG or self-contained HTML.
 //!
-//! Use [`overlap`] to measure shared characters in grounded documents, [`errors`]
-//! to examine entity evaluation outcomes, and [`Tradeoff`] to compare operating
+//! Use [`Overlap`](crate::viz::overlap::Overlap) to measure shared characters in
+//! grounded documents, [`EvalErrors`](crate::viz::errors::EvalErrors) to examine
+//! evaluation outcomes, and [`Tradeoff`](crate::viz::Tradeoff) to compare operating
 //! points across cohorts. Each view can render an offline report from a saved input.
 //!
 //! ```
