@@ -1,0 +1,701 @@
+{
+  "anno_revision": "75f961e54631774b4e74547a383eaf8fc79a772d",
+  "candidate_binary_sha256": "de208672ef39ba03239bdfd7f07c27fffb3cd533579529a8f1514e8a0111aa60",
+  "panels": {
+    "development": {
+      "distinct_articles": 1834,
+      "documents": 2000,
+      "gold_patterns": {
+        "A_only": 874,
+        "B_only": 925,
+        "both": 0,
+        "neither": 201
+      },
+      "id_list_sha256": "a0a3434162ca28ddb420a2e8154bf733651315aa22e8b1117ed4a40c220c9e6a",
+      "predicted": {
+        "candidate": {
+          "all_gold_links": 1799,
+          "attempted": 2000,
+          "both_decisions_correct": 269,
+          "fn": 1725,
+          "fp": 69,
+          "gold_links": 1799,
+          "refused": 0,
+          "returned_gold_pairs": 153,
+          "scored": 2000,
+          "tn": 2132,
+          "tp": 74
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "bee9809324c404e9b0fd82ea2a382166133a105f2ce05e486924df00362231f4",
+        "paired": {
+          "changed_documents": 0,
+          "correct_gained": 0,
+          "correct_lost": 0,
+          "incorrect_added": 0,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 1799,
+          "attempted": 2000,
+          "both_decisions_correct": 269,
+          "fn": 1725,
+          "fp": 69,
+          "gold_links": 1799,
+          "refused": 0,
+          "returned_gold_pairs": 153,
+          "scored": 2000,
+          "tn": 2132,
+          "tp": 74
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "bee9809324c404e9b0fd82ea2a382166133a105f2ce05e486924df00362231f4"
+      },
+      "supplied": {
+        "candidate": {
+          "all_gold_links": 1799,
+          "attempted": 2000,
+          "both_decisions_correct": 312,
+          "fn": 1676,
+          "fp": 138,
+          "gold_links": 1799,
+          "refused": 0,
+          "returned_gold_pairs": 1799,
+          "scored": 2000,
+          "tn": 2063,
+          "tp": 123
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "332d10fda233fb5f18b8161ae539aa46f68b858a5b42591ba85474d2894d5efa",
+        "paired": {
+          "changed_documents": 244,
+          "correct_gained": 114,
+          "correct_lost": 0,
+          "incorrect_added": 130,
+          "incorrect_added_to_distractor": 118,
+          "incorrect_added_when_neither_gold": 12,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 1799,
+          "attempted": 2000,
+          "both_decisions_correct": 210,
+          "fn": 1790,
+          "fp": 8,
+          "gold_links": 1799,
+          "refused": 0,
+          "returned_gold_pairs": 1799,
+          "scored": 2000,
+          "tn": 2193,
+          "tp": 9
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "3cfb374f46b920c4fe37550879de475cf609bb377e83e1de6f1c3bc76f969d1f"
+      }
+    },
+    "test": {
+      "distinct_articles": 1825,
+      "documents": 2000,
+      "gold_patterns": {
+        "A_only": 918,
+        "B_only": 855,
+        "both": 0,
+        "neither": 227
+      },
+      "id_list_sha256": "1ff8faf5e53c031419dc4393b263b1b35e6e73d8dc90212388a8b5e415c4c53c",
+      "predicted": {
+        "candidate": {
+          "all_gold_links": 1773,
+          "attempted": 2000,
+          "both_decisions_correct": 301,
+          "fn": 1688,
+          "fp": 64,
+          "gold_links": 1773,
+          "refused": 0,
+          "returned_gold_pairs": 149,
+          "scored": 2000,
+          "tn": 2163,
+          "tp": 85
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "a6987bbb6371b150421a687dc31895d8080df720cf3b349e45daedd6615e0dd2",
+        "paired": {
+          "changed_documents": 0,
+          "correct_gained": 0,
+          "correct_lost": 0,
+          "incorrect_added": 0,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 1773,
+          "attempted": 2000,
+          "both_decisions_correct": 301,
+          "fn": 1688,
+          "fp": 64,
+          "gold_links": 1773,
+          "refused": 0,
+          "returned_gold_pairs": 149,
+          "scored": 2000,
+          "tn": 2163,
+          "tp": 85
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "a6987bbb6371b150421a687dc31895d8080df720cf3b349e45daedd6615e0dd2"
+      },
+      "supplied": {
+        "candidate": {
+          "all_gold_links": 1773,
+          "attempted": 2000,
+          "both_decisions_correct": 341,
+          "fn": 1642,
+          "fp": 141,
+          "gold_links": 1773,
+          "refused": 0,
+          "returned_gold_pairs": 1773,
+          "scored": 2000,
+          "tn": 2086,
+          "tp": 131
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "baaf0a9d97b19c632c907a873ff687ea54982b0303ee354ba70bcccb1d0fa46f",
+        "paired": {
+          "changed_documents": 255,
+          "correct_gained": 128,
+          "correct_lost": 0,
+          "incorrect_added": 127,
+          "incorrect_added_to_distractor": 111,
+          "incorrect_added_when_neither_gold": 16,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 1773,
+          "attempted": 2000,
+          "both_decisions_correct": 229,
+          "fn": 1770,
+          "fp": 14,
+          "gold_links": 1773,
+          "refused": 0,
+          "returned_gold_pairs": 1773,
+          "scored": 2000,
+          "tn": 2213,
+          "tp": 3
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "58e09ee6cca1715254619cc1de1802bc00d537312d77bba90e6dd0d89ba9cf2d"
+      }
+    },
+    "test_subsets": {
+      "article_holdout": {
+        "distinct_articles": 128,
+        "documents": 128,
+        "gold_patterns": {
+          "A_only": 54,
+          "B_only": 64,
+          "both": 0,
+          "neither": 10
+        },
+        "id_list_sha256": "88e5cb4d4c26c1eb5bdd91bc7bddf3f9cc74ce0410395fa97213fe61122af41e",
+        "predicted": {
+          "candidate": {
+            "all_gold_links": 118,
+            "attempted": 128,
+            "both_decisions_correct": 16,
+            "fn": 111,
+            "fp": 2,
+            "gold_links": 118,
+            "refused": 0,
+            "returned_gold_pairs": 11,
+            "scored": 128,
+            "tn": 136,
+            "tp": 7
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "2e680cd4c57a073cfe2f69d78d6b9dcb3fe54282b80775b215cb553b4bcea88a",
+          "paired": {
+            "changed_documents": 0,
+            "correct_gained": 0,
+            "correct_lost": 0,
+            "incorrect_added": 0,
+            "incorrect_added_to_distractor": 0,
+            "incorrect_added_when_neither_gold": 0,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 118,
+            "attempted": 128,
+            "both_decisions_correct": 16,
+            "fn": 111,
+            "fp": 2,
+            "gold_links": 118,
+            "refused": 0,
+            "returned_gold_pairs": 11,
+            "scored": 128,
+            "tn": 136,
+            "tp": 7
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "2e680cd4c57a073cfe2f69d78d6b9dcb3fe54282b80775b215cb553b4bcea88a"
+        },
+        "supplied": {
+          "candidate": {
+            "all_gold_links": 118,
+            "attempted": 128,
+            "both_decisions_correct": 21,
+            "fn": 106,
+            "fp": 7,
+            "gold_links": 118,
+            "refused": 0,
+            "returned_gold_pairs": 118,
+            "scored": 128,
+            "tn": 131,
+            "tp": 12
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "1e1b08996f9a9945f61d516dc8cb500d382865c55f0956e2e54d0eae940708e8",
+          "paired": {
+            "changed_documents": 17,
+            "correct_gained": 11,
+            "correct_lost": 0,
+            "incorrect_added": 6,
+            "incorrect_added_to_distractor": 5,
+            "incorrect_added_when_neither_gold": 1,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 118,
+            "attempted": 128,
+            "both_decisions_correct": 11,
+            "fn": 117,
+            "fp": 1,
+            "gold_links": 118,
+            "refused": 0,
+            "returned_gold_pairs": 118,
+            "scored": 128,
+            "tn": 137,
+            "tp": 1
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "491aa1b85086cde9a3792d4a6e5c96f5d43f17393465ac1ddf92cdf0489f32b5"
+        }
+      },
+      "outside_panels": {
+        "distinct_articles": 1606,
+        "documents": 1744,
+        "gold_patterns": {
+          "A_only": 800,
+          "B_only": 738,
+          "both": 0,
+          "neither": 206
+        },
+        "id_list_sha256": "a01a46fd90ab6d2baf3aa742c0275177f083625ec92a18cb2b0d2c8a63d8e35a",
+        "predicted": {
+          "candidate": {
+            "all_gold_links": 1538,
+            "attempted": 1744,
+            "both_decisions_correct": 269,
+            "fn": 1466,
+            "fp": 58,
+            "gold_links": 1538,
+            "refused": 0,
+            "returned_gold_pairs": 130,
+            "scored": 1744,
+            "tn": 1892,
+            "tp": 72
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "431dca014c831f70f04bace50ac2ddba2673180bd888b39e1786074fb3513801",
+          "paired": {
+            "changed_documents": 0,
+            "correct_gained": 0,
+            "correct_lost": 0,
+            "incorrect_added": 0,
+            "incorrect_added_to_distractor": 0,
+            "incorrect_added_when_neither_gold": 0,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 1538,
+            "attempted": 1744,
+            "both_decisions_correct": 269,
+            "fn": 1466,
+            "fp": 58,
+            "gold_links": 1538,
+            "refused": 0,
+            "returned_gold_pairs": 130,
+            "scored": 1744,
+            "tn": 1892,
+            "tp": 72
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "431dca014c831f70f04bace50ac2ddba2673180bd888b39e1786074fb3513801"
+        },
+        "supplied": {
+          "candidate": {
+            "all_gold_links": 1538,
+            "attempted": 1744,
+            "both_decisions_correct": 302,
+            "fn": 1427,
+            "fp": 124,
+            "gold_links": 1538,
+            "refused": 0,
+            "returned_gold_pairs": 1538,
+            "scored": 1744,
+            "tn": 1826,
+            "tp": 111
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "471382df877028583cb48fed3b9046b033ce9e78b458dad898a5c7e0cd712220",
+          "paired": {
+            "changed_documents": 221,
+            "correct_gained": 109,
+            "correct_lost": 0,
+            "incorrect_added": 112,
+            "incorrect_added_to_distractor": 98,
+            "incorrect_added_when_neither_gold": 14,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 1538,
+            "attempted": 1744,
+            "both_decisions_correct": 207,
+            "fn": 1536,
+            "fp": 12,
+            "gold_links": 1538,
+            "refused": 0,
+            "returned_gold_pairs": 1538,
+            "scored": 1744,
+            "tn": 1938,
+            "tp": 2
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "d33633457ac314046182117b248f0262616c2e708afec9f6018b0fd3c3e0a8d7"
+        }
+      },
+      "outside_panels_new_articles": {
+        "distinct_articles": 1570,
+        "documents": 1704,
+        "gold_patterns": {
+          "A_only": 777,
+          "B_only": 726,
+          "both": 0,
+          "neither": 201
+        },
+        "id_list_sha256": "4946c55405e02c27b34ed6b864c9f9ae825bc6944c7e77a0d32d717bf03f829a",
+        "predicted": {
+          "candidate": {
+            "all_gold_links": 1503,
+            "attempted": 1704,
+            "both_decisions_correct": 261,
+            "fn": 1434,
+            "fp": 56,
+            "gold_links": 1503,
+            "refused": 0,
+            "returned_gold_pairs": 122,
+            "scored": 1704,
+            "tn": 1849,
+            "tp": 69
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "6dc2a02209d04fb92e28346ac367168eb02fd42e337e6a78078a8b6f08e42264",
+          "paired": {
+            "changed_documents": 0,
+            "correct_gained": 0,
+            "correct_lost": 0,
+            "incorrect_added": 0,
+            "incorrect_added_to_distractor": 0,
+            "incorrect_added_when_neither_gold": 0,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 1503,
+            "attempted": 1704,
+            "both_decisions_correct": 261,
+            "fn": 1434,
+            "fp": 56,
+            "gold_links": 1503,
+            "refused": 0,
+            "returned_gold_pairs": 122,
+            "scored": 1704,
+            "tn": 1849,
+            "tp": 69
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "6dc2a02209d04fb92e28346ac367168eb02fd42e337e6a78078a8b6f08e42264"
+        },
+        "supplied": {
+          "candidate": {
+            "all_gold_links": 1503,
+            "attempted": 1704,
+            "both_decisions_correct": 296,
+            "fn": 1394,
+            "fp": 119,
+            "gold_links": 1503,
+            "refused": 0,
+            "returned_gold_pairs": 1503,
+            "scored": 1704,
+            "tn": 1786,
+            "tp": 109
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "7626f54e5061b42488629ffe32d91ebc917b8c5706311f26b82463b7a02088d9",
+          "paired": {
+            "changed_documents": 214,
+            "correct_gained": 107,
+            "correct_lost": 0,
+            "incorrect_added": 107,
+            "incorrect_added_to_distractor": 94,
+            "incorrect_added_when_neither_gold": 13,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 1503,
+            "attempted": 1704,
+            "both_decisions_correct": 202,
+            "fn": 1501,
+            "fp": 12,
+            "gold_links": 1503,
+            "refused": 0,
+            "returned_gold_pairs": 1503,
+            "scored": 1704,
+            "tn": 1893,
+            "tp": 2
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "1ecdf396117a12bc43ba95c6474c7d2c2cf2772bacdc5825cae8baf1abaad4c1"
+        }
+      },
+      "published": {
+        "distinct_articles": 127,
+        "documents": 128,
+        "gold_patterns": {
+          "A_only": 64,
+          "B_only": 53,
+          "both": 0,
+          "neither": 11
+        },
+        "id_list_sha256": "606c82d6fb056415fef8592321de299b7c2c151668d51dedaa043b13e32e15e5",
+        "predicted": {
+          "candidate": {
+            "all_gold_links": 117,
+            "attempted": 128,
+            "both_decisions_correct": 16,
+            "fn": 111,
+            "fp": 4,
+            "gold_links": 117,
+            "refused": 0,
+            "returned_gold_pairs": 8,
+            "scored": 128,
+            "tn": 135,
+            "tp": 6
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "bfc77c6415438f105786389f98d37089931b6b5bcfe09c3deef414b29b362212",
+          "paired": {
+            "changed_documents": 0,
+            "correct_gained": 0,
+            "correct_lost": 0,
+            "incorrect_added": 0,
+            "incorrect_added_to_distractor": 0,
+            "incorrect_added_when_neither_gold": 0,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 117,
+            "attempted": 128,
+            "both_decisions_correct": 16,
+            "fn": 111,
+            "fp": 4,
+            "gold_links": 117,
+            "refused": 0,
+            "returned_gold_pairs": 8,
+            "scored": 128,
+            "tn": 135,
+            "tp": 6
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "bfc77c6415438f105786389f98d37089931b6b5bcfe09c3deef414b29b362212"
+        },
+        "supplied": {
+          "candidate": {
+            "all_gold_links": 117,
+            "attempted": 128,
+            "both_decisions_correct": 18,
+            "fn": 109,
+            "fp": 10,
+            "gold_links": 117,
+            "refused": 0,
+            "returned_gold_pairs": 117,
+            "scored": 128,
+            "tn": 129,
+            "tp": 8
+          },
+          "candidate_linked_both": 0,
+          "candidate_partitions_sha256": "6c34ce667914979d75a72318160a0bc92b19ea9ebc683b7e55d51077ef077a44",
+          "paired": {
+            "changed_documents": 17,
+            "correct_gained": 8,
+            "correct_lost": 0,
+            "incorrect_added": 9,
+            "incorrect_added_to_distractor": 8,
+            "incorrect_added_when_neither_gold": 1,
+            "incorrect_removed": 0,
+            "incorrect_removed_from_distractor": 0,
+            "incorrect_removed_when_neither_gold": 0
+          },
+          "stock": {
+            "all_gold_links": 117,
+            "attempted": 128,
+            "both_decisions_correct": 11,
+            "fn": 117,
+            "fp": 1,
+            "gold_links": 117,
+            "refused": 0,
+            "returned_gold_pairs": 117,
+            "scored": 128,
+            "tn": 138,
+            "tp": 0
+          },
+          "stock_linked_both": 0,
+          "stock_partitions_sha256": "174e84af3a17a66119fcafbbbc85b9cbe4b728381bf7caa062a3998b2fa4e01b"
+        }
+      }
+    },
+    "validation": {
+      "distinct_articles": 328,
+      "documents": 454,
+      "gold_patterns": {
+        "A_only": 187,
+        "B_only": 205,
+        "both": 0,
+        "neither": 62
+      },
+      "id_list_sha256": "ee20a391bbc3cc6e2665a2f838d7789667236d8e49a4d09f767aff46182a4eeb",
+      "predicted": {
+        "candidate": {
+          "all_gold_links": 392,
+          "attempted": 454,
+          "both_decisions_correct": 80,
+          "fn": 365,
+          "fp": 40,
+          "gold_links": 392,
+          "refused": 0,
+          "returned_gold_pairs": 48,
+          "scored": 454,
+          "tn": 476,
+          "tp": 27
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "3408990d58c81bde6b4d5d4099613436ab89a13c2fea4f83ea42d00fbf0d0a68",
+        "paired": {
+          "changed_documents": 0,
+          "correct_gained": 0,
+          "correct_lost": 0,
+          "incorrect_added": 0,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 392,
+          "attempted": 454,
+          "both_decisions_correct": 80,
+          "fn": 365,
+          "fp": 40,
+          "gold_links": 392,
+          "refused": 0,
+          "returned_gold_pairs": 48,
+          "scored": 454,
+          "tn": 476,
+          "tp": 27
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "3408990d58c81bde6b4d5d4099613436ab89a13c2fea4f83ea42d00fbf0d0a68"
+      },
+      "supplied": {
+        "candidate": {
+          "all_gold_links": 392,
+          "attempted": 454,
+          "both_decisions_correct": 95,
+          "fn": 355,
+          "fp": 39,
+          "gold_links": 392,
+          "refused": 0,
+          "returned_gold_pairs": 392,
+          "scored": 454,
+          "tn": 477,
+          "tp": 37
+        },
+        "candidate_linked_both": 0,
+        "candidate_partitions_sha256": "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+        "paired": {
+          "changed_documents": 70,
+          "correct_gained": 37,
+          "correct_lost": 0,
+          "incorrect_added": 33,
+          "incorrect_added_to_distractor": 29,
+          "incorrect_added_when_neither_gold": 4,
+          "incorrect_removed": 0,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0
+        },
+        "stock": {
+          "all_gold_links": 392,
+          "attempted": 454,
+          "both_decisions_correct": 62,
+          "fn": 392,
+          "fp": 6,
+          "gold_links": 392,
+          "refused": 0,
+          "returned_gold_pairs": 392,
+          "scored": 454,
+          "tn": 510,
+          "tp": 0
+        },
+        "stock_linked_both": 0,
+        "stock_partitions_sha256": "3f20e695dca93c2a3e850c2149147ac23985cd3b19b742d7c1316f80e520e9d3"
+      }
+    }
+  },
+  "patch_sha256": "ba2fbc90af391f22f7716c42ccaac41b76dc0c1f1200395a3e41dcfbf04b8b8d",
+  "shared_article_urls_between_splits": {
+    "development_test": 0,
+    "development_validation": 0,
+    "test_validation": 0
+  },
+  "source_revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "source_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  },
+  "stock_binary_sha256": "93fffe36ebb71a4fcca20579121f9f907ff701e61d5d3723c2cf1d9fe495ddce",
+  "test_rows_outside_panels_sharing_a_panel_article": 40
+}

@@ -10,6 +10,7 @@ import csv
 import hashlib
 import json
 import tempfile
+from itertools import combinations
 from collections import defaultdict
 from pathlib import Path
 
@@ -49,6 +50,25 @@ def typed_examples(records):
             )
         examples.append(relations)
     return all_entity_types, examples
+
+
+def span_overlap_counts(records):
+    """Count distinct publisher spans per sentence, using inclusive token endpoints."""
+    spans = pairs = sentences = 0
+    for record in records:
+        intervals = {(start, end) for start, end, _ in record["ner"]}
+        overlaps = sum(
+            left_start <= right_end and right_start <= left_end
+            for (left_start, left_end), (right_start, right_end) in combinations(intervals, 2)
+        )
+        spans += len(intervals)
+        pairs += overlaps
+        sentences += overlaps > 0
+    return {
+        "distinct_entity_spans": spans,
+        "overlapping_entity_span_pairs": pairs,
+        "sentences_with_overlapping_entity_spans": sentences,
+    }
 
 
 def split_counts(
@@ -108,7 +128,8 @@ def survey(cache):
         if set(files) != {"train", "dev", "test"}:
             raise ValueError(f"Incomplete CrossRE train/dev/test files for {domain}")
         # Freeze the vocabulary using this domain's training data alone.
-        training_types, train = typed_examples(read_split(files["train"], cache))
+        train_records = read_split(files["train"], cache)
+        training_types, train = typed_examples(train_records)
         heads, tails = defaultdict(set), defaultdict(set)
         for sentence in train:
             for head, label, tail in sentence:
@@ -116,10 +137,11 @@ def survey(cache):
                 tails[label].add(tail)
         for split in ("train", "dev", "test"):
             entry = files[split]
+            records = train_records if split == "train" else read_split(entry, cache)
             types, examples = (
                 (training_types, train)
                 if split == "train"
-                else typed_examples(read_split(entry, cache))
+                else typed_examples(records)
             )
             rows.append(
                 {
@@ -127,6 +149,7 @@ def survey(cache):
                     "split": split,
                     "sha256": entry["sha256"],
                     **split_counts(types, examples, training_types, heads, tails),
+                    **span_overlap_counts(records),
                 }
             )
     return rows

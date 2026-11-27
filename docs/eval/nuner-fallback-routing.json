@@ -1,0 +1,351 @@
+{
+  "base_revision": "75f961e54631774b4e74547a383eaf8fc79a772d",
+  "bert_checkpoint": "protectai/bert-base-NER-onnx@84d28ab2bc28401b4353b26033eb043c8c8a0739",
+  "bert_sha256": {
+    "config.json": "e3cc09261a1c73bda961e030563585b2be563bef339a78e11c802c3377b98d66",
+    "model.onnx": "e2165e300f6e0016c1f295bcdee36e084371e1f4f3564cd7e47cb833b58a75b7",
+    "tokenizer.json": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34"
+  },
+  "checkpoint": "deepanwa/NuNerZero_onnx@40349bb15d985ced384bed5c35115fd70069f4b9",
+  "checkpoint_sha256": {
+    "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+    "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+    "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+  },
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "gold_by_source_label": {
+    "Development": {
+      "full_split": {
+        "corporation": 34,
+        "creative-work": 105,
+        "group": 39,
+        "location": 74,
+        "person": 470,
+        "product": 114
+      },
+      "stock_skipped": {
+        "corporation": 4,
+        "creative-work": 25,
+        "group": 6,
+        "location": 18,
+        "person": 59,
+        "product": 29
+      }
+    },
+    "Test": {
+      "full_split": {
+        "corporation": 66,
+        "creative-work": 142,
+        "group": 165,
+        "location": 150,
+        "person": 429,
+        "product": 127
+      },
+      "stock_skipped": {
+        "corporation": 20,
+        "creative-work": 53,
+        "group": 35,
+        "location": 46,
+        "person": 83,
+        "product": 27
+      }
+    }
+  },
+  "nuner_threshold": 0.9,
+  "output_threshold": 0.5,
+  "patch_sha256": {
+    "nuner-always-routing.patch": "162fe59395f70f760a72ff915a4f424d22b8d29792bfb20fbd5a464743a3c70d",
+    "nuner-fallback-routing.patch": "c8fdd69326d2060c53b43e6870b488a777685fcb45d3d5ed6442bc0d318d7558"
+  },
+  "projection": {
+    "corporation": "ORG",
+    "creative-work": "WORK_OF_ART",
+    "group": "ORG",
+    "location": "LOC",
+    "person": "PER",
+    "product": "PRODUCT"
+  },
+  "source_sha256": {
+    "emerging.dev.conll": "e053b752b8155113ca66e7db08af5f2f5f43ab993694e4774f1ec5bad42312d8",
+    "emerging.test.annotated": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0",
+    "wnut17train.conll": "731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5"
+  },
+  "splits": {
+    "Development": {
+      "with_bert": {
+        "added_unmatched_by_overlap": {
+          "different_overlapping_span": 2,
+          "no_reference_overlap": 18
+        },
+        "all_sentences": 1009,
+        "full_split": {
+          "candidate_exact": 441,
+          "candidate_in_schema_unmatched": 584,
+          "candidate_outside_schema": 185,
+          "exact_gained": 7,
+          "exact_lost": 0,
+          "gold": 836,
+          "gold_empty_sentences": 381,
+          "in_schema_unmatched_added": 20,
+          "in_schema_unmatched_removed": 3,
+          "sentences_with_changed_output": 22,
+          "stock_exact": 434,
+          "stock_in_schema_unmatched": 567,
+          "stock_outside_schema": 185,
+          "unfamiliar_gained": 7,
+          "unfamiliar_gold": 805,
+          "unfamiliar_lost": 0
+        },
+        "guarded_healthy_bert_controls": 16,
+        "routed_control_sentences": 8,
+        "skipped_subset": {
+          "candidate_exact": 50,
+          "candidate_in_schema_unmatched": 114,
+          "candidate_outside_schema": 51,
+          "exact_gained": 7,
+          "exact_lost": 0,
+          "gold": 141,
+          "gold_empty_sentences": 61,
+          "in_schema_unmatched_added": 20,
+          "in_schema_unmatched_removed": 3,
+          "sentences_with_changed_output": 22,
+          "stock_exact": 43,
+          "stock_in_schema_unmatched": 97,
+          "stock_outside_schema": 51,
+          "unfamiliar_gained": 7,
+          "unfamiliar_gold": 137,
+          "unfamiliar_lost": 0
+        },
+        "stock_routed": 844,
+        "stock_skipped": 165,
+        "warm_skipped_subset_latency": {
+          "candidate": {
+            "calls": 165,
+            "median_ms": 236.14,
+            "p95_ms": 345.16,
+            "total_seconds": 40.446
+          },
+          "stock": {
+            "calls": 165,
+            "median_ms": 50.63,
+            "p95_ms": 85.72,
+            "total_seconds": 8.415
+          }
+        }
+      },
+      "without_bert": {
+        "added_unmatched_by_overlap": {
+          "different_overlapping_span": 14,
+          "no_reference_overlap": 24,
+          "same_span_wrong_label": 6
+        },
+        "all_sentences": 1009,
+        "full_split": {
+          "candidate_exact": 464,
+          "candidate_in_schema_unmatched": 599,
+          "candidate_outside_schema": 9,
+          "exact_gained": 43,
+          "exact_lost": 2,
+          "gold": 836,
+          "gold_empty_sentences": 381,
+          "in_schema_unmatched_added": 44,
+          "in_schema_unmatched_removed": 25,
+          "sentences_with_changed_output": 69,
+          "stock_exact": 423,
+          "stock_in_schema_unmatched": 580,
+          "stock_outside_schema": 9,
+          "unfamiliar_gained": 41,
+          "unfamiliar_gold": 805,
+          "unfamiliar_lost": 2
+        },
+        "guarded_healthy_bert_controls": 0,
+        "routed_control_sentences": 8,
+        "skipped_subset": {
+          "candidate_exact": 55,
+          "candidate_in_schema_unmatched": 110,
+          "candidate_outside_schema": 1,
+          "exact_gained": 43,
+          "exact_lost": 2,
+          "gold": 141,
+          "gold_empty_sentences": 61,
+          "in_schema_unmatched_added": 44,
+          "in_schema_unmatched_removed": 25,
+          "sentences_with_changed_output": 69,
+          "stock_exact": 14,
+          "stock_in_schema_unmatched": 91,
+          "stock_outside_schema": 1,
+          "unfamiliar_gained": 41,
+          "unfamiliar_gold": 137,
+          "unfamiliar_lost": 2
+        },
+        "stock_routed": 844,
+        "stock_skipped": 165,
+        "warm_skipped_subset_latency": {
+          "candidate": {
+            "calls": 165,
+            "median_ms": 147.93,
+            "p95_ms": 212.87,
+            "total_seconds": 25.273
+          },
+          "stock": {
+            "calls": 165,
+            "median_ms": 0.16,
+            "p95_ms": 0.88,
+            "total_seconds": 0.045
+          }
+        }
+      }
+    },
+    "Test": {
+      "with_bert": {
+        "added_unmatched_by_overlap": {
+          "different_overlapping_span": 10,
+          "no_reference_overlap": 107,
+          "same_span_wrong_label": 9
+        },
+        "all_sentences": 1287,
+        "full_split": {
+          "candidate_exact": 511,
+          "candidate_in_schema_unmatched": 1233,
+          "candidate_outside_schema": 731,
+          "exact_gained": 14,
+          "exact_lost": 0,
+          "gold": 1079,
+          "gold_empty_sentences": 598,
+          "in_schema_unmatched_added": 126,
+          "in_schema_unmatched_removed": 7,
+          "sentences_with_changed_output": 104,
+          "stock_exact": 497,
+          "stock_in_schema_unmatched": 1114,
+          "stock_outside_schema": 765,
+          "unfamiliar_gained": 13,
+          "unfamiliar_gold": 1055,
+          "unfamiliar_lost": 0
+        },
+        "guarded_healthy_bert_controls": 16,
+        "routed_control_sentences": 8,
+        "skipped_subset": {
+          "candidate_exact": 101,
+          "candidate_in_schema_unmatched": 382,
+          "candidate_outside_schema": 232,
+          "exact_gained": 14,
+          "exact_lost": 0,
+          "gold": 264,
+          "gold_empty_sentences": 134,
+          "in_schema_unmatched_added": 126,
+          "in_schema_unmatched_removed": 7,
+          "sentences_with_changed_output": 104,
+          "stock_exact": 87,
+          "stock_in_schema_unmatched": 263,
+          "stock_outside_schema": 266,
+          "unfamiliar_gained": 13,
+          "unfamiliar_gold": 256,
+          "unfamiliar_lost": 0
+        },
+        "stock_routed": 992,
+        "stock_skipped": 295,
+        "warm_skipped_subset_latency": {
+          "candidate": {
+            "calls": 295,
+            "median_ms": 302.65,
+            "p95_ms": 478.43,
+            "total_seconds": 94.298
+          },
+          "stock": {
+            "calls": 295,
+            "median_ms": 66.23,
+            "p95_ms": 112.38,
+            "total_seconds": 20.061
+          }
+        }
+      },
+      "without_bert": {
+        "added_unmatched_by_overlap": {
+          "different_overlapping_span": 27,
+          "no_reference_overlap": 132,
+          "same_span_wrong_label": 27
+        },
+        "all_sentences": 1287,
+        "full_split": {
+          "candidate_exact": 556,
+          "candidate_in_schema_unmatched": 1291,
+          "candidate_outside_schema": 463,
+          "exact_gained": 82,
+          "exact_lost": 2,
+          "gold": 1079,
+          "gold_empty_sentences": 598,
+          "in_schema_unmatched_added": 186,
+          "in_schema_unmatched_removed": 46,
+          "sentences_with_changed_output": 175,
+          "stock_exact": 476,
+          "stock_in_schema_unmatched": 1151,
+          "stock_outside_schema": 501,
+          "unfamiliar_gained": 75,
+          "unfamiliar_gold": 1055,
+          "unfamiliar_lost": 2
+        },
+        "guarded_healthy_bert_controls": 0,
+        "routed_control_sentences": 8,
+        "skipped_subset": {
+          "candidate_exact": 111,
+          "candidate_in_schema_unmatched": 397,
+          "candidate_outside_schema": 149,
+          "exact_gained": 82,
+          "exact_lost": 2,
+          "gold": 264,
+          "gold_empty_sentences": 134,
+          "in_schema_unmatched_added": 186,
+          "in_schema_unmatched_removed": 46,
+          "sentences_with_changed_output": 175,
+          "stock_exact": 31,
+          "stock_in_schema_unmatched": 257,
+          "stock_outside_schema": 187,
+          "unfamiliar_gained": 75,
+          "unfamiliar_gold": 256,
+          "unfamiliar_lost": 2
+        },
+        "stock_routed": 992,
+        "stock_skipped": 295,
+        "warm_skipped_subset_latency": {
+          "candidate": {
+            "calls": 295,
+            "median_ms": 191.06,
+            "p95_ms": 327.29,
+            "total_seconds": 60.278
+          },
+          "stock": {
+            "calls": 295,
+            "median_ms": 0.22,
+            "p95_ms": 1.52,
+            "total_seconds": 0.108
+          }
+        }
+      }
+    }
+  },
+  "stacks": [
+    [
+      "nuner",
+      "regex",
+      "heuristic"
+    ],
+    [
+      "bert-onnx",
+      "nuner",
+      "regex",
+      "heuristic"
+    ]
+  ],
+  "wnut_revision": "e52a2d2a71ac1a051ca2d532eef28653c5c02603",
+  "worker_sha256": {
+    "always": "226df4076f691224135f3fdb9c345831443ba94f15c62f4fd43f7aa2bfb2e173",
+    "candidate": "e69de290913ee1b8f650af34cfb4636df6bdf68ca6be805cbc2bd6b8544839fa",
+    "stock": "f597da6b531716259d550b9c67e7a9876337a4fd05282cf296f1231c6e7c8242"
+  }
+}

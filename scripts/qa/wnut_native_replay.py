@@ -35,6 +35,24 @@ RUNTIME = {"heuristic": "heuristic", "stacked": "stacked(regex+heuristic)"}
 PRODUCERS = {"heuristic": {"heuristic"}, "stacked": {"pattern", "heuristic"}}
 
 
+def sentence_cases(tagged):
+    annotations = defaultdict(list)
+    for index, start, end, kind in sorted(tagged.spans):
+        annotations[index].append((start, end, kind))
+    cases = []
+    for index, tokens in enumerate(tagged.tokens):
+        text = " ".join(tokens)
+        starts = [0]
+        for token in tokens:
+            starts.append(starts[-1] + len(token) + 1)
+        gold = {
+            (starts[start], starts[end] - 1, kind)
+            for start, end, kind in annotations[index]
+        }
+        cases.append((text, gold))
+    return cases
+
+
 def load_cases(data_dir):
     with MANIFEST.open(encoding="utf-8", newline="") as src:
         hashes = {
@@ -47,20 +65,7 @@ def load_cases(data_dir):
     }
     train, test = splits["Train"], splits["Test"]
     names = {surface(span, train.tokens).casefold() for span in train.spans}
-    annotations = defaultdict(list)
-    for index, start, end, kind in sorted(test.spans):
-        annotations[index].append((start, end, kind))
-    cases = []
-    for index, tokens in enumerate(test.tokens):
-        text = " ".join(tokens)
-        starts = [0]
-        for token in tokens:
-            starts.append(starts[-1] + len(token) + 1)
-        gold = {
-            (starts[start], starts[end] - 1, kind)
-            for start, end, kind in annotations[index]
-        }
-        cases.append((text, gold))
+    cases = sentence_cases(test)
     panel = hashlib.sha256()
     for text, _ in cases:
         data = text.encode("utf-8")

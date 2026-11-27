@@ -227,3 +227,7 @@ required-features = ["onnx"]
 [[example]]
 name = "nuner_panel"
 required-features = ["onnx"]
+
+[[example]]
+name = "stacked_nuner_routing"
+required-features = ["onnx"]

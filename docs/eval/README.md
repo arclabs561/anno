@@ -6,6 +6,7 @@ Start with the study closest to the decision you are making. Each study names wh
 |---|---|---|
 | Entity recognition across languages and text lengths | [NER panels and replay](ner-language-length.md) | [Counts by model and panel](ner-language-length.json) |
 | Whether an Anno release recovers unfamiliar names | [Native WNUT-17 release comparison](../DOMAIN_QA.md#compare-native-anno-on-unfamiliar-names) | [Heuristic counts](wnut-native-comparison.json) · [Offline default-stack counts](wnut-stacked-comparison.json) |
+| When the default stack should pay for a skipped NuNER call | [Exact names, extra predictions and latency with BERT present or absent](nuner-fallback-routing.md) | [Paired native routing counts and timings](nuner-fallback-routing.json) |
 | Whether relation scores depend on seeing test labels | [CrossRE prompt comparison](crossre-full-prompt-comparison.md) | [Paired counts by domain](crossre-full-prompt-comparison.json) |
 | Which sources contributed examples or tagged-token counts | [Dataset coverage and exclusions](dataset-coverage.md) | [All registry IDs and source outcomes](dataset-coverage.csv) |
 | Where a coreference link disappears | [Native mention and link losses](native-gap-loss.md) | [Stage counts](native-gap-loss.json) · [FCoref proposal budget](fcoref-proposal-budget.json) |

@@ -18,6 +18,14 @@ RUST_LOG=anno::relex_candidates=trace anno extract --model gliner-relex \
   --format json --text 'Ada founded Acme.' > "$out/prediction.json" 2> "$out/candidates.log"
 ```
 
+## Which competing span should survive?
+
+Counting distinct intervals within each sentence gives 26,925 annotated entity spans across all 5,265 sentences in the 18 pinned CrossRE files. Zero sentences contain two distinct overlapping gold spans. Each endpoint of the 19,761 relation annotations matches an annotated entity. The 16 losses to overlap suppression on the AI diagnostic panel therefore involve competition with a predicted boundary. A flat decoder can represent the gold entity layout in these files. [Counts by domain and split](crossre-prompt-scope.csv) · [Validation and counting code](../../scripts/survey_crossre_prompts.py)
+
+The first-loss count includes an edge as soon as either endpoint is suppressed. We replayed the same 32 AI test sentences and inspected the trained predicate score for each of those 16 edges in its annotated direction. Both exact endpoints could coexist in all 16. Only **three** correct predicate scores exceeded 0.50. The other 13 were at or below the gate. Even with gold boundaries to guide the selection, changing span order alone could take the exact count from 17/90 to at most 20/90 on this panel. The stock export reproduced upstream predictions on all 32 sentences. [Paired score counts](../../scripts/qa/joint_baseline/receipts/relex_ai32_suppressed.json) · [Replay](../../scripts/qa/joint_baseline/relex_roles.py)
+
+Inspect predicate ranking first. Across the 73 misses, the trained head scored the exact directed pair but assigned its reference predicate at most 0.50 in 62 cases, including 49 with both endpoints retained. Compare the reference score with the strongest unannotated predicate for the same pair and with its score in the reverse direction, accounting for pairs with multiple valid annotations. This separates correct low-confidence rankings from cases where the model prefers a different label or direction. Test any scoring change on fresh documents and count exact directed edges gained and lost, plus new unmatched outputs. The native decoder exposes the required pair scores before suppressing overlapping mentions. [Native decoder](../../crates/anno/src/backends/gliner_onnx/relex.rs)
+
 ## Predicate-only threshold trial
 
 We froze a lower predicate gate of 0.40 and tested it on the next 32 source sentences (indices 96–127). All 32 text hashes were distinct from each other and from the prior 96. The mention gate stayed at 0.50. Both decodes used the same 3,280 ordered pair scores and final mention list, with 77 gold relations. The stock export-path outputs again agreed with the upstream public predictions on every document.

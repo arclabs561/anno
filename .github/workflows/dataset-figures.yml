@@ -16,6 +16,7 @@ on:
       - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/genia-nesting-counts.json
       - docs/eval/ner-language-length.json
+      - docs/eval/nuner-fallback-routing.json
       - docs/eval/s3-source-coverage.json
       - docs/eval/s3-publisher-file-matches.csv
       - docs/eval/wnut-submission-results.csv
@@ -33,6 +34,7 @@ on:
       - docs/eval/crossre-prompt-scope.csv
       - docs/eval/genia-nesting-counts.json
       - docs/eval/ner-language-length.json
+      - docs/eval/nuner-fallback-routing.json
       - docs/eval/s3-source-coverage.json
       - docs/eval/s3-publisher-file-matches.csv
       - docs/eval/wnut-*.csv
