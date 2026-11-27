@@ -10,6 +10,15 @@ from check_span_assertions import check_range, indexed, jsonl_rows, objects, val
 from score_person_mentions import annotation_maps, gold_span, model_spans, span
 
 
+def display_views(phrase, ner_people):
+    inside = {s for s in ner_people if phrase[0] <= s[0] and s[1] <= phrase[1]}
+    return {
+        "full": {phrase},
+        "contained_all": inside,
+        "unique_contained": inside if len(inside) == 1 else set(),
+    }
+
+
 def score_document(doc, coref, ner) -> dict[str, Any]:
     mentions, lookups, _ = annotation_maps(doc)
     text = doc["text"]
@@ -56,12 +65,8 @@ def score_document(doc, coref, ner) -> dict[str, Any]:
     for phrase in sorted(phrases):
         owner = lookups["referential"].get(phrase)
         protected = phrase in controls
-        inside = {s for s in ner_people if phrase[0] <= s[0] and s[1] <= phrase[1]}
-        views = {
-            "full": {phrase},
-            "contained_all": inside,
-            "unique_contained": inside if len(inside) == 1 else set(),
-        }
+        views = display_views(phrase, ner_people)
+        inside = views["contained_all"]
         target = mentions[owner]["display_highlight"] if owner is not None else None
         target = tuple(target) if target is not None and not protected else None
         row = {
