@@ -1,0 +1,121 @@
+name: Publisher annotation coverage audit
+on:
+  push:
+    branches: ['ci/publisher-annotation-audit-20261127']
+    paths: ['.github/workflows/publisher-annotation-audit.yml']
+permissions:
+  contents: read
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Count official reference files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from concurrent.futures import ThreadPoolExecutor
+          from hashlib import sha256
+          from io import BytesIO
+          from pathlib import PurePosixPath
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+          import json
+          import re
+          import zipfile
+          
+          BASE = 'https://dspace.lib.cranfield.ac.uk/server/api/core'
+          ITEM = '2f8e234f-2636-410f-926c-7ece7c2438ac'
+          GOLD = '/evaluation/chemdataextractor-journal-articles-gold.zip'
+          
+          def fetch(url, data=None):
+              headers = {'User-Agent':'AnnoCorpusCoverage/1.0', 'Accept':'*/*'}
+              if data is not None:
+                  headers['Content-Type']='application/json'
+                  data=json.dumps(data).encode()
+              with urlopen(Request(url, data=data, headers=headers),timeout=24) as resp:
+                  raw=resp.read(16_000_001)
+                  if len(raw)>16_000_000: raise ValueError('archive exceeds 16MB observation limit')
+                  return raw
+          
+          def get(url, data=None):return json.loads(fetch(url,data))
+          def error(e):return type(e).__name__+' '+str(e)[:140]
+          def bio(name, url):
+              b=fetch(url); rows=0; token_count=0; tagged=0; starts=0; previous=None; valid=True; missing=0; char=0; cols=Counter();tags=Counter(); open_sentence=False; transitions=0
+              for line in b.decode('utf-8-sig').splitlines():
+                  if not line.strip():
+                      if open_sentence:rows+=1
+                      open_sentence=False; previous=None;continue
+                  fields=line.split();cols[len(fields)]+=1
+                  if len(fields)!=2:missing+=1;continue
+                  token,tag=fields
+                  token_count+=1;char+=(len(token)==1);open_sentence=True
+                  match=re.fullmatch(r'([BIOESMLU])(?:[-_](\S+))?',tag)
+                  if not match:valid=False;continue
+                  prefix,label=match.groups();tags[prefix]+=1
+                  if (prefix=='O')!=(label is None):valid=False
+                  tagged+=prefix!='O';starts+=prefix in ('B','S','U')
+                  if prefix=='I' and previous not in (('B',label),('I',label)):transitions+=1
+                  previous=(prefix,label)
+              rows+=open_sentence
+              return dict(name=name,url=url,bytes=len(b),sha256=sha256(b).hexdigest(),records=rows,tokens=token_count,tagged=tagged,starts=starts,tag_prefixes=dict(tags),valid=valid,unparsed_lines=missing,column_counts=dict(cols),single_character_positions=char,orphan_I=transitions)
+          
+          def aviation():
+              out={}; names={}; errors=[]
+              try:
+                  item=get(f'{BASE}/items/{ITEM}');out['identifiers']={k:[v['value'] for v in vs] for k,vs in item['metadata'].items() if 'identifier' in k or 'relation' in k}
+                  bundles=get(f'{BASE}/items/{ITEM}/bundles')['_embedded']['bundles']
+                  for bundle in bundles:
+                      if bundle['name']!='ORIGINAL':continue
+                      for stream in get(bundle['_links']['bitstreams']['href']+'?size=100')['_embedded']['bitstreams']:
+                          n=stream['name'];url=stream['_links']['content']['href'];names[n]=url
+              except Exception as e:errors.append(error(e))
+              if not any(n.endswith('.txt') for n in names):
+                  try:
+                      results=get('https://api.datacite.org/dois?'+urlencode({'query':'titles.title:"Aviation Product Named Entity Recognition"','page[size]':10}));out['datacite']=[(i['id'],i['attributes']['titles'][0]['title']) for i in results['data']];candidates=[]
+                      for i in results['data']:
+                          m=re.search(r'cranfield\.rd\.(\d+)',i['id']);
+                          if m:candidates.append(m.group(1))
+                      if not candidates:
+                          articles=get('https://api.figshare.com/v2/articles/search',{'search_for':'Aviation Product Named Entity Recognition','limit':12});candidates=[str(x['id']) for x in articles if 'Aviation Product Named Entity' in x['title']]
+                      for article in set(candidates):
+                          meta=get('https://api.figshare.com/v2/articles/'+article);out['figshare']=meta.get('doi')
+                          for f in meta['files']:names[f['name']]=f['downloadUrl']
+                  except Exception as e:errors.append(error(e))
+              out['files']=names;out['read']=[];out['errors']=errors
+              for name,url in names.items():
+                  if re.search(r'\.txt$',name,re.I):
+                      try:out['read'].append(bio(name,url))
+                      except Exception as e:errors.append(error(e))
+              return out
+          
+          def chem():
+              errs=[]
+              for root in ['https://data.chemdataextractor.org','http://data.chemdataextractor.org','https://s3.amazonaws.com/data.chemdataextractor.org','https://s3.eu-west-1.amazonaws.com/data.chemdataextractor.org','https://data.chemdataextractor.org.s3.amazonaws.com']:
+                  u=root+GOLD
+                  try:
+                      b=fetch(u); z=zipfile.ZipFile(BytesIO(b)); info={'url':u,'sha256':sha256(b).hexdigest(),'bytes':len(b)}; n=0;class2=Counter();structures=Counter();recognized=0;num=0;empty=0;non_dict=0; missing_key=0;other=Counter()
+                      numeric=[]
+                      for m in z.infolist():
+                          path=PurePosixPath(m.filename)
+                          if m.is_dir() or any(piece.startswith('.') or piece=='__MACOSX' for piece in path.parts):continue
+                          if path.suffix.lower()!='.json':other[path.suffix]+=1;continue
+                          n+=1;obj=json.loads(z.read(m));structures[type(obj).__name__]+=1
+                          if isinstance(obj,dict) and isinstance(obj.get('records'),list):obj=obj['records']
+                          if isinstance(obj,list):
+                              empty+=not obj;numeric.append(len(obj));num+=len(obj)
+                              for record in obj:
+                                  if not isinstance(record,dict) or not record:non_dict+=1;continue
+                                  if {'names','labels','roles','melting_points','uvvis_spectra','nmr_spectra','ir_spectra','quantum_yields','fluorescence_lifetimes'} & record.keys(): recognized+=1
+                                  for v in record.values(): class2[type(v).__name__]+=1
+                          else:missing_key+=1
+                      info.update(json_files=n,root_types=dict(structures),empty_articles=empty,reference_records=num,invalid_record_objects=non_dict,unparsed_roots=missing_key,recognized_structured_records=recognized,nested_types=dict(class2),other_file_extensions=dict(other),minimum_article_records=min(numeric,default=0),maximum_article_records=max(numeric,default=0),prior_errors=errs)
+                      return info
+                  except Exception as e:errs.append((u,error(e)))
+              return {'errors':errs}
+          
+          with ThreadPoolExecutor(2) as pool:
+              results=list(pool.map(lambda f:f(),[aviation,chem]))
+          print('SOURCE_RESULT '+json.dumps({'apner':results[0],'chem':results[1]},sort_keys=True,ensure_ascii=True))
+          PY
