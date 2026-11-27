@@ -312,9 +312,15 @@ const DEPTH_LABELS: [&str; 4] = ["0 signals", "1 signal", "2 signals", "3+ signa
 
 fn percent(count: u64, total: u64) -> String {
     if total == 0 {
-        "—".into()
+        return "—".into();
+    }
+    let value = 100.0 * count as f64 / total as f64;
+    if count > 0 && value < 0.005 {
+        "under 0.01%".into()
+    } else if count > 0 && value < 0.1 {
+        format!("{value:.2}%")
     } else {
-        format!("{:.1}%", 100.0 * count as f64 / total as f64)
+        format!("{value:.1}%")
     }
 }
 
@@ -446,5 +452,18 @@ impl Overlap {
             table.push_str("</tbody></table>");
         }
         Ok(html_document(&self.title, &svg, &table))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percent;
+
+    #[test]
+    fn distinguish_small_covered_groups_from_zero_or_missing_denominators() {
+        assert_eq!(percent(855, 3_103_238), "0.03%");
+        assert_eq!(percent(1, 10_000_000), "under 0.01%");
+        assert_eq!(percent(0, 3_103_238), "0.0%");
+        assert_eq!(percent(0, 0), "—");
     }
 }
