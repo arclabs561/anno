@@ -63,6 +63,10 @@ def observe(row, result, producer, mode):
         return {"status": status, "choice": "unsupported"}
     choice = {"10": "A", "01": "B", "11": "both", "00": "none"}[bits[3:]]
     query, *names = gap.spans(row)
+    if mode == "supplied":
+        supplied = {query, *names}
+        if any(tuple(span) not in supplied for group in result["clusters"] for span in group):
+            raise ValueError("supplied-mention worker returned an unrequested span")
     # A longer output may enclose the query. Keep this diagnostic separate from exact evidence.
     enclosing = [group for group in result["clusters"]
                  if any(tuple(span) != query and span[0] <= query[0] and query[1] <= span[1]
@@ -142,6 +146,10 @@ def replay(rows, binary, arm):
     if backend == "fcoref":
         for name, sha in FC_FILES.items():
             check_file(Path(os.environ["FCOREF_MODEL_PATH"]) / name, sha)
+    if backend == "maverick":
+        manifest_path = gap.ROOT / "crates/anno/src/backends/coref/maverick_models.json"
+        checkpoint = json.loads(manifest_path.read_text())["MODELS"]["ontonotes"]
+        check_file(Path(os.environ["MAVERICK_MODEL_PATH"]), checkpoint["prepared_sha256"])
     calls = "".join(json.dumps(gap.payload(r, mode)) + "\n" for r in rows)
     proc = subprocess.run([str(binary.resolve()), backend], input=calls, text=True, capture_output=True,
                           env={**os.environ, "ANNO_NO_DOWNLOADS": "1", "HF_HUB_OFFLINE": "1",
