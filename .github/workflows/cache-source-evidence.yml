@@ -1,0 +1,46 @@
+name: Compare S3 cache with measured publisher files
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  compare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      BUCKET: ${{ vars.ANNO_S3_BUCKET || 'arc-anno-data' }}
+      CACHE_ROLE: ${{ vars.ANNO_AWS_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          enable-cache: false
+      - name: Install the pinned comparison dependencies
+        run: uv sync --python 3.12 --script scripts/qa/cache_source_evidence.py
+      - name: Assume the cache role for the dataset prefix listing
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ env.CACHE_ROLE }}
+          aws-region: ${{ vars.ANNO_AWS_REGION || 'us-east-1' }}
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:ListBucket",
+             "Resource":"arn:aws:s3:::${{ env.BUCKET }}","Condition":{"StringEquals":{"s3:prefix":"datasets/"}}}]}
+      - name: Verify measured publisher files in exact-key read sessions
+        run: >-
+          uv run --offline --python 3.12 --script scripts/qa/cache_source_evidence.py
+          "$RUNNER_TEMP/cache-source-evidence" --bucket "$BUCKET" --role "$CACHE_ROLE"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: ${{ !cancelled() }}
+        with:
+          name: cache-source-evidence
+          path: |
+            ${{ runner.temp }}/cache-source-evidence/cache-source-coverage.json
+            ${{ runner.temp }}/cache-source-evidence/publisher-file-matches.csv
+          if-no-files-found: error
+          retention-days: 30
