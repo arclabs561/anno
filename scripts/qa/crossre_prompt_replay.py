@@ -3,6 +3,7 @@
 
 import argparse
 from collections import Counter
+import csv
 import hashlib
 import json
 import os
@@ -13,11 +14,14 @@ import time
 
 REVISION = "a58885fa760559d2dc9e176e730fe731f020d6f3"
 DOMAINS = {
-    "ai": ("CrossREAI", 431, "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
-           "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb"),
-    "literature": ("CrossRELiterature", 416, "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
-                   "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a"),
+    "ai": "CrossREAI",
+    "literature": "CrossRELiterature",
+    "music": "CrossRE",
+    "news": "CrossRE",
+    "politics": "CrossRE",
+    "science": "CrossRE",
 }
+MANIFEST = Path(__file__).resolve().parents[2] / "docs/eval/dataset-repo-files.csv"
 RELEX = "knowledgator/gliner-relex-large-v1.0"
 RELEX_ARTIFACTS = {
     "graph": "084b3873084a4173fc443c8bca691aabdf9f4357972fe032766bf6ec0c76a689",
@@ -42,19 +46,31 @@ def write_json(path, obj):
 
 
 def prepare(data_dir, out, domain):
-    dataset, count, train_hash, test_hash = DOMAINS[domain]
+    dataset = DOMAINS[domain]
+    with MANIFEST.open(newline="", encoding="utf-8") as source:
+        rows = [
+            row for row in csv.DictReader(source)
+            if row["id"] == "CrossRE" and row["subset"] == domain
+            and row["repository"] == "mainlp/CrossRE" and row["revision"] == REVISION
+            and row["status"] == "ok" and row["split"] in ("train", "test")
+        ]
+    if sorted(row["split"] for row in rows) != ["test", "train"]:
+        raise ValueError(f"Expected one pinned training file and one test file for {domain}")
+    files = {row["split"]: row for row in rows}
+    count = int(files["test"]["rows"])
+    train_hash, test_hash = (files[split]["sha256"] for split in ("train", "test"))
     train = read_split(data_dir / f"{domain}-train.json", train_hash)
     test_path = data_dir / f"{domain}-test.json"
     test = read_split(test_path, test_hash)
-    if len(test) != count:
-        raise ValueError(f"expected {count} test sentences for {dataset}")
+    if len(train) != int(files["train"]["rows"]) or len(test) != count:
+        raise ValueError(f"Unexpected train/test sentence counts for {domain}")
     schema = {
         "entity_types": sorted({e[2] for row in train for e in row["ner"]}),
         "relation_types": sorted({r[4] for row in train for r in row["relations"]}),
     }
     schema_path = out / f"{domain}-schema.json"
     write_json(schema_path, schema)
-    corpus_cache = out / "cache" / "datasets"
+    corpus_cache = out / "cache" / domain / "datasets"
     corpus_cache.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(test_path, corpus_cache / f"{dataset}.cache")
     train_texts = {tuple(d["sentence"]) for d in train}
@@ -77,7 +93,7 @@ def prepare(data_dir, out, domain):
         "relations_outside_train_schema": outside,
         "unseen_relation_label_counts": dict(missing_relations),
         "relations_by_unseen_endpoint_type": dict(missing_endpoints),
-        "dataset": dataset, "train_docs": len(train), "test_docs": count,
+        "dataset": dataset, "domain": domain, "train_docs": len(train), "test_docs": count,
         "train_sha256": train_hash, "test_sha256": test_hash, "schema": schema,
         "schema_sha256": digest(schema_path.read_bytes()),
         "train_test_shared_token_sequences": len(train_texts & test_texts),
@@ -117,8 +133,14 @@ def validate_row(row, corpus, backend, policy):
     if not row["success"]:
         raise ValueError(row.get("error") or "benchmark did not succeed")
     metrics = row["metrics"]
+    source_file = row["provenance"]["dataset"]
+    if (row["dataset"] != corpus["dataset"] or source_file["data_source"] != "local cache"
+            or source_file["content_sha256"] != corpus["test_sha256"]):
+        raise ValueError("The scored dataset does not identify the pinned domain test file")
     sample = row["provenance"]["evaluated_sample"]
     count = corpus["test_docs"]
+    if sample["unit_count"] != count or sample["gold_item_count"] != corpus["test_relations"]:
+        raise ValueError("The sample counts disagree with the pinned test split")
     expected = {
         "num_docs": count, "num_gold_relations": corpus["test_relations"],
         "gold_endpoint_docs": 0, "predicted_endpoint_docs": count,
@@ -151,7 +173,10 @@ def main():
     p.add_argument("--anno", required=True, type=Path, help="Anno CLI built with eval and onnx")
     p.add_argument("--data", required=True, type=Path, help="directory with pinned DOMAIN-{train,test}.json")
     p.add_argument("--out", required=True, type=Path, help="new directory for receipts and dataset cache")
-    p.add_argument("--domain", choices=DOMAINS, action="append", help="repeat to select domains")
+    domains = p.add_mutually_exclusive_group()
+    domains.add_argument("--domain", choices=DOMAINS, action="append",
+                         help="repeat to select domains (default: ai and literature)")
+    domains.add_argument("--all-domains", action="store_true", help="run all six publisher domains")
     p.add_argument("--backend", choices=["tplinker", "gliner_relex"], action="append",
                    help="repeat to select backends (default: both)")
     p.add_argument("--cpus", required=True, help="allowed Linux CPU numbers separated by commas")
@@ -164,16 +189,22 @@ def main():
         p.error("--arm-timeout must be positive")
     args.out.mkdir(parents=True, exist_ok=False)
     binary = args.anno.resolve()
-    env = {**os.environ, "ANNO_NO_DOWNLOADS": "1", "ANNO_RELATION_ORACLE_ENTITIES": "0",
-           "ANNO_CACHE_DIR": str((args.out / "cache").resolve())}
+    env = {**os.environ, "ANNO_NO_DOWNLOADS": "1", "ANNO_RELATION_ORACLE_ENTITIES": "0"}
     report = {"crossre_revision": REVISION, "binary_sha256": digest(binary.read_bytes()),
               "relex_artifacts_sha256": RELEX_ARTIFACTS, "cpus": sorted(cpus), "seed": 42,
+              "sampling": "complete test split in release order", "relation_threshold": 0.5,
               "arm_timeout_seconds": args.arm_timeout, "domains": {}}
-    for domain in args.domain or DOMAINS:
+    selected_domains = DOMAINS if args.all_domains else (args.domain or ("ai", "literature"))
+    for domain in selected_domains:
         corpus = prepare(args.data, args.out, domain)
+        env["ANNO_CACHE_DIR"] = str((args.out / "cache" / domain).resolve())
         rows = []
         seen = set()
         for backend in args.backend or ("tplinker", "gliner_relex"):
+            arm_env = env
+            if backend == "tplinker":
+                # A private model cache selects the study's heuristic control.
+                arm_env = {**env, "XDG_CACHE_HOME": env["ANNO_CACHE_DIR"]}
             for policy in ("fixed", "oracle"):
                 base = args.out / f"{domain}-{backend}-{policy}"
                 argv = [str(binary), "benchmark", "--tasks", "relation", "--datasets", corpus["dataset"],
@@ -183,7 +214,7 @@ def main():
                 if policy == "fixed":
                     argv.extend(["--relation-schema", str(args.out / f"{domain}-schema.json")])
                 print(f"Running {domain} {backend} {policy}", flush=True)
-                cost = measure(argv, env, cpus, base.with_suffix(".log"), args.arm_timeout)
+                cost = measure(argv, arm_env, cpus, base.with_suffix(".log"), args.arm_timeout)
                 native = json.loads(base.with_suffix(".json").read_text())["results"][0]
                 validate_row(native, corpus, backend, policy)
                 sample = native["provenance"]["evaluated_sample"]
@@ -191,6 +222,8 @@ def main():
                 if len(seen) != 1:
                     raise ValueError(f"benchmark arms used different {domain} samples")
                 rows.append({"backend": backend, "prompt": policy, "sample": sample,
+                             "input_sha256": native["provenance"]["dataset"]["content_sha256"],
+                             "data_source": native["provenance"]["dataset"]["data_source"],
                              "metrics": native["metrics"], "cost": cost})
                 report["domains"][domain] = {"corpus": corpus, "arms": rows}
                 write_json(args.out / "summary.json", report)

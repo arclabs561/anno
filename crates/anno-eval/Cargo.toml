@@ -13,7 +13,7 @@ keywords = ["ner", "evaluation", "nlp"]
 categories = ["text-processing"]
 
 # Repository research and QA run from a source checkout.
-exclude = ["/examples/reviewed_seed_campaign.rs", "/research/"]
+exclude = ["/examples/genia_export.rs", "/examples/reviewed_seed_campaign.rs", "/research/"]
 
 [lib]
 doctest = false

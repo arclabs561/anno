@@ -1,0 +1,360 @@
+{
+  "arms": {
+    "baseline": {
+      "cli_sha256": "fa99f47b6b886648fb2805baa671052d89b7ced941867bea72ad2c0b89014f3d",
+      "cli_version": "anno 0.15.0",
+      "counts": {
+        "all": {
+          "exact": 146,
+          "false_positives": 756,
+          "false_positives_in_gold_empty_sentences": 260,
+          "gold": 1079,
+          "no_overlap": 687,
+          "partial_overlap": 126,
+          "predicted": 902,
+          "wrong_type": 120
+        },
+        "seen": {
+          "exact": 0,
+          "false_positives": 0,
+          "false_positives_in_gold_empty_sentences": 0,
+          "gold": 24,
+          "no_overlap": 22,
+          "partial_overlap": 2,
+          "predicted": 0,
+          "wrong_type": 0
+        },
+        "seen/case-lower": {
+          "exact": 0,
+          "gold": 10,
+          "no_overlap": 10,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/case-upper": {
+          "exact": 0,
+          "gold": 14,
+          "no_overlap": 12,
+          "partial_overlap": 2,
+          "wrong_type": 0
+        },
+        "seen/corporation": {
+          "exact": 0,
+          "gold": 1,
+          "no_overlap": 1,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/group": {
+          "exact": 0,
+          "gold": 2,
+          "no_overlap": 2,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/location": {
+          "exact": 0,
+          "gold": 11,
+          "no_overlap": 10,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "seen/person": {
+          "exact": 0,
+          "gold": 8,
+          "no_overlap": 7,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "seen/product": {
+          "exact": 0,
+          "gold": 2,
+          "no_overlap": 2,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "unseen": {
+          "exact": 146,
+          "false_positives": 756,
+          "false_positives_in_gold_empty_sentences": 260,
+          "gold": 1055,
+          "no_overlap": 665,
+          "partial_overlap": 124,
+          "predicted": 902,
+          "wrong_type": 120
+        },
+        "unseen/case-lower": {
+          "exact": 0,
+          "gold": 216,
+          "no_overlap": 215,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "unseen/case-upper": {
+          "exact": 146,
+          "gold": 839,
+          "no_overlap": 450,
+          "partial_overlap": 123,
+          "wrong_type": 120
+        },
+        "unseen/corporation": {
+          "exact": 17,
+          "gold": 65,
+          "no_overlap": 36,
+          "partial_overlap": 8,
+          "wrong_type": 4
+        },
+        "unseen/creative-work": {
+          "exact": 0,
+          "gold": 142,
+          "no_overlap": 73,
+          "partial_overlap": 28,
+          "wrong_type": 41
+        },
+        "unseen/group": {
+          "exact": 29,
+          "gold": 163,
+          "no_overlap": 104,
+          "partial_overlap": 15,
+          "wrong_type": 15
+        },
+        "unseen/location": {
+          "exact": 41,
+          "gold": 139,
+          "no_overlap": 59,
+          "partial_overlap": 18,
+          "wrong_type": 21
+        },
+        "unseen/person": {
+          "exact": 59,
+          "gold": 421,
+          "no_overlap": 308,
+          "partial_overlap": 36,
+          "wrong_type": 18
+        },
+        "unseen/product": {
+          "exact": 0,
+          "gold": 125,
+          "no_overlap": 85,
+          "partial_overlap": 19,
+          "wrong_type": 21
+        }
+      },
+      "entity_sources": {
+        "heuristic": 902
+      },
+      "revision": "8395db97f26d47bbe2cb9fe33473ddeaac699605",
+      "runtime_model_calls": {
+        "unreported": 1287
+      }
+    },
+    "candidate": {
+      "cli_sha256": "bbeb74b3dbdd27c33625e597044fd2a4f6c6f98bc552292055d33c70023fa215",
+      "cli_version": "anno 0.16.0",
+      "counts": {
+        "all": {
+          "exact": 146,
+          "false_positives": 756,
+          "false_positives_in_gold_empty_sentences": 260,
+          "gold": 1079,
+          "no_overlap": 687,
+          "partial_overlap": 126,
+          "predicted": 902,
+          "wrong_type": 120
+        },
+        "seen": {
+          "exact": 0,
+          "false_positives": 0,
+          "false_positives_in_gold_empty_sentences": 0,
+          "gold": 24,
+          "no_overlap": 22,
+          "partial_overlap": 2,
+          "predicted": 0,
+          "wrong_type": 0
+        },
+        "seen/case-lower": {
+          "exact": 0,
+          "gold": 10,
+          "no_overlap": 10,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/case-upper": {
+          "exact": 0,
+          "gold": 14,
+          "no_overlap": 12,
+          "partial_overlap": 2,
+          "wrong_type": 0
+        },
+        "seen/corporation": {
+          "exact": 0,
+          "gold": 1,
+          "no_overlap": 1,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/group": {
+          "exact": 0,
+          "gold": 2,
+          "no_overlap": 2,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "seen/location": {
+          "exact": 0,
+          "gold": 11,
+          "no_overlap": 10,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "seen/person": {
+          "exact": 0,
+          "gold": 8,
+          "no_overlap": 7,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "seen/product": {
+          "exact": 0,
+          "gold": 2,
+          "no_overlap": 2,
+          "partial_overlap": 0,
+          "wrong_type": 0
+        },
+        "unseen": {
+          "exact": 146,
+          "false_positives": 756,
+          "false_positives_in_gold_empty_sentences": 260,
+          "gold": 1055,
+          "no_overlap": 665,
+          "partial_overlap": 124,
+          "predicted": 902,
+          "wrong_type": 120
+        },
+        "unseen/case-lower": {
+          "exact": 0,
+          "gold": 216,
+          "no_overlap": 215,
+          "partial_overlap": 1,
+          "wrong_type": 0
+        },
+        "unseen/case-upper": {
+          "exact": 146,
+          "gold": 839,
+          "no_overlap": 450,
+          "partial_overlap": 123,
+          "wrong_type": 120
+        },
+        "unseen/corporation": {
+          "exact": 17,
+          "gold": 65,
+          "no_overlap": 36,
+          "partial_overlap": 8,
+          "wrong_type": 4
+        },
+        "unseen/creative-work": {
+          "exact": 0,
+          "gold": 142,
+          "no_overlap": 73,
+          "partial_overlap": 28,
+          "wrong_type": 41
+        },
+        "unseen/group": {
+          "exact": 29,
+          "gold": 163,
+          "no_overlap": 104,
+          "partial_overlap": 15,
+          "wrong_type": 15
+        },
+        "unseen/location": {
+          "exact": 41,
+          "gold": 139,
+          "no_overlap": 59,
+          "partial_overlap": 18,
+          "wrong_type": 21
+        },
+        "unseen/person": {
+          "exact": 59,
+          "gold": 421,
+          "no_overlap": 308,
+          "partial_overlap": 36,
+          "wrong_type": 18
+        },
+        "unseen/product": {
+          "exact": 0,
+          "gold": 125,
+          "no_overlap": 85,
+          "partial_overlap": 19,
+          "wrong_type": 21
+        }
+      },
+      "entity_sources": {
+        "heuristic": 902
+      },
+      "revision": "f9427977f2f27b32f26c4c77a6795a8a4dce596c",
+      "runtime_model_calls": {
+        "heuristic": 1287
+      }
+    }
+  },
+  "paired": {
+    "all": {
+      "changed_sentences": 0,
+      "exact_gained": 0,
+      "exact_lost": 0,
+      "exact_retained": 146,
+      "false_positives_added": 0,
+      "false_positives_removed": 0
+    },
+    "seen": {
+      "exact_gained": 0,
+      "exact_lost": 0,
+      "exact_retained": 0,
+      "false_positives_added": 0,
+      "false_positives_removed": 0
+    },
+    "unseen": {
+      "exact_gained": 0,
+      "exact_lost": 0,
+      "exact_retained": 146,
+      "false_positives_added": 0,
+      "false_positives_removed": 0
+    }
+  },
+  "protocol": {
+    "backend": "heuristic",
+    "cargo_default_features": false,
+    "cargo_features": [
+      "extractor-html2text"
+    ],
+    "exposure": "casefolded complete surface present among training gold mentions",
+    "gold_projection": {
+      "corporation": "ORG",
+      "creative-work": "WORK_OF_ART",
+      "group": "ORG",
+      "location": "LOC",
+      "person": "PER",
+      "product": "PRODUCT"
+    },
+    "offset_unit": "Unicode code points, half-open",
+    "threshold": 0.5,
+    "token_separator": "U+0020"
+  },
+  "source": {
+    "repository": "leondz/emerging_entities_17",
+    "revision": "e52a2d2a71ac1a051ca2d532eef28653c5c02603",
+    "sha256": {
+      "emerging.test.annotated": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0",
+      "wnut17train.conll": "731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5"
+    },
+    "test_distinct_reconstructed_texts": 1280,
+    "test_gold_empty_sentences": 598,
+    "test_mentions": 1079,
+    "test_reconstructed_texts_sha256": "4aa1f7e39526269175156dc0493abed2e5c9b6ae6cdf3e77c8a16fb9a820c5b8",
+    "test_sentences": 1287,
+    "test_tokens": 23394,
+    "train_casefolded_names": 1544,
+    "train_mentions": 1975,
+    "train_sentences": 3394
+  }
+}

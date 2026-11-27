@@ -3,11 +3,13 @@
 Run python3 scripts/plot_wikiann_split_density.py HF_SPLIT_LEDGER OUTPUT_DIR.
 Read complete, matched train/validation/test measurements from the same release.
 Each language contributes one error per held-out split. The second estimate uses
-the median training rate across the other measured languages.
+the median training rate across the other measured languages. Add --multiconer-v2
+to write the same comparison for the twelve single-language MultiCoNER v2 tracks.
 """
 
 import argparse
 import csv
+import re
 from collections import defaultdict
 from fractions import Fraction
 from math import ceil
@@ -28,17 +30,24 @@ SAME = "#176e70"
 OTHER = "#aa571c"
 
 
-def comparison_rows(ledger):
+def comparison_rows(ledger, dataset="WikiANN"):
     languages = defaultdict(dict)
     releases = set()
+    raw_hashes = {}
     for row in ledger:
-        if row["id"] != "WikiANN" or row["split"] not in SPLITS:
+        if row["id"] != dataset:
             continue
         lang, split = row["config"], row["split"]
+        if dataset == "MultiCoNERv2":
+            if lang == "MULTI-Multilingual":
+                continue
+            split = "validation" if split == "dev" else split
+        if split not in SPLITS:
+            continue
         if not lang or row["status"] != "scanned":
-            raise ValueError(f"Missing measured WikiANN partition {lang}/{split}")
+            raise ValueError(f"Missing measured {dataset} partition {lang}/{split}")
         if split in languages[lang]:
-            raise ValueError(f"Duplicate WikiANN partition {lang}/{split}")
+            raise ValueError(f"Duplicate {dataset} partition {lang}/{split}")
         tagged, tokens = int(row["tagged"]), int(row["tokens"])
         if tokens <= 0 or not 0 <= tagged <= tokens:
             raise ValueError(f"Invalid tagged-token counts for {lang}/{split}")
@@ -46,17 +55,34 @@ def comparison_rows(ledger):
         releases.add(
             (row["repository"], row["source_revision"], row["parquet_revision"])
         )
-    if len(releases) != 1 or not all(next(iter(releases))):
-        raise ValueError("The WikiANN measurements must identify one pinned release")
+        if dataset == "MultiCoNERv2":
+            sha = row["payload_sha256"]
+            if (
+                not re.fullmatch(r"[0-9a-f]{64}", sha)
+                or not re.fullmatch(r"[0-9a-f]{40}", row["source_revision"])
+                or f"/resolve/{row['source_revision']}/" not in row["payload_url"]
+            ):
+                raise ValueError(
+                    f"Missing pinned original CoNLL file for {lang}/{split}"
+                )
+            raw_hashes[lang, split] = sha
+    if len(releases) != 1:
+        raise ValueError(f"The {dataset} measurements must identify one pinned release")
+    repository, source_revision, parquet_revision = releases.pop()
+    if (
+        not repository
+        or not source_revision
+        or (dataset == "WikiANN" and not parquet_revision)
+    ):
+        raise ValueError(f"Incomplete source revisions for {dataset}")
     if len(languages) < 2:
         raise ValueError("The comparison requires at least two languages")
     for lang, splits in languages.items():
         if set(splits) != set(SPLITS):
             raise ValueError(
-                f"Incomplete WikiANN language {lang}, measured splits {sorted(splits)}"
+                f"Incomplete {dataset} language {lang}, measured splits {sorted(splits)}"
             )
 
-    repository, source_revision, parquet_revision = releases.pop()
     train = {lang: 100 * Fraction(*parts["train"]) for lang, parts in languages.items()}
     rows = []
     for lang, parts in sorted(languages.items()):
@@ -72,6 +98,8 @@ def comparison_rows(ledger):
             row[f"{split}_tagged"] = tagged
             row[f"{split}_tokens"] = tokens
             row[f"{split}_percent"] = float(100 * Fraction(tagged, tokens))
+            if raw_hashes:
+                row[f"{split}_payload_sha256"] = raw_hashes[lang, split]
         row["other_languages_train_median_percent"] = float(other)
         for split in HELD_OUT:
             observed = 100 * Fraction(*parts[split])
@@ -187,20 +215,31 @@ def plot(rows, output):
     plt.close(fig)
 
 
+def write_csv(rows, path):
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=rows[0], lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("hf_splits", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--multiconer-v2",
+        action="store_true",
+        help="Also write held-out estimates for MultiCoNER v2 single-language tracks",
+    )
     args = parser.parse_args()
     with args.hf_splits.open(newline="", encoding="utf-8") as source:
-        rows = comparison_rows(csv.DictReader(source))
+        ledger = list(csv.DictReader(source))
+    rows = comparison_rows(ledger)
     args.output.mkdir(parents=True, exist_ok=True)
-    with (args.output / "dataset-wikiann-split-density.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as file:
-        writer = csv.DictWriter(file, fieldnames=rows[0], lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv(rows, args.output / "dataset-wikiann-split-density.csv")
+    if args.multiconer_v2:
+        transfer = comparison_rows(ledger, "MultiCoNERv2")
+        write_csv(transfer, args.output / "dataset-multiconer-v2-split-density.csv")
     plot(rows, args.output)
 
 

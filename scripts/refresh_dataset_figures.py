@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from figure_coverage_report import coverage_text
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
@@ -22,6 +23,7 @@ SUMMARIES = (
     "dataset-coverage-by-domain.csv",
     "dataset-density-ranges.csv",
     "dataset-wikiann-split-density.csv",
+    "dataset-multiconer-v2-split-density.csv",
 )
 
 
@@ -46,15 +48,22 @@ def render(directory, config):
             *sources,
             "--ci-prechecks",
             EVAL / "dataset-matrix-evidence.csv",
+            "--registry-pointers",
+            EVAL / "dataset-registry-pointers.csv",
+            "--source-review",
+            EVAL / "dataset-clinical-access.csv",
+            "--source-review",
+            EVAL / "dataset-source-review.csv",
         ),
         ("plot_density_ranges.py", inventory, directory, *sources),
-        ("plot_wikiann_split_density.py", hub, directory),
+        ("plot_wikiann_split_density.py", hub, directory, "--multiconer-v2"),
         (
             "plot_wnut_novelty.py",
             directory,
             "--from-results",
             EVAL / "wnut-submission-results.csv",
         ),
+        ("plot_wnut_native.py", EVAL / "wnut-native-comparison.json", directory),
         (
             "plot_genia_nesting.py",
             directory,
@@ -85,7 +94,7 @@ def same_result(built, published):
         return False
     if filecmp.cmp(built, published, shallow=False):
         return True
-    if built.suffix == ".csv":
+    if built.suffix in {".csv", ".md"}:
         return built.read_text(encoding="utf-8") == published.read_text(
             encoding="utf-8"
         )
@@ -150,6 +159,13 @@ def main():
         results.update({directory / name: EVAL / name for name in SUMMARIES})
         if any(not built.is_file() for built in results):
             parser.exit(1, "The generators did not produce every derived CSV.\n")
+        report = EVAL / "dataset-coverage.md"
+        built_report = directory.parent / report.name
+        built_report.write_text(
+            coverage_text(EVAL, directory, report.read_text(encoding="utf-8")),
+            encoding="utf-8",
+        )
+        results[built_report] = report
         if args.output or not (args.update or args.check):
             output = args.output or ROOT / ".generated" / "dataset-figures"
             for path in sorted(directory.iterdir()):
@@ -175,7 +191,9 @@ def main():
             parser.exit(
                 1, "Run the figure generator with --update to refresh the docs.\n"
             )
-        print(f"Verified {len(pngs)} published PNGs and {len(SUMMARIES)} derived CSVs.")
+        print(
+            f"Verified {len(pngs)} published PNGs, {len(SUMMARIES)} derived CSVs and the coverage guide's counts."
+        )
 
 
 if __name__ == "__main__":

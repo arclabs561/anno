@@ -11,13 +11,19 @@ import tempfile
 import time
 import zipfile
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+import annotation_archive_survey
+import annotation_deposit_survey
+import conlang_release_survey
 from medieval_charter_survey import survey_charter_files
+import publisher_release_survey
+import registry_archive_survey
 from survey_repo_files import crossre_counts, measure
 from tweetnerd_survey import describe as describe_tweetnerd
 from zenodo_file_survey import describe_distant_listening
@@ -25,6 +31,7 @@ from zenodo_file_survey import describe_distant_listening
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "crates/anno-eval/src/eval/dataset_registry.rs"
 SOURCE_RULES = REGISTRY.with_name("shared_cache_exclusions.tsv")
+CLINICAL_ACCESS = ROOT / "docs/eval/dataset-clinical-access.csv"
 LOCAL_FILES = {
     "AnnoNerSmoke": ["crates/anno-eval/fixtures/matrix-smoke.conll"],
     "AnnoTimexSmoke": ["scripts/qa/fixtures/matrix-smoke-timex.jsonl"],
@@ -36,6 +43,11 @@ LOCAL_FILES = {
     ],
 }
 PUBLISHER_FILES = {
+    **annotation_archive_survey.SOURCES,
+    **annotation_deposit_survey.SOURCES,
+    **conlang_release_survey.SOURCES,
+    **publisher_release_survey.SOURCES,
+    **{ident: [release[0]] for ident, release in registry_archive_survey.RELEASES.items()},
     "FINER": ["https://ndownloader.figshare.com/files/36144501"],
     "WinogradSchemaChallengeWSC": [
         "https://cs.nyu.edu/~davise/papers/WinogradSchemas/WSCollection.xml?download=1"
@@ -139,12 +151,35 @@ def registry_rows():
     return rows, task_counts
 
 
+@lru_cache(maxsize=1)
+def clinical_access():
+    with CLINICAL_ACCESS.open(newline="", encoding="utf-8") as file:
+        return {row["id"]: row for row in csv.DictReader(file)}
+
+
 def direct_sources(row, local_only):
     ident, url = row["id"], row["url"]
+    if ident == "GermEvalDiscontinuous":
+        return [], "Original GermEval 2014 supplies outer and embedded BIO spans. A separate release identifying discontinuous mentions is unverified."
     if ident in LOCAL_FILES:
         return LOCAL_FILES[ident], ""
+    if ident == "TempEval3":
+        # Platinum is a separate organizer release. The registered archive bundles TimeBank.
+        return PUBLISHER_FILES[ident], ""
+    if ident == "THYME":
+        # The notes require local provisioning. This URL contains only public offset annotations.
+        return PUBLISHER_FILES[ident], ""
+    if row.get("domain") == "clinical" and ident not in PUBLISHER_FILES:
+        review = clinical_access().get(ident)
+        if review:
+            return [], review["scope_and_access"]
     if ident in local_only:
         return [], "Raw-source rules require a provisioned local copy"
+    if ident == "S800" and row["access"] == "DependsOnOther":
+        return [], (
+            "The authors identify MEDLINE restrictions for the original species-level release. "
+            "This route requires a provisioned S800 archive. The Hub survey measures the released BIO conversion."
+        )
     if row["access"] in CONTROLLED:
         return [], CONTROLLED[row["access"]]
     if ident == "FINERFood":
@@ -152,9 +187,9 @@ def direct_sources(row, local_only):
             [],
             "Same Figshare release as FINER; see FINER to avoid counting the same file twice",
         )
-    if ident == "TempEval3":
-        return [], "Release bundles TimeBank source text; no provisioned local archive"
     if ident in PUBLISHER_FILES:
+        if ident == "AviationProductsNER":
+            return [url, *PUBLISHER_FILES[ident]], ""
         return PUBLISHER_FILES[ident], ""
     if not url:
         return [], "Registry supplies no URL"
@@ -191,7 +226,7 @@ def direct_sources(row, local_only):
 
 
 def cached_file(source, cache):
-    if not source.startswith("https://"):
+    if not source.startswith("https://") and source != annotation_deposit_survey.CHEM_GOLD:
         return ROOT / source
     path = cache / hashlib.sha256(source.encode()).hexdigest()
     if path.is_file():
@@ -221,6 +256,11 @@ def cached_file(source, cache):
                     tmp.truncate()
                     time.sleep(1)
             tmp.flush()
+            if (
+                source == annotation_deposit_survey.CHEM_GOLD
+                and file_digest(partial) != annotation_deposit_survey.CHEM_SHA256
+            ):
+                raise ValueError("Publisher HTTP download differs from the pinned journal gold archive")
             partial.replace(path)
         finally:
             partial.unlink(missing_ok=True)
@@ -537,6 +577,7 @@ def describe(path, source, row):
 
 # Names as released, including archives that bundle parallel representations.
 DIRECT_SUBSETS = {
+    **{ident: release[2] for ident, release in registry_archive_survey.RELEASES.items()},
     "AnnoCTR": "train/dev/test ner_bio; extended training and linking views excluded",
     "BioRED": "Train/Dev/Test BioC JSON; alternate XML and PubTator encodings excluded",
     "CRAFT": "structural-annotation/dependency/conllu only",
@@ -563,7 +604,7 @@ def survey_entry(row, cache, local_only):
         obs = dict.fromkeys(FILE_FIELDS, "")
         scope = (
             "publisher release file"
-            if row["id"] in PUBLISHER_FILES
+            if source in PUBLISHER_FILES.get(row["id"], ())
             else (
                 "registry-linked file"
                 if source.startswith("https://")
@@ -592,7 +633,22 @@ def survey_entry(row, cache, local_only):
             obs.update(status="read failed", reason=str(exc)[:160])
         else:
             try:
-                if row["id"] in BIO_FILES:
+                readers = (
+                    annotation_archive_survey, annotation_deposit_survey,
+                    conlang_release_survey, publisher_release_survey,
+                )
+                reader = next(
+                    (module for module in readers if source in module.SOURCES.get(row["id"], ())), None,
+                )
+                if reader:
+                    rows = reader.measure(row["id"], source, path)
+                    for counts in rows:
+                        status = "tagged tokens measured" if "tagged" in counts else "records measured"
+                        evidence.append(dict(obs, **counts, status=status))
+                    continue
+                if row["id"] in registry_archive_survey.RELEASES:
+                    counts = registry_archive_survey.describe(row["id"], path, obs["sha256"])
+                elif row["id"] in BIO_FILES:
                     with path.open(encoding="utf-8-sig") as file:
                         counts, names, samples = bio_counts(file, row["id"])
                     forms.update(names)
@@ -622,6 +678,8 @@ def survey_entry(row, cache, local_only):
                             "reason", "No validated record reader for these bytes"
                         ),
                     )
+            except ImportError as exc:
+                obs.update(status="file read only", reason=f"Reader requires the {exc.name} Python package")
             except (
                 UnicodeError,
                 ValueError,
@@ -629,6 +687,7 @@ def survey_entry(row, cache, local_only):
                 TypeError,
                 IndexError,
                 csv.Error,
+                tarfile.TarError,
                 zipfile.BadZipFile,
                 ElementTree.ParseError,
                 StopIteration,
@@ -654,7 +713,8 @@ def survey_entry(row, cache, local_only):
         updates["reason"] = " | ".join(
             dict.fromkeys(o["reason"] for o in evidence if o["reason"])
         )
-        sizes = [o["bytes"] for o in evidence if o["bytes"] != ""]
+        # Split-level observations can share one physical archive download.
+        sizes = {o["source"]: o["bytes"] for o in evidence if o["bytes"] != ""}.values()
         updates["bytes"] = sum(sizes) if sizes else ""
     if measured:
         updates.update(

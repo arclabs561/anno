@@ -1,0 +1,190 @@
+"""Count dictionary records from five language projects' published lexicons.
+
+Dothraki and High Valyrian use David J. Peterson's language wiki. Its High
+Valyrian dictionary transcludes a separately versioned headword table. The
+Interslavic project links its dictionary at https://interslavic.fun/resources/.
+LearnNavi publishes the English glossary at https://tirea.learnnavi.org/dictionarydata/.
+The Logical Language Group describes both baseline lists at
+https://www.lojban.org/static/publications/wordlists.html.
+"""
+
+import csv
+import hashlib
+import json
+import re
+from io import StringIO
+
+WIKI = (
+    "https://wiki.languageinvention.com/api.php?action=query&format=json&formatversion=2&prop=revisions"
+    "&rvslots=main&rvprop=ids%7Csha1%7Csize%7Ccontent&revids="
+)
+SOURCES = {
+    "Dothraki": [WIKI + "1214223"],
+    "HighValyrian": [WIKI + "1310494"],
+    "InterslavicCorpus": [
+        "https://raw.githubusercontent.com/sonic16x/interslavic/6d8dad7922a7b2c379d8944f521c08d8f689734a/data/basic.json"
+    ],
+    "Navi": ["https://tirea.learnnavi.org/dictionarydata/NaviDictionary_en.tsv"],
+    "Lojban": [
+        "https://www.lojban.org/static/publications/wordlists/gismu.txt",
+        "https://www.lojban.org/static/publications/wordlists/cmavo.txt",
+    ],
+}
+SHA256 = {
+    SOURCES["Dothraki"][
+        0
+    ]: "492b0fc6d22f4c88b882252bd8182ad18ff29b2b1ed4ba972fc9fe02a84000e2",
+    SOURCES["HighValyrian"][
+        0
+    ]: "c1f5ba84ea9ed9e4eed2cc1cef12ec2e42211361d934bad3314a9c65c0897c4e",
+    SOURCES["InterslavicCorpus"][
+        0
+    ]: "dfa4bbe9cbb75174eb1c2128b9ed0ecd5a624c1a2de27794068095f092046ee3",
+    SOURCES["Navi"][
+        0
+    ]: "6c83d278186a1e260627fc7447290c3aaebd3718ee3d572e501e874b839a5cd4",
+    SOURCES["Lojban"][
+        0
+    ]: "f2fc4cff4f265ad02717d56733b4627ffa78c616db78dcaa44caab694e1dd5b7",
+    SOURCES["Lojban"][
+        1
+    ]: "544414d61f3ff35dd2cf4e4f79f3c86bf9bb0568eb3403f57288057e16796402",
+}
+
+
+def wiki_entries(dataset, data):
+    (page,) = json.loads(data)["query"]["pages"]
+    (rev,) = page["revisions"]
+    revision = int(SOURCES[dataset][0].rsplit("=", 1)[1])
+    expected_title = (
+        "Dothraki Dictionary"
+        if dataset == "Dothraki"
+        else "High Valyrian Dictionary/table"
+    )
+    content = rev["slots"]["main"]["content"]
+    encoded = content.encode("utf-8")
+    if (
+        page["title"] != expected_title
+        or rev["revid"] != revision
+        or rev["size"] != len(encoded)
+        or rev["sha1"] != hashlib.sha1(encoded).hexdigest()
+    ):
+        raise ValueError(f"Invalid publisher revision for {expected_title}")
+    if dataset == "HighValyrian":
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        if not lines or not all(
+            re.fullmatch(r"\{\{hval-entry\|[^{}|]+\}\}", line) for line in lines
+        ):
+            raise ValueError("Expected one High Valyrian entry template per table row")
+        return (
+            len(lines),
+            f"creator wiki term table, revision {revision}",
+            "Listed terms include affixes and phrases. Definitions are maintained on individual pages.",
+        )
+    section = re.search(
+        r"^==\s*Vocabulary List\s*==\s*$(.*?)^==\s*Abbreviations\s*==\s*$",
+        content,
+        re.M | re.S,
+    )
+    if not section:
+        raise ValueError("Missing Dothraki vocabulary section")
+    primary = [
+        line
+        for line in section.group(1).splitlines()
+        if re.match(r"^\*(?![:*#])", line)
+    ]
+    # The qachat entry lacks a closing bold marker. The top-level bullet and
+    # the opening bold label still delimit it unambiguously in this revision.
+    if not primary or not all(re.match(r"^\*\s*'''\S", line) for line in primary):
+        raise ValueError("Unrecognized top-level Dothraki headword")
+    return (
+        len(primary),
+        f"creator wiki vocabulary list, revision {revision}",
+        "One top-level dictionary entry per headword or phrase. Examples, subentries and abbreviations are excluded.",
+    )
+
+
+def interslavic_entries(data):
+    columns, *rows = json.loads(data)["wordList"]
+    ident, headword, english = (columns.index(col) for col in ("id", "isv", "en"))
+    if not rows or not all(
+        len(row) == len(columns) and row[ident] and row[headword] and row[english]
+        for row in rows
+    ):
+        raise ValueError("Incomplete Interslavic dictionary table")
+    if len({row[ident] for row in rows}) != len(rows):
+        raise ValueError("Duplicate Interslavic dictionary entry ID")
+    return (
+        len(rows),
+        "dictionary core table at 6d8dad79",
+        "One row per lexical ID. Translation fields and search indexes describe the same entries.",
+    )
+
+
+def navi_entries(data):
+    reader = csv.DictReader(StringIO(data.decode("utf-8-sig")), delimiter="\t")
+    if reader.fieldnames != ["Frontside", "Flipside", "Category"]:
+        raise ValueError("Unknown LearnNavi TSV columns")
+    count = 0
+    for row in reader:
+        if None in row or not all(row.values()):
+            raise ValueError("Incomplete LearnNavi dictionary row")
+        count += 1
+    return (
+        count,
+        "LearnNavi Na'vi-to-English glossary",
+        "One headword/gloss/category row per entry. Other translation exports and flashcard formats are excluded.",
+    )
+
+
+def lojban_entries(source, data):
+    # Word spelling is fixed-width. Splitting on whitespace would collapse
+    # distinct multiword cmavo beginning with the same particle.
+    header, *rows = data.decode("latin-1").splitlines()
+    gismu = source.endswith("/gismu.txt")
+    width = 6 if gismu else 10
+    if ("gismu list" if gismu else "cmavo list") not in header:
+        raise ValueError("Unknown Logical Language Group wordlist")
+    terms = [row[:width].strip() for row in rows]
+    if (
+        not rows
+        or len(set(terms)) != len(rows)
+        or not all(re.fullmatch(r"[a-z'. ]+", term) for term in terms)
+        or not all(row[20:].strip() for row in rows)
+    ):
+        raise ValueError("Invalid spelling or gloss in Lojban wordlist")
+    subset = (
+        "gismu and rafsi-bearing words, 1994 baseline"
+        if gismu
+        else "cmavo and compounds, 2002 baseline"
+    )
+    return (
+        len(rows),
+        subset,
+        "Counts entries within this list. The paired baseline lists share 94 spellings.",
+    )
+
+
+def measure(dataset, source, path):
+    """Return rows compatible with dataset_file_survey's publisher readers."""
+    if source not in SOURCES[dataset]:
+        raise ValueError("Unknown language project release")
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != SHA256[source]:
+        raise ValueError("Language project source differs from the pinned release")
+    if dataset in {"Dothraki", "HighValyrian"}:
+        count, subset, scope = wiki_entries(dataset, data)
+    elif dataset == "InterslavicCorpus":
+        count, subset, scope = interslavic_entries(data)
+    elif dataset == "Navi":
+        count, subset, scope = navi_entries(data)
+    else:
+        count, subset, scope = lojban_entries(source, data)
+    return [
+        {
+            "unit": "dictionary entries",
+            "records": count,
+            "split_or_subset": subset,
+            "reason": f"{scope} This lexical release has no sentence-level gold NER labels.",
+        }
+    ]

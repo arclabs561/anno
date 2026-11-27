@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
+CROSSRE_RECEIPT = ROOT / "docs/eval/crossre-full-prompt-comparison.json"
 INK = "#243748"
 TEAL = "#176d6c"
 RULE = "#cbd7da"
@@ -124,10 +125,13 @@ def benchmark_chooser():
     return fig
 
 
-def paired_prompt_f1(domain, run, splits):
+def paired_prompt_counts(domain, run, splits):
+    """Exact matches, predictions and references for the three plotted conditions."""
     corpus = run["corpus"]
-    arms = {a["prompt"]: a for a in run["arms"] if a["backend"] == "gliner_relex"}
-    fixed, gold = arms["fixed"], arms["oracle"]
+    pair = [a for a in run["arms"] if a["backend"] == "gliner_relex"]
+    if sorted(a["prompt"] for a in pair) != ["fixed", "oracle"]:
+        raise ValueError(f"Expected two paired GLiNER-Relex arms in {domain}")
+    fixed, gold = sorted(pair, key=lambda arm: arm["prompt"])
     if fixed["sample"]["sample_sha256"] != gold["sample"]["sample_sha256"]:
         raise ValueError(f"Prompt arms used different examples in {domain}")
     for split in ("train", "test"):
@@ -136,32 +140,46 @@ def paired_prompt_f1(domain, run, splits):
                 f"Prompt survey and model trial use different {domain} {split} files"
             )
     test_row = splits[domain, "test"]
-    metrics = fixed["metrics"]
-    for field, key in (
-        ("sentences", "num_docs"),
-        ("gold_relations", "num_gold_relations"),
-        ("no_predicate_sentences", "gold_empty_docs"),
-    ):
-        if int(test_row[field]) != metrics[key] or metrics[key] != gold["metrics"][key]:
-            raise ValueError(f"Prompt study disagrees on {domain} {key}")
-    filtered = (
-        metrics["num_predicted_relations"] - metrics["predictions_on_gold_empty_docs"]
-    )
-    rescored = (
-        2
-        * metrics["strict_relation_matches"]
-        / (filtered + metrics["num_gold_relations"])
-    )
-    return [
-        100 * metrics["strict_f1"],
-        100 * rescored,
-        100 * gold["metrics"]["strict_f1"],
-    ]
+    counts = []
+    for arm in (fixed, gold):
+        metrics = arm["metrics"]
+        for field, key in (
+            ("sentences", "num_docs"),
+            ("gold_relations", "num_gold_relations"),
+            ("no_predicate_sentences", "gold_empty_docs"),
+        ):
+            if int(test_row[field]) != metrics[key]:
+                raise ValueError(f"Prompt study disagrees on {domain} {key}")
+        matched, predicted, reference = (
+            int(metrics[key])
+            for key in (
+                "strict_relation_matches",
+                "num_predicted_relations",
+                "num_gold_relations",
+            )
+        )
+        if (
+            not 0 <= matched <= min(predicted, reference)
+            or abs(2 * matched / (predicted + reference) - metrics["strict_f1"]) > 1e-7
+        ):
+            raise ValueError(
+                f"Strict relation F1 disagrees with the scored counts in {domain}"
+            )
+        counts.append((matched, predicted, reference))
+    matched, predicted, reference = counts[0]
+    suppressed = int(fixed["metrics"]["predictions_on_gold_empty_docs"])
+    if not 0 <= suppressed <= predicted - matched:
+        raise ValueError(
+            f"Invalid count of predictions on relation-free sentences in {domain}"
+        )
+    if gold["metrics"]["predictions_on_gold_empty_docs"]:
+        raise ValueError(f"The empty gold prompt produced relations in {domain}")
+    return counts[0], (matched, predicted - suppressed, reference), counts[1]
 
 
-def crossre_prompt_scores():
+def crossre_prompt_scores(receipt=CROSSRE_RECEIPT):
     study = ROOT / "docs/eval"
-    report = json.loads((study / "crossre-full-prompt-comparison.json").read_text())
+    report = json.loads(receipt.read_text(encoding="utf-8"))
     with (study / "crossre-prompt-scope.csv").open(
         newline="", encoding="utf-8"
     ) as file:
@@ -175,7 +193,7 @@ def crossre_prompt_scores():
         reverse=True,
     )
 
-    fig = plt.figure(figsize=(8.8, 7.2))
+    fig = plt.figure(figsize=(8.8, 8.05))
     fig.text(
         0.025,
         0.96,
@@ -191,7 +209,7 @@ def crossre_prompt_scores():
         color=INK,
         fontsize=10.5,
     )
-    ax = fig.add_axes((0.20, 0.535, 0.775, 0.286))
+    ax = fig.add_axes((0.20, 0.571, 0.775, 0.250))
     groups = [
         (none, "No predicate", "#75456f", "white"),
         (single, "One predicate type", "#dca75a", INK),
@@ -248,7 +266,7 @@ def crossre_prompt_scores():
 
     fig.text(
         0.025,
-        0.413,
+        0.463,
         "How much of the F1 gain comes from relation-free sentences?",
         color=INK,
         fontsize=14,
@@ -256,63 +274,112 @@ def crossre_prompt_scores():
     )
     fig.text(
         0.025,
-        0.373,
-        "Strict GLiNER-Relex relation F1 (%) on the domains with paired predictions.",
+        0.423,
+        f"GLiNER-Relex on {sum(int(r['gold_relations']) for r in test):,} held-out relations. The first row pools counts across domains.",
         color=INK,
-        fontsize=10.5,
+        fontsize=10.4,
     )
-    panels = fig.add_gridspec(
-        1,
-        len(report["domains"]),
-        left=0.31,
-        right=0.946,
-        top=0.29,
-        bottom=0.105,
-        wspace=0.17,
-    )
-    row_labels = [
-        "Training vocabulary",
-        "Fixed predictions on\nrelation-bearing sentences",
-        "Per-sentence gold vocabulary",
-    ]
-    for panel, (domain, run) in zip(panels, report["domains"].items()):
-        values = paired_prompt_f1(domain, run, splits)
-        ax = fig.add_subplot(panel)
-        bars = ax.barh(
-            range(3),
-            values,
-            height=0.47,
-            color=[TEAL, "#93bab6", "#75456f"],
-            edgecolor="none",
-        )
-        ax.bar_label(
-            bars,
-            labels=[f"{v:.1f}" for v in values],
-            padding=4,
-            weight="bold",
-            color=INK,
-            fontsize=10.5,
-        )
-        ax.set_title(
+    test_domains = [split["domain"] for split in test]
+    if set(test_domains) != report["domains"].keys():
+        raise ValueError("Every surveyed test domain needs its paired model result")
+    rows = [
+        (
             names.get(domain, domain.title()),
-            loc="left",
-            color=INK,
-            weight="bold",
-            fontsize=12,
-            pad=4,
+            paired_prompt_counts(domain, report["domains"][domain], splits),
         )
-        ax.set(xlim=(0, 70), ylim=(2.5, -0.5), xticks=[0, 20, 40, 60])
-        ax.set_yticks(range(3), row_labels if panel.is_first_col() else [])
-        ax.tick_params(axis="both", length=0, labelcolor=INK, labelsize=10)
-        ax.spines[:].set_visible(False)
-        ax.grid(axis="x", color="#e4ebeb", linewidth=0.7)
-        ax.set_axisbelow(True)
+        for domain in test_domains
+    ]
+    pooled = [
+        tuple(sum(row[1][condition][key] for row in rows) for key in range(3))
+        for condition in range(3)
+    ]
+    rows.insert(0, ("All domains", pooled))
+    ax = fig.add_axes((0.196, 0.135, 0.421, 0.209))
+    table = fig.add_axes((0.647, 0.135, 0.337, 0.209), sharey=ax)
+    columns = [
+        ("Fixed", "o", TEAL),
+        ("Filtered", "s", "#b16c14"),
+        ("Gold", "D", "#75456f"),
+    ]
+    positions = [0] + [i + 0.35 for i in range(1, len(rows))]
+    for (label, counts), y in zip(rows, positions):
+        rates = [
+            200 * matched / (predicted + reference)
+            for matched, predicted, reference in counts
+        ]
+        fixed, _, gold = rates
+        ax.plot([fixed, gold], [y, y], color="#c1cacc", lw=2.2, zorder=1)
+        for i, (rate, (_, marker, color)) in enumerate(zip(rates, columns)):
+            ax.plot(
+                rate,
+                y,
+                marker=marker,
+                markersize=6.8,
+                linestyle="none",
+                color=color,
+                markeredgecolor="white",
+                markeredgewidth=0.5,
+                zorder=2 + i,
+            )
+            weight = "bold" if y == 0 else "normal"
+            table.text(
+                i + 0.5,
+                y,
+                f"{rate:.1f}",
+                ha="center",
+                va="center",
+                color=INK,
+                weight=weight,
+                fontsize=10.5,
+            )
+    ax.set_yticks(positions, [label for label, _ in rows])
+    ax.get_yticklabels()[0].set_fontweight("bold")
+    ax.set(
+        ylim=(positions[-1] + 0.55, -0.63), xlim=(0, 100), xticks=[0, 25, 50, 75, 100]
+    )
+    ax.set_xlabel("Strict F1 (%)", fontsize=10, color=INK)
+    ax.grid(axis="x", color="#e4ebeb", lw=0.7)
+    ax.set_axisbelow(True)
+    ax.spines[:].set_visible(False)
+    ax.tick_params(length=0, colors=INK, labelsize=10.2)
+    table.set_xlim(0, 3)
+    table.set_axis_off()
+    for i, (column, marker, color) in enumerate(columns):
+        table.plot(
+            (i + 0.20) / 3,
+            1.068,
+            marker=marker,
+            color=color,
+            markersize=6,
+            transform=table.transAxes,
+            clip_on=False,
+        )
+        table.text(
+            (i + 0.34) / 3,
+            1.068,
+            column,
+            transform=table.transAxes,
+            ha="left",
+            va="center",
+            fontsize=10,
+            weight="bold",
+            color=INK,
+        )
+    for panel in (ax, table):
+        panel.axhline(0.65, color=RULE, lw=0.8)
     fig.text(
         0.025,
-        0.028,
-        "The middle row removes only fixed-run predictions on test sentences with no reference relation.",
+        0.046,
+        "Fixed uses the training vocabulary. Filtered removes its predictions on sentences with no gold relation.",
+        fontsize=9.5,
         color=INK,
-        fontsize=9.6,
+    )
+    fig.text(
+        0.025,
+        0.019,
+        "Gold supplies the entity and relation labels from each sentence’s reference relations.",
+        fontsize=9.5,
+        color=INK,
     )
     return fig
 
@@ -320,11 +387,18 @@ def crossre_prompt_scores():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
-    output = parser.parse_args().output
+    parser.add_argument(
+        "--crossre-receipt",
+        type=Path,
+        default=CROSSRE_RECEIPT,
+        help="complete six-domain CrossRE replay summary",
+    )
+    args = parser.parse_args()
+    output = args.output
     output.mkdir(parents=True, exist_ok=True)
     for name, draw in [
         ("benchmark-chooser", benchmark_chooser),
-        ("crossre-prompts", crossre_prompt_scores),
+        ("crossre-prompts", lambda: crossre_prompt_scores(args.crossre_receipt)),
     ]:
         figure = draw()
         for extension in ("png", "svg"):

@@ -1,0 +1,463 @@
+id,url,checked_utc,pointer_status,method,http_status,final_host,content_type
+AnnoNerSmoke,,2026-11-27,local-source policy,,,,
+WikiGold,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+Wnut17,https://raw.githubusercontent.com/leondz/emerging_entities_17/master/emerging.test.annotated,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+MitMovie,https://groups.csail.mit.edu/sls/downloads/movie/engtest.bio,2026-11-27,responded,HEAD,200,sls.csail.mit.edu,
+MitRestaurant,https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttest.bio,2026-11-27,responded,HEAD,200,sls.csail.mit.edu,
+CoNLL2003Sample,https://huggingface.co/datasets/tner/conll2003,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+OntoNotesSample,https://huggingface.co/datasets/tner/ontonotes5,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+MultiNERD,https://huggingface.co/datasets/Babelscape/multinerd/resolve/main/test/test_en.jsonl,2026-11-27,responded,HEAD,200,huggingface.co,text/plain
+FewNERD,https://huggingface.co/datasets/DFKI-SLT/few-nerd,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+CrossNER,https://huggingface.co/datasets/DFKI-SLT/cross_ner,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+FabNER,https://huggingface.co/datasets/DFKI-SLT/fabner,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BroadTwitterCorpus,https://huggingface.co/datasets/tner/btc,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+WikiNeural,https://huggingface.co/datasets/Babelscape/wikineural,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+PolyglotNER,https://huggingface.co/datasets/rmyeid/polyglot_ner,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+UniversalNERBench,https://github.com/UniversalNER/uner_code,2026-11-27,responded,HEAD,200,github.com,text/html
+CoNLL2002,,2026-11-27,registry access: Deprecated,,,,
+TweetNER7,https://huggingface.co/datasets/tner/tweetner7,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+GoogleRE,https://raw.githubusercontent.com/google-research-datasets/relation-extraction-corpus/master/20130403-place_of_birth.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+NYTFB,https://github.com/thunlp/OpenNRE,2026-11-27,responded,HEAD,200,github.com,text/html
+REBEL,https://huggingface.co/datasets/Babelscape/rebel-dataset,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+MultiCoNER,https://huggingface.co/datasets/samanjoy2/multiconer_v1,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+MultiCoNERv2,https://huggingface.co/datasets/MultiCoNER/multiconer_v2,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BC5CDR,https://huggingface.co/datasets/tner/bc5cdr,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+NCBIDisease,https://raw.githubusercontent.com/shreyashub/BioFLAIR/master/data/ner/NCBI-disease/test.txt,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+GENIA,https://huggingface.co/datasets/chufangao/GENIA-NER,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+AnatEM,https://huggingface.co/datasets/disi-unibo-nlp/AnatEM,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BC2GM,https://huggingface.co/datasets/spyysalo/bc2gm_corpus,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BC4CHEMD,https://huggingface.co/datasets/chintagunta85/bc4chemd,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+GAP,https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+PreCo,https://huggingface.co/datasets/coref-data/preco_raw,2026-11-27,local-source policy,,,,
+LitBank,https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref/brat/1023_bleak_house_brat.ann,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+ECBPlus,https://raw.githubusercontent.com/cltl/ecbPlus/3aa071e12fd08fc0705b16bb1841e7a9c5c22420/ECB%2B_LREC2014/ECB%2B.zip,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,application/zip
+OntoNotesCoref,https://catalog.ldc.upenn.edu/LDC2013T19,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+WikiCoref,,2026-11-27,registry access: Deprecated,,,,
+ARRAU3,https://aclanthology.org/2024.codi-1.12/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+AMIMeeting,https://groups.inf.ed.ac.uk/ami/download/,2026-11-27,responded,HEAD,200,groups.inf.ed.ac.uk,text/html
+CLEFClinicalCoref,,2026-11-27,registry access: Registration,,,,
+RSTDT,https://catalog.ldc.upenn.edu/LDC2002T07,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+WinoBias,https://raw.githubusercontent.com/uclanlp/corefBias/master/WinoBias/wino/data/anti_stereotyped_type1.txt.dev,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+QxoRef,https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+AmericasNLI,https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+CherokeeNER,,2026-11-27,registry access: Deprecated,,,,
+NahuatlNER,,2026-11-27,registry access: Deprecated,,,,
+MaoriNER,,2026-11-27,registry access: ContactAuthors,,,,
+WelshNER,,2026-11-27,registry access: Deprecated,,,,
+BasqueNER,,2026-11-27,registry access: Deprecated,,,,
+HIPE2022,https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-test-de.tsv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+HistNERo,https://github.com/avramandrei/histnero,2026-11-27,responded,HEAD,200,github.com,text/html
+QuaeroOldPress,,2026-11-27,registry access: ContactAuthors,,,,
+HistoricalChineseNER,,2026-11-27,registry access: ContactAuthors,,,,
+CHisIEC,https://raw.githubusercontent.com/tangxuemei1995/CHisIEC/main/data/re/coling_test.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+DocRED,,2026-11-27,no registry URL,,,,
+ReTACRED,,2026-11-27,local-source policy,,,,
+ACE2004,,2026-11-27,registry access: Registration,,,,
+CADEC,https://huggingface.co/datasets/KevinSpaghetti/cadec,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+WinoQueer,https://raw.githubusercontent.com/katyfelkner/winoqueer/main/data/winoqueer_final.csv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+BBQ,https://raw.githubusercontent.com/nyu-mll/BBQ/main/data/Gender_identity.jsonl,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+GICoref,https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/master/GICoref/coref.combo.conll,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+CorefUD,http://hdl.handle.net/11234/1-5987,2026-11-27,responded,HEAD,200,lindat.mff.cuni.cz,text/html
+TransMuCoRes,,2026-11-27,registry access: ContactAuthors,,,,
+MGAP,,2026-11-27,registry access: ContactAuthors,,,,
+CrowSPairs,https://github.com/nyu-mll/crows-pairs,2026-11-27,responded,HEAD,200,github.com,text/html
+StereoSet,https://github.com/moinnadeem/StereoSet,2026-11-27,responded,HEAD,200,github.com,text/html
+RealToxicityPrompts,https://huggingface.co/datasets/allenai/real-toxicity-prompts,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BoldBias,https://github.com/amazon-science/bold,2026-11-27,responded,HEAD,200,github.com,text/html
+DROC,,2026-11-27,registry access: Deprecated,,,,
+FantasyCoref,https://github.com/emorynlp/FantasyCoref/archive/refs/heads/master.zip,2026-11-27,registry access: ContactAuthors,,,,
+BookCoref,https://huggingface.co/datasets/sapienzanlp/bookcoref,2026-11-27,registry access: DependsOnOther,,,,
+BookCorefSplit,https://huggingface.co/datasets/sapienzanlp/bookcoref,2026-11-27,registry access: DependsOnOther,,,,
+LongtoNotes,https://docs.google.com/forms/d/e/1FAIpQLScoWkBOgJ1HH_phtvTJ4_hGvQw6f0W6K7kw74sUKCDTG8P2iA/viewform,2026-11-27,responded,HEAD,200,docs.google.com,text/html
+MovieCoref,https://aclanthology.org/attachments/2021.findings-acl.176.OptionalSupplementaryMaterial.gz,2026-11-27,responded,HEAD,200,aclanthology.org,application/x-gzip
+TwiConv,https://raw.githubusercontent.com/berfingit/TwiConv/main/conll_skeleton/001_940791133357199360.branch7._with_boundaries_gold_conll,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+MuDoCo,https://raw.githubusercontent.com/facebookresearch/mudoco/main/mudoco_calling.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+DialogRE,https://github.com/nlpdata/dialogre,2026-11-27,responded,HEAD,200,github.com,text/html
+MultiWOZNER,https://github.com/budzianowski/multiwoz,2026-11-27,responded,HEAD,200,github.com,text/html
+CoQAEntities,https://stanfordnlp.github.io/coqa/,2026-11-27,responded,HEAD,200,stanfordnlp.github.io,text/html
+GVC,https://github.com/cltl/GunViolenceCorpus,2026-11-27,responded,HEAD,200,github.com,text/html
+FCC,,2026-11-27,registry access: ContactAuthors,,,,
+ECBPlusMeta,,2026-11-27,registry access: ContactAuthors,,,,
+ARRAU,,2026-11-27,registry access: Registration,,,,
+ISNotes,https://github.com/nlpAThits/ISNotes1.0/archive/refs/heads/master.zip,2026-11-27,registry access: DependsOnOther,,,,
+ShellNouns,,2026-11-27,registry access: ContactAuthors,,,,
+PDTBv3,,2026-11-27,registry access: Registration,,,,
+CODICRACBridging,https://github.com/UniversalAnaphora/UA-CODI-CRAC,2026-11-27,missing at this URL,GET,404,github.com,text/html
+AnaphoraAccessibility,,2026-11-27,registry access: NotYetReleased,,,,
+HumanVoiceAgentInteraction,,2026-11-27,registry access: Local,,,,
+DiscoBench,,2026-11-27,registry access: NotYetReleased,,,,
+DiscoTrack,,2026-11-27,registry access: NotYetReleased,,,,
+LIEDER,,2026-11-27,registry access: ContactAuthors,,,,
+GCDC,,2026-11-27,registry access: DependsOnOther,,,,
+DISAPERE,https://github.com/nnkennard/DISAPERE,2026-11-27,responded,HEAD,200,github.com,text/html
+PragmEval,https://github.com/sileod/pragmeval,2026-11-27,responded,HEAD,200,github.com,text/html
+ViraDialogActsLive,https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+DisrptEngDepScidtbRels,https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.rels&split=train&offset=0&length=100,2026-11-27,responded,HEAD,200,datasets-server.huggingface.co,application/json
+DisrptDeuRstPccRels,https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.rels&split=train&offset=0&length=100,2026-11-27,responded,HEAD,200,datasets-server.huggingface.co,application/json
+DisrptEngDepScidtbConlluSeg,https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.conllu&split=train&offset=0&length=100,2026-11-27,responded,HEAD,200,datasets-server.huggingface.co,application/json
+DisrptDeuRstPccConlluSeg,https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.conllu&split=train&offset=0&length=100,2026-11-27,responded,HEAD,200,datasets-server.huggingface.co,application/json
+DISRPT2025,https://github.com/disrpt/sharedtask2025,2026-11-27,responded,HEAD,200,github.com,text/html
+AncientGreekUD,https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/master/grc_perseus-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+LatinUD,https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/master/la_ittb-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+CopticScriptorium,https://data.copticscriptorium.org/,2026-11-27,registry access: Registration,,,,
+LT4HALA,,2026-11-27,registry access: ContactAuthors,,,,
+ORACC,http://oracc.museum.upenn.edu/,2026-11-27,registry access: Registration,,,,
+MasakhaNER,https://raw.githubusercontent.com/masakhane-io/masakhane-ner/main/data/yor/test.txt,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+MasakhaNER2,https://huggingface.co/datasets/masakhane/masakhaner2,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+AfriSenti,https://huggingface.co/datasets/shmuhammad/AfriSenti-twitter-sentiment,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+AfriQA,https://huggingface.co/datasets/masakhane/afriqa,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+MasakhaNEWS,https://huggingface.co/datasets/masakhane/masakhanews,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+AGNews,https://huggingface.co/datasets/fancyzhx/ag_news,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+DBPedia14,https://huggingface.co/datasets/fancyzhx/dbpedia_14,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+YahooAnswers,https://huggingface.co/datasets/community-datasets/yahoo_answers_topics,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+TREC,https://huggingface.co/datasets/trec,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+TweetTopic,https://huggingface.co/datasets/cardiffnlp/tweet_topic_multi,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+MasakhaPOS,https://github.com/masakhane-io/masakhane-pos,2026-11-27,responded,HEAD,200,github.com,text/html
+WikiANN,https://huggingface.co/datasets/unimelb-nlp/wikiann,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+NaijaNER,,2026-11-27,registry access: ContactAuthors,,,,
+WIESP2022NER,https://huggingface.co/datasets/adsabs/WIESP2022-NER,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+DutchArchaeology,https://live.european-language-grid.eu/catalogue/corpus/13410,2026-11-27,responded,HEAD,200,live.european-language-grid.eu,text/html
+ENer,https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/main/all.csv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+FINER,https://figshare.com/ndownloader/files/36144501,2026-11-27,request denied,GET,403,figshare.com,text/html
+AnnoCTR,https://github.com/boschresearch/anno-ctr-lrec-coling-2024/archive/refs/heads/main.zip,2026-11-27,responded,HEAD,200,codeload.github.com,application/zip
+CRAFT,https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip,2026-11-27,responded,HEAD,200,codeload.github.com,application/zip
+WNUT16,https://raw.githubusercontent.com/aritter/twitter_nlp/65f3d77134c40d920db8d431c5c6faef1c051c94/data/annotated/wnut16/data/test,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+SanskritUD,https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/master/sa_vedic-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+OldEnglishUD,https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/ang_cairo-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+OldNorseUD,https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+CALCS2018,https://code-switching.github.io/2018/,2026-11-27,responded,HEAD,200,code-switching.github.io,text/html
+HinglishNER,https://github.com/murali1996/CodemixedNLP,2026-11-27,responded,HEAD,200,github.com,text/html
+MedievalCharterNER,https://zenodo.org/records/6463699,2026-11-27,responded,HEAD,200,zenodo.org,text/html
+CBMACharters,,2026-11-27,registry access: ContactAuthors,,,,
+MSNER,https://rdr.kuleuven.be/dataset.xhtml?persistentId=doi:10.48804/ZTVMIX,2026-11-27,other HTTP response,HEAD,503,rdr.kuleuven.be,text/plain
+NoiseBench,https://raw.githubusercontent.com/elenamer/NoiseBench/main/data/annotations/clean.traindev,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+RockNER,https://github.com/INK-USC/RockNER,2026-11-27,responded,HEAD,200,github.com,text/html
+CrossWeigh,https://raw.githubusercontent.com/ZihanWangKi/CrossWeigh/master/data/conllpp_test.txt,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+ZELDA,https://raw.githubusercontent.com/flairNLP/zelda/main/test_data/conll/test_aida-b.conll,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+TweetNERD,https://zenodo.org/records/6617192,2026-11-27,responded,HEAD,200,zenodo.org,text/html
+AIDACoNLL,https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida,2026-11-27,responded,HEAD,200,www.mpi-inf.mpg.de,text/html
+ACE2005,,2026-11-27,registry access: Registration,,,,
+NNE,https://github.com/nickyringland/nested_named_entities,2026-11-27,responded,HEAD,200,github.com,text/html
+GENIANested,https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/master/Our_boundary-aware_model/data/genia/genia.test.iob2,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+ChineseNestedNER,https://github.com/LeeSureman/Nested-NER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SCINERNested,https://github.com/allenai/sciie,2026-11-27,missing at this URL,GET,404,github.com,text/html
+ShAReCLEF,,2026-11-27,registry access: Registration,,,,
+GermEvalDiscontinuous,https://sites.google.com/site/germaboreval/data,2026-11-27,sign-in page,HEAD,200,accounts.google.com,text/html
+ADRDiscontinuous,https://github.com/Aitslab/ADR-DisNER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+PubMedDiscontinuous,https://github.com/dmis-lab/discontinuous-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+TACRED,,2026-11-27,local-source policy,,,,
+SemEval2010Task8,https://github.com/sahitya0000/Relation-Classification,2026-11-27,responded,HEAD,200,github.com,text/html
+FewRel,https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+NYT10,http://iesl.cs.umass.edu/riedel/ecml/,2026-11-27,responded,HEAD,200,iesl.cs.umass.edu,text/html
+JNLPBA,https://raw.githubusercontent.com/cambridgeltl/MTL-Bioinformatics-2016/master/data/JNLPBA/test.tsv,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+S800,https://species.jensenlab.org/files/S800-1.0.tar.gz,2026-11-27,registry access: DependsOnOther,,,,
+TempEval3,https://figshare.com/articles/dataset/TempEval-3_data/9586532,2026-11-27,request denied,GET,403,figshare.com,text/html
+AnnoTimexSmoke,,2026-11-27,local-source policy,,,,
+AnnoTimexContrast,,2026-11-27,local-source policy,,,,
+TimexRecognitionSentenceOriginal,,2026-11-27,local-source policy,,,,
+TimeBank12,https://catalog.ldc.upenn.edu/LDC2006T08,2026-11-27,local-source policy,,,,
+MATRES,https://github.com/qiangning/MATRES,2026-11-27,responded,HEAD,200,github.com,text/html
+THYME,,2026-11-27,registry access: Registration,,,,
+I2B2Temporal,,2026-11-27,registry access: Registration,,,,
+Twitter2015MNER,https://github.com/jefferyYu/UMT,2026-11-27,responded,HEAD,200,github.com,text/html
+DistantListeningCorpus,https://zenodo.org/records/15150283,2026-11-27,responded,HEAD,200,zenodo.org,text/html
+PIIMasking200k,https://huggingface.co/datasets/ai4privacy/pii-masking-200k,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+ENERSec,https://github.com/jnishii/E-NER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MSNBCEL,,2026-11-27,registry access: ContactAuthors,,,,
+AQUAINT,,2026-11-27,registry access: Registration,,,,
+KORE50,https://github.com/KORE50/KORE50-NIF-NER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+WNEDWiki,https://github.com/wikipedia2vec/wikipedia2vec,2026-11-27,responded,HEAD,200,github.com,text/html
+WNEDClueweb,,2026-11-27,registry access: Registration,,,,
+BELB,https://github.com/sg-wbi/belb,2026-11-27,responded,HEAD,200,github.com,text/html
+MELO,https://github.com/avature/melo-benchmark,2026-11-27,responded,HEAD,200,github.com,text/html
+MewsliX,https://huggingface.co/datasets/izhx/mewsli-x,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BookCorefBamman,https://huggingface.co/datasets/spacemanidol/BookCoref,2026-11-27,registry access: ContactAuthors,,,,
+NovelCR,https://github.com/NovelCR/NovelCR,2026-11-27,missing at this URL,GET,404,github.com,text/html
+AgCNER,https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873,2026-11-27,request denied,GET,403,springernature.figshare.com,text/html
+ScrollsQMSum,https://github.com/tau-nlp/scrolls,2026-11-27,responded,HEAD,200,github.com,text/html
+LongDocNER,https://github.com/xhuang28/LongDocNER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+BookSumCoref,https://github.com/salesforce/booksum,2026-11-27,responded,HEAD,200,github.com,text/html
+MultiBioNERLong,https://github.com/dmis-lab/multi-bio-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+RadCoref,https://physionet.org/content/rad-coreference-resolution/,2026-11-27,responded,HEAD,200,physionet.org,text/html
+MEANTIME,https://github.com/newsreader/meantime,2026-11-27,missing at this URL,GET,404,github.com,text/html
+FCCT,https://github.com/cltl/FCC,2026-11-27,missing at this URL,GET,404,github.com,text/html
+LEMONADE,https://github.com/lemonade-coref/lemonade,2026-11-27,missing at this URL,GET,404,github.com,text/html
+BioRED,https://ftp.ncbi.nlm.nih.gov/pub/lu/BioRED/,2026-11-27,responded,HEAD,200,ftp.ncbi.nlm.nih.gov,text/html
+MedMentions,https://github.com/chanzuckerberg/MedMentions,2026-11-27,responded,HEAD,200,github.com,text/html
+EnzChemRED,https://github.com/ncbi-nlp/EnzChemRED,2026-11-27,responded,HEAD,200,github.com,text/html
+NCERB,https://github.com/WadoodAbdul/clinical_ner_benchmark,2026-11-27,responded,HEAD,200,github.com,text/html
+MACCROBAT,https://figshare.com/articles/dataset/MACCROBAT2018/9764942,2026-11-27,request denied,GET,403,figshare.com,text/html
+ACE05RE,,2026-11-27,registry access: Registration,,,,
+CoNLL04RE,https://github.com/bekou/multihead_joint_entity_relation_extraction,2026-11-27,responded,HEAD,200,github.com,text/html
+CrossRE,https://github.com/mainlp/CrossRE,2026-11-27,responded,HEAD,200,github.com,text/html
+CrossREAI,https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+CrossRELiterature,https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data/literature-test.json,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+UNER,https://github.com/UniversalNER/UNER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+IndicNER,https://github.com/AI4Bharat/IndicNER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+NorNE,https://github.com/ltgoslo/norne,2026-11-27,responded,HEAD,200,github.com,text/html
+GermEval2014,https://sites.google.com/site/germaboreval2014/data,2026-11-27,sign-in page,HEAD,200,accounts.google.com,text/html
+ReasoningNER,https://github.com/HuiResearch/ReasoningIE,2026-11-27,responded,HEAD,200,github.com,text/html
+BioNERLLaMA,https://github.com/BIDS-Xu-Lab/BioNER-LLaMA,2026-11-27,responded,HEAD,200,github.com,text/html
+MentionResolutionLLM,https://github.com/KawshikManikantan/IdentifyMe,2026-11-27,responded,HEAD,200,github.com,text/html
+ShARe2013,,2026-11-27,registry access: Registration,,,,
+ShARe2014,,2026-11-27,registry access: Registration,,,,
+I2B2_2010,,2026-11-27,registry access: Registration,,,,
+LexGLUENER,https://github.com/coastalcph/lex-glue,2026-11-27,responded,HEAD,200,github.com,text/html
+FinBenNER,https://github.com/TheFinAI/FinBen,2026-11-27,missing at this URL,GET,404,github.com,text/html
+FiNER139,https://huggingface.co/datasets/nlpaueb/finer-139,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+TaggedPBCEsperanto,https://github.com/lingdoc/taggedPBC,2026-11-27,responded,HEAD,200,github.com,text/html
+TaggedPBCKlingon,https://github.com/lingdoc/taggedPBC,2026-11-27,responded,HEAD,200,github.com,text/html
+UDEsperantoCairo,https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/master/eo_cairo-ud-test.conllu,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+KlingonEffectLID,https://wmdqs.org/submissions-2025/19.pdf,2026-11-27,responded,HEAD,200,wmdqs.org,application/pdf
+LojbanTatoeba,https://tatoeba.org/en/downloads,2026-11-27,responded,HEAD,200,tatoeba.org,text/html
+InterlingueWikipedia,https://dumps.wikimedia.org/iewiki/,2026-11-27,responded,HEAD,200,dumps.wikimedia.org,text/html
+TokiPonaCorpus,https://github.com/kilipan/toki-pona-corpus,2026-11-27,missing at this URL,GET,404,github.com,text/html
+OmniNER2025,,2026-11-27,registry access: NotYetReleased,,,,
+LegalCore,,2026-11-27,registry access: NotYetReleased,,,,
+Zcoref,,2026-11-27,registry access: NotYetReleased,,,,
+TikTalkCoref,,2026-11-27,registry access: NotYetReleased,,,,
+MHERCL,https://arxiv.org/html/2505.03473v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+SNOMEDChallenge,,2026-11-27,registry access: Registration,,,,
+ESCOSkillsEL,,2026-11-27,registry access: ContactAuthors,,,,
+NatureLMAudio,https://github.com/earthspecies/naturelm-audio,2026-11-27,responded,HEAD,200,github.com,text/html
+BEANSZero,https://github.com/earthspecies/beans-zero,2026-11-27,responded,HEAD,200,github.com,text/html
+NLMChem,https://ftp.ncbi.nlm.nih.gov/pub/lu/NLM-Chem/,2026-11-27,missing at this URL,GET,404,ftp.ncbi.nlm.nih.gov,text/html
+CHEMDNER,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-iv/chemdner/,2026-11-27,request denied,GET,403,biocreative.bioinformatics.udel.edu,text/html
+TimeBankDense,https://github.com/bethard/timebank-dense,2026-11-27,missing at this URL,GET,404,github.com,text/html
+TwitterGMNER,https://github.com/JinYuanLi0012/RiVEG,2026-11-27,responded,HEAD,200,github.com,text/html
+MNERMI,https://github.com/NUSTM/MNER-MI,2026-11-27,missing at this URL,GET,404,github.com,text/html
+TwoMNER,https://github.com/wangdsh/MMNERD,2026-11-27,responded,HEAD,200,github.com,text/html
+MathEntities,https://github.com/dmazzei/mathematical-entities,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SciERC,,2026-11-27,local-source policy,,,,
+GeoWebNews,https://github.com/milangritta/GeoWebNews,2026-11-27,missing at this URL,GET,404,github.com,text/html
+LGL,https://github.com/wikipedia2vec/wikipedia2vec,2026-11-27,responded,HEAD,200,github.com,text/html
+TASTEset,https://github.com/taisti/TASTEset,2026-11-27,responded,HEAD,200,github.com,text/html
+RecipeNER,https://github.com/cosylabiiit/recipe-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+CodeSearchNet,https://github.com/github/CodeSearchNet,2026-11-27,responded,HEAD,200,github.com,text/html
+FABLE,https://huggingface.co/DeBERTa-literary-entities,2026-11-27,missing at this URL,GET,404,huggingface.co,text/html
+ELGold,https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset,2026-11-27,missing at this URL,GET,404,mostwiedzy.pl,text/html
+StreamingCDCoref,https://www.cs.jhu.edu/~mdredze/publications/streaming_coref_coling.pdf,2026-11-27,responded,HEAD,200,www.cs.jhu.edu,application/pdf
+TemDocRED,https://github.com/THUDM/Tem-DocRED,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SciCoRadar,https://github.com/TomHopeLab/ScicoRadar,2026-11-27,responded,HEAD,200,github.com,text/html
+EventKGDrift,https://research.tue.nl/files/349781334/978-3-031-61057-8_9.pdf,2026-11-27,request denied,GET,403,research.tue.nl,text/html
+WikidataDrift,https://arxiv.org/abs/2511.04926,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+AIDA,https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida/downloads,2026-11-27,responded,HEAD,200,www.mpi-inf.mpg.de,text/html
+AIONER,https://github.com/ncbi/AIONER,2026-11-27,responded,HEAD,200,github.com,text/html
+AISHELLNER,https://www.aishelltech.com/aishell_2,2026-11-27,responded,HEAD,200,www.aishelltech.com,text/html
+AstroNER,https://github.com/astronomical-ner/AstroNER,2026-11-27,missing at this URL,GET,404,github.com,text/html
+B2NERD,https://huggingface.co/datasets/Umean/B2NERD,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+BioMNER,https://huggingface.co/datasets/tner/bionlp2004,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+LegNER,https://github.com/Liquid-Legal-Institute/LegalBench,2026-11-27,missing at this URL,GET,404,github.com,text/html
+OpenNER,https://huggingface.co/datasets/yongsun-yoon/open-ner-english,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+SciNER,https://github.com/allenai/sciner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+FinanceNER,https://github.com/nlpaueb/finer,2026-11-27,responded,HEAD,200,github.com,text/html
+TechNER,https://github.com/techner/techner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+FictionNER750M,https://huggingface.co/datasets/SaladTechnologies/fiction-ner-750m,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+CharacterCodex,https://github.com/character-codex/character-codex,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MUC6,https://catalog.ldc.upenn.edu/LDC2003T13,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+MUC7,https://catalog.ldc.upenn.edu/LDC2001T02,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+OntoNotes50,https://catalog.ldc.upenn.edu/LDC2013T19,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+GUM,https://github.com/amir-zeldes/gum,2026-11-27,responded,HEAD,200,github.com,text/html
+TACKBP,https://tac.nist.gov/,2026-11-27,responded,HEAD,200,tac.nist.gov,text/html
+HAREM,https://www.linguateca.pt/HAREM/,2026-11-27,responded,HEAD,200,www.linguateca.pt,text/html
+GunViolenceCorpus,https://github.com/gun-violence-corpus/gvc,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MAVEN,https://github.com/THU-KEG/MAVEN-dataset,2026-11-27,responded,HEAD,200,github.com,text/html
+MAVENArg,https://github.com/THU-KEG/MAVEN-Argument,2026-11-27,responded,HEAD,200,github.com,text/html
+CASIE,https://github.com/Ebiquity/CASIE,2026-11-27,responded,HEAD,200,github.com,text/html
+RAMS,https://nlp.jhu.edu/rams/,2026-11-27,responded,HEAD,200,nlp.jhu.edu,text/html
+SLUE,https://github.com/asappresearch/slue-toolkit,2026-11-27,responded,HEAD,200,github.com,text/html
+CRAFTCoref,https://github.com/UCDenver-ccp/CRAFT,2026-11-27,responded,HEAD,200,github.com,text/html
+FootballCorefCorpus,https://github.com/cltl/FCC,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MultipartyDialogueCoref,https://github.com/sopan-sarkar/multiparty-dialogue-coref,2026-11-27,missing at this URL,GET,404,github.com,text/html
+CODICRAC,https://github.com/UniversalAnaphora/UA-CODI-CRAC,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MixRED,https://github.com/mixred/MixRED,2026-11-27,missing at this URL,GET,404,github.com,text/html
+CovEReD,https://github.com/covered/CovEReD,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SciER,https://github.com/allenai/sciie,2026-11-27,missing at this URL,GET,404,github.com,text/html
+WEBNLG,https://gitlab.com/webnlg/challenge-2017,2026-11-27,responded,HEAD,200,gitlab.com,text/html
+AkkadianUD,https://universaldependencies.org/treebanks/akk_pisandub/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+AncientHebrewUD,https://universaldependencies.org/treebanks/hbo_ptnk/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+ClassicalChineseUD,https://universaldependencies.org/treebanks/lzh_kyoto/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+CopticUD,https://universaldependencies.org/treebanks/cop_scriptorium/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+GothicUD,https://universaldependencies.org/treebanks/got_proiel/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+HittiteUD,https://universaldependencies.org/treebanks/hit_hittb/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+OldChurchSlavonicUD,https://universaldependencies.org/treebanks/cu_proiel/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+LatinITTB,https://universaldependencies.org/treebanks/la_ittb/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+LatinPROIEL,https://universaldependencies.org/treebanks/la_proiel/index.html,2026-11-27,responded,HEAD,200,universaldependencies.org,text/html
+EsperantoUD,https://universaldependencies.org/treebanks/eo_pud/index.html,2026-11-27,missing at this URL,GET,404,universaldependencies.org,text/html
+Dothraki,https://wiki.dothraki.org/,2026-11-27,responded,HEAD,200,wiki.dothraki.org,text/html
+HighValyrian,https://wiki.dothraki.org/High_Valyrian,2026-11-27,missing at this URL,GET,404,wiki.dothraki.org,text/html
+Klingon,https://github.com/klingonlanguage/klingon-data,2026-11-27,missing at this URL,GET,404,github.com,text/html
+Quenya,https://eldamo.org/,2026-11-27,responded,HEAD,200,eldamo.org,text/html
+Navi,https://learnnavi.org/,2026-11-27,responded,HEAD,200,learnnavi.org,text/html
+InterslavicCorpus,https://interslavic.fun/,2026-11-27,responded,HEAD,200,interslavic.fun,text/html
+Lojban,https://mw.lojban.org/,2026-11-27,responded,HEAD,200,www.lojban.org,text/html
+TokiPona,https://github.com/kilipan/toki-pona-corpus,2026-11-27,missing at this URL,GET,404,github.com,text/html
+I2B22010,https://www.i2b2.org/NLP/DataSets/,2026-11-27,other HTTP response,HEAD,500,www.i2b2.org,text/html
+I2b2Deidentification,https://www.i2b2.org/NLP/DataSets/,2026-11-27,other HTTP response,HEAD,500,www.i2b2.org,text/html
+FrenchClinicalNER,https://github.com/EDS-NLP/eds-nlp,2026-11-27,missing at this URL,GET,404,github.com,text/html
+ShARe13,https://physionet.org/content/shareclefehealth2013/,2026-11-27,responded,HEAD,200,physionet.org,text/html
+ShARe14,https://physionet.org/content/shareclefehealth2014/,2026-11-27,missing at this URL,GET,404,physionet.org,text/html
+CALCS,https://code-switching.github.io/,2026-11-27,responded,HEAD,200,code-switching.github.io,text/html
+LinCE,https://ritual.uh.edu/lince/,2026-11-27,other HTTP response,HEAD,503,ritual.uh.edu,text/plain
+GLUECoS,https://github.com/microsoft/GLUECoS,2026-11-27,responded,HEAD,200,github.com,text/html
+ChemDataExtractor,https://chemdataextractor.org/,2026-11-27,other HTTP response,HEAD,503,chemdataextractor.org,text/plain
+HUPD,https://github.com/suzgunmirac/hupd,2026-11-27,responded,HEAD,200,github.com,text/html
+FinTechPatent,https://github.com/fintech-patent-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+WaterAgriNER,https://github.com/wateragriner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+WIESPAstro,https://ui.adsabs.harvard.edu/,2026-11-27,responded,HEAD,202,ui.adsabs.harvard.edu,text/html
+NERsocialFood,https://github.com/food-ner/social,2026-11-27,missing at this URL,GET,404,github.com,text/html
+RussianCulturalNER,https://github.com/russian-cultural-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+EighteenthCenturyNER,https://github.com/Living-with-machines/,2026-11-27,responded,HEAD,200,github.com,text/html
+SpanishMedievalTEI,https://github.com/spanish-medieval-nlp,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MedievalCzechCharters,https://github.com/czech-medieval-charters,2026-11-27,missing at this URL,GET,404,github.com,text/html
+DutchArchaeologyNER,https://easy.dans.knaw.nl/,2026-11-27,responded,HEAD,200,easy.dans.knaw.nl,text/html
+GuaraniNER,https://github.com/guarani-nlp,2026-11-27,missing at this URL,GET,404,github.com,text/html
+ShipiboKoniboNER,https://github.com/ixa-ehu/shipibo-konibo,2026-11-27,missing at this URL,GET,404,github.com,text/html
+NavajoMorph,https://github.com/navajo-nlp,2026-11-27,missing at this URL,GET,404,github.com,text/html
+KoCoNovel,https://github.com/storidient/KoCoNovel,2026-11-27,responded,HEAD,200,github.com,text/html
+OpenBoek,https://github.com/cltl/OpenBoek,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SciCo,https://github.com/allenai/scico,2026-11-27,responded,HEAD,200,github.com,text/html
+SemEval2013Task91,https://www.cs.york.ac.uk/semeval-2013/task9/,2026-11-27,missing at this URL,GET,410,www.cs.york.ac.uk,text/html
+PDTB3,https://catalog.ldc.upenn.edu/LDC2019T05,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+WinoPron,https://cs.nyu.edu/~davise/papers/WinoPron/,2026-11-27,missing at this URL,GET,404,cs.nyu.edu,text/html
+QUOREF,https://github.com/allenai/quoref,2026-11-27,missing at this URL,GET,404,github.com,text/html
+CoNLL2002Dutch,,2026-11-27,registry access: ContactAuthors,,,,
+CoNLL2002Spanish,,2026-11-27,registry access: ContactAuthors,,,,
+BC2GMFull,https://biocreative.bioinformatics.udel.edu/resources/biocreative-ii-corpus/,2026-11-27,request denied,GET,403,biocreative.bioinformatics.udel.edu,text/html
+FinNER,https://github.com/mpsilfern/finer,2026-11-27,missing at this URL,GET,404,github.com,text/html
+LegalNER,https://github.com/legal-ner/legal-ner,2026-11-27,missing at this URL,GET,404,github.com,text/html
+CEREC,https://github.com/Stardust-hyx/CEREC,2026-11-27,missing at this URL,GET,404,github.com,text/html
+DELICATE,https://github.com/delicate-nlp/delicate,2026-11-27,missing at this URL,GET,404,github.com,text/html
+SciERCNER,,2026-11-27,local-source policy,,,,
+ULNER,,2026-11-27,registry access: Deprecated,,,,
+UniversalNER,https://huggingface.co/datasets/universalner/universal_ner,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+ArrauGenia,https://aclanthology.org/2020.codi-1.1/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+ArrauPear,https://aclanthology.org/2020.codi-1.1/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+ArrauRst,https://aclanthology.org/2020.codi-1.1/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+ArrauTrains,https://aclanthology.org/2020.codi-1.1/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+NomBankImplicit,https://catalog.ldc.upenn.edu/LDC2008T23,2026-11-27,responded,HEAD,200,catalog.ldc.upenn.edu,text/html
+BASHI,https://sites.google.com/view/ipm-bashi/,2026-11-27,sign-in page,HEAD,200,accounts.google.com,text/html
+ERST,https://github.com/rsttools/signal,2026-11-27,missing at this URL,GET,404,github.com,text/html
+BiTimeBERT,https://github.com/btime-bert/bitimebert,2026-11-27,missing at this URL,GET,404,github.com,text/html
+TRIDIS,https://github.com/tridis/tridis,2026-11-27,missing at this URL,GET,404,github.com,text/html
+QueerBench,https://github.com/queerbench/queerbench,2026-11-27,missing at this URL,GET,404,github.com,text/html
+QUEEREOTYPES,https://github.com/queereotypes/queereotypes,2026-11-27,missing at this URL,GET,404,github.com,text/html
+MAP,https://github.com/medical-annotation-pipeline/map,2026-11-27,missing at this URL,GET,404,github.com,text/html
+ASN,http://www.cs.toronto.edu/~varada/ASN/,2026-11-27,missing at this URL,GET,404,www.cs.toronto.edu,text/html
+CSN,https://github.com/github/CodeSearchNet,2026-11-27,responded,HEAD,200,github.com,text/html
+HOMOMEX,https://github.com/homomex/homomex,2026-11-27,missing at this URL,GET,404,github.com,text/html
+ENER,https://github.com/ener-dataset/ener,2026-11-27,missing at this URL,GET,404,github.com,text/html
+FIREBALL,https://huggingface.co/datasets/lara-martin/FIREBALL,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+DnDNERBenchmark,https://aclanthology.org/2023.ranlp-1.130.pdf,2026-11-27,responded,HEAD,200,aclanthology.org,application/pdf
+CriticalRoleDataset,https://www.microsoft.com/en-us/research/wp-content/uploads/2020/06/R.Rameshkumar-and-P.Bailey-Storytelling-with-Dialogue-ACL2020.pdf,2026-11-27,responded,HEAD,200,www.microsoft.com,application/pdf
+CUAD,https://www.atticusprojectai.org/cuad,2026-11-27,responded,HEAD,200,www.atticusprojectai.org,text/html
+ACORD,https://arxiv.org/html/2501.06582v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+PartyExtractionDataset,https://aclanthology.org/2023.ranlp-1.116.pdf,2026-11-27,responded,HEAD,200,aclanthology.org,application/pdf
+FINERFood,https://figshare.com/articles/dataset/Food_Ingredient_Named-Entity_Data/20222361,2026-11-27,request denied,GET,403,figshare.com,text/html
+NHKRecipeDataset,https://arxiv.org/html/2507.17232v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+SanskritNERBhagavadGita,https://www.kaggle.com/datasets/akashsuklabaidya/ner-dataset-fyp-25,2026-11-27,responded,GET,200,www.kaggle.com,text/html
+Mahanama,https://github.com/sujoysarkarai/mahanama,2026-11-27,responded,HEAD,200,github.com,text/html
+AkkadianCuneiformDataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC7592802/,2026-11-27,responded,HEAD,200,pmc.ncbi.nlm.nih.gov,text/html
+HeidelbergCuneiformBenchmark,https://direct.mit.edu/coli/article/49/3/703/116160,2026-11-27,request denied,GET,403,direct.mit.edu,text/html
+GreekMythologyKG,https://www.semantic-web-journal.net/system/files/swj2754.pdf,2026-11-27,responded,HEAD,200,www.semantic-web-journal.net,application/pdf
+FolkloreMotifDistribution,https://www.academia.edu/14481230/,2026-11-27,responded,HEAD,200,www.academia.edu,text/html
+NDNER,https://github.com/XinyanLi2016/ND-NER,2026-11-27,responded,HEAD,200,github.com,text/html
+Re3dDefense,https://github.com/dstl/re3d,2026-11-27,responded,HEAD,200,github.com,text/html
+CyNERAptner,https://ceur-ws.org/Vol-3928/paper_170.pdf,2026-11-27,responded,HEAD,200,ceur-ws.org,application/pdf
+ChineseEngineeringGeologyNER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423024272,2026-11-27,connection failed,HEAD,,,
+LLMRocMinNER,https://www.sciencedirect.com/science/article/abs/pii/S0098300425000949,2026-11-27,connection failed,HEAD,,,
+PolyIE,https://ramprasad.mse.gatech.edu/PolyIE/,2026-11-27,missing at this URL,GET,404,ramprasad.mse.gatech.edu,text/html
+MathDial,https://arxiv.org/abs/2305.14536,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+CoMTA,https://learninganalytics.upenn.edu/ryanbaker/,2026-11-27,responded,HEAD,200,learninganalytics.upenn.edu,text/html
+FrenchFullLengthFictionCoref,https://arxiv.org/html/2510.15594v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+WinogradSchemaChallengeWSC,https://cs.nyu.edu/~davise/papers/WinoPron/WSCollection.xml,2026-11-27,missing at this URL,GET,404,cs.nyu.edu,text/html
+TVShowMultilingualCoref,https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00581/117162,2026-11-27,request denied,GET,403,direct.mit.edu,text/html
+VisDialCoref,https://www.sciencedirect.com/science/article/pii/S266729522300082X,2026-11-27,connection failed,HEAD,,,
+RISeC,https://aclanthology.org/2020.aacl-main.82/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+EFGC,https://aclanthology.org/2020.lrec-1.638/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+SPoRC,https://arxiv.org/html/2411.07892v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+ARFFiction,https://aclanthology.org/2025.latechclfl-1.13.pdf,2026-11-27,responded,HEAD,200,aclanthology.org,application/pdf
+CRAFTCorpusCoref,https://github.com/UCDenver-ccp/CRAFT,2026-11-27,responded,HEAD,200,github.com,text/html
+AerospaceNERDataset,https://arc.aiaa.org/doi/10.2514/1.I011251,2026-11-27,request denied,GET,403,arc.aiaa.org,text/html
+AviationProductsNER,https://dspace.lib.cranfield.ac.uk/server/api/core/bitstreams/a59ed640-4783-4ddb-871b-6fd8bd0e7400/content,2026-11-27,responded,HEAD,200,dspace.lib.cranfield.ac.uk,application/pdf
+VREN,https://arxiv.org/abs/2209.13846,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+FashionIQ,https://github.com/XiaoxiaoGuo/fashion-iq,2026-11-27,responded,HEAD,200,github.com,text/html
+NaturalProductsRE,https://direct.mit.edu/coli/article/50/3/953/121178,2026-11-27,request denied,GET,403,direct.mit.edu,text/html
+DrugProtBioCreative,https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vii/track-1/,2026-11-27,request denied,GET,403,biocreative.bioinformatics.udel.edu,text/html
+MOFDataset,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,2026-11-27,responded,HEAD,200,pmc.ncbi.nlm.nih.gov,text/html
+SolidStateDoping,https://pmc.ncbi.nlm.nih.gov/articles/PMC10869356/,2026-11-27,responded,HEAD,200,pmc.ncbi.nlm.nih.gov,text/html
+AgriNER,https://2023.eswc-conferences.org/wp-content/uploads/2023/05/paper_De_2023_AgriNER.pdf,2026-11-27,responded,HEAD,200,2023.eswc-conferences.org,application/pdf
+AGRONER,https://www.sciencedirect.com/science/article/abs/pii/S0957417423009429,2026-11-27,connection failed,HEAD,,,
+AgMNER,https://www.nature.com/articles/s41598-025-88874-9,2026-11-27,responded,HEAD,200,www.nature.com,text/html
+PolishCoreferenceCorpus,http://zil.ipipan.waw.pl/PolishCoreferenceCorpus,2026-11-27,responded,HEAD,200,zil.ipipan.waw.pl,text/html
+ArabicEventCoref,https://dl.acm.org/doi/10.1145/3743047,2026-11-27,request denied,GET,403,dl.acm.org,text/html
+HindiEnglishSocialMediaNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+AstroBERTCorpus,https://huggingface.co/adsabs/astroBERT,2026-11-27,responded,HEAD,200,huggingface.co,text/html
+AstronomicalTelegramKEE,https://www.raa-journal.org/issues/all/2024/v24n6/202405/,2026-11-27,request denied,GET,403,www.raa-journal.org,text/html
+Saraga,https://mtg.github.io/saraga/,2026-11-27,responded,HEAD,200,mtg.github.io,text/html
+MusicBrainzRE,https://web.stanford.edu/~jurafsky/mintz.pdf,2026-11-27,responded,HEAD,200,web.stanford.edu,application/pdf
+DINAA,https://ux.opencontext.org/endangered-data-and-the-digital-index-of-north-american-archaeology-dinaa/,2026-11-27,responded,HEAD,200,ux.opencontext.org,text/html
+IMDbSemiStructuredRE,https://www.vldb.org/pvldb/vol11/p1084-lockard.pdf,2026-11-27,other HTTP response,HEAD,503,www.vldb.org,text/plain
+ATISFlightBooking,https://github.com/yvchen/JointSLU,2026-11-27,responded,HEAD,200,github.com,text/html
+PaleontologyNER,https://aclanthology.org/anthology-files/anthology-files/pdf/findings/2023.findings-emnlp.218v1.pdf,2026-11-27,responded,HEAD,200,aclanthology.org,application/pdf
+WaterResourceNER,https://www.frontiersin.org/journals/environmental-science/articles/10.3389/fenvs.2025.1558317/pdf,2026-11-27,responded,HEAD,204,www.frontiersin.org,
+MalwareTextDB,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+SECFilingsNER,https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/SEC-filings/CONLL-format/data/test/FIN3.txt,2026-11-27,responded,HEAD,200,raw.githubusercontent.com,text/plain
+AnEM,http://www.nactem.ac.uk/anatomy/,2026-11-27,responded,HEAD,200,www.nactem.ac.uk,text/html
+RecipeDBAnnotated,https://aclanthology.org/2024.lrec-main.406/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+RitterTwitterNER,https://github.com/aritter/twitter_nlp,2026-11-27,responded,HEAD,200,github.com,text/html
+MusicNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TutoringSessionsAlgebra,https://aclanthology.org/C16-1188.pdf,2026-11-27,responded,HEAD,200,aclanthology.org,application/pdf
+GNERGeoscience,https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/2019EA000610,2026-11-27,request denied,GET,403,agupubs.onlinelibrary.wiley.com,text/html
+FourRegionsGeologyNER,https://www.geodoi.ac.cn/WebEn/down.aspx?ID=1873,2026-11-27,responded,HEAD,200,www.geodoi.ac.cn,application/octet-stream
+MSPPodcast,https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html,2026-11-27,responded,HEAD,200,engineering.utdallas.edu,text/html
+SpotifyPodcastsDataset,https://www.isca-archive.org/interspeech_2023/kotey23_interspeech.pdf,2026-11-27,responded,HEAD,200,www.isca-archive.org,application/pdf
+SportsNERGeneral,https://arxiv.org/html/2406.12252v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+EsportsNER,https://arxiv.org/html/2406.12252v1,2026-11-27,responded,HEAD,200,arxiv.org,text/html
+DeepFashion2,https://github.com/switchablenorms/DeepFashion2,2026-11-27,responded,HEAD,200,github.com,text/html
+ConstructionNER,https://www.sciencedirect.com/science/article/pii/S0926580520309481,2026-11-27,connection failed,HEAD,,,
+PharmaNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ProductReviewNER,https://www.aclweb.org/anthology/S14-2004/,2026-11-27,responded,HEAD,200,aclanthology.org,text/html
+RealEstateNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+AutomotiveNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TourismNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+EnergyNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+InsuranceNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+LogisticsNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ResumeNER,https://www.kaggle.com/datasets/dataturks/resume-entities-for-ner,2026-11-27,responded,GET,200,www.kaggle.com,text/html
+JobPostingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+HealthcareAdminNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TelecomNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+WeatherNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ManufacturingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+RetailInventoryNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+CropDiseaseNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+WineNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+VeterinaryNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+PhotographyNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+GenealogyNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+BoardGameNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+GardeningNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+BrewingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+KnittingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+FitnessNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+AstrologyNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TattooNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+FragranceNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ChessNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+CocktailNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+AntiquesNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+MaritimeNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+EquestrianNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+WoodworkingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+BirdwatchingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+NumismaticsNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+PhilatelyNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ScubaNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+ThemeParkNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+OrigamiNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+AnimeMangaNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+CryptoNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TelenovelaNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+TarotNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html
+BeekeepingNER,https://github.com/juand-r/entity-recognition-datasets,2026-11-27,responded,HEAD,200,github.com,text/html

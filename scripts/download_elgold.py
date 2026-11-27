@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["requests>=2.28"]
+# dependencies = []
 # ///
 """
 Download and convert the Elgold entity linking dataset.
@@ -36,13 +36,6 @@ import zipfile
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
-
-try:
-    import requests
-except ImportError:
-    print("ERROR: requests package required. Install with: pip install requests")
-    sys.exit(1)
-
 
 class ElgoldAnnotation(NamedTuple):
     """A single Elgold annotation."""
@@ -110,14 +103,7 @@ def get_cache_dir() -> Path:
 
 
 def download_elgold(cache_dir: Path, force: bool = False) -> Path:
-    """
-    Download the Elgold dataset.
-    
-    Note: The dataset is hosted on Bridge of Knowledge (mostwiedzy.pl).
-    The DOI resolves to a landing page that requires manual download.
-    This function provides instructions for manual download since the
-    repository uses bot protection.
-    """
+    """Find staged Elgold documents or print the publisher download instructions."""
     dataset_dir = cache_dir / "elgold"
     dataset_dir.mkdir(parents=True, exist_ok=True)
     
@@ -129,16 +115,15 @@ def download_elgold(cache_dir: Path, force: bool = False) -> Path:
             print(f"[INFO] Elgold already downloaded: {len(txt_files)} files in {data_dir}")
             return data_dir
     
-    # The dataset requires manual download due to bot protection
     print("""
 ================================================================================
 Elgold Dataset Download Instructions
 ================================================================================
 
-The Elgold dataset is hosted on Bridge of Knowledge (Polish university repository)
-which uses bot protection. Please download manually:
+Elgold v1.1 is hosted by Gdańsk University of Technology. To prepare its
+English annotated documents for conversion:
 
-1. Visit: https://doi.org/10.34808/f3q9-9k64
+1. Visit the versioned release: https://doi.org/10.34808/8zbz-1e66
    (or directly: https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0)
 
 2. Click "Download" to get the ZIP file
@@ -151,9 +136,9 @@ which uses bot protection. Please download manually:
    - 2_1.txt, 2_2.txt, ... (Job offers)
    - etc.
 
-Alternatively, clone the toolset repository which may have sample data:
-   git clone https://github.com/solewniczak/elgold-toolset.git
-   
+The publisher ZIP has SHA-256
+4c2afa2eb6622307da4bf279aa9d0420fc75abec13f2dc143d49a9ec8e307aec.
+
 After downloading, run this script again to process the dataset.
 ================================================================================
 """.format(dataset_dir=dataset_dir))
@@ -163,8 +148,15 @@ After downloading, run this script again to process the dataset.
 
 def parse_elgold_file(filepath: Path) -> ElgoldDocument | None:
     """Parse a single Elgold annotated file."""
-    # Extract category and serial from filename: {category}_{serial}.txt
-    filename = filepath.stem
+    try:
+        raw_text = filepath.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raw_text = filepath.read_text(encoding="latin-1")
+    return parse_elgold_text(filepath.stem, raw_text)
+
+
+def parse_elgold_text(filename: str, raw_text: str) -> ElgoldDocument | None:
+    """Parse a publisher document by its category/serial stem."""
     parts = filename.split("_")
     if len(parts) != 2:
         print(f"[WARN] Unexpected filename format: {filename}")
@@ -172,11 +164,6 @@ def parse_elgold_file(filepath: Path) -> ElgoldDocument | None:
     
     category_id, serial = parts
     category = CATEGORY_NAMES.get(category_id, f"Unknown ({category_id})")
-    
-    try:
-        raw_text = filepath.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raw_text = filepath.read_text(encoding="latin-1")
     
     # Parse annotations: {{mention|class|target}}
     annotation_pattern = re.compile(r"\{\{([^|{}]+)\|([^|{}]+)\|([^{}]*)\}\}")

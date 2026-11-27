@@ -177,6 +177,75 @@ def inventory_observation(row):
     return []
 
 
+def source_disposition(row, review):
+    """Give one actionable outcome per ID. HTTP responses describe only the registry URL."""
+    if row["measured"]:
+        return "Corpus content measured"
+    if row["same_release_as"]:
+        return "Measured under another registry ID"
+    if review:
+        return review["disposition"]
+    pointer = row["pointer_status"]
+    if pointer == "local-source policy":
+        return "Local source required"
+    if row["access"] not in {"Public", "HuggingFace"}:
+        return f"Registry access: {row['access']}"
+    if "collection-level link" in row["github_reasons"]:
+        return "General collection, matching dataset unresolved"
+    if (
+        "unparsed response" in row["direct_statuses"]
+        or "file read only" in row["direct_statuses"]
+    ):
+        return "Source returned, contents unverified"
+    if row["hf_provider_counts_only"]:
+        return "Only provider-reported counts"
+    if not row["url"]:
+        return "Registry supplies no URL"
+    if pointer in {
+        "missing at this URL",
+        "request denied",
+        "sign-in page",
+        "connection failed",
+        "other HTTP response",
+    }:
+        return f"Registry pointer: {pointer}"
+    if row["github_statuses"]:
+        return "Repository or owner, matching files unresolved"
+    if "Publication" in row["direct_reasons"]:
+        return "Publication without verified corpus file"
+    return "Linked source without verified corpus file"
+
+
+def coverage_action(disposition):
+    if disposition == "Corpus content measured":
+        return "Inspect measured scope"
+    if disposition == "Measured under another registry ID":
+        return "Use the measured alias"
+    if disposition in {
+        "Registry access: Deprecated",
+        "Registry access: NotYetReleased",
+    }:
+        return "Check release or replacement"
+    if disposition.startswith("Registry pointer:"):
+        return "Resolve the registry URL"
+    if disposition in {
+        "Only provider-reported counts",
+        "Source returned, contents unverified",
+    }:
+        return "Validate corpus records"
+    if disposition.startswith("Registry access:") or disposition in {
+        "Local source required",
+        "licensed distribution",
+        "author request required",
+        "credentials required",
+        "credentials and source mapping",
+        "individual data use agreement",
+        "data use agreement and source mapping",
+    }:
+        return "Arrange source access"
+    return "Identify the matching release"
+
+
 def compile_entry(entry, sources, direct_supplied):
     ident = entry["id"]
     direct = (
@@ -223,14 +292,16 @@ def compile_entry(entry, sources, direct_supplied):
     ]
     github_files = defaultdict(dict)
     for r in github_record:
-        github_files[(r["revision"], r["path"])][r["unit"]] = int(r["value"])
-    github_tagged = [
-        units
-        for units in github_files.values()
+        github_files[(r["revision"], r["path"], r["split"])][r["unit"]] = int(
+            r["value"]
+        )
+    github_tagged = {
+        key
+        for key, units in github_files.items()
         if "tagged tokens" in units
         and units.get("tokens", 0) > 0
         and units["tagged tokens"] <= units["tokens"]
-    ]
+    }
 
     record_routes = {
         "direct": direct_record,
@@ -268,8 +339,13 @@ def compile_entry(entry, sources, direct_supplied):
     if not direct:
         row["direct_reasons"] = inventory_reason(entry)
     row.update(
-        direct_measured_files=len(direct_record),
-        direct_tagged_files=len(tag_routes["direct"]),
+        direct_measured_files=len(
+            {(r.get("source"), r.get("sha256")) for r in direct_record}
+        ),
+        direct_tagged_files=len(
+            {(r.get("source"), r.get("sha256")) for r in tag_routes["direct"]}
+        ),
+        direct_measured_partitions=len(direct_record),
         direct_units=joined(r["unit"] for r in direct_record),
         repo_measured_files=len(repo_record),
         repo_tagged_files=len(tag_routes["repo"]),
@@ -280,8 +356,18 @@ def compile_entry(entry, sources, direct_supplied):
             r["status"] == "provider_only" and has_count(r, "provider_rows")
             for r in hub
         ),
-        github_measured_files=len(github_files),
-        github_tagged_files=len(github_tagged),
+        github_measured_files=len(
+            {(r["source_url"], r["sha256"]) for r in github_record}
+        ),
+        github_measured_partitions=len(github_files),
+        github_tagged_files=len(
+            {
+                (r["source_url"], r["sha256"])
+                for r in github_record
+                if (r["revision"], r["path"], r["split"]) in github_tagged
+            }
+        ),
+        github_tagged_partitions=len(github_tagged),
         github_units=joined(r["unit"] for r in github_record),
         ci_precheck_runs=len({r["run_id"] for r in ci}),
         ci_precheck_sources=counts(r["source"] for r in ci),
@@ -310,6 +396,21 @@ def compile_entry(entry, sources, direct_supplied):
                 "CI precheck reports source availability; no corpus measurement in that observation"
             )
         row["outstanding_reason"] = "; ".join(reasons)
+    pointers = sources.get("pointers", {}).get(ident, [])
+    if pointers and (len(pointers) != 1 or pointers[0]["url"] != row["url"]):
+        raise ValueError(f"Registry pointer ledger does not match {ident}")
+    row["pointer_status"] = pointers[0]["pointer_status"] if pointers else ""
+    row["same_release_as"] = {
+        "FINERFood": "FINER",
+        "LatinITTB": "LatinUD",
+        "CSN": "CodeSearchNet",
+        "CRAFTCorpusCoref": "CRAFTCoref",
+    }.get(ident, "")
+    review = sources.get("reviews", {}).get(ident, {})
+    row["source_review_url"] = review.get("source", "")
+    row["source_review_scope"] = review.get("scope_and_access", "")
+    row["source_disposition"] = source_disposition(row, review)
+    row["coverage_action"] = coverage_action(row["source_disposition"])
     return row
 
 
@@ -508,11 +609,22 @@ def main():
         ("hf-splits", "Hugging Face provider and measured split counts."),
         ("github-sources", "GitHub release survey with record-unit counts."),
         (
+            "registry-pointers",
+            "Header-only registry URL audit. Adds source dispositions, never content counts.",
+        ),
+        (
             "ci-prechecks",
             "Named, observed CI prechecks; recorded separately from measurement.",
         ),
     ]:
         parser.add_argument("--" + option, type=Path, help=description)
+    parser.add_argument(
+        "--source-review",
+        type=Path,
+        action="append",
+        default=[],
+        help="Publisher access or scope findings for specific IDs. Repeat for additional reviews.",
+    )
     args = parser.parse_args()
     inventory = load_csv(args.inventory)
     ids = {r["id"] for r in inventory}
@@ -524,7 +636,18 @@ def main():
         "hf": group_by_id(args.hf_splits, ids),
         "github": group_by_id(args.github_sources, ids),
         "ci": group_by_id(args.ci_prechecks, ids, key="dataset"),
+        "pointers": group_by_id(args.registry_pointers, ids),
     }
+    if args.registry_pointers and set(sources["pointers"]) != ids:
+        parser.error(
+            "Registry pointer audit requires exactly one outcome for each inventory ID"
+        )
+    sources["reviews"] = {}
+    for path in args.source_review:
+        for ident, reviews in group_by_id(path, ids).items():
+            if len(reviews) != 1 or ident in sources["reviews"]:
+                parser.error(f"Duplicate source review for {ident}")
+            sources["reviews"][ident] = reviews[0]
     rows = [
         compile_entry(entry, sources, bool(args.direct_files)) for entry in inventory
     ]

@@ -5852,7 +5852,8 @@ impl DatasetLoader {
             DatasetId::SciERC => {
                 self.parse_crossre_relations(super::scierc::sentences(content, false)?)
             }
-            DatasetId::CrossREAI
+            DatasetId::CrossRE
+            | DatasetId::CrossREAI
             | DatasetId::CrossRELiterature
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -7723,18 +7724,21 @@ mod tests {
         let line = r#"{"doc_key":"t-1","sentence":["Björk","toured","with","Sugarcubes","."],"ner":[[0,0,"musicalartist"],[3,3,"band"]],"relations":[[0,0,3,3,"part-of","",false,false]]}"#;
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
-        std::fs::write(dir.path().join(DatasetId::CrossREAI.cache_filename()), line).unwrap();
-        let docs = loader.load_relation(DatasetId::CrossREAI).unwrap();
-        let r = &docs[0].relations[0];
-        let text = &docs[0].text;
-        let slice = |(s, e): (usize, usize)| text.chars().skip(s).take(e - s).collect::<String>();
-        assert_eq!(slice(r.head_span), "Björk", "head span {:?}", r.head_span);
-        assert_eq!(
-            slice(r.tail_span),
-            "Sugarcubes",
-            "tail span {:?}",
-            r.tail_span
-        );
+        for id in [DatasetId::CrossRE, DatasetId::CrossREAI] {
+            std::fs::write(dir.path().join(id.cache_filename()), line).unwrap();
+            let docs = loader.load_relation(id).unwrap();
+            let r = &docs[0].relations[0];
+            let text = &docs[0].text;
+            let slice =
+                |(s, e): (usize, usize)| text.chars().skip(s).take(e - s).collect::<String>();
+            assert_eq!(slice(r.head_span), "Björk", "head span {:?}", r.head_span);
+            assert_eq!(
+                slice(r.tail_span),
+                "Sugarcubes",
+                "tail span {:?}",
+                r.tail_span
+            );
+        }
     }
 
     #[cfg(feature = "eval")]
