@@ -1,6 +1,7 @@
 """Refresh the numerical sections of the dataset guide from the same ledgers as its plots."""
 
 import csv
+import json
 import re
 from collections import Counter
 
@@ -91,6 +92,25 @@ def coverage_text(evidence, rendered, report):
                 for label, count in sorted(actions.items(), key=lambda x: (-x[1], x[0]))
             ),
         ]
+    )
+    cached = json.loads((evidence / "s3-source-coverage.json").read_text(encoding="utf-8"))
+    matches = rows(evidence / "s3-publisher-file-matches.csv")
+    own_ids = {r["cache_id"] for r in matches if r["cache_id"] == r["publisher_id"]}
+    if len(own_ids) != cached["registry_ids_with_own_publisher_match"] or (
+        len({r["sha256"] for r in matches}) != cached["distinct_matched_publisher_digests"]
+    ):
+        raise ValueError("The S3 file matches must agree with the aggregate receipt")
+    kinds = cached["objects_by_kind"]
+    outcomes = cached["payload_objects_by_outcome"]
+    sections["s3"] = (
+        f"On **{cached['listing_started_utc'][:10]} UTC**, trusted CI listed **{cached['objects_listed']} objects** "
+        f"under `datasets/`. It recognized {kinds.get('legacy', 0) + kinds.get('snapshot', 0)} payload objects "
+        f"for **{cached['registry_ids_with_payload']} registry IDs**. Comparing the eligible bytes with "
+        f"{cached['publisher_digests_compared']:,} independently measured publisher digests identified "
+        f"**{outcomes.get('matches_own_publisher_file', 0)} payload objects for {len(own_ids)} IDs** that matched "
+        "a file recorded for their own dataset. Each match identifies a particular file or split. "
+        f"[Trusted run](https://github.com/arclabs561/anno/actions/runs/{cached['workflow_run_id']}) · "
+        "[Counts and exclusions](s3-source-coverage.json) · [File matches and measured units](s3-publisher-file-matches.csv)"
     )
     for key, replacement in sections.items():
         start = f"<!-- coverage-{key} -->"

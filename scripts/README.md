@@ -39,6 +39,8 @@ With `uv` alone, run `uv run --python 3.12 --script scripts/refresh_dataset_figu
 
 Each figure build saves its PNGs, SVGs and five derived CSVs as the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. The `s3-dataset-cache-figures` artifact contains the live inventory figure and WikiGold verification. The `cache-source-evidence` artifact contains the broader publisher-file matches, with their figure and counts. That comparison also refreshes after changes to the measured-file ledgers on `main`. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
 
+To publish a new dated S3 figure in the guide, download `cache-source-evidence` from the trusted run, copy `cache-source-coverage.json` to `docs/eval/s3-source-coverage.json` and `publisher-file-matches.csv` to `docs/eval/s3-publisher-file-matches.csv`, then run `just dataset-figures --update`. The generator updates the run link and counts in the coverage guide. The checked-in receipt and image remain available after the corresponding CI artifact expires.
+
 ```sh
 gh workflow run dataset-figures.yml --ref main
 gh run download RUN_ID --name dataset-figures --dir .generated/ci-figures
