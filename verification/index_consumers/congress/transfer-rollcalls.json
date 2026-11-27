@@ -1,0 +1,91 @@
+{
+  "input_sha256": {
+    "committee.jsonl": "1e78450e71aa73c920f2386b4af31ae12ae693199b034c89a3fdb3da0617a3e8",
+    "roll001-2003.xml": "ed671f4e176013bb196df5f805ac358f26ce9012e442615724b115fea2116f0b",
+    "roll001-2005.xml": "49241054c73b0d9c9989057b692af6fcded2e063b41531436d3ea3e5fbfc026f",
+    "roster.jsonl": "f6c4246cdaff7b3094ae00cf820b9ed27462970c75bda0319460e0350290a337"
+  },
+  "measured_anno_revision": "75f961e54631774b4e74547a383eaf8fc79a772d",
+  "observed": {
+    "changed_forms_equal_after_removing_state_suffix": 6,
+    "earlier_pilot_ids": 724,
+    "eligible_ids": 376,
+    "identity_overlap_with_earlier_pilot": 0,
+    "literal": {
+      "pairs": {
+        "cross_document_pairs": 115218,
+        "fn": 7,
+        "fp": 1,
+        "tn": 114914,
+        "tp": 296
+      },
+      "queries": {
+        "prior_target_absent": {
+          "correct": 0,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 29,
+          "queries": 30,
+          "wrong": 1
+        },
+        "prior_target_present": {
+          "correct": 296,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 7,
+          "queries": 303,
+          "wrong": 0
+        }
+      },
+      "wrong_unique_with_identical_printing": 1
+    },
+    "native_default": {
+      "pairs": {
+        "cross_document_pairs": 115218,
+        "fn": 7,
+        "fp": 1,
+        "tn": 114914,
+        "tp": 296
+      },
+      "queries": {
+        "prior_target_absent": {
+          "correct": 0,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 29,
+          "queries": 30,
+          "wrong": 1
+        },
+        "prior_target_present": {
+          "correct": 296,
+          "multiple_priors_in_component": 0,
+          "no_prior_in_component": 7,
+          "queries": 303,
+          "wrong": 0
+        }
+      },
+      "wrong_unique_with_identical_printing": 1
+    },
+    "same_partition_as_literal": true,
+    "selection": {
+      "2003-01-07/house/roll001": {
+        "eligible": 346,
+        "omitted": {
+          "earlier_pilot": 89
+        },
+        "votes": {
+          "Not Voting": 3,
+          "Present": 432
+        }
+      },
+      "2005-01-04/house/roll001": {
+        "eligible": 333,
+        "omitted": {
+          "earlier_pilot": 101
+        },
+        "votes": {
+          "Not Voting": 10,
+          "Present": 424
+        }
+      }
+    },
+    "shared_ids_with_changed_printing": 7
+  }
+}
