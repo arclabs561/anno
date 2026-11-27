@@ -1293,13 +1293,8 @@ fn spans_overlap(a: &crate::Location, b: &crate::Location) -> bool {
 use crate::CoreferenceResolver;
 use crate::Entity;
 
-impl CoreferenceResolver for MentionRankingCoref {
-    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
-        if entities.is_empty() {
-            return vec![];
-        }
-
-        // Convert Entity to RankedMention
+impl MentionRankingCoref {
+    fn prepare_supplied_mentions(&self, entities: &[Entity]) -> Vec<RankedMention> {
         let mut mentions: Vec<RankedMention> = entities
             .iter()
             .map(|e| {
@@ -1347,7 +1342,16 @@ impl CoreferenceResolver for MentionRankingCoref {
             self.extract_features(mention);
         }
 
-        // Link mentions into clusters
+        mentions
+    }
+}
+
+impl CoreferenceResolver for MentionRankingCoref {
+    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
+        if entities.is_empty() {
+            return vec![];
+        }
+        let mentions = self.prepare_supplied_mentions(entities);
         // Note: CoreferenceResolver trait doesn't provide source text,
         // so context-aware features (be-phrase, filtering) are disabled
         let clusters = self.link_mentions(&mentions, "");
@@ -1386,6 +1390,8 @@ impl CoreferenceResolver for MentionRankingCoref {
     }
 }
 
+#[cfg(test)]
+mod gap_supplied_trace;
 #[cfg(test)]
 mod gap_trace;
 
