@@ -10,6 +10,7 @@ EXPECTED = {
     "local-file-permission-cannot-grant-origin-or-shared-access": "unsat",
     "publisher-permission-does-not-grant-shared-raw-publication": "unsat",
     "replay-cannot-relicense-external-data-or-promote-a-holdout": "unsat",
+    "replay-preserves-registry-admission": "unsat",
     "judge-only-or-uncredited-seeds-cannot-enter-shared-state": "unsat",
     "authorized-local-source-has-a-witness": "sat",
     "publisher-origin-fetch-has-a-witness": "sat",
