@@ -6,6 +6,9 @@ on:
       - .github/workflows/dataset-figures.yml
       - .github/workflows/verify-dataset-cache.yml
       - scripts/refresh_dataset_figures.py
+      - scripts/genia_grounded_overlap.py
+      - scripts/qa/test_refresh_dataset_figures.py
+      - scripts/qa/test_genia_nesting_counts.py
       - scripts/figure_coverage_report.py
       - scripts/plot_*.py
       - scripts/qa/joint_baseline/**
@@ -14,18 +17,25 @@ on:
       - crates/*/Cargo.toml
       - crates/anno/src/lib.rs
       - crates/anno/src/viz/**
+      - crates/anno/src/core/grounded/**
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
+      - crates/anno-cli/src/cli/commands/eval.rs
       - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
       - docs/figures/*-tradeoff.svg
+      - docs/figures/*-errors.svg
+      - docs/figures/*-overlap.svg
       - docs/eval/*-tradeoff.json
+      - docs/eval/*-errors.json
+      - docs/eval/*-overlap.json
       - docs/eval/dataset-*.csv
       - docs/eval/dataset-coverage.md
       - docs/eval/crossre-prompt-scope.csv
       - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/genia-nesting-counts.json
+      - docs/eval/genia-native-exports.json
       - docs/eval/ner-language-length.json
       - docs/eval/nuner-fallback-routing.json
       - docs/eval/s3-source-coverage.json
@@ -37,6 +47,9 @@ on:
     paths:
       - .github/workflows/dataset-figures.yml
       - scripts/refresh_dataset_figures.py
+      - scripts/genia_grounded_overlap.py
+      - scripts/qa/test_refresh_dataset_figures.py
+      - scripts/qa/test_genia_nesting_counts.py
       - scripts/figure_coverage_report.py
       - scripts/plot_*.py
       - Cargo.lock
@@ -44,17 +57,24 @@ on:
       - crates/*/Cargo.toml
       - crates/anno/src/lib.rs
       - crates/anno/src/viz/**
+      - crates/anno/src/core/grounded/**
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
+      - crates/anno-cli/src/cli/commands/eval.rs
       - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
       - docs/figures/*-tradeoff.svg
+      - docs/figures/*-errors.svg
+      - docs/figures/*-overlap.svg
       - docs/eval/*-tradeoff.json
+      - docs/eval/*-errors.json
+      - docs/eval/*-overlap.json
       - docs/eval/dataset-*.csv
       - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/crossre-prompt-scope.csv
       - docs/eval/genia-nesting-counts.json
+      - docs/eval/genia-native-exports.json
       - docs/eval/ner-language-length.json
       - docs/eval/nuner-fallback-routing.json
       - docs/eval/s3-source-coverage.json
@@ -85,6 +105,10 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
       - name: Check paired CrossRE inputs and outcomes
         run: python3 -m unittest discover -s scripts/qa -p 'test_crossre_prompt*.py'
+      - name: Check publication and verify GENIA measurements
+        run: |
+          uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p test_refresh_dataset_figures.py
+          python3 -m unittest discover -s scripts/qa -p test_genia_nesting_counts.py
       - name: Render and compare the published figures
         run: uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check --output "$RUNNER_TEMP/dataset-figures"
       - name: Save the rendered images and measurements

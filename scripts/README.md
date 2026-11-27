@@ -35,7 +35,13 @@ just dataset-figures --check   # Check the published images and counts
 
 To call the entry point directly, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Use `--output DIR` for another preview directory or `--anno PATH` to render with an existing Anno binary. [Build entry point and dependencies](refresh_dataset_figures.py)
 
-For an operating-point comparison, have the analysis write `docs/eval/<study>-tradeoff.json` in the `anno.tradeoff/v1` format. The build discovers these files, calls `anno viz tradeoff` for each and rasterizes that same SVG using resvg and the bundled DejaVu Sans fonts. Embed the SVG with the same file stem. [Chart format and CLI examples](../docs/QUICKSTART.md#visualize-evaluation-results)
+The build discovers study inputs under `docs/eval/`. Name each file `<study>-<view>.json`, using the matching native view in the table. It calls the public CLI and rasterizes the resulting SVG with resvg and the bundled DejaVu Sans fonts. Embed the SVG with the same file stem. [Chart formats and CLI examples](../docs/QUICKSTART.md#visualize-evaluation-results)
+
+| View | Portable input | What the report shows |
+|---|---|---|
+| `tradeoff` | `anno.tradeoff/v1` | Correct and unmatched predictions for competing settings on a shared cohort. |
+| `errors` | `anno.errors/v1` | Exact matches, wrong labels, boundary mismatches, missed gold and extra predictions from labeled evaluations. |
+| `overlap` | `anno.overlap/v1` | How many supplied occurrences and source characters share annotation spans. |
 
 ```sh
 anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json --output wikigold.svg
@@ -71,11 +77,13 @@ cargo build --locked -p anno-eval --example genia_export
 python3 scripts/plot_genia_nesting.py "$out" --native-export "${CARGO_TARGET_DIR:-target}/debug/examples/genia_export"
 cmp "$out/genia-native-exports.json" "$ledgers/genia-native-exports.json"
 cmp "$out/genia-nesting-counts.json" "$ledgers/genia-nesting-counts.json"
+python3 scripts/genia_grounded_overlap.py "$out/genia-span-overlap.json"
+cmp "$out/genia-span-overlap.json" "$ledgers/genia-span-overlap.json"
 python3 scripts/survey_crossre_prompts.py "$out/crossre-prompt-scope.csv"
 cmp "$out/crossre-prompt-scope.csv" "$ledgers/crossre-prompt-scope.csv"
 ```
 
-For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA or CrossRE, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE`. GENIA also accepts `--input PATH_TO_GENIA_TEST_IOB2` for a test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA and CrossRE file manifest](../docs/eval/dataset-repo-files.csv)
+For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA or CrossRE, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE`. The GENIA overlap replay uses `anno` on PATH. Pass `--anno PATH` for a particular binary. The nesting study also accepts `--input PATH_TO_GENIA_TEST_IOB2` for a test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA and CrossRE file manifest](../docs/eval/dataset-repo-files.csv)
 
 [Native WNUT-17 replay](../docs/DOMAIN_QA.md#compare-native-anno-on-unfamiliar-names) builds the selected Anno revisions, runs the same 1,287 test sentences through both binaries and writes the aggregate used by the native comparison figure. [Six-domain CrossRE replay](../docs/eval/crossre-full-prompt-comparison.md) records the model, corpus files and two prompt conditions.
 

@@ -50,6 +50,8 @@ class PublishedFigureChecks(unittest.TestCase):
                     self.assertTrue(figures.same_result(built, existing))
                     existing.write_bytes(contents.replace(b"3", b"4"))
                     self.assertFalse(figures.same_result(built, existing))
+                    existing.write_bytes(b"\xff")
+                    self.assertFalse(figures.same_result(built, existing))
 
     @unittest.skipUnless(
         all(importlib.util.find_spec(dep) for dep in ["matplotlib", "resvg_py", "PIL"]),
@@ -65,14 +67,25 @@ class PublishedFigureChecks(unittest.TestCase):
             output = root / "figures"
             output.mkdir()
             cli = root / "anno"
-            sources = [root / f"{study}-tradeoff.json" for study in ("left", "right")]
+            sources = [
+                root / f"{study}.json"
+                for study in (
+                    "left-tradeoff",
+                    "right-tradeoff",
+                    "genia-span-overlap",
+                    "wikigold-entity-errors",
+                )
+            ]
             for source in sources:
                 source.write_text(json.dumps({"title": source.stem}), encoding="utf-8")
+            (root / "other-measurements.json").touch()
+            self.assertEqual(figures.native_paths(root, "json"), sorted(sources))
 
             def draw(command, *, check):
                 binary, viz, kind, source, option, dest = command
                 self.assertEqual(
-                    (binary, viz, kind, option), (cli, "viz", "tradeoff", "--output")
+                    (binary, viz, kind, option),
+                    (cli, "viz", source.stem.rsplit("-", 1)[1], "--output"),
                 )
                 self.assertTrue(check)
                 title = json.loads(source.read_text(encoding="utf-8"))["title"]
@@ -86,7 +99,7 @@ class PublishedFigureChecks(unittest.TestCase):
                 with patch.object(
                     figures.subprocess, "run", side_effect=draw
                 ) as render:
-                    figures.render_tradeoffs(sources, output, anno=None)
+                    figures.render_native(sources, output, anno=None)
                 build.assert_called_once_with()
                 self.assertEqual(render.call_count, len(sources))
 
@@ -105,7 +118,7 @@ class PublishedFigureChecks(unittest.TestCase):
 
             # A study borrowing the name of a prior generator must not replace its image.
             with self.assertRaisesRegex(ValueError, "More than one figure"):
-                figures.render_tradeoffs(sources, output, anno=cli)
+                figures.render_native(sources, output, anno=cli)
 
 
 if __name__ == "__main__":

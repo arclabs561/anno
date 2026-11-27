@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 EVAL = ROOT / "docs" / "eval"
 FIGURES = ROOT / "docs" / "figures"
+NATIVE_VIEWS = ("tradeoff", "overlap", "errors")
 SUMMARIES = (
     "dataset-coverage.csv",
     "dataset-coverage-by-domain.csv",
@@ -56,8 +57,16 @@ def build_anno():
     raise RuntimeError("Cargo did not report the anno executable.")
 
 
-def render_tradeoffs(inputs, directory, anno):
-    """Render every published operating-point input through the same native CLI."""
+def native_paths(directory, extension):
+    return sorted(
+        path
+        for view in NATIVE_VIEWS
+        for path in directory.glob(f"*-{view}.{extension}")
+    )
+
+
+def render_native(inputs, directory, anno):
+    """The final name component identifies the public anno viz command."""
     from resvg_py import svg_to_bytes
 
     executable = anno.resolve() if anno else build_anno()
@@ -71,9 +80,8 @@ def render_tradeoffs(inputs, directory, anno):
         png = svg.with_suffix(".png")
         if svg.exists() or png.exists():
             raise ValueError(f"More than one figure has the name {source.stem!r}.")
-        subprocess.run(
-            [executable, "viz", "tradeoff", source, "--output", svg], check=True
-        )
+        view = source.stem.rsplit("-", 1)[1]
+        subprocess.run([executable, "viz", view, source, "--output", svg], check=True)
         png.write_bytes(
             svg_to_bytes(
                 svg_path=str(svg),
@@ -148,9 +156,9 @@ def render(directory, config, anno):
         subprocess.run(
             [sys.executable, SCRIPTS / script, *args], check=True, env=env, cwd=ROOT
         )
-    native = sorted(EVAL.glob("*-tradeoff.json"))
+    native = native_paths(EVAL, "json")
     if native:
-        render_tradeoffs(native, directory, anno)
+        render_native(native, directory, anno)
     return [directory / source.with_suffix(".svg").name for source in native]
 
 
@@ -160,9 +168,12 @@ def same_result(built, published):
     if filecmp.cmp(built, published, shallow=False):
         return True
     if built.suffix in {".csv", ".md", ".svg"}:
-        return built.read_text(encoding="utf-8") == published.read_text(
-            encoding="utf-8"
-        )
+        try:
+            return built.read_text(encoding="utf-8") == published.read_text(
+                encoding="utf-8"
+            )
+        except UnicodeDecodeError:
+            return False
     if built.suffix == ".png":
         # Encoder metadata and compression can differ without a visible change.
         from PIL import Image
@@ -248,7 +259,7 @@ def main():
                 return
 
         published_images = set(FIGURES.glob("*.png")) | set(
-            FIGURES.glob("*-tradeoff.svg")
+            native_paths(FIGURES, "svg")
         )
         missing = sorted(published_images - set(results.values()))
         if missing:
