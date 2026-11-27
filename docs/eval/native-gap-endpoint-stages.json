@@ -1,0 +1,242 @@
+{
+  "panels": {
+    "article_holdout": {
+      "direct_pair_when_retained": {
+        "another_antecedent_selected": 1,
+        "at_or_below_threshold": 38,
+        "beyond_distance": 7,
+        "selected": 7
+      },
+      "distinct_articles": 128,
+      "documents": 128,
+      "endpoint_status_pairs": {
+        "returned / not_proposed_no_overlap": 5,
+        "returned / not_proposed_only_subspans": 21,
+        "returned / not_proposed_other_overlap": 4,
+        "returned / returned": 11,
+        "returned / unlinked_no_earlier_candidate_above_threshold": 15,
+        "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 1,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 8,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 20,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 7,
+        "unlinked_no_earlier_candidate_above_threshold / returned": 4,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate": 1,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 21
+      },
+      "false_link_path_edges": {
+        "1": 2
+      },
+      "gold_pairs": 118,
+      "id_list_sha256": "88e5cb4d4c26c1eb5bdd91bc7bddf3f9cc74ce0410395fa97213fe61122af41e",
+      "name_boundary_observations": {
+        "including_possessive_clitic": 10,
+        "multiword_only_subspans": 41,
+        "other_unresolved": 2,
+        "unproposed_after_open_paren": 1,
+        "unproposed_sentence_initial": 11
+      },
+      "partitions_sha256": "2e680cd4c57a073cfe2f69d78d6b9dcb3fe54282b80775b215cb553b4bcea88a",
+      "stages": {
+        "cluster_emission": 42,
+        "linked": 7,
+        "proposal": 65,
+        "returned_separately": 4
+      }
+    },
+    "development": {
+      "direct_pair_when_retained": {
+        "another_antecedent_selected": 18,
+        "at_or_below_threshold": 662,
+        "beyond_distance": 128,
+        "selected": 70
+      },
+      "distinct_articles": 1834,
+      "documents": 2000,
+      "endpoint_status_pairs": {
+        "overlap_dedup / not_proposed_only_subspans": 1,
+        "returned / not_proposed_no_overlap": 147,
+        "returned / not_proposed_only_subspans": 274,
+        "returned / not_proposed_other_overlap": 57,
+        "returned / returned": 153,
+        "returned / unlinked_no_earlier_candidate": 5,
+        "returned / unlinked_no_earlier_candidate_above_threshold": 274,
+        "unlinked_no_earlier_candidate / not_proposed_no_overlap": 1,
+        "unlinked_no_earlier_candidate / not_proposed_only_subspans": 8,
+        "unlinked_no_earlier_candidate / not_proposed_other_overlap": 1,
+        "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 14,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 109,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 255,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 68,
+        "unlinked_no_earlier_candidate_above_threshold / returned": 86,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate": 12,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 334
+      },
+      "false_link_path_edges": {
+        "1": 66,
+        "2": 2,
+        "4": 1
+      },
+      "gold_pairs": 1799,
+      "id_list_sha256": "a0a3434162ca28ddb420a2e8154bf733651315aa22e8b1117ed4a40c220c9e6a",
+      "name_boundary_observations": {
+        "including_possessive_clitic": 113,
+        "multiword_only_subspans": 535,
+        "other_unresolved": 29,
+        "unproposed_after_open_paren": 3,
+        "unproposed_sentence_initial": 241
+      },
+      "partitions_sha256": "bee9809324c404e9b0fd82ea2a382166133a105f2ce05e486924df00362231f4",
+      "stages": {
+        "cluster_emission": 725,
+        "linked": 74,
+        "proposal": 921,
+        "returned_separately": 79
+      }
+    },
+    "published": {
+      "direct_pair_when_retained": {
+        "at_or_below_threshold": 35,
+        "beyond_distance": 11,
+        "selected": 6
+      },
+      "distinct_articles": 127,
+      "documents": 128,
+      "endpoint_status_pairs": {
+        "returned / not_proposed_no_overlap": 8,
+        "returned / not_proposed_only_subspans": 21,
+        "returned / not_proposed_other_overlap": 4,
+        "returned / returned": 8,
+        "returned / unlinked_no_earlier_candidate": 1,
+        "returned / unlinked_no_earlier_candidate_above_threshold": 20,
+        "unlinked_no_earlier_candidate / not_proposed_no_overlap": 1,
+        "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 3,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 5,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 20,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 6,
+        "unlinked_no_earlier_candidate_above_threshold / returned": 7,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 13
+      },
+      "false_link_path_edges": {
+        "1": 4
+      },
+      "gold_pairs": 117,
+      "id_list_sha256": "606c82d6fb056415fef8592321de299b7c2c151668d51dedaa043b13e32e15e5",
+      "name_boundary_observations": {
+        "including_possessive_clitic": 10,
+        "multiword_only_subspans": 41,
+        "unproposed_after_open_paren": 2,
+        "unproposed_sentence_initial": 12
+      },
+      "partitions_sha256": "bfc77c6415438f105786389f98d37089931b6b5bcfe09c3deef414b29b362212",
+      "stages": {
+        "cluster_emission": 44,
+        "linked": 6,
+        "proposal": 65,
+        "returned_separately": 2
+      }
+    },
+    "test": {
+      "direct_pair_when_retained": {
+        "another_antecedent_selected": 12,
+        "at_or_below_threshold": 613,
+        "beyond_distance": 139,
+        "selected": 81
+      },
+      "distinct_articles": 1825,
+      "documents": 2000,
+      "endpoint_status_pairs": {
+        "overlap_dedup / not_proposed_no_overlap": 1,
+        "returned / not_proposed_no_overlap": 147,
+        "returned / not_proposed_only_subspans": 270,
+        "returned / not_proposed_other_overlap": 58,
+        "returned / returned": 149,
+        "returned / unlinked_no_earlier_candidate": 4,
+        "returned / unlinked_no_earlier_candidate_above_threshold": 286,
+        "unlinked_no_earlier_candidate / not_proposed_no_overlap": 2,
+        "unlinked_no_earlier_candidate / not_proposed_only_subspans": 6,
+        "unlinked_no_earlier_candidate / not_proposed_other_overlap": 2,
+        "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 13,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 106,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 263,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 73,
+        "unlinked_no_earlier_candidate_above_threshold / returned": 83,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate": 8,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 302
+      },
+      "false_link_path_edges": {
+        "1": 58,
+        "2": 4,
+        "3": 2
+      },
+      "gold_pairs": 1773,
+      "id_list_sha256": "1ff8faf5e53c031419dc4393b263b1b35e6e73d8dc90212388a8b5e415c4c53c",
+      "name_boundary_observations": {
+        "including_possessive_clitic": 110,
+        "multiword_only_subspans": 538,
+        "other_unresolved": 38,
+        "unproposed_after_open_paren": 8,
+        "unproposed_sentence_initial": 234
+      },
+      "partitions_sha256": "a6987bbb6371b150421a687dc31895d8080df720cf3b349e45daedd6615e0dd2",
+      "stages": {
+        "cluster_emission": 696,
+        "linked": 85,
+        "proposal": 928,
+        "returned_separately": 64
+      }
+    },
+    "validation": {
+      "direct_pair_when_retained": {
+        "another_antecedent_selected": 2,
+        "at_or_below_threshold": 158,
+        "beyond_distance": 24,
+        "selected": 27
+      },
+      "distinct_articles": 328,
+      "documents": 454,
+      "endpoint_status_pairs": {
+        "overlap_dedup / not_proposed_only_subspans": 1,
+        "returned / not_proposed_no_overlap": 27,
+        "returned / not_proposed_only_subspans": 49,
+        "returned / not_proposed_other_overlap": 10,
+        "returned / returned": 48,
+        "returned / unlinked_no_earlier_candidate": 1,
+        "returned / unlinked_no_earlier_candidate_above_threshold": 71,
+        "unlinked_no_earlier_candidate / not_proposed_only_subspans": 1,
+        "unlinked_no_earlier_candidate / returned": 1,
+        "unlinked_no_earlier_candidate / unlinked_no_earlier_candidate_above_threshold": 3,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_no_overlap": 23,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_only_subspans": 51,
+        "unlinked_no_earlier_candidate_above_threshold / not_proposed_other_overlap": 19,
+        "unlinked_no_earlier_candidate_above_threshold / returned": 23,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate": 4,
+        "unlinked_no_earlier_candidate_above_threshold / unlinked_no_earlier_candidate_above_threshold": 60
+      },
+      "false_link_path_edges": {
+        "1": 39,
+        "2": 1
+      },
+      "gold_pairs": 392,
+      "id_list_sha256": "ee20a391bbc3cc6e2665a2f838d7789667236d8e49a4d09f767aff46182a4eeb",
+      "name_boundary_observations": {
+        "including_possessive_clitic": 27,
+        "multiword_only_subspans": 102,
+        "other_unresolved": 6,
+        "unproposed_sentence_initial": 46
+      },
+      "partitions_sha256": "3408990d58c81bde6b4d5d4099613436ab89a13c2fea4f83ea42d00fbf0d0a68",
+      "stages": {
+        "cluster_emission": 163,
+        "linked": 27,
+        "proposal": 181,
+        "returned_separately": 21
+      }
+    }
+  },
+  "source_revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "source_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  }
+}
