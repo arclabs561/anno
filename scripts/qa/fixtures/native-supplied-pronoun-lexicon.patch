@@ -1,0 +1,60 @@
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+index 6f7e66f1..9e35daec 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+@@ -1295,11 +1295,13 @@ use crate::Entity;
+
+ impl MentionRankingCoref {
+     fn prepare_supplied_mentions(&self, entities: &[Entity]) -> Vec<RankedMention> {
++        let pronouns = self.get_pronoun_patterns();
+         let mut mentions: Vec<RankedMention> = entities
+             .iter()
+             .map(|e| {
+                 let mention_type = e.mention_type.unwrap_or_else(|| {
+-                    if e.text.chars().all(|c| c.is_lowercase()) {
++                    let lower = e.text.to_lowercase();
++                    if pronouns.iter().any(|(word, _, _)| *word == lower) {
+                         MentionType::Pronominal
+                     } else if e.text.chars().next().is_some_and(|c| c.is_uppercase()) {
+                         MentionType::Proper
+@@ -1399,6 +1401,40 @@ mod gap_trace;
+ mod tests {
+     use super::*;
+
++    #[test]
++    fn supplied_pronoun_lexicon_controls() {
++        for (language, form, explicit, expected) in [
++            ("en", "She", None, MentionType::Pronominal),
++            ("en", "river", None, MentionType::Nominal),
++            ("en", "alice", None, MentionType::Nominal),
++            ("es-MX", "Él", None, MentionType::Pronominal),
++            ("en", "Él", None, MentionType::Proper),
++            ("zh", "她", None, MentionType::Pronominal),
++            ("en", "She", Some(MentionType::Proper), MentionType::Proper),
++            (
++                "en",
++                "alice",
++                Some(MentionType::Proper),
++                MentionType::Proper,
++            ),
++        ] {
++            let model = MentionRankingCoref::with_config(MentionRankingConfig {
++                language: language.to_owned(),
++                ..Default::default()
++            });
++            let mut entity = Entity::new(
++                form,
++                crate::EntityType::Person,
++                0,
++                form.chars().count(),
++                1.0,
++            );
++            entity.mention_type = explicit;
++            let mentions = model.prepare_supplied_mentions(&[entity]);
++            assert_eq!(mentions[0].mention_type, expected, "{language} / {form}");
++        }
++    }
++
+     /// 'İ' (2 bytes) lowercases to "i\u{307}" (3 bytes), so offsets found in
+     /// a lowercased copy of the text cannot slice the original.
+     #[test]
