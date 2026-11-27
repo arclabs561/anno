@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="984" height="754" viewBox="0 0 984 754" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">How much do extra CrossRE relation suggestions recover?</title><desc id="chart-desc">Correct matches and unmatched predictions per 100 sentences. Each panel shares the correct and unmatched rate axes. The numbered points identify the exact counts and recall in its table. Identical counts share a point. Development · six domains has 96 sentences and 397 gold items. Stock has 129 correct, 297 unmatched, and 32.5% recall. Confidence has 142 correct, 364 unmatched, and 35.8% recall. Both margins has 141 correct, 365 unmatched, and 35.5% recall. All above 0.40 has 148 correct, 431 unmatched, and 37.3% recall. Held-out test · six domains has 192 sentences and 646 gold items. Stock has 211 correct, 526 unmatched, and 32.7% recall. Confidence has 231 correct, 666 unmatched, and 35.8% recall. Both margins has 235 correct, 662 unmatched, and 36.4% recall. All above 0.40 has 234 correct, 732 unmatched, and 36.2% recall.</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:13px}.heading{font-size:24px;font-weight:700}.subtitle{font-size:15px;fill:#456371}.cohort{font-size:19px;font-weight:700}.scope,.axis{fill:#456371}.small,.axis{font-size:11px}.col{font-weight:700;font-size:12px}.num{text-anchor:end;font-variant-numeric:tabular-nums}.key{font-size:12px;font-weight:700;fill:#006867}.plot-key{paint-order:stroke;stroke:white;stroke-width:2;stroke-linejoin:round}.rule,.grid{fill:none;stroke:#d5e0e2;stroke-width:1}.frontier{fill:none;stroke:#6da8a2;stroke-width:1.6}.optimal{fill:#006867;stroke:white;stroke-width:1.2}.dominated{fill:white;stroke:#456371;stroke-width:1.5}.leader{stroke:#658384;stroke-width:.8}</style>
+<rect width="984" height="754" fill="white"/><text x="32" y="38" class="heading">How much do extra CrossRE relation suggestions</text>
+<text x="32" y="67" class="heading">recover?</text>
+<text x="32" y="96" class="subtitle">Correct matches and unmatched predictions per 100 sentences.</text>
+<text x="32" y="115" class="scope">Filled points trace the best match count at each unmatched budget. Open points have a better alternative.</text>
+<g><title>Development · six domains</title><path d="M32 138H952" class="rule"/>
+<text x="32" y="166" class="cohort">Development · six domains</text>
+<text x="32" y="188" class="scope">96 sentences · 397 gold</text>
+<text x="477" y="221" class="col">Operating point</text>
+<text x="789" y="221" class="col num">Correct</text>
+<text x="879" y="221" class="col num">Unmatched</text>
+<text x="952" y="221" class="col num">Recall</text>
+<g><title>Stock</title>
+<circle cx="426" cy="241" r="4" class="optimal"/><text x="436" y="245" class="key">1</text>
+<text x="477" y="245" class="label">Stock</text>
+<text x="789" y="245" class="num">129</text>
+<text x="879" y="245" class="num">297</text>
+<text x="952" y="245" class="num">32.5%</text>
+</g>
+<g><title>Confidence</title>
+<circle cx="426" cy="266" r="4" class="optimal"/><text x="436" y="270" class="key">2</text>
+<text x="477" y="270" class="label">Confidence</text>
+<text x="789" y="270" class="num">142</text>
+<text x="879" y="270" class="num">364</text>
+<text x="952" y="270" class="num">35.8%</text>
+</g>
+<g><title>Both margins</title>
+<circle cx="426" cy="291" r="4" class="dominated"/><text x="436" y="295" class="key">3</text>
+<text x="477" y="295" class="label">Both margins</text>
+<text x="789" y="295" class="num">141</text>
+<text x="879" y="295" class="num">365</text>
+<text x="952" y="295" class="num">35.5%</text>
+</g>
+<g><title>All above 0.40</title>
+<circle cx="426" cy="316" r="4" class="optimal"/><text x="436" y="320" class="key">4</text>
+<text x="477" y="320" class="label">All above 0.40</text>
+<text x="789" y="320" class="num">148</text>
+<text x="879" y="320" class="num">431</text>
+<text x="952" y="320" class="num">37.3%</text>
+</g>
+<text x="80" y="221" class="col">Correct / 100</text>
+<path d="M80 381.00H390" class="grid"/><text x="71" y="385.00" class="axis num">0</text>
+<path d="M80 344.50H390" class="grid"/><text x="71" y="348.50" class="axis num">50</text>
+<path d="M80 308.00H390" class="grid"/><text x="71" y="312.00" class="axis num">100</text>
+<path d="M80 271.50H390" class="grid"/><text x="71" y="275.50" class="axis num">150</text>
+<path d="M80 235.00H390" class="grid"/><text x="71" y="239.00" class="axis num">200</text>
+<path d="M80.00 235V381" class="grid"/><text x="80.00" y="397" class="axis" text-anchor="middle">0</text>
+<path d="M183.33 235V381" class="grid"/><text x="183.33" y="397" class="axis" text-anchor="middle">200</text>
+<path d="M286.67 235V381" class="grid"/><text x="286.67" y="397" class="axis" text-anchor="middle">400</text>
+<path d="M390.00 235V381" class="grid"/><text x="390.00" y="397" class="axis" text-anchor="middle">600</text>
+<text x="390" y="417" class="col num">Unmatched / 100</text>
+<path d="M239.84 282.91H275.90V273.02H311.96V268.46H390" class="frontier"/>
+<line x1="239.84" y1="282.91" x2="247.84" y2="319.46" class="leader"/>
+<line x1="275.90" y1="273.02" x2="283.90" y2="285.46" class="leader"/>
+<line x1="276.44" y1="273.78" x2="284.44" y2="302.46" class="leader"/>
+<g><title>Point 1 · 129 correct · 297 unmatched</title><circle cx="239.84" cy="282.91" r="4" class="optimal"/></g>
+<g><title>Point 2 · 142 correct · 364 unmatched</title><circle cx="275.90" cy="273.02" r="4" class="optimal"/></g>
+<g><title>Point 3 · 141 correct · 365 unmatched</title><circle cx="276.44" cy="273.78" r="4" class="dominated"/></g>
+<g><title>Point 4 · 148 correct · 431 unmatched</title><circle cx="311.96" cy="268.46" r="4" class="optimal"/></g>
+<text x="249.84" y="323.46" class="key plot-key">1</text>
+<text x="285.90" y="289.46" class="key plot-key">2</text>
+<text x="286.44" y="306.46" class="key plot-key">3</text>
+<text x="321.96" y="272.46" class="key plot-key">4</text>
+</g>
+<g><title>Held-out test · six domains</title><path d="M32 446H952" class="rule"/>
+<text x="32" y="474" class="cohort">Held-out test · six domains</text>
+<text x="32" y="496" class="scope">192 sentences · 646 gold</text>
+<text x="477" y="529" class="col">Operating point</text>
+<text x="789" y="529" class="col num">Correct</text>
+<text x="879" y="529" class="col num">Unmatched</text>
+<text x="952" y="529" class="col num">Recall</text>
+<g><title>Stock</title>
+<circle cx="426" cy="549" r="4" class="optimal"/><text x="436" y="553" class="key">1</text>
+<text x="477" y="553" class="label">Stock</text>
+<text x="789" y="553" class="num">211</text>
+<text x="879" y="553" class="num">526</text>
+<text x="952" y="553" class="num">32.7%</text>
+</g>
+<g><title>Confidence</title>
+<circle cx="426" cy="574" r="4" class="dominated"/><text x="436" y="578" class="key">2</text>
+<text x="477" y="578" class="label">Confidence</text>
+<text x="789" y="578" class="num">231</text>
+<text x="879" y="578" class="num">666</text>
+<text x="952" y="578" class="num">35.8%</text>
+</g>
+<g><title>Both margins</title>
+<circle cx="426" cy="599" r="4" class="optimal"/><text x="436" y="603" class="key">3</text>
+<text x="477" y="603" class="label">Both margins</text>
+<text x="789" y="603" class="num">235</text>
+<text x="879" y="603" class="num">662</text>
+<text x="952" y="603" class="num">36.4%</text>
+</g>
+<g><title>All above 0.40</title>
+<circle cx="426" cy="624" r="4" class="dominated"/><text x="436" y="628" class="key">4</text>
+<text x="477" y="628" class="label">All above 0.40</text>
+<text x="789" y="628" class="num">234</text>
+<text x="879" y="628" class="num">732</text>
+<text x="952" y="628" class="num">36.2%</text>
+</g>
+<text x="80" y="529" class="col">Correct / 100</text>
+<path d="M80 689.00H390" class="grid"/><text x="71" y="693.00" class="axis num">0</text>
+<path d="M80 652.50H390" class="grid"/><text x="71" y="656.50" class="axis num">50</text>
+<path d="M80 616.00H390" class="grid"/><text x="71" y="620.00" class="axis num">100</text>
+<path d="M80 579.50H390" class="grid"/><text x="71" y="583.50" class="axis num">150</text>
+<path d="M80 543.00H390" class="grid"/><text x="71" y="547.00" class="axis num">200</text>
+<path d="M80.00 543V689" class="grid"/><text x="80.00" y="705" class="axis" text-anchor="middle">0</text>
+<path d="M183.33 543V689" class="grid"/><text x="183.33" y="705" class="axis" text-anchor="middle">200</text>
+<path d="M286.67 543V689" class="grid"/><text x="286.67" y="705" class="axis" text-anchor="middle">400</text>
+<path d="M390.00 543V689" class="grid"/><text x="390.00" y="705" class="axis" text-anchor="middle">600</text>
+<text x="390" y="725" class="col num">Unmatched / 100</text>
+<path d="M221.55 608.78H258.14V599.65H390" class="frontier"/>
+<line x1="221.55" y1="608.78" x2="229.55" y2="650.65" class="leader"/>
+<line x1="259.22" y1="601.17" x2="267.22" y2="633.65" class="leader"/>
+<line x1="258.14" y1="599.65" x2="281.98" y2="599.65" class="leader"/>
+<line x1="276.98" y1="600.03" x2="284.98" y2="616.65" class="leader"/>
+<g><title>Point 1 · 211 correct · 526 unmatched</title><circle cx="221.55" cy="608.78" r="4" class="optimal"/></g>
+<g><title>Point 2 · 231 correct · 666 unmatched</title><circle cx="259.22" cy="601.17" r="4" class="dominated"/></g>
+<g><title>Point 3 · 235 correct · 662 unmatched</title><circle cx="258.14" cy="599.65" r="4" class="optimal"/></g>
+<g><title>Point 4 · 234 correct · 732 unmatched</title><circle cx="276.98" cy="600.03" r="4" class="dominated"/></g>
+<text x="231.55" y="654.65" class="key plot-key">1</text>
+<text x="269.22" y="637.65" class="key plot-key">2</text>
+<text x="283.98" y="603.65" class="key plot-key">3</text>
+<text x="286.98" y="620.65" class="key plot-key">4</text>
+</g>
+</svg>
