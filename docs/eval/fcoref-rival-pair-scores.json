@@ -145,6 +145,8 @@
     "pair": 41,
     "total": 43
   },
+  "exact_pair_term_positive": 36,
+  "larger_mention_than_pair_disadvantage": 42,
   "rival_total_changed_from_stock": 0,
   "binary_sha256": "d90084c34dc1b376e0d09eb6f276a0da022225e1e05ba1d8febdf58ae57d8f04",
   "model_revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
