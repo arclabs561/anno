@@ -13,11 +13,14 @@
     "archive-name": {"person": ["archive", "17"], "kind": "name", "value": "Rowan Mire", "start": "2015-01-01", "end": "2025-01-01"},
     "reed-term": {"person": ["university", "17"], "kind": "affiliation", "value": "Reed Observatory", "start": "2018-06-01", "end": "2018-09-01"},
     "later-name": {"person": ["university", "17"], "kind": "name", "value": "Rowan Vale", "start": "2021-01-01", "end": "2025-01-01"},
-    "undated": {"person": ["university", "17"], "kind": "affiliation", "value": "Marsh Library", "start": null, "end": null}
+    "undated": {"person": ["university", "17"], "kind": "affiliation", "value": "Marsh Library", "start": null, "end": null},
+    "byline-register": {"person": ["archive", "26"], "kind": "name", "value": "Lake Reed", "start": "2020-01-01"},
+    "alias-register-1": {"person": ["archive", "26"], "kind": "name", "value": "Lake Reed", "start": "2020-01-01", "end": "unbounded"},
+    "alias-register-2": {"person": ["archive", "26"], "kind": "name", "value": "Lake Reed", "start": "2020-01-01", "end": "2022-01-01"}
   },
   "editions": [
-    {"decisions": ["tide-import", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name"]},
-    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name"]},
-    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name", "reed-term", "later-name", "undated"]}
+    {"decisions": ["tide-import", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name", "byline-register"]},
+    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name", "byline-register", "alias-register-1"]},
+    {"decisions": ["tide-correction", "salt-import", "tide-coauthor"], "claims": ["harbor-term", "quay-term", "early-name", "archive-name", "reed-term", "later-name", "undated", "byline-register", "alias-register-2"]}
   ]
 }
