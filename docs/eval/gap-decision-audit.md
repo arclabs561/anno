@@ -19,6 +19,8 @@ A native candidate was frozen on the original evidence before scoring the articl
 
 A successful empty partition supplies two negative predictions. A documented Maverick supplied-span alignment refusal contributes one attempted document and its attempted gold links, with no predicted decisions or scored TP/FP/FN/TN. The GAP scorer retains a per-ID refusal and rejects records marked both refused and successful. The published original GAP arms contained no refusals. The companion LitBank panel does contain one supplied-Maverick refusal, on *Dear Enemy*. Its reported supplied-Maverick CoNLL F1 covers nine accepted works. [Scorer regression](../../scripts/qa/test_coref_panels.py) · [LitBank common subset](coref-panels.md)
 
+A paired trial on all 4,454 GAP excerpts tests one reason the native supplied-span arm rarely linked either name. It measures how often removing the score penalty for an untyped mention recovers the correct identity and how often it links a distractor. [Untyped mentions and pronoun decisions](native-gap-neutral-mention.md)
+
 To replay, use the pinned GAP test TSV, native example and FCoref checkpoint described in the original panel. The runner verifies the data and model file hashes, records the executable digests and emits the aggregate receipt. The FCoref encoder in this panel has SHA-256 `74b98b0f03b27154065d0918a566ed5968d14665e601ecaea6905014bfe6f065`. Issue #288 traces another FP32 export on a different selection. Its stage counts describe that separate run. Both GAP source splits contain only ASCII article text. [Independent FCoref proposal audit](https://github.com/arclabs561/anno/issues/288#issuecomment-7176979503)
 
 ```sh
