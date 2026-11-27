@@ -57,11 +57,8 @@ def lookup(row, trace):
     decision = trace["decisions"][pr]
     scored = decision["candidates"]
     # The native scorer visits newer antecedents first and requires a strict threshold pass.
-    visits = []
-    for j in range(pr - 1, -1, -1):
-        if max(0, ordered[pr][0] - ordered[j][1]) > trace["max_distance"]:
-            break
-        visits.append(j)
+    visits = [j for j in range(pr - 1, -1, -1)
+              if ordered[pr][0] - ordered[j][1] <= trace["max_distance"]]
     if [j for j, _, _ in scored] != visits or not all(
         isfinite(s) and isfinite(t) for _, s, t in scored
     ) or len({t for _, _, t in scored}) > 1:

@@ -8,8 +8,9 @@ use anno::backends::coref::{
     MaverickCoref,
 };
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType, MentionType};
+use anno::{HeuristicNER, Model};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::io::{self, BufRead};
 
@@ -42,6 +43,7 @@ fn supplied_native(
     model: &MentionRankingCoref,
     doc: &Input,
     mentions: &[Span],
+    person_spans: &BTreeSet<Span>,
     classify_mentions: bool,
 ) -> Result<Vec<Vec<Span>>, Box<dyn Error>> {
     let mut entities: Vec<_> = mentions
@@ -50,7 +52,11 @@ fn supplied_native(
             let surface: String = doc.text.chars().skip(start).take(end - start).collect();
             let mut entity = Entity::new(
                 surface,
-                EntityType::custom("mention", EntityCategory::Misc),
+                if person_spans.contains(&(start, end)) {
+                    EntityType::Person
+                } else {
+                    EntityType::custom("mention", EntityCategory::Misc)
+                },
                 start,
                 end,
                 1.0,
@@ -99,8 +105,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         enable_be_phrase_detection: be_phrase,
         ..Default::default()
     });
+    let typing = (requested == "mention-ranking-person-evidence").then(HeuristicNER::new);
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
-        "mention-ranking" | "mention-ranking-copula" => None,
+        "mention-ranking" | "mention-ranking-copula" | "mention-ranking-person-evidence" => None,
         #[cfg(not(feature = "onnx"))]
         "fcoref" => return Err("fcoref requires the onnx feature".into()),
         #[cfg(feature = "onnx")]
@@ -114,7 +121,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?)),
         _ => {
             return Err(
-                "expected mention-ranking, mention-ranking-copula, fcoref or maverick".into(),
+                "expected mention-ranking, mention-ranking-copula, mention-ranking-person-evidence, fcoref or maverick"
+                    .into(),
             )
         }
     };
@@ -143,12 +151,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err(format!("{} has an invalid supplied character range", doc.id).into());
             }
         }
+        let mut person_spans = BTreeSet::new();
+        if let Some(typer) = &typing {
+            let supplied = doc
+                .mentions
+                .as_ref()
+                .ok_or("person evidence requires supplied mentions")?;
+            for entity in typer.extract_entities(&doc.text, None)? {
+                let span = (entity.start(), entity.end());
+                if entity.entity_type == EntityType::Person && supplied.contains(&span) {
+                    person_spans.insert(span);
+                }
+            }
+        }
         let spans = match (doc.mentions.as_ref(), neural.is_none()) {
             (Some(mentions), true) => {
                 if trace_ranking {
                     eprintln!("{}", serde_json::json!({"id": doc.id}));
                 }
-                supplied_native(&native, &doc, mentions, classify_mentions)?
+                supplied_native(&native, &doc, mentions, &person_spans, classify_mentions)?
             }
             (mentions, _) => {
                 let outcome = match mentions {
@@ -176,10 +197,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 clusters.into_iter().map(|c| c.spans).collect()
             }
         };
-        println!(
-            "{}",
-            serde_json::json!({"id": doc.id, "producer": producer, "clusters": spans})
-        );
+        let mut output = serde_json::json!({"id": doc.id, "producer": producer, "clusters": spans});
+        if typing.is_some() {
+            output["person_spans"] = serde_json::to_value(&person_spans)?;
+        }
+        println!("{output}");
     }
     Ok(())
 }

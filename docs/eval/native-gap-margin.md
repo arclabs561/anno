@@ -57,3 +57,18 @@ done
 ```
 
 The command also accepts a local panel with the same TSV columns and whole Unicode-scalar character offsets. Give each occurrence a unique ID and each work a stable URL or key in the URL column. The two binary digests identify the build used and may differ across machines. The exact development policy and its normalized comparison evidence are checked independently of the machine. To compare another run with the published receipts, compare the counts, transition tables, source digest and policy digest.
+
+## Does correcting the inferred pronoun type improve the chosen name?
+
+The entity-only ranker treats an untyped, entirely lowercase word as pronominal and a capitalized word as proper. Consequently it treats “river” as pronominal and sentence-initial “She” as proper. An explicitly supplied mention type takes precedence. We tried using the raw-text ranker's configured pronoun vocabulary case-insensitively for these untyped inputs, keeping the stock thresholds and all other scoring rules. The narrower type definition increased wrong name assignments from eight to 86 on GAP development, exceeding the stock error budget. [Candidate patch and language controls](../../scripts/qa/fixtures/native-supplied-pronoun-lexicon.patch) · [Public resolver replay](../../scripts/qa/supplied_pronoun_lexicon.py)
+
+| Source | Questions | Capitalized target | Stock correct / wrong | Candidate correct / wrong |
+|---|---:|---:|---:|---:|
+| GAP development | 2,000 | 388 | 9 / 8 | 22 / 86 |
+| GAP test | 2,000 | 351 | 3 / 14 | 9 / 84 |
+| GAP validation | 454 | 65 | 0 / 6 | 0 / 26 |
+| LitBank transfer | 1,790 | 247 | 7 / 14 | 11 / 18 |
+
+All changed partitions involved a capitalized target. Both workers received the same three generic spans, and the reader issued an answer only when exactly one name shared the target’s cluster. The inputs contain no lowercase alphabetic single-word candidate names, so the table measures little about that caller case. The language controls cover a Spanish regional setting, an uncased Chinese character and explicit type overrides. Corpus-level scores here cover English only. [Aggregate receipt and source hashes](supplied-pronoun-lexicon.json) · [LitBank panel preparation and attribution](litbank-pronoun-transfer.md)
+
+To reproduce, build the stock `coref_gap_panel` example from Anno `5ee1aabb` and copy it outside the target directory. Apply the candidate patch in a disposable checkout of the same revision, run `cargo test --locked -p anno --no-default-features --lib supplied_pronoun_lexicon_controls`, then rebuild and save the candidate example. Pass the pinned GAP directory, the checked literary transfer TSV and both worker paths to `python3 scripts/qa/supplied_pronoun_lexicon.py GAP_DIR LITBANK_TSV STOCK CANDIDATE`. The output should match the aggregate receipt.

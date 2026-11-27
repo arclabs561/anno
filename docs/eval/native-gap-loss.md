@@ -70,6 +70,26 @@ cmp /tmp/native-gap-possessives.json docs/eval/native-gap-possessives.json
 
 In the optional local details, the three proposal bits in each changed validation row refer to the pronoun, A and B. The five output bits add the two pronoun–candidate link decisions to those three returned-endpoint bits. A changed row can reflect a change in proposal coverage even when its emitted decisions match exactly.
 
+### Does the boundary gain yield correct links on the full GAP corpus?
+
+At Anno revision `5ee1aabb`, we built stock and the original frozen patch and ran both on the raw text of all 4,454 publisher passages. The candidate recovered both exact proposal boundaries for 250 additional gold pairs and produced correct links for 14 of those pairs. Across all pairs it gained 16 correct links, lost one, and added ten wrong links. On validation the unchanged correct-link total conceals one gain and one loss. Each split exceeded its stock wrong-link count, so this replay supports keeping the candidate out of the default resolver. GAP labels the links to two supplied names per pronoun; other emitted links are unjudged. These splits have previously been inspected. [Paired counts and candidate stages](native-gap-possessive-splits.json) · [Scorer](../../scripts/qa/native_gap_possessive_splits.py)
+
+| Split | Additional gold pairs with both proposals | Newly proposed pairs linked | Correct links gained / lost | Wrong links, stock → candidate |
+|---|---:|---:|---:|---:|
+| Development | 113 | 7 | 9 / 0 | 69 → 75 |
+| Test | 110 | 6 | 6 / 0 | 64 → 67 |
+| Validation | 27 | 1 | 1 / 1 | 40 → 41 |
+
+All 250 formerly clitic-bearing pairs survived overlap selection after the repair. In 212 pairs, at least one endpoint remained isolated. Another 24 ended up in separate clusters. The native candidate trace scored 191 direct pairs at or below threshold, excluded 48 by distance, selected ten directly, and preferred another antecedent once. Four of the 14 correct links used an indirect path. This identifies the remaining scoring and clustering losses even with these boundaries repaired. [Stage counts by split](native-gap-possessive-splits.json)
+
+To reproduce, build the two trace executables as above at `5ee1aabb` and run from a checkout containing the scorer. The inputs are the original three TSVs; the scorer checks each file against its published digest. Only aggregate results are stored in the repository.
+
+```sh
+python3 scripts/qa/native_gap_possessive_splits.py "$GAP" \
+  /tmp/baseline-test /tmp/candidate-test /tmp/possessive-splits.json
+cmp /tmp/possessive-splits.json docs/eval/native-gap-possessive-splits.json
+```
+
 ## FCoref scores for competing mention boundaries
 
 On the 256 previously frozen GAP validation and test excerpts, the raw-text

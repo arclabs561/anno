@@ -53,12 +53,13 @@ fn trace(model: MentionRankingCoref) {
         }
         entities.sort_by_key(|e| (e.start(), e.end()));
         let mentions = model.prepare_supplied_mentions(&entities);
-        let decisions: Vec<_> = (0..mentions.len())
-            .map(|i| {
+        let decisions: Vec<_> = model
+            .antecedent_windows(&mentions)
+            .map(|window| {
                 let mut candidates = Vec::new();
                 // The entity-only resolver calls link_mentions with an empty text argument.
                 let selected =
-                    model.best_left_antecedent(i, &mentions, "", |j, score, threshold| {
+                    model.best_left_antecedent(window, &mentions, "", |j, score, threshold| {
                         candidates.push((j, score, threshold));
                     });
                 serde_json::json!({"candidates": candidates, "selected": selected})

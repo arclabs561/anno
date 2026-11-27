@@ -23,6 +23,12 @@ Widening the distance limit from 100 to 500 Unicode scalars brought all 686 form
 
 This exploratory replay used the previously inspected panel. We fixed one alternative beforehand, taking 500 from the repository’s book-scale preset and keeping every other stock setting. The panel’s own 500-scalar lookback bounds both offered names, so full eligibility at that cap follows from case selection. The scorer still penalizes longer gaps and rewards proximity. The cap applies alongside the type-specific count limit and includes a gap equal to the cap. Four authored controls record actual scored visits at gaps of 100, 101, 500 and 501 with multibyte padding. [Replay script and controls](../../scripts/qa/litbank_pronoun_distance.py) · [Native scoring](../../crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs)
 
+## Can an overlapping mention hide a valid antecedent?
+
+The three-span transfer selector deliberately avoids overlapping names. To check the rule on inputs where spans can nest, we replayed all 63 source works through the entity-only resolver. For each book we supplied the complete set of aligned, unambiguous spans from the existing ingestion code, in document order, with the same generic entity label used in the original experiment. We compared the original and corrected one-pass candidate searches at the same 100-scalar cap. Each trace emitted the candidate spans, the scored selection and the final clusters. The private input carried no annotated chain or ID beyond the book identifier. [Panel reader](../../scripts/qa/coref_corpora/litbank.py) · [Native trace](../../crates/anno/src/backends/coref/mention_ranking/algorithm/gap_supplied_trace.rs)
+
+We examined the 5,589 annotated person mentions matching the existing pronoun list, which includes *himself* and *herself*. Before the fix, a short span could end outside the search window even though an earlier, longer span ended inside it. Searching the correct set restored 82 candidate pairs for 80 pronouns across 35 books. Nineteen of the 82 pairs had matching annotated chains. The scoring code and thresholds were identical in both runs. Five pronouns went from abstention to a selected antecedent. Two selections matched the annotated chain and three selected a different chain. Seventeen pronouns had a different final set of cluster members, because linking two mentions can also change the cluster of another mention. This test establishes which pairs the eligibility rule must consider. Recovering more gold links at a given error rate is a separate scoring problem. [Pronoun list and corpus conventions](../../scripts/qa/coref_corpora/litbank.py) · [Input validation and scoring](../../crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs)
+
 ## How the transfer questions were chosen
 
 We froze selection before applying the development rule. We examined 63 works from the pinned LitBank release, the complement of Anno's earlier 27-work competing-name panel and ten-work fold-0 panel. The existing BRAT reader checks source text at the annotated ranges, joins coreference and entity layers, and discards ambiguous chain identifiers. Among the aligned person pronouns, we considered every occurrence of *he*, *she*, *him*, *her*, *his* and *hers*. The selector looks back 500 Unicode scalars for two preceding, nonoverlapping, proper person names with distinct case-folded surfaces. It chooses the most recently ending name, then the nearest qualifying earlier name. A is the earlier position and B the later one. Only after both positions are fixed does it read their relationship to the pronoun's chain. The excerpt starts at the beginning of the lookback and includes up to 80 scalars after the pronoun. [Selector](../../scripts/qa/litbank_pronoun_transfer.py) · [Source reader](../../scripts/qa/coref_corpora/litbank.py)
@@ -52,3 +58,26 @@ python3 scripts/qa/litbank_pronoun_distance.py "$private/panel.tsv" "$stock" "$p
 ```
 
 Rebuilt executables can have different hashes. Compare the selection, policy and score fields and use the local development receipt to bind the scoring run to the same executables.
+
+## Does predicting person types identify the antecedent?
+
+We ran the native heuristic entity recognizer on the complete English excerpt, then passed the three supplied spans through the stock mention ranker. An exact character-span match to a predicted person received Anno's `Person` type. All other supplied spans kept the same generic type as the baseline. The model saw the source and the sorted spans. It received no gold links, role labels or literary chain IDs. We also evaluated a stricter rule that issued a choice only when the native partition selected one name and that name was the sole candidate tagged as a person. Ambiguous partitions abstained in every arm. [Native example](../../crates/anno/examples/coref_gap_panel.rs) · [Scorer](../../scripts/qa/native_pronoun_person_evidence.py)
+
+| Panel | Stock correct / wrong | With predicted person types | Sole supported name required |
+|---|---:|---:|---:|
+| GAP development, 2,000 | 9 / 8 | 354 / 329 | 178 / 144 |
+| GAP validation, 454 | 0 / 6 | 83 / 85 | 41 / 38 |
+| GAP test, 2,000 | 3 / 14 | 321 / 344 | 167 / 160 |
+| LitBank, 1,790 | 7 / 14 | 257 / 211 | 41 / 54 |
+
+Development selection maximized correct issued choices subject to at most eight wrong choices, then preferred fewer wrong choices and retained stock on an exact tie. Stock won. The same three arms were replayed unchanged on the other two official GAP splits and the previously studied literary panel. This is a transfer check on supplied spans. In particular, the stock result does not estimate end-to-end pronoun resolution on unrestricted text. [Panel digests, grouped changes and decision totals](native-pronoun-person-evidence.json)
+
+Both names received exact person support on 1,170 of the 1,790 literary questions. Another 536 had support for exactly one. Person typing helps the ranker issue links, but a missed person tag on the other name makes the exclusive rule an unreliable identity signal. Even that rule exceeded the development wrong-link budget by 136. No resolver policy was promoted.
+
+The existing coreference benchmark workflow replays all three GAP splits and checks the stored counts. To include the private literary panel, use the panel-generation instructions above and the same pinned GAP release:
+
+```sh
+cargo build --locked -p anno --no-default-features --example coref_gap_panel
+python3 scripts/qa/native_pronoun_person_evidence.py "$gap" target/debug/examples/coref_gap_panel \
+  --litbank-panel "$private/panel.tsv" --check
+```

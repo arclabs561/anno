@@ -746,6 +746,24 @@ impl MentionRankingCoref {
         }
     }
 
+    /// Recent antecedents that could be within range for each mention, in document order.
+    /// Starts are sorted, so a leading span whose end is too distant stays too distant.
+    /// Nested mentions can still have out-of-range ends inside the remaining window.
+    fn antecedent_windows<'a>(
+        &'a self,
+        mentions: &'a [RankedMention],
+    ) -> impl Iterator<Item = std::ops::Range<usize>> + 'a {
+        let mut first = 0;
+        mentions.iter().enumerate().map(move |(i, mention)| {
+            let earliest_end = mention.start.saturating_sub(self.config.max_distance);
+            while first < i && mentions[first].end < earliest_end {
+                first += 1;
+            }
+            let count = self.config.max_antecedents_for_type(mention.mention_type);
+            first.max(i.saturating_sub(count))..i
+        })
+    }
+
     /// Traditional left-to-right clustering.
     fn link_mentions_left_to_right(
         &self,
@@ -755,8 +773,9 @@ impl MentionRankingCoref {
         let mut mention_to_cluster: HashMap<usize, usize> = HashMap::new();
         let mut clusters: Vec<Vec<usize>> = Vec::new();
 
-        for i in 0..mentions.len() {
-            let best_antecedent = self.best_left_antecedent(i, mentions, text, |_, _, _| {});
+        for window in self.antecedent_windows(mentions) {
+            let i = window.end;
+            let best_antecedent = self.best_left_antecedent(window, mentions, text, |_, _, _| {});
             if let Some(ant_idx) = best_antecedent {
                 // Link to antecedent's cluster
                 if let Some(&cluster_id) = mention_to_cluster.get(&ant_idx) {
@@ -792,11 +811,12 @@ impl MentionRankingCoref {
 
     fn best_left_antecedent(
         &self,
-        i: usize,
+        window: std::ops::Range<usize>,
         mentions: &[RankedMention],
         text: &str,
         mut observe: impl FnMut(usize, f64, f64),
     ) -> Option<usize> {
+        let i = window.end;
         let mention = &mentions[i];
         let mut best_antecedent: Option<usize> = None;
         // Pronouns get a lower threshold: they rely on type-compat +
@@ -811,17 +831,12 @@ impl MentionRankingCoref {
         let mut traced_candidates =
             log::log_enabled!(target: CANDIDATE_LOG, log::Level::Trace).then(Vec::new);
 
-        // Type-specific antecedent limit
-        let max_antecedents = self.config.max_antecedents_for_type(mention.mention_type);
-
-        // Score against previous mentions with type-specific limit
-        for j in (0..i).rev().take(max_antecedents) {
+        for j in window.rev() {
             let antecedent = &mentions[j];
 
-            // Stop at the first gap beyond the inclusive character limit.
             let distance = mention.start.saturating_sub(antecedent.end);
             if distance > self.config.max_distance {
-                break;
+                continue;
             }
 
             let score = self.score_pair(mention, antecedent, distance, Some(text));
@@ -862,19 +877,20 @@ impl MentionRankingCoref {
         let mut scored_pairs: Vec<ScoredPair> = Vec::new();
         let mut non_coref_pairs: HashSet<(usize, usize)> = HashSet::new();
 
-        for (i, mention) in mentions.iter().enumerate() {
-            let max_antecedents = self.config.max_antecedents_for_type(mention.mention_type);
+        for window in self.antecedent_windows(mentions) {
+            let i = window.end;
+            let mention = &mentions[i];
             let effective_threshold = if mention.mention_type == MentionType::Pronominal {
                 self.config.link_threshold * 0.5
             } else {
                 self.config.link_threshold
             };
 
-            for j in (0..i).rev().take(max_antecedents) {
+            for j in window.rev() {
                 let antecedent = &mentions[j];
                 let distance = mention.start.saturating_sub(antecedent.end);
                 if distance > self.config.max_distance {
-                    break;
+                    continue;
                 }
 
                 let score = self.score_pair(mention, antecedent, distance, Some(text));
@@ -1417,6 +1433,46 @@ mod gap_trace;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_mention_does_not_hide_eligible_outer_antecedent() {
+        // Character offsets in "École Lyon Nord.École Lyon Nord". The inner name
+        // ends too far away, while the two equal outer names are one scalar apart.
+        let entities = [
+            Entity::new(
+                "École Lyon Nord",
+                crate::EntityType::Organization,
+                0,
+                15,
+                1.0,
+            ),
+            Entity::new("Lyon", crate::EntityType::Location, 6, 10, 1.0),
+            Entity::new(
+                "École Lyon Nord",
+                crate::EntityType::Organization,
+                16,
+                31,
+                1.0,
+            ),
+        ];
+        for strategy in [
+            ClusteringStrategy::LeftToRight,
+            ClusteringStrategy::EasyFirst,
+        ] {
+            for (max_distance, proper_max_antecedents, linked) in
+                [(0, 2, false), (1, 1, false), (1, 2, true)]
+            {
+                let model = MentionRankingCoref::with_config(MentionRankingConfig {
+                    max_distance,
+                    proper_max_antecedents,
+                    clustering_strategy: strategy,
+                    ..MentionRankingConfig::default()
+                });
+                let resolved = CoreferenceResolver::resolve(&model, &entities);
+                assert_eq!(resolved[0].canonical_id == resolved[2].canonical_id, linked);
+            }
+        }
+    }
 
     /// 'İ' (2 bytes) lowercases to "i\u{307}" (3 bytes), so offsets found in
     /// a lowercased copy of the text cannot slice the original.
@@ -3985,6 +4041,38 @@ mod tests {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(50))]
+
+        #[test]
+        fn scored_antecedents_match_full_scan(
+            spans in prop::collection::vec((0usize..40, 1usize..16, 0usize..3), 0..25),
+            caps in (0usize..10, 0usize..10, 0usize..10),
+            max_distance in 0usize..20,
+        ) {
+            let model = MentionRankingCoref::with_config(MentionRankingConfig {
+                pronoun_max_antecedents: caps.0,
+                proper_max_antecedents: caps.1,
+                nominal_max_antecedents: caps.2,
+                max_distance,
+                ..Default::default()
+            });
+            let types = [MentionType::Pronominal, MentionType::Proper, MentionType::Nominal];
+            let mut mentions: Vec<_> = spans.into_iter().map(|(start, length, kind)| {
+                let entity = Entity::new("x".repeat(length), crate::EntityType::Person, start, start + length, 1.0);
+                let mut mention = RankedMention::from(entity);
+                mention.mention_type = types[kind];
+                mention
+            }).collect();
+            mentions.sort_by_key(RankedMention::span);
+            for (i, window) in model.antecedent_windows(&mentions).enumerate() {
+                let mut visited = Vec::new();
+                model.best_left_antecedent(window, &mentions, "", |j, _, _| visited.push(j));
+                let count = model.config.max_antecedents_for_type(mentions[i].mention_type);
+                let expected: Vec<_> = (0..i).rev().take(count)
+                    .filter(|&j| mentions[i].start.saturating_sub(mentions[j].end) <= max_distance)
+                    .collect();
+                prop_assert_eq!(visited, expected);
+            }
+        }
 
         /// All detected mentions have spans within text bounds
         ///
