@@ -35,7 +35,7 @@ just dataset-figures --check   # Check the published images and counts
 
 To call the entry point directly, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Use `--output DIR` for another preview directory or `--anno PATH` to render with an existing Anno binary. [Build entry point and dependencies](refresh_dataset_figures.py)
 
-For an operating-point comparison, have the analysis write `docs/eval/<study>-tradeoff.json` in the `anno.tradeoff/v1` format. The build discovers these files, calls `anno viz tradeoff` for each and rasterizes that same SVG using resvg and the bundled DejaVu Sans fonts. Use the file stem when embedding the figure. For example, the following standalone command reproduces the WikiGold chart with an installed CLI.
+For an operating-point comparison, have the analysis write `docs/eval/<study>-tradeoff.json` in the `anno.tradeoff/v1` format. The build discovers these files, calls `anno viz tradeoff` for each and rasterizes that same SVG using resvg and the bundled DejaVu Sans fonts. Embed the SVG with the same file stem. [Chart format and CLI examples](../docs/QUICKSTART.md#visualize-evaluation-results)
 
 ```sh
 anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json --output wikigold.svg

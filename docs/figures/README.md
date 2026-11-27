@@ -20,7 +20,9 @@ The guides use these figures to describe datasets, demonstrate extraction behavi
 | [CrossRE predicate ranking](crossre-predicate-tradeoff.svg) | [Which predicate scores justify outputting a directed relation?](../eval/crossre-predicate-ranking.md) | [CrossRE operating points](../eval/crossre-predicate-tradeoff.json) |
 | [NER across languages and lengths](ner-language-length.png) | [Which groups support changing the backend?](../eval/ner-language-length.md#paired-glinerel-and-heuristic-results) | [Multilingual NER](../../scripts/plot_ner_language_length.py) |
 
-Run `anno viz tradeoff INPUT.json --output chart.svg` to render any operating-point input above. `just dataset-figures` rebuilds the full collection, and `just dataset-figures --update` refreshes the published outputs. CI saves all images, native chart inputs and five derived CSVs in the **dataset-figures** Actions artifact for 30 days. [Regeneration and source refresh](../../scripts/README.md#reproduce-the-dataset-figures)
+Run `anno viz tradeoff INPUT.json --output chart.svg` to render any operating-point input above. [Chart format, evaluation errors and HTML output](../QUICKSTART.md#visualize-evaluation-results)
+
+`just dataset-figures` rebuilds the full collection, and `just dataset-figures --update` refreshes the published outputs. CI saves all images, native chart inputs and five derived CSVs in the **dataset-figures** Actions artifact for 30 days. [Regeneration and source refresh](../../scripts/README.md#reproduce-the-dataset-figures)
 
 A manual **Dataset figures** run on `main` also builds an additional figure from the live, authenticated S3 inventory. Its **s3-dataset-cache-figures** artifact contains the PNG, SVG and aggregate verification results. The live figure describes the cache at the time of that run. [Run the workflow and download its artifacts](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml) · [S3 verification scope](../S3_CACHE_CI.md#verify-the-live-dataset-cache)
 
