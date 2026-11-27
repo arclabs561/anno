@@ -10,33 +10,33 @@ same person, place, or thing. Each result points back to the words it came from.
 
 > **Sophie Wilson** designed the **ARM** processor.
 
-The offline extractor returns two mentions:
+Pass the sentence to `anno::extract`. The offline extractor finds a person
+and an organization, each with a range in the original sentence.
 
 ```text
 Sophie Wilson   PER    0..13
 ARM             ORG   27..30
 ```
 
-Pass the sentence to `anno::extract` to get the label and range for each
-mention. Each range counts Unicode scalar values in the original text. To highlight
-a mention in a Rust string, convert the range to byte offsets first.
-[Working with offsets](docs/CONTRACT.md#source-text-and-offsets)
-
-Add the library with `cargo add anno` (Rust 1.91 or later), or run the offline
-example from a checkout:
+Try the example from a checkout with Rust 1.91 or later:
 
 ```sh
 cargo run -p anno --no-default-features --example quickstart
 ```
+
+In your own Rust project, install the library with `cargo add anno`.
+The range `0..13` covers the first 13 Unicode scalar values. To highlight
+a mention in a Rust string, convert its range to byte offsets.
+[Use the library](docs/QUICKSTART.md#library-usage) · [Work with offsets](docs/CONTRACT.md#source-text-and-offsets)
 
 ## Follow a pronoun across captions
 
 > **Émilie Durand** inspected *the east gate*.\
 > **She** said *it* would reopen on Monday.
 
-Here FCoref links *She* to *Émilie Durand* and *it* to *the east gate*. A
-caption editor can use either link to highlight the earlier words or play
-the cue that contains them.
+FCoref groups the two mentions of Durand and the two mentions of the gate.
+The caption file supplies the playback times. Together they let an editor
+select *She* in the second cue and jump to *Émilie Durand* in the first.
 
 Add a microphone emoji and a space before *Émilie*. In the full transcript,
 *She* moves from character 39 to 41. In the recording, its cue still begins at
@@ -55,9 +55,10 @@ received the raw passages and predicted its own mentions.
 | Mentions in separate clusters | 3 |
 | At least one span missing | 41 |
 
-For most missed links on this panel, at least one of the two spans was
-already missing from the output. The study also counts false links and
-compares three resolvers on the same passages.
+Of the 44 true links FCoref missed, 41 had at least one mention missing
+at its exact source range. In the other three, both mentions appeared and
+FCoref placed them in different clusters. The study also reports false
+links and compares three resolvers on these passages.
 [Results, scoring method, and replay](docs/eval/coref-panels.md#gap-pronoun-decisions)
 
 ## Command line
