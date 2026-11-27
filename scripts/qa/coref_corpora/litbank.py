@@ -30,14 +30,14 @@ class Mention(NamedTuple):
     chain: str
 
 
-def _load(source: Path):
+def load_works(source: Path, work_ids, source_sha256):
     if not (source / "coref/brat").is_dir() and (source / "litbank").is_dir():
         source = source / "litbank"
     works = {}
     hashes = {}
     for ann in sorted((source / "coref/brat").glob("*_brat.ann")):
         work = ann.name.partition("_")[0]
-        if not work.isdecimal() or int(work) not in WORKS:
+        if not work.isdecimal() or int(work) not in work_ids:
             continue
         if work in works:
             raise ValueError(f"duplicate LitBank work {work}")
@@ -61,11 +61,11 @@ def _load(source: Path):
             "entity_annotations": entity.relative_to(source).as_posix(),
         }
         works[work] = (text.decode(), coref.decode(), entities.decode(), provenance)
-    missing = WORKS - {int(work) for work in works}
+    missing = work_ids - {int(work) for work in works}
     if missing:
         raise ValueError(f"missing LitBank work(s) {sorted(missing)} under {source}")
     manifest = "".join(f"{hashes[name]}  {name}\n" for name in sorted(hashes))
-    if hashlib.sha256(manifest.encode()).hexdigest() != SOURCE_SHA256:
+    if hashlib.sha256(manifest.encode()).hexdigest() != source_sha256:
         raise ValueError("LitBank BRAT files differ from the pinned release")
     return works
 
@@ -158,7 +158,7 @@ def _window(text, members):
 
 def cases(source: Path):
     """Yield score-time cases; aliases are other exact same-chain spans in the window."""
-    works = _load(source)
+    works = load_works(source, WORKS, SOURCE_SHA256)
     selected = []
     for work, (text, coref, entities, _) in works.items():
         mentions, chains = _mentions(text, coref, entities)

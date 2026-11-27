@@ -1,0 +1,27 @@
+{
+  "excluded_prior_works": 37,
+  "gap_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  },
+  "gold": {
+    "A": 362,
+    "B": 934,
+    "neither": 494
+  },
+  "litbank_brat_manifest_sha256": "2b53a899c9c5f0d8a4b59ce75a5c7ee67f9a8f8fb424701aebe8a88b2d1e3706",
+  "panel_tsv_sha256": "6242423aad72a180252da886d0f7c21d390137a30ac22806ac0a17aeeed064c2",
+  "selected_rows": 1790,
+  "selected_works": 62,
+  "selection": {
+    "both_true_excluded": 126,
+    "eligible": 1790,
+    "no_prior_name": 1622,
+    "no_second_distinct_name": 1803,
+    "overlap_with_gap": 0,
+    "same_candidate_identity": 198,
+    "targets": 5413
+  },
+  "source_works": 63
+}
