@@ -1,0 +1,39 @@
+{
+  "binary_sha256": "457ab61e39d295b68566e56b54297a90352764b4121f03b2ff3c06ccd2afde7e",
+  "packet_sha256": "2ce4977caf0e5b9378ffa2bb78c1cea9c04fe0f2dfe0d27d8e2494fdc5ba8fa3",
+  "reviewer_fingerprints": [
+    "5a7617ecdd62e2d685ed44fbfcae9114a1f60405f684ca40d38fab42c8f9023c",
+    "5a7617ecdd62e2d685ed44fbfcae9114a1f60405f684ca40d38fab42c8f9023c"
+  ],
+  "runtime": "stacked(regex+heuristic)",
+  "standalone_exact_name_spans": {
+    "authored_controls": {
+      "different": 3,
+      "same": 3
+    },
+    "reviewed_GAP": {
+      "same": 16
+    }
+  },
+  "unique_contained": {
+    "authored_controls": {
+      "different": {
+        "unsafe_emission": 4
+      },
+      "same": {
+        "exact_highlight": 3,
+        "other_span": 1
+      }
+    },
+    "reviewed_GAP": {
+      "different": {
+        "unsafe_emission": 1
+      },
+      "same": {
+        "abstained": 20,
+        "exact_highlight": 11,
+        "other_span": 11
+      }
+    }
+  }
+}
