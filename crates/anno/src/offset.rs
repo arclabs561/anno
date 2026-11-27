@@ -785,38 +785,16 @@ impl SpanConverter {
     /// silently truncating it.
     #[must_use]
     pub fn byte_to_char_ceil(&self, byte_idx: usize) -> usize {
-        if self.is_ascii {
-            return self.byte_to_char(byte_idx);
-        }
         let floor = self.byte_to_char(byte_idx);
-        // If byte_idx is exactly on a character boundary, floor is correct.
-        // Otherwise, the next character boundary is floor + 1 (unless we're
-        // already at the end of the string).
-        if byte_idx < self.byte_to_char.len() {
-            // Check if this byte is the first byte of its character.
-            // If map[byte_idx] == map[byte_idx-1] (and byte_idx > 0), we're
-            // mid-character and should round up.
-            if byte_idx > 0
-                && self
-                    .byte_to_char
-                    .get(byte_idx.wrapping_sub(1))
-                    .copied()
-                    .unwrap_or(0)
-                    == floor
-                && (self.byte_to_char.get(byte_idx).copied() == Some(floor))
-            {
-                // Mid-character: check if the previous byte starts the same char.
-                // We need to confirm we're not at the start of a char.
-                // A byte is at the start of a char if it's the first byte with
-                // this char_idx value.
-                let at_char_start = byte_idx == 0
-                    || self.byte_to_char.get(byte_idx - 1).copied().unwrap_or(0) != floor;
-                if !at_char_start {
-                    return floor + 1;
-                }
-            }
+        // Only a continuation byte is strictly after its scalar's first byte.
+        if !self.is_ascii
+            && byte_idx < self.byte_to_char.len()
+            && self.char_to_byte[floor] < byte_idx
+        {
+            floor + 1
+        } else {
+            floor
         }
-        floor
     }
 
     /// Convert char offset to byte offset.
@@ -919,6 +897,46 @@ impl SpanConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_ranges_match_utf8_scalar_coverage() {
+        // Include empty text, the ASCII fast path and all UTF-8 scalar widths.
+        for text in ["", "abc", "aé水🙂", "🙂水éa", "e\u{301}"] {
+            let boundaries: Vec<_> = text
+                .char_indices()
+                .map(|(i, _)| i)
+                .chain(std::iter::once(text.len()))
+                .collect();
+            let converter = SpanConverter::new(text);
+            let offsets: Vec<_> = (0..=text.len() + 1).chain([usize::MAX]).collect();
+            for &start in &offsets {
+                for &end in &offsets {
+                    // Count scalars entirely before the request and scalars it touches.
+                    let first = boundaries.windows(2).filter(|b| b[1] <= start).count();
+                    let count = boundaries
+                        .windows(2)
+                        .filter(|b| start < end && start < b[1] && b[0] < end)
+                        .count();
+                    let expected = TextSpan {
+                        byte_start: boundaries[first],
+                        byte_end: boundaries[first + count],
+                        char_start: first,
+                        char_end: first + count,
+                    };
+                    assert_eq!(
+                        TextSpan::from_bytes(text, start, end),
+                        expected,
+                        "direct: {text:?} {start}..{end}"
+                    );
+                    assert_eq!(
+                        converter.from_bytes(start, end),
+                        expected,
+                        "cached: {text:?} {start}..{end}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn token_overlap_matches_shared_character_positions() {
