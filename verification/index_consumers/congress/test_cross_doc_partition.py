@@ -3,6 +3,7 @@
 import unittest
 
 from cross_doc_partition import Observation, evaluate, reader_metrics, resolve_chamber_conflict
+from transfer_rollcalls import PRIOR, QUERY, prior_rows, read_roll, score_lookup
 
 
 def score(placements, latest):
@@ -15,6 +16,57 @@ def score(placements, latest):
 
 
 class CrossDocumentControls(unittest.TestCase):
+    def test_unique_prior_lookup_defers_ambiguous_components(self):
+        docs = {
+            PRIOR: [Observation("Vale", "a", "rep"), Observation("Reed", "b", "rep"),
+                    Observation("Alder", "c", "rep")],
+            QUERY: [Observation("Other", "a", "rep"), Observation("Vale", "d", "rep"),
+                    Observation("Reed", "b", "rep"), Observation("New", "e", "rep"),
+                    Observation("Alder", "c", "rep")],
+        }
+        groups = {(doc, i): group for doc, assignments in ((PRIOR, [1, 2, 2]), (QUERY, [8, 1, 2, 8, 2]))
+                  for i, group in enumerate(assignments)}
+        result = score_lookup(docs, groups)
+        self.assertEqual(result["queries"]["prior_target_present"], {
+            "queries": 3, "correct": 0, "wrong": 0, "no_prior_in_component": 1, "multiple_priors_in_component": 2,
+        })
+        self.assertEqual(result["queries"]["prior_target_absent"], {
+            "queries": 2, "correct": 0, "wrong": 1, "no_prior_in_component": 1, "multiple_priors_in_component": 0,
+        })
+        self.assertEqual(result["wrong_unique_with_identical_printing"], 1)
+        self.assertEqual(result["pairs"], {"cross_document_pairs": 15, "tp": 2, "fp": 3, "fn": 1, "tn": 9})
+
+    def test_heldout_filter_removes_prior_people_and_keeps_nonvoters(self):
+        roll = b"""<rollcall-vote><vote-data>
+            <recorded-vote><legislator name-id="a">Vale</legislator><vote>Present</vote></recorded-vote>
+            <recorded-vote><legislator name-id="b">Vale</legislator><vote>Not Voting</vote></recorded-vote>
+            </vote-data></rollcall-vote>"""
+        rows, summary = read_roll(roll, {"a"})
+        self.assertEqual([(m.name, m.person) for m in rows], [("Vale", "b")])
+        self.assertEqual(summary, {"eligible": 1, "omitted": {"earlier_pilot": 1},
+                                   "votes": {"Present": 1, "Not Voting": 1}})
+        with self.assertRaisesRegex(ValueError, "appears twice"):
+            read_roll(roll.replace(b'name-id="b"', b'name-id="a"'), {"a"})
+
+    def test_identical_printing_can_denote_a_different_person(self):
+        groups = {(PRIOR, 0): 1, (QUERY, 0): 1}
+        for person, stratum, expected in (("a", "prior_target_present", "correct"),
+                                          ("b", "prior_target_absent", "wrong")):
+            docs = {PRIOR: [Observation("Vale", "a", "rep")], QUERY: [Observation("Vale", person, "rep")]}
+            self.assertEqual(score_lookup(docs, groups)["queries"][stratum][expected], 1)
+
+    def test_compare_prior_occurrences_across_local_group_renumbering(self):
+        docs = {PRIOR: [Observation("Vale", "a", "rep"), Observation("Alder", "b", "rep")],
+                QUERY: [Observation("Reed", "c", "rep"), Observation("Quay", "d", "rep")]}
+        original = {(PRIOR, 0): 3, (PRIOR, 1): 8, (QUERY, 0): 3, (QUERY, 1): 8}
+        renumbered = {address: 11 - group for address, group in original.items()}
+        switched = dict(original)
+        switched[QUERY, 0], switched[QUERY, 1] = switched[QUERY, 1], switched[QUERY, 0]
+        self.assertEqual(prior_rows(docs, original), prior_rows(docs, renumbered))
+        self.assertEqual(score_lookup(docs, original), score_lookup(docs, switched))
+        self.assertEqual(prior_rows(docs, original), [(0,), (1,)])
+        self.assertEqual(prior_rows(docs, switched), [(1,), (0,)])
+
     def test_prior_lookup_requires_distinct_dates(self):
         lookup = score({
             "2021-04-02/bulletin/Larch": [("a", 1), ("b", 1), ("c", 2)],
