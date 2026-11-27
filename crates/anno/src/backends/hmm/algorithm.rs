@@ -1151,6 +1151,49 @@ mod tests {
     }
 
     #[test]
+    fn viterbi_matches_all_paths_on_short_sequences() {
+        let mut hmm = tiny_hmm();
+        // Asymmetric transitions exercise direction, lookahead and backtracking.
+        let initial = [0.75, 0.25];
+        let transitions = [[0.25, 0.75], [0.875, 0.125]];
+        let emissions = [[0.875, 0.125], [0.25, 0.75]];
+        let vocabulary = ["left", "right"];
+        hmm.states.truncate(2);
+        hmm.initial = initial.to_vec();
+        hmm.transitions = transitions.iter().map(|row| row.to_vec()).collect();
+        for (state, row) in emissions.iter().enumerate() {
+            for (word, probability) in vocabulary.iter().zip(row) {
+                hmm.emissions
+                    .insert((state, word.to_string()), *probability);
+            }
+        }
+
+        for len in 1..=5 {
+            for input in 0..1usize << len {
+                let symbols: Vec<usize> = (0..len).map(|i| (input >> i) & 1).collect();
+                let words: Vec<_> = symbols.iter().map(|&i| vocabulary[i]).collect();
+                let path_probability = |path: &[usize]| {
+                    let mut p = initial[path[0]] * emissions[path[0]][symbols[0]];
+                    for t in 1..len {
+                        p *= transitions[path[t - 1]][path[t]] * emissions[path[t]][symbols[t]];
+                    }
+                    p
+                };
+                let best = (0..1usize << len)
+                    .map(|bits| {
+                        let path: Vec<_> = (0..len).map(|i| (bits >> i) & 1).collect();
+                        path_probability(&path)
+                    })
+                    .fold(0.0, f64::max);
+                let decoded = hmm.viterbi(&words);
+                assert_eq!(decoded.len(), len);
+                // Dyadic fixture probabilities have exact products at these lengths.
+                assert_eq!(path_probability(&decoded), best, "{words:?} -> {decoded:?}");
+            }
+        }
+    }
+
+    #[test]
     fn viterbi_single_token() {
         let hmm = tiny_hmm();
         let path = hmm.viterbi(&["hello"]);

@@ -127,3 +127,27 @@
              (distinct (peer writeBoth) (peer current))))
 (check-sat)
 (pop)
+
+; Induction over an arbitrary history since preparation. The bound of two
+; operations above still applies to the write-scope and witness queries.
+; The owner's revision never goes backwards. Its strict increase from the
+; saved revision records exactly whether any invalidating action has occurred.
+(define-fun historyMatches ((w World) (savedRevision Int) (dirty Bool)) Bool
+  (let ((r (revision (lookup w origin))))
+    (and (<= savedRevision r) (= dirty (< savedRevision r)))))
+(echo "new-preview-has-clean-history")
+(push)
+(assert (not (historyMatches initial (revision saved) false)))
+(check-sat)
+(pop)
+
+(declare-const prior World)
+(declare-const savedRevision Int)
+(declare-const wasDirty Bool)
+(echo "every-operation-preserves-invalidation-history")
+(push)
+(assert (historyMatches prior savedRevision wasDirty))
+(assert (not (historyMatches (step prior slot1 op1 key1) savedRevision
+                             (or wasDirty (invalidates prior slot1 op1 key1)))))
+(check-sat)
+(pop)
