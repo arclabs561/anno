@@ -51,6 +51,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+      - name: Reopen saved caption links in the browser
+        run: |
+          python -m pip install 'playwright==1.62.0'
+          python crates/anno/examples/caption_links/test_playback.py "$(command -v google-chrome)"
       - name: Export the pinned CPU model
         run: |
           python -m pip install 'torch @ https://download.pytorch.org/whl/cpu/torch-2.6.0%2Bcpu-cp312-cp312-linux_x86_64.whl' \
@@ -104,7 +108,7 @@ jobs:
           ANNO_NO_DOWNLOADS: '1'
         run: >-
           python3 crates/anno/examples/caption_links/test_caption_links.py
-          target/release/examples/fcoref_word_spans "$FCOREF_MODEL_PATH"
+          target/release/examples/fcoref_word_spans "$FCOREF_MODEL_PATH" --browser "$(command -v google-chrome)"
       - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
         id: replay
         env:
