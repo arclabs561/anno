@@ -4036,7 +4036,7 @@ tr:hover{background:var(--hover)}
     html
 }
 
-fn html_escape(s: &str) -> String {
+pub(crate) fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -4237,7 +4237,8 @@ pub struct EvalComparison {
 }
 
 /// Result of matching a gold or predicted signal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum EvalMatch {
     /// Exact match: gold and predicted align perfectly.
     Correct {
@@ -4267,11 +4268,13 @@ pub enum EvalMatch {
         iou: f64,
     },
     /// False positive: predicted with no gold match.
+    #[serde(rename = "false_positive")]
     Spurious {
         /// Predicted signal ID
         pred_id: SignalId,
     },
     /// False negative: gold with no prediction.
+    #[serde(rename = "false_negative")]
     Missed {
         /// Gold signal ID
         gold_id: SignalId,

@@ -14,9 +14,9 @@ use super::super::utils::{
 };
 
 use anno::core::grounded::html_source::HtmlRenderer;
-use anno::core::grounded::{
-    render_eval_html, EvalComparison, EvalMatch, Location, Signal, SignalId,
-};
+#[cfg(feature = "eval")]
+use anno::core::grounded::EvalMatch;
+use anno::core::grounded::{render_eval_html, EvalComparison, Location, Signal, SignalId};
 
 /// Metric family used for the evaluation report.
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
@@ -273,6 +273,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             "predicted_count": cmp.predicted.len(),
             "correct": cmp.correct_count(),
             "errors": cmp.error_count(),
+            "matches": cmp.matches,
             "precision": cmp.precision(),
             "recall": cmp.recall(),
             "f1": cmp.f1(),
@@ -302,48 +303,6 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             }
         }
 
-        let matches: Vec<_> = cmp
-            .matches
-            .iter()
-            .map(|m| match m {
-                EvalMatch::Correct { gold_id, pred_id } => serde_json::json!({
-                    "type": "correct",
-                    "gold_id": gold_id,
-                    "pred_id": pred_id,
-                }),
-                EvalMatch::TypeMismatch {
-                    gold_id,
-                    pred_id,
-                    gold_label,
-                    pred_label,
-                } => serde_json::json!({
-                    "type": "type_mismatch",
-                    "gold_id": gold_id,
-                    "pred_id": pred_id,
-                    "gold_label": gold_label,
-                    "pred_label": pred_label,
-                }),
-                EvalMatch::BoundaryError {
-                    gold_id,
-                    pred_id,
-                    iou,
-                } => serde_json::json!({
-                    "type": "boundary_error",
-                    "gold_id": gold_id,
-                    "pred_id": pred_id,
-                    "iou": iou,
-                }),
-                EvalMatch::Spurious { pred_id } => serde_json::json!({
-                    "type": "false_positive",
-                    "pred_id": pred_id,
-                }),
-                EvalMatch::Missed { gold_id } => serde_json::json!({
-                    "type": "false_negative",
-                    "gold_id": gold_id,
-                }),
-            })
-            .collect();
-        output["matches"] = serde_json::Value::Array(matches);
         if let Some(char_metrics) = &char_masking {
             output["char_masking"] =
                 serde_json::to_value(char_metrics).unwrap_or(serde_json::Value::Null);

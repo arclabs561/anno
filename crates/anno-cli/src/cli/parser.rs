@@ -142,6 +142,9 @@ pub enum Commands {
     #[command(visible_alias = "d")]
     Debug(commands::DebugArgs),
 
+    /// Visualize signal overlap, evaluation errors and operating-point comparisons
+    Viz(commands::viz::VizArgs),
+
     /// Evaluate predictions against gold annotations
     #[command(visible_alias = "e")]
     Eval(commands::EvalArgs),

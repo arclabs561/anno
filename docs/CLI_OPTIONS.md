@@ -12,6 +12,10 @@ See the [quickstart](QUICKSTART.md) for profile applicability.
 | `anno extract [OPTIONS] [POSITIONAL]...` | `-t, --text`, `-f, --file`, `--input-source-map`, `-m, --model`, `-l, --label`, `--types`, `--extract-types`, `--extract-relations`, `--relation-types`, `--relation-threshold`, `--relation-max-span-distance`, `--threshold`, `--expected-types`, `--format`, `--context-window`, `--include-sentence`, `--export`, `--export-graph`, `--url`, `--html-source-spans`, `--clean`, `--normalize`, `--detect-lang`, `--export-format`, `--negation`, `--quantifiers`, `-v, --verbose`, `-q, --quiet` |
 | `anno joint [OPTIONS] --checkpoint <CHECKPOINT> --schema <SCHEMA>` | `--checkpoint`, `--schema`, `--text`, `--window-words`, `--overlap-words`, `--python` |
 | `anno debug [OPTIONS] [TEXT]...` | `-t, --text`, `-f, --file`, `--url`, `--clean`, `--normalize`, `--detect-lang`, `--export-graph`, `-m, --model`, `--html`, `--export`, `--export-format`, `-o, --output`, `--coref`, `--link-kb`, `-q, --quiet`, `-v, --verbose` |
+| `anno viz [OPTIONS] <COMMAND>` | — |
+| `anno viz tradeoff [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
+| `anno viz errors [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
+| `anno viz overlap [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
 | `anno eval [OPTIONS] [POSITIONAL]...` | `-t, --text`, `-f, --file`, `-m, --model`, `--predictions`, `--metric`, `-g, --gold`, `--gold-file`, `-o, --output`, `--json`, `--html`, `-v, --verbose`, `-q, --quiet` |
 | `anno validate [OPTIONS] <FILES>...` | — |
 | `anno analyze [OPTIONS] [POSITIONAL]...` | `-t, --text`, `-f, --file` |

@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="984" height="455" viewBox="0 0 984 455" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Choosing when to link a pronoun on GAP</title><desc id="chart-desc">Correct matches and unmatched predictions per 100 excerpts. Each panel shares the correct and unmatched rate axes. The numbered points identify the exact counts and recall in its table. Identical counts share a point. GAP test, supplied mentions has 2,000 excerpts and 1,773 gold items. Stock has 3 correct, 14 unmatched, and 0.2% recall. Neutral type has 131 correct, 141 unmatched, and 7.4% recall. Classified mentions has 142 correct, 218 unmatched, and 8.0% recall. Rival 0.15 (dev choice) has 106 correct, 128 unmatched, and 6.0% recall. Rival 0.1 has 128 correct, 138 unmatched, and 7.2% recall. Rival 0.3 has 47 correct, 59 unmatched, and 2.7% recall. Threshold 0.025 (dev choice) has 108 correct, 108 unmatched, and 6.1% recall. Threshold 0.1 has 44 correct, 37 unmatched, and 2.5% recall. Threshold 0.3 has 0 correct, 0 unmatched, and 0.0% recall.</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:13px}.heading{font-size:24px;font-weight:700}.subtitle{font-size:15px;fill:#456371}.cohort{font-size:19px;font-weight:700}.scope,.axis{fill:#456371}.small,.axis{font-size:11px}.col{font-weight:700;font-size:12px}.num{text-anchor:end;font-variant-numeric:tabular-nums}.key{font-size:12px;font-weight:700;fill:#006867}.plot-key{paint-order:stroke;stroke:white;stroke-width:2;stroke-linejoin:round}.rule,.grid{fill:none;stroke:#d5e0e2;stroke-width:1}.frontier{fill:none;stroke:#6da8a2;stroke-width:1.6}.optimal{fill:#006867;stroke:white;stroke-width:1.2}.dominated{fill:white;stroke:#456371;stroke-width:1.5}.leader{stroke:#658384;stroke-width:.8}</style>
+<rect width="984" height="455" fill="white"/><text x="32" y="38" class="heading">Choosing when to link a pronoun on GAP</text>
+<text x="32" y="67" class="subtitle">Correct matches and unmatched predictions per 100 excerpts.</text>
+<text x="32" y="86" class="scope">Filled points trace the best match count at each unmatched budget. Open points have a better alternative.</text>
+<g><title>GAP test, supplied mentions</title><path d="M32 109H952" class="rule"/>
+<text x="32" y="137" class="cohort">GAP test, supplied mentions</text>
+<text x="32" y="159" class="scope">2,000 excerpts · 1,773 gold</text>
+<text x="477" y="192" class="col">Operating point</text>
+<text x="789" y="192" class="col num">Correct</text>
+<text x="879" y="192" class="col num">Unmatched</text>
+<text x="952" y="192" class="col num">Recall</text>
+<g><title>Stock</title>
+<circle cx="426" cy="212" r="4" class="optimal"/><text x="436" y="216" class="key">1</text>
+<text x="477" y="216" class="label">Stock</text>
+<text x="789" y="216" class="num">3</text>
+<text x="879" y="216" class="num">14</text>
+<text x="952" y="216" class="num">0.2%</text>
+</g>
+<g><title>Neutral type</title>
+<circle cx="426" cy="237" r="4" class="optimal"/><text x="436" y="241" class="key">2</text>
+<text x="477" y="241" class="label">Neutral type</text>
+<text x="789" y="241" class="num">131</text>
+<text x="879" y="241" class="num">141</text>
+<text x="952" y="241" class="num">7.4%</text>
+</g>
+<g><title>Classified mentions</title>
+<circle cx="426" cy="262" r="4" class="optimal"/><text x="436" y="266" class="key">3</text>
+<text x="477" y="266" class="label">Classified mentions</text>
+<text x="789" y="266" class="num">142</text>
+<text x="879" y="266" class="num">218</text>
+<text x="952" y="266" class="num">8.0%</text>
+</g>
+<g><title>Rival 0.15 (dev choice)</title>
+<circle cx="426" cy="287" r="4" class="dominated"/><text x="436" y="291" class="key">4</text>
+<text x="477" y="291" class="label">Rival 0.15 (dev choice)</text>
+<text x="789" y="291" class="num">106</text>
+<text x="879" y="291" class="num">128</text>
+<text x="952" y="291" class="num">6.0%</text>
+</g>
+<g><title>Rival 0.1</title>
+<circle cx="426" cy="312" r="4" class="optimal"/><text x="436" y="316" class="key">5</text>
+<text x="477" y="316" class="label">Rival 0.1</text>
+<text x="789" y="316" class="num">128</text>
+<text x="879" y="316" class="num">138</text>
+<text x="952" y="316" class="num">7.2%</text>
+</g>
+<g><title>Rival 0.3</title>
+<circle cx="426" cy="337" r="4" class="optimal"/><text x="436" y="341" class="key">6</text>
+<text x="477" y="341" class="label">Rival 0.3</text>
+<text x="789" y="341" class="num">47</text>
+<text x="879" y="341" class="num">59</text>
+<text x="952" y="341" class="num">2.7%</text>
+</g>
+<g><title>Threshold 0.025 (dev choice)</title>
+<circle cx="426" cy="362" r="4" class="optimal"/><text x="436" y="366" class="key">7</text>
+<text x="477" y="366" class="label">Threshold 0.025 (dev choice)</text>
+<text x="789" y="366" class="num">108</text>
+<text x="879" y="366" class="num">108</text>
+<text x="952" y="366" class="num">6.1%</text>
+</g>
+<g><title>Threshold 0.1</title>
+<circle cx="426" cy="387" r="4" class="optimal"/><text x="436" y="391" class="key">8</text>
+<text x="477" y="391" class="label">Threshold 0.1</text>
+<text x="789" y="391" class="num">44</text>
+<text x="879" y="391" class="num">37</text>
+<text x="952" y="391" class="num">2.5%</text>
+</g>
+<g><title>Threshold 0.3</title>
+<circle cx="426" cy="412" r="4" class="optimal"/><text x="436" y="416" class="key">9</text>
+<text x="477" y="416" class="label">Threshold 0.3</text>
+<text x="789" y="416" class="num">0</text>
+<text x="879" y="416" class="num">0</text>
+<text x="952" y="416" class="num">0.0%</text>
+</g>
+<text x="80" y="192" class="col">Correct / 100</text>
+<path d="M80 359.00H390" class="grid"/><text x="71" y="363.00" class="axis num">0</text>
+<path d="M80 320.75H390" class="grid"/><text x="71" y="324.75" class="axis num">2</text>
+<path d="M80 282.50H390" class="grid"/><text x="71" y="286.50" class="axis num">4</text>
+<path d="M80 244.25H390" class="grid"/><text x="71" y="248.25" class="axis num">6</text>
+<path d="M80 206.00H390" class="grid"/><text x="71" y="210.00" class="axis num">8</text>
+<path d="M80.00 206V359" class="grid"/><text x="80.00" y="375" class="axis" text-anchor="middle">0</text>
+<path d="M183.33 206V359" class="grid"/><text x="183.33" y="375" class="axis" text-anchor="middle">5</text>
+<path d="M286.67 206V359" class="grid"/><text x="286.67" y="375" class="axis" text-anchor="middle">10</text>
+<path d="M390.00 206V359" class="grid"/><text x="390.00" y="375" class="axis" text-anchor="middle">15</text>
+<text x="390" y="395" class="col num">Unmatched / 100</text>
+<path d="M80.00 359.00H94.47V356.13H118.23V316.93H140.97V314.06H191.60V255.72H222.60V236.60H225.70V233.73H305.27V223.21H390" class="frontier"/>
+<line x1="94.47" y1="356.13" x2="102.47" y2="342.00" class="leader"/>
+<line x1="225.70" y1="233.73" x2="233.70" y2="240.00" class="leader"/>
+<line x1="212.27" y1="257.64" x2="220.27" y2="291.00" class="leader"/>
+<line x1="222.60" y1="236.60" x2="230.60" y2="257.00" class="leader"/>
+<line x1="140.97" y1="314.06" x2="148.97" y2="308.00" class="leader"/>
+<line x1="191.60" y1="255.72" x2="199.60" y2="274.00" class="leader"/>
+<line x1="118.23" y1="316.93" x2="145.97" y2="325.00" class="leader"/>
+<line x1="80.00" y1="359.00" x2="99.47" y2="359.00" class="leader"/>
+<g><title>Point 1 · 3 correct · 14 unmatched</title><circle cx="94.47" cy="356.13" r="4" class="optimal"/></g>
+<g><title>Point 2 · 131 correct · 141 unmatched</title><circle cx="225.70" cy="233.73" r="4" class="optimal"/></g>
+<g><title>Point 3 · 142 correct · 218 unmatched</title><circle cx="305.27" cy="223.21" r="4" class="optimal"/></g>
+<g><title>Point 4 · 106 correct · 128 unmatched</title><circle cx="212.27" cy="257.64" r="4" class="dominated"/></g>
+<g><title>Point 5 · 128 correct · 138 unmatched</title><circle cx="222.60" cy="236.60" r="4" class="optimal"/></g>
+<g><title>Point 6 · 47 correct · 59 unmatched</title><circle cx="140.97" cy="314.06" r="4" class="optimal"/></g>
+<g><title>Point 7 · 108 correct · 108 unmatched</title><circle cx="191.60" cy="255.72" r="4" class="optimal"/></g>
+<g><title>Point 8 · 44 correct · 37 unmatched</title><circle cx="118.23" cy="316.93" r="4" class="optimal"/></g>
+<g><title>Point 9 · 0 correct · 0 unmatched</title><circle cx="80.00" cy="359.00" r="4" class="optimal"/></g>
+<text x="104.47" y="346.00" class="key plot-key">1</text>
+<text x="235.70" y="244.00" class="key plot-key">2</text>
+<text x="315.27" y="227.00" class="key plot-key">3</text>
+<text x="222.27" y="295.00" class="key plot-key">4</text>
+<text x="232.60" y="261.00" class="key plot-key">5</text>
+<text x="150.97" y="312.00" class="key plot-key">6</text>
+<text x="201.60" y="278.00" class="key plot-key">7</text>
+<text x="147.97" y="329.00" class="key plot-key">8</text>
+<text x="101.47" y="363.00" class="key plot-key">9</text>
+</g>
+</svg>
