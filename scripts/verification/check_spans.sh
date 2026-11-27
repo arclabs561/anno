@@ -7,3 +7,5 @@ cd "$(dirname "$0")/../.."
 kani verification/mention_spans/check.rs
 kani verification/pii/check.rs
 lean verification/mention_spans/MentionSpans.lean
+
+bash verification/pii/check_traversal.sh
