@@ -83,7 +83,14 @@ def suppressed_edge_scores(reference, kept, predicates, pair_scores, threshold):
     return counts
 
 
-def measure(model, wrapper, doc, schema, threshold, predicate_gate):
+def decode(pair_scores, kept, predicates, gate):
+    return Counter((head, label, tail) for (head, tail), row in pair_scores.items()
+                   if head in kept and tail in kept
+                   for label, score in zip(predicates, row, strict=True) if score > gate)
+
+
+def score_document(model, wrapper, doc, schema, threshold):
+    """Expose pre-suppression directed scores after checking the stock public predictions."""
     from export_gliner_relex_joint import prepare
 
     text = " ".join(doc["sentence"])
@@ -103,14 +110,17 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
     pair_scores = dict(zip(pairs, scores.tolist(), strict=True))
     if len(pair_scores) != len(pairs):
         raise ValueError("trained export returned a duplicate directed span pair")
-    def decode(gate):
-        return Counter((h, r, t) for (h, t), row in pair_scores.items()
-                       if h in kept and t in kept for r, score in zip(predicates, row, strict=True) if score > gate)
-    graph = decode(threshold)
+    graph = decode(pair_scores, kept, predicates, threshold)
     expected = Counter(((r["head"]["start"], r["head"]["end"]), r["relation"],
                         (r["tail"]["start"], r["tail"]["end"])) for r in relations)
     if expected != graph:
         raise ValueError("trained export path disagrees with upstream predict_relations")
+    return grid, proposed, kept, pair_scores, graph
+
+
+def measure(model, wrapper, doc, schema, threshold, predicate_gate):
+    predicates = schema["relation_types"]
+    grid, proposed, kept, pair_scores, graph = score_document(model, wrapper, doc, schema, threshold)
     reference = gold(doc)
     matched = (graph & reference).total()
     missed = classify(reference, graph, predicates, grid, proposed, pair_scores, kept)
@@ -121,14 +131,14 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
         raise ValueError("suppressed predicate scores do not reconcile to the first-loss count")
     comparison = Counter()
     if predicate_gate is not None:
-        alternate = decode(predicate_gate)
+        alternate = decode(pair_scores, kept, predicates, predicate_gate)
         for name, delta, previously_matched in (("added", alternate - graph, reference - graph),
                                                  ("removed", graph - alternate, reference - alternate)):
             correct = (delta & previously_matched).total()
             comparison[name + "_matched"] = correct
             comparison[name + "_unmatched"] = delta.total() - correct
         comparison.update(predicted=alternate.total(), matched=(reference & alternate).total())
-    totals = Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pairs))
+    totals = Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pair_scores))
     return totals, missed, comparison, suppressed
 
 

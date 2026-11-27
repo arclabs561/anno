@@ -1,0 +1,1331 @@
+{
+  "candidate_weights_label_direction": {
+    "both_margins": [
+      0.5,
+      0.5
+    ],
+    "direction_margin": [
+      0.0,
+      0.5
+    ],
+    "label_margin": [
+      0.5,
+      0.0
+    ],
+    "score": [
+      0.0,
+      0.0
+    ]
+  },
+  "checkpoint": "knowledgator/gliner-relex-large-v1.0",
+  "checkpoint_files_sha256": {
+    "added_tokens.json": "14fedd7e9f345ea45fd9b74245468121d5ccac83e523cad1680529d00bb0e8e8",
+    "gliner_config.json": "009031313c27dbdc255d4e9d85bdfb89f17259ccf4c82e8982ac763c249c1cdb",
+    "model.safetensors": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+    "special_tokens_map.json": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21",
+    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+    "tokenizer.json": "d9f64f3126faa24e3ef6bdc47e7120eef528a49cd8b447bdd6865bcf2043cd65",
+    "tokenizer_config.json": "ee20eaa4db6f56045339841383f83e98cb79f1672a93bb76a9735243ca65d0fa"
+  },
+  "checkpoint_revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290",
+  "crossre_revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+  "export_source_sha256": "4c33cdcfb391db0be2f779f537d18de5fa7cd5fcf2e987ae77cfc403439c2427",
+  "fresh_panel_policy": {
+    "duplicate_policy": "first source occurrence per distinct eligible text",
+    "excluded": "all training texts, first 128 AI test texts, previously selected texts",
+    "order": "SHA-256 of the UTF-8 space-joined sentence, ascending",
+    "size": "16 dev and 32 test per domain",
+    "test_also_excludes": "all six development files' texts"
+  },
+  "package_versions": {
+    "gliner": "0.2.30",
+    "tokenizers": "0.23.3",
+    "torch": "2.15.0+cpu",
+    "transformers": "5.22.2"
+  },
+  "panels": {
+    "dev": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 80,
+          "correct_added": 12,
+          "correct_gained_vs_score_only": 1,
+          "correct_lost_vs_score_only": 2,
+          "different_from_score_only": 16,
+          "gold_empty_unmatched": 15,
+          "on_already_emitted_pair": 8,
+          "unmatched_added": 68,
+          "unmatched_other_label_on_reference_pair": 7,
+          "unmatched_other_label_on_reversed_pair": 2,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 16,
+          "unmatched_with_inexact_endpoint": 42
+        },
+        "direction_margin": {
+          "added": 80,
+          "correct_added": 13,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 1,
+          "gold_empty_unmatched": 15,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 67,
+          "unmatched_other_label_on_reference_pair": 11,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 14,
+          "unmatched_with_inexact_endpoint": 38
+        },
+        "gate_0.40": {
+          "added": 153,
+          "correct_added": 19,
+          "gold_empty_unmatched": 28,
+          "on_already_emitted_pair": 30,
+          "unmatched_added": 134,
+          "unmatched_other_label_on_reference_pair": 14,
+          "unmatched_other_label_on_reversed_pair": 8,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 29,
+          "unmatched_with_inexact_endpoint": 82
+        },
+        "label_margin": {
+          "added": 80,
+          "correct_added": 12,
+          "correct_gained_vs_score_only": 1,
+          "correct_lost_vs_score_only": 2,
+          "different_from_score_only": 18,
+          "gold_empty_unmatched": 15,
+          "on_already_emitted_pair": 7,
+          "unmatched_added": 68,
+          "unmatched_other_label_on_reference_pair": 7,
+          "unmatched_other_label_on_reversed_pair": 2,
+          "unmatched_unrelated_annotated_entities": 19,
+          "unmatched_with_inexact_endpoint": 40
+        },
+        "score": {
+          "added": 80,
+          "correct_added": 13,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 15,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 67,
+          "unmatched_other_label_on_reference_pair": 11,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 15,
+          "unmatched_with_inexact_endpoint": 37
+        }
+      },
+      "low_predicate_keys": {
+        "retained": {
+          "above_all_unannotated_labels": 81,
+          "above_unannotated_reverse": 158,
+          "at_least_one_unannotated_rival_higher": 102,
+          "both_rivals_higher": 17,
+          "different_predicate_annotated_in_reverse": 5,
+          "in_suggestion_band_keys": 36,
+          "in_suggestion_band_occurrences": 36,
+          "literal_below_first": 107,
+          "literal_first": 72,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 27,
+          "only_annotated_labels_higher": 9,
+          "reference_occurrences": 179,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 98,
+          "unannotated_reverse_higher": 21,
+          "unique_keys": 179
+        },
+        "suppressed": {
+          "above_all_unannotated_labels": 16,
+          "above_unannotated_reverse": 32,
+          "at_least_one_unannotated_rival_higher": 22,
+          "both_rivals_higher": 6,
+          "different_predicate_annotated_in_reverse": 0,
+          "in_suggestion_band_keys": 7,
+          "in_suggestion_band_occurrences": 7,
+          "literal_below_first": 24,
+          "literal_first": 14,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 12,
+          "only_annotated_labels_higher": 2,
+          "reference_occurrences": 38,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 22,
+          "unannotated_reverse_higher": 6,
+          "unique_keys": 38
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 2,
+        "below_mention_threshold_head": 4,
+        "below_mention_threshold_tail": 17,
+        "endpoint_outside_span_grid": 2,
+        "flat_overlap_suppression": 56,
+        "predicate_below_threshold": 179,
+        "predicate_outside_schema": 8
+      },
+      "reference_structure": {
+        "directed_pairs": 369,
+        "directed_pairs_with_annotated_reverse": 6,
+        "keys_also_annotated_in_reverse": 0,
+        "multilabel_directed_pairs": 27,
+        "self_relation_keys": 0
+      },
+      "stock": {
+        "empty_gold": 20,
+        "gold": 397,
+        "matched": 129,
+        "predicted": 426,
+        "scored_pairs": 10184,
+        "sentences": 96,
+        "unique_gold": 397,
+        "unmatched": 297
+      },
+      "stronger_label_confusions": {
+        "artifact → named": 4,
+        "artifact → origin": 5,
+        "artifact → role": 1,
+        "cause-effect → physical": 1,
+        "general-affiliation → physical": 1,
+        "general-affiliation → topic": 1,
+        "general-affiliation → type-of": 4,
+        "named → part-of": 1,
+        "named → temporal": 1,
+        "opposite → physical": 2,
+        "origin → artifact": 3,
+        "origin → general-affiliation": 6,
+        "origin → part-of": 1,
+        "origin → related-to": 3,
+        "part-of → artifact": 3,
+        "part-of → general-affiliation": 3,
+        "part-of → named": 2,
+        "part-of → physical": 1,
+        "part-of → related-to": 4,
+        "part-of → temporal": 1,
+        "physical → role": 6,
+        "physical → social": 1,
+        "physical → temporal": 1,
+        "related-to → general-affiliation": 1,
+        "related-to → named": 1,
+        "related-to → social": 1,
+        "related-to → topic": 1,
+        "related-to → type-of": 4,
+        "related-to → usage": 5,
+        "role → artifact": 1,
+        "role → general-affiliation": 1,
+        "role → part-of": 7,
+        "role → physical": 7,
+        "role → related-to": 7,
+        "role → temporal": 2,
+        "role → win-defeat": 10,
+        "temporal → role": 1,
+        "topic → physical": 1,
+        "type-of → part-of": 1,
+        "win-defeat → artifact": 2,
+        "win-defeat → compare": 2,
+        "win-defeat → opposite": 3,
+        "win-defeat → origin": 1,
+        "win-defeat → part-of": 1,
+        "win-defeat → related-to": 1,
+        "win-defeat → temporal": 1,
+        "win-defeat → topic": 1,
+        "win-defeat → usage": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 36,
+        "eligible_gold_occurrences": 36,
+        "one_per_sentence_upper_bound": 24,
+        "sentences_with_an_eligible_edge": 80
+      }
+    },
+    "historical": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 22,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 2,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 20,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 16
+        },
+        "direction_margin": {
+          "added": 22,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 1,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 4,
+          "unmatched_added": 20,
+          "unmatched_other_label_on_reference_pair": 1,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 15
+        },
+        "gate_0.40": {
+          "added": 28,
+          "correct_added": 2,
+          "gold_empty_unmatched": 1,
+          "on_already_emitted_pair": 3,
+          "unmatched_added": 26,
+          "unmatched_other_label_on_reference_pair": 6,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 2,
+          "unmatched_with_inexact_endpoint": 17
+        },
+        "label_margin": {
+          "added": 22,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 3,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 20,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 16
+        },
+        "score": {
+          "added": 22,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 3,
+          "unmatched_added": 20,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 16
+        }
+      },
+      "low_predicate_keys": {
+        "retained": {
+          "above_all_unannotated_labels": 17,
+          "above_unannotated_reverse": 45,
+          "at_least_one_unannotated_rival_higher": 32,
+          "both_rivals_higher": 4,
+          "different_predicate_annotated_in_reverse": 0,
+          "in_suggestion_band_keys": 4,
+          "in_suggestion_band_occurrences": 4,
+          "literal_below_first": 32,
+          "literal_first": 17,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 0,
+          "reference_occurrences": 49,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 32,
+          "unannotated_reverse_higher": 4,
+          "unique_keys": 49
+        },
+        "suppressed": {
+          "above_all_unannotated_labels": 6,
+          "above_unannotated_reverse": 13,
+          "at_least_one_unannotated_rival_higher": 7,
+          "both_rivals_higher": 0,
+          "different_predicate_annotated_in_reverse": 0,
+          "in_suggestion_band_keys": 3,
+          "in_suggestion_band_occurrences": 3,
+          "literal_below_first": 7,
+          "literal_first": 6,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 0,
+          "reference_occurrences": 13,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 7,
+          "unannotated_reverse_higher": 0,
+          "unique_keys": 13
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_head": 2,
+        "below_mention_threshold_tail": 6,
+        "flat_overlap_suppression": 16,
+        "predicate_below_threshold": 49
+      },
+      "reference_structure": {
+        "directed_pairs": 90,
+        "directed_pairs_with_annotated_reverse": 0,
+        "keys_also_annotated_in_reverse": 0,
+        "multilabel_directed_pairs": 0,
+        "self_relation_keys": 0
+      },
+      "stock": {
+        "empty_gold": 6,
+        "gold": 90,
+        "matched": 17,
+        "predicted": 85,
+        "scored_pairs": 3526,
+        "sentences": 32,
+        "unique_gold": 90,
+        "unmatched": 68
+      },
+      "stronger_label_confusions": {
+        "artifact → origin": 3,
+        "general-affiliation → artifact": 3,
+        "general-affiliation → related-to": 8,
+        "general-affiliation → type-of": 1,
+        "general-affiliation → usage": 2,
+        "named → type-of": 1,
+        "origin → part-of": 1,
+        "origin → type-of": 1,
+        "part-of → named": 1,
+        "part-of → topic": 1,
+        "part-of → type-of": 4,
+        "physical → role": 3,
+        "related-to → compare": 1,
+        "related-to → part-of": 1,
+        "related-to → type-of": 1,
+        "role → related-to": 1,
+        "topic → general-affiliation": 4,
+        "type-of → named": 1,
+        "usage → named": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 4,
+        "eligible_gold_occurrences": 4,
+        "one_per_sentence_upper_bound": 3,
+        "sentences_with_an_eligible_edge": 22
+      }
+    },
+    "test": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 160,
+          "correct_added": 24,
+          "correct_gained_vs_score_only": 5,
+          "correct_lost_vs_score_only": 1,
+          "different_from_score_only": 21,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 136,
+          "unmatched_other_label_on_reference_pair": 17,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_unrelated_annotated_entities": 30,
+          "unmatched_with_inexact_endpoint": 85
+        },
+        "direction_margin": {
+          "added": 160,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 2,
+          "correct_lost_vs_score_only": 2,
+          "different_from_score_only": 8,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 21,
+          "unmatched_added": 140,
+          "unmatched_other_label_on_reference_pair": 19,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_unrelated_annotated_entities": 31,
+          "unmatched_with_inexact_endpoint": 87
+        },
+        "gate_0.40": {
+          "added": 229,
+          "correct_added": 23,
+          "gold_empty_unmatched": 37,
+          "on_already_emitted_pair": 43,
+          "unmatched_added": 206,
+          "unmatched_other_label_on_reference_pair": 27,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 2,
+          "unmatched_unrelated_annotated_entities": 45,
+          "unmatched_with_inexact_endpoint": 129
+        },
+        "label_margin": {
+          "added": 160,
+          "correct_added": 24,
+          "correct_gained_vs_score_only": 4,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 24,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 136,
+          "unmatched_other_label_on_reference_pair": 17,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_unrelated_annotated_entities": 32,
+          "unmatched_with_inexact_endpoint": 83
+        },
+        "score": {
+          "added": 160,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 21,
+          "unmatched_added": 140,
+          "unmatched_other_label_on_reference_pair": 18,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 32,
+          "unmatched_with_inexact_endpoint": 86
+        }
+      },
+      "low_predicate_keys": {
+        "retained": {
+          "above_all_unannotated_labels": 143,
+          "above_unannotated_reverse": 247,
+          "at_least_one_unannotated_rival_higher": 150,
+          "both_rivals_higher": 36,
+          "different_predicate_annotated_in_reverse": 14,
+          "in_suggestion_band_keys": 53,
+          "in_suggestion_band_occurrences": 53,
+          "literal_below_first": 161,
+          "literal_first": 127,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 50,
+          "only_annotated_labels_higher": 16,
+          "reference_occurrences": 288,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 145,
+          "unannotated_reverse_higher": 41,
+          "unique_keys": 288
+        },
+        "suppressed": {
+          "above_all_unannotated_labels": 38,
+          "above_unannotated_reverse": 55,
+          "at_least_one_unannotated_rival_higher": 21,
+          "both_rivals_higher": 2,
+          "different_predicate_annotated_in_reverse": 0,
+          "in_suggestion_band_keys": 16,
+          "in_suggestion_band_occurrences": 16,
+          "literal_below_first": 22,
+          "literal_first": 36,
+          "literal_tied_first": 0,
+          "on_multilabel_directed_pair": 6,
+          "only_annotated_labels_higher": 2,
+          "reference_occurrences": 58,
+          "reverse_also_correct": 0,
+          "reverse_unavailable": 0,
+          "same_predicate_annotated_in_reverse": 0,
+          "unannotated_label_higher": 20,
+          "unannotated_reverse_higher": 3,
+          "unique_keys": 58
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 3,
+        "below_mention_threshold_head": 25,
+        "below_mention_threshold_tail": 48,
+        "flat_overlap_suppression": 67,
+        "predicate_below_threshold": 288,
+        "predicate_outside_schema": 4
+      },
+      "reference_structure": {
+        "directed_pairs": 603,
+        "directed_pairs_with_annotated_reverse": 18,
+        "keys_also_annotated_in_reverse": 0,
+        "multilabel_directed_pairs": 43,
+        "self_relation_keys": 0
+      },
+      "stock": {
+        "empty_gold": 47,
+        "gold": 646,
+        "matched": 211,
+        "predicted": 737,
+        "scored_pairs": 21782,
+        "sentences": 192,
+        "unique_gold": 646,
+        "unmatched": 526
+      },
+      "stronger_label_confusions": {
+        "artifact → origin": 7,
+        "artifact → related-to": 1,
+        "artifact → role": 1,
+        "cause-effect → role": 1,
+        "compare → general-affiliation": 1,
+        "compare → named": 2,
+        "general-affiliation → opposite": 1,
+        "general-affiliation → origin": 1,
+        "general-affiliation → part-of": 1,
+        "general-affiliation → related-to": 3,
+        "general-affiliation → type-of": 7,
+        "general-affiliation → usage": 1,
+        "named → general-affiliation": 1,
+        "named → role": 1,
+        "named → temporal": 1,
+        "named → type-of": 1,
+        "opposite → physical": 1,
+        "origin → artifact": 1,
+        "origin → compare": 1,
+        "origin → role": 6,
+        "origin → topic": 1,
+        "part-of → artifact": 2,
+        "part-of → physical": 2,
+        "part-of → role": 1,
+        "part-of → type-of": 9,
+        "physical → named": 2,
+        "physical → origin": 1,
+        "physical → part-of": 4,
+        "physical → related-to": 2,
+        "physical → role": 2,
+        "physical → social": 1,
+        "related-to → compare": 5,
+        "related-to → general-affiliation": 1,
+        "related-to → named": 2,
+        "related-to → origin": 8,
+        "related-to → part-of": 7,
+        "related-to → physical": 7,
+        "related-to → type-of": 1,
+        "role → compare": 3,
+        "role → general-affiliation": 2,
+        "role → named": 1,
+        "role → part-of": 3,
+        "role → physical": 6,
+        "role → related-to": 9,
+        "role → social": 3,
+        "role → temporal": 1,
+        "role → win-defeat": 19,
+        "social → opposite": 1,
+        "temporal → origin": 1,
+        "temporal → social": 1,
+        "temporal → win-defeat": 1,
+        "topic → general-affiliation": 1,
+        "topic → social": 1,
+        "topic → type-of": 1,
+        "type-of → general-affiliation": 1,
+        "type-of → named": 1,
+        "type-of → part-of": 2,
+        "usage → general-affiliation": 2,
+        "usage → type-of": 2,
+        "win-defeat → artifact": 1,
+        "win-defeat → compare": 1,
+        "win-defeat → physical": 1,
+        "win-defeat → type-of": 2
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 53,
+        "eligible_gold_occurrences": 53,
+        "one_per_sentence_upper_bound": 36,
+        "sentences_with_an_eligible_edge": 160
+      }
+    }
+  },
+  "prompts_from_training": {
+    "ai": {
+      "entity_types": [
+        "algorithm",
+        "conference",
+        "country",
+        "field",
+        "location",
+        "metrics",
+        "misc",
+        "organisation",
+        "person",
+        "product",
+        "programlang",
+        "researcher",
+        "task",
+        "university"
+      ],
+      "relation_types": [
+        "artifact",
+        "cause-effect",
+        "compare",
+        "general-affiliation",
+        "named",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "temporal",
+        "topic",
+        "type-of",
+        "usage",
+        "win-defeat"
+      ]
+    },
+    "literature": {
+      "entity_types": [
+        "award",
+        "book",
+        "country",
+        "event",
+        "literarygenre",
+        "location",
+        "magazine",
+        "misc",
+        "organisation",
+        "person",
+        "poem",
+        "song",
+        "writer"
+      ],
+      "relation_types": [
+        "artifact",
+        "cause-effect",
+        "compare",
+        "general-affiliation",
+        "named",
+        "opposite",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "social",
+        "temporal",
+        "topic",
+        "type-of",
+        "win-defeat"
+      ]
+    },
+    "music": {
+      "entity_types": [
+        "album",
+        "award",
+        "band",
+        "country",
+        "event",
+        "location",
+        "magazine",
+        "misc",
+        "musicalartist",
+        "musicalinstrument",
+        "musicgenre",
+        "organisation",
+        "person",
+        "song"
+      ],
+      "relation_types": [
+        "artifact",
+        "general-affiliation",
+        "named",
+        "opposite",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "temporal",
+        "topic",
+        "type-of",
+        "usage",
+        "win-defeat"
+      ]
+    },
+    "news": {
+      "entity_types": [
+        "country",
+        "location",
+        "misc",
+        "organisation",
+        "person"
+      ],
+      "relation_types": [
+        "artifact",
+        "general-affiliation",
+        "named",
+        "opposite",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "social",
+        "temporal",
+        "topic",
+        "type-of",
+        "usage"
+      ]
+    },
+    "politics": {
+      "entity_types": [
+        "album",
+        "country",
+        "election",
+        "event",
+        "location",
+        "misc",
+        "musicalartist",
+        "musicalinstrument",
+        "organisation",
+        "person",
+        "politicalparty",
+        "politician",
+        "song"
+      ],
+      "relation_types": [
+        "artifact",
+        "compare",
+        "general-affiliation",
+        "named",
+        "opposite",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "social",
+        "temporal",
+        "topic",
+        "usage",
+        "win-defeat"
+      ]
+    },
+    "science": {
+      "entity_types": [
+        "academicjournal",
+        "astronomicalobject",
+        "award",
+        "book",
+        "chemicalcompound",
+        "chemicalelement",
+        "country",
+        "discipline",
+        "enzyme",
+        "event",
+        "location",
+        "misc",
+        "organisation",
+        "person",
+        "protein",
+        "scientist",
+        "theory",
+        "university"
+      ],
+      "relation_types": [
+        "artifact",
+        "cause-effect",
+        "compare",
+        "general-affiliation",
+        "named",
+        "opposite",
+        "origin",
+        "part-of",
+        "physical",
+        "related-to",
+        "role",
+        "social",
+        "temporal",
+        "topic",
+        "type-of",
+        "usage",
+        "win-defeat"
+      ]
+    }
+  },
+  "selected_on_development": "score",
+  "selection": {
+    "dev": {
+      "ai": {
+        "eligible_unique_texts": 349,
+        "index_text_sha256": "f78359376c121922354b327029d16bb779948af80939a2547fb8c343603ea70c",
+        "selected": 16,
+        "source_sentences": 350
+      },
+      "literature": {
+        "eligible_unique_texts": 400,
+        "index_text_sha256": "c7b2174af691dfa08c41b090340194b09f7917eecb2dbbbd0cabfb0271ffc581",
+        "selected": 16,
+        "source_sentences": 400
+      },
+      "music": {
+        "eligible_unique_texts": 344,
+        "index_text_sha256": "6825ac07b5771dcedd6654285a77583ebd46c276cf55b80e342fc056c0d1ac50",
+        "selected": 16,
+        "source_sentences": 350
+      },
+      "news": {
+        "eligible_unique_texts": 334,
+        "index_text_sha256": "d80df15789e2dfb4c621b9a6f5ecdf23c267fccd30b06eb5d0588746f3c44135",
+        "selected": 16,
+        "source_sentences": 350
+      },
+      "politics": {
+        "eligible_unique_texts": 349,
+        "index_text_sha256": "7d67d9c381245789ab1b69935058454c11bec4c815daa0c90b9aec5957084119",
+        "selected": 16,
+        "source_sentences": 350
+      },
+      "science": {
+        "eligible_unique_texts": 347,
+        "index_text_sha256": "16ecfac3efabe5a8348fce88a4d62e46713808b05388d93e7b7b861aa66cb0b6",
+        "selected": 16,
+        "source_sentences": 351
+      }
+    },
+    "historical": {
+      "ai": {
+        "index_text_sha256": "85925e7508ee98417571f411db9a4fc039ae9059b7c5cecfded7ac5a91d1ec90",
+        "selected": 32,
+        "source_sentences": 431
+      }
+    },
+    "test": {
+      "ai": {
+        "eligible_unique_texts": 300,
+        "index_text_sha256": "5858a4d5a9ddc1b2180b4949ed7722356bb3fbcb7198a263666c3ead1be4de6a",
+        "selected": 32,
+        "source_sentences": 431
+      },
+      "literature": {
+        "eligible_unique_texts": 415,
+        "index_text_sha256": "5d8354e166826e5abafe4f9c252be78de89d225ddadf0f5985d83fb2e8dad02a",
+        "selected": 32,
+        "source_sentences": 416
+      },
+      "music": {
+        "eligible_unique_texts": 373,
+        "index_text_sha256": "2a57ecb04914047dd3596a20edf2c3c902674f17d5f25f28ce75607873aefcc1",
+        "selected": 32,
+        "source_sentences": 399
+      },
+      "news": {
+        "eligible_unique_texts": 374,
+        "index_text_sha256": "0d7d1cf0e7bf04e45aaffebda5a70a6d01ca2cfd8fc3afc450730d2cfa0003a3",
+        "selected": 32,
+        "source_sentences": 400
+      },
+      "politics": {
+        "eligible_unique_texts": 395,
+        "index_text_sha256": "12da4c805da521200f93611532d4041565ec30fb78e9e9ef5afb2d348bbc71df",
+        "selected": 32,
+        "source_sentences": 400
+      },
+      "science": {
+        "eligible_unique_texts": 383,
+        "index_text_sha256": "cd4b1dc2b263aee6ffd287d2c6aadb079bbbd498ed9bbdc71a03280e124c3034",
+        "selected": 32,
+        "source_sentences": 400
+      }
+    }
+  },
+  "source_sha256": {
+    "ai-dev.json": "52fa53bf57b51b63f49ee58420188e49c5bd04a34cd6e0b99089676b0ba2264a",
+    "ai-test.json": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+    "ai-train.json": "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
+    "literature-dev.json": "2ada55425867b63613c07b79c0370139018978757509d6543c667826bad43c21",
+    "literature-test.json": "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a",
+    "literature-train.json": "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
+    "music-dev.json": "dd046e83e655a11a6456ff13a9afd2e5bb9679419e643fc2924a3f1eec670830",
+    "music-test.json": "647d2edbb47d8793339bd6e21b88d3a4059f1464ca3e08597bf4bd333910a4b4",
+    "music-train.json": "b6229afa107f7b64a5fc7ceda09eaffa98bb30dae05d51aeb60eef5ab3e73500",
+    "news-dev.json": "e087bb168732b8e923e32bb4ee9b2ab582342f9962eaf9487e1a43d7e361f5e0",
+    "news-test.json": "0378cb359dfd37e0ac46d0488baf3809ae7a06dbbe99d19af570af9a2de41535",
+    "news-train.json": "a8e206fa6f1a449e9af0a85ed349bc98b82e89771b4735a1856044c744abcc97",
+    "politics-dev.json": "9ae8b87114774d0a78b6a9dcac0f434e59c38ba9fb243eaaff2f7df75ffa4fab",
+    "politics-test.json": "95e2432cd6aac170f17019ec96aea60bd2674a7a8583ce4d7d8aaf3c37e0d441",
+    "politics-train.json": "63061d1abd26e9a7f8ef84f9b6aba9c5a1c2f37697270666a3c33b5925b9f125",
+    "science-dev.json": "6a2b5ed08528b504ca7eefa7cec1354d3d2f7f3f0bebeb7f43f82bed077f4d45",
+    "science-test.json": "d1c0bace45532227b44de23121394bc660690b6f1e3c3f011f633eb2c9bd5a42",
+    "science-train.json": "1f860783dc2f05b09ac85447f523b6fafdddc6d861995994ac7bdcba9a01a5f6"
+  },
+  "stock_gate": 0.5,
+  "stock_parity": {
+    "checked_sentences": 320,
+    "comparison": "upstream predict_relations vs. trained Anno export, exact directed edge multiset",
+    "runtime": "CPU PyTorch"
+  },
+  "suggestion_floor": 0.3,
+  "test_by_domain": {
+    "ai": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 26,
+          "correct_added": 4,
+          "correct_gained_vs_score_only": 1,
+          "correct_lost_vs_score_only": 1,
+          "different_from_score_only": 1,
+          "gold_empty_unmatched": 5,
+          "on_already_emitted_pair": 1,
+          "unmatched_added": 22,
+          "unmatched_other_label_on_reference_pair": 1,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 7,
+          "unmatched_with_inexact_endpoint": 13
+        },
+        "gate_0.40": {
+          "added": 22,
+          "correct_added": 1,
+          "gold_empty_unmatched": 5,
+          "on_already_emitted_pair": 0,
+          "unmatched_added": 21,
+          "unmatched_other_label_on_reference_pair": 2,
+          "unmatched_unrelated_annotated_entities": 6,
+          "unmatched_with_inexact_endpoint": 13
+        },
+        "score": {
+          "added": 26,
+          "correct_added": 4,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 5,
+          "on_already_emitted_pair": 1,
+          "unmatched_added": 22,
+          "unmatched_other_label_on_reference_pair": 1,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 7,
+          "unmatched_with_inexact_endpoint": 13
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 18,
+        "literal_first": 14,
+        "unannotated_label_higher": 18,
+        "unannotated_reverse_higher": 4,
+        "unique_keys": 32
+      },
+      "stock": {
+        "empty_gold": 8,
+        "gold": 73,
+        "matched": 15,
+        "predicted": 67,
+        "scored_pairs": 3750,
+        "sentences": 32,
+        "unique_gold": 73,
+        "unmatched": 52
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 8,
+        "eligible_gold_occurrences": 8,
+        "one_per_sentence_upper_bound": 6,
+        "sentences_with_an_eligible_edge": 26
+      }
+    },
+    "literature": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 29,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 4,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 27,
+          "unmatched_other_label_on_reference_pair": 3,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 5,
+          "unmatched_with_inexact_endpoint": 18
+        },
+        "gate_0.40": {
+          "added": 60,
+          "correct_added": 3,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 57,
+          "unmatched_other_label_on_reference_pair": 8,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 8,
+          "unmatched_with_inexact_endpoint": 40
+        },
+        "score": {
+          "added": 29,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 3,
+          "on_already_emitted_pair": 5,
+          "unmatched_added": 27,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 5,
+          "unmatched_with_inexact_endpoint": 17
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 21,
+        "literal_first": 18,
+        "unannotated_label_higher": 20,
+        "unannotated_reverse_higher": 6,
+        "unique_keys": 42
+      },
+      "stock": {
+        "empty_gold": 3,
+        "gold": 121,
+        "matched": 53,
+        "predicted": 169,
+        "scored_pairs": 3460,
+        "sentences": 32,
+        "unique_gold": 121,
+        "unmatched": 116
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 6,
+        "eligible_gold_occurrences": 6,
+        "one_per_sentence_upper_bound": 4,
+        "sentences_with_an_eligible_edge": 29
+      }
+    },
+    "music": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 28,
+          "correct_added": 9,
+          "correct_gained_vs_score_only": 3,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 4,
+          "gold_empty_unmatched": 2,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 19,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_unrelated_annotated_entities": 2,
+          "unmatched_with_inexact_endpoint": 13
+        },
+        "gate_0.40": {
+          "added": 38,
+          "correct_added": 7,
+          "gold_empty_unmatched": 1,
+          "on_already_emitted_pair": 3,
+          "unmatched_added": 31,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_unrelated_annotated_entities": 5,
+          "unmatched_with_inexact_endpoint": 22
+        },
+        "score": {
+          "added": 28,
+          "correct_added": 6,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 2,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 22,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 15
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 22,
+        "literal_first": 35,
+        "unannotated_label_higher": 21,
+        "unannotated_reverse_higher": 7,
+        "unique_keys": 60
+      },
+      "stock": {
+        "empty_gold": 5,
+        "gold": 140,
+        "matched": 56,
+        "predicted": 165,
+        "scored_pairs": 4518,
+        "sentences": 32,
+        "unique_gold": 140,
+        "unmatched": 109
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 13,
+        "eligible_gold_occurrences": 13,
+        "one_per_sentence_upper_bound": 12,
+        "sentences_with_an_eligible_edge": 28
+      }
+    },
+    "news": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 24,
+          "correct_added": 0,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 3,
+          "gold_empty_unmatched": 11,
+          "on_already_emitted_pair": 6,
+          "unmatched_added": 24,
+          "unmatched_other_label_on_reference_pair": 5,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 2,
+          "unmatched_with_inexact_endpoint": 16
+        },
+        "gate_0.40": {
+          "added": 30,
+          "correct_added": 1,
+          "gold_empty_unmatched": 11,
+          "on_already_emitted_pair": 10,
+          "unmatched_added": 29,
+          "unmatched_other_label_on_reference_pair": 5,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 5,
+          "unmatched_with_inexact_endpoint": 18
+        },
+        "score": {
+          "added": 24,
+          "correct_added": 0,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 11,
+          "on_already_emitted_pair": 8,
+          "unmatched_added": 24,
+          "unmatched_other_label_on_reference_pair": 5,
+          "unmatched_unrelated_annotated_entities": 3,
+          "unmatched_with_inexact_endpoint": 16
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 3,
+        "literal_first": 4,
+        "unannotated_label_higher": 3,
+        "unannotated_reverse_higher": 1,
+        "unique_keys": 7
+      },
+      "stock": {
+        "empty_gold": 17,
+        "gold": 24,
+        "matched": 9,
+        "predicted": 48,
+        "scored_pairs": 882,
+        "sentences": 32,
+        "unique_gold": 24,
+        "unmatched": 39
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 2,
+        "eligible_gold_occurrences": 2,
+        "one_per_sentence_upper_bound": 2,
+        "sentences_with_an_eligible_edge": 24
+      }
+    },
+    "politics": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 27,
+          "correct_added": 7,
+          "correct_gained_vs_score_only": 1,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 6,
+          "gold_empty_unmatched": 2,
+          "on_already_emitted_pair": 3,
+          "unmatched_added": 20,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 8,
+          "unmatched_with_inexact_endpoint": 7
+        },
+        "gate_0.40": {
+          "added": 36,
+          "correct_added": 7,
+          "gold_empty_unmatched": 2,
+          "on_already_emitted_pair": 6,
+          "unmatched_added": 29,
+          "unmatched_other_label_on_reference_pair": 8,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 10,
+          "unmatched_with_inexact_endpoint": 10
+        },
+        "score": {
+          "added": 27,
+          "correct_added": 6,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 2,
+          "on_already_emitted_pair": 3,
+          "unmatched_added": 21,
+          "unmatched_other_label_on_reference_pair": 4,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_unrelated_annotated_entities": 8,
+          "unmatched_with_inexact_endpoint": 8
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 63,
+        "literal_first": 28,
+        "unannotated_label_higher": 60,
+        "unannotated_reverse_higher": 16,
+        "unique_keys": 95
+      },
+      "stock": {
+        "empty_gold": 2,
+        "gold": 189,
+        "matched": 55,
+        "predicted": 184,
+        "scored_pairs": 4356,
+        "sentences": 32,
+        "unique_gold": 189,
+        "unmatched": 129
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 15,
+        "eligible_gold_occurrences": 15,
+        "one_per_sentence_upper_bound": 9,
+        "sentences_with_an_eligible_edge": 27
+      }
+    },
+    "science": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 26,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 3,
+          "gold_empty_unmatched": 9,
+          "on_already_emitted_pair": 1,
+          "unmatched_added": 24,
+          "unmatched_unrelated_annotated_entities": 6,
+          "unmatched_with_inexact_endpoint": 18
+        },
+        "gate_0.40": {
+          "added": 43,
+          "correct_added": 4,
+          "gold_empty_unmatched": 15,
+          "on_already_emitted_pair": 9,
+          "unmatched_added": 39,
+          "unmatched_reverses_exact_reference": 2,
+          "unmatched_unrelated_annotated_entities": 11,
+          "unmatched_with_inexact_endpoint": 26
+        },
+        "score": {
+          "added": 26,
+          "correct_added": 2,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 9,
+          "on_already_emitted_pair": 2,
+          "unmatched_added": 24,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 6,
+          "unmatched_with_inexact_endpoint": 17
+        }
+      },
+      "low_retained": {
+        "at_least_one_unannotated_rival_higher": 23,
+        "literal_first": 28,
+        "unannotated_label_higher": 23,
+        "unannotated_reverse_higher": 7,
+        "unique_keys": 52
+      },
+      "stock": {
+        "empty_gold": 12,
+        "gold": 99,
+        "matched": 23,
+        "predicted": 104,
+        "scored_pairs": 4816,
+        "sentences": 32,
+        "unique_gold": 99,
+        "unmatched": 81
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 9,
+        "eligible_gold_occurrences": 9,
+        "one_per_sentence_upper_bound": 3,
+        "sentences_with_an_eligible_edge": 26
+      }
+    }
+  },
+  "upstream_package": "gliner==0.2.30"
+}
