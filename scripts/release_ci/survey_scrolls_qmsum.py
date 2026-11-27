@@ -4,7 +4,6 @@ import hashlib
 import json
 import re
 import tempfile
-import urllib.error
 import urllib.request
 import zipfile
 from collections import Counter
@@ -14,6 +13,16 @@ HUB = "https://huggingface.co"
 REPOSITORY = "tau/scrolls"
 # The SCROLLS publisher README links REPOSITORY's qmsum.zip.
 PAPER_REVISION = "bfc0da0747976418cd0c4b8837db023ea567ba84"
+HUB_REVISION = "927b875150ac8f02262ddd3b078d33a9debc935b"
+
+# Independent fingerprints from the source release Yale-LILY/QMSum at
+# 83d7768c1f2b4dfeb091385d3dc7e239b8e5bb7e, data/ALL/{train,val,test}.
+# Whitespace-normalized summaries retain duplicates and are sorted before hashing.
+REFERENCE_FINGERPRINTS = {
+    "train": "e74f8f2f0ce36d3dafc4b6ec96bb0f704cbb0d8badd264c6492613fa63d3a5ec",
+    "validation": "742f79936a1caa6cc263421d300fa7363b9335b32fe6700b5f3ec4309087dbce",
+    "test": "caeda4e59ee55bc2ee2f2627573b50fefa249ad1e55d8992929a48ebf09aaa9d",
+}
 
 
 def fetch_json(url):
@@ -24,8 +33,9 @@ def fetch_json(url):
         return json.load(response)
 
 
-def partition_counts(file):
+def partition_counts(file, expected_fingerprint):
     totals = Counter()
+    texts = []
     for line in file:
         if not line.strip():
             continue
@@ -38,29 +48,36 @@ def partition_counts(file):
             raise ValueError("SCROLLS record lacks an input or ID")
         output = item.get("output")
         if isinstance(output, str):
-            count = int(bool(output.strip()))
-        elif output is None:
-            count = 0
-        elif isinstance(output, list) and all(isinstance(ref, str) for ref in output):
-            count = sum(bool(ref.strip()) for ref in output)
-        else:
-            raise ValueError("unknown SCROLLS reference-summary representation")
+            output = [output]
+        if output is None:
+            output = []
+        if not isinstance(output, list) or not all(
+            isinstance(ref, str) for ref in output
+        ):
+            raise TypeError("unknown SCROLLS output representation")
+        references = [" ".join(ref.split()) for ref in output if ref.strip()]
+        texts.extend(references)
         totals["questions"] += 1
-        totals["questions with released reference summaries"] += bool(count)
-        totals["released reference summaries"] += count
+        totals["questions with nonempty output"] += bool(references)
     if not totals["questions"]:
         raise ValueError("empty SCROLLS QMSum partition")
+    totals["distinct nonempty output texts"] = len(set(texts))
+    encoded = json.dumps(
+        sorted(texts), ensure_ascii=False, separators=(",", ":")
+    ).encode()
+    if hashlib.sha256(encoded).hexdigest() == expected_fingerprint:
+        totals["reference summaries verified against original QMSum"] = len(texts)
     return totals
 
 
-def survey(registry_url, cache, revision=None):
+def survey(registry_url, cache, revision=HUB_REVISION):
     source = f"{HUB}/datasets/{REPOSITORY}/resolve/{revision or 'main'}/qmsum.zip"
-    base = dict(
-        id="ScrollsQMSum",
-        registry_url=registry_url,
-        repository="tau-nlp/scrolls",
-        revision=PAPER_REVISION,
-    )
+    base = {
+        "id": "ScrollsQMSum",
+        "registry_url": registry_url,
+        "repository": "tau-nlp/scrolls",
+        "revision": PAPER_REVISION,
+    }
     try:
         metadata = fetch_json(
             f"{HUB}/api/datasets/{REPOSITORY}"
@@ -122,7 +139,7 @@ def survey(registry_url, cache, revision=None):
                     raise ValueError("ambiguous or absent SCROLLS split " + split)
                 path = paths[0]
                 with z.open(path) as f:
-                    totals = partition_counts(f)
+                    totals = partition_counts(f, REFERENCE_FINGERPRINTS[split])
                 for unit, value in totals.items():
                     rows.append(
                         dict(

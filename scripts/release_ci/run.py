@@ -11,3 +11,21 @@ with open("public-release-counts.csv","w",newline="") as f:
     writer.writeheader()
     writer.writerows(rows)
 print(Path("public-release-counts.csv").read_text())
+
+if not any(row["id"] == "SLUE" and row["status"] == "ok" for row in rows):
+    import urllib.request
+    import urllib.error
+    import xml.etree.ElementTree as ET
+    for method in ("HEAD","GET"):
+        try:
+            req=urllib.request.Request(survey_slue_manifest.SOURCE,method=method)
+            with urllib.request.urlopen(req,timeout=25) as resp:
+                print("VoxPopuli ordinary", method, resp.status, "type",resp.headers.get("Content-Type"),"bytes",resp.headers.get("Content-Length"))
+        except urllib.error.HTTPError as e:
+            code=None
+            if method=="GET":
+                try: code=ET.fromstring(e.read(1800)).findtext("Code")
+                except ET.ParseError: pass
+            print("VoxPopuli ordinary", method,e.code,"S3 code",code)
+        except OSError as e:
+            print("VoxPopuli ordinary", method,type(e).__name__)
