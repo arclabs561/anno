@@ -423,6 +423,16 @@ impl MentionRankingCoref {
             .collect();
         let between_lower = between.to_lowercase();
 
+        // In "X is not Y" the copula is evidence against an alias. Withhold
+        // this feature's bonus, leaving independent pair evidence intact.
+        let mut words = between_lower.split_whitespace();
+        if matches!(words.next(), Some("is" | "are" | "was" | "were" | "be"))
+            && words.next() == Some("not")
+            && words.next().is_none()
+        {
+            return false;
+        }
+
         // Be-phrase patterns from i2b2 paper
         static BE_PATTERNS: &[&str] = &[
             " is ",
