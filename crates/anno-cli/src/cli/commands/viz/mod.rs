@@ -1,6 +1,7 @@
 //! Render measured results without loading models or accessing datasets.
 
 mod errors;
+mod overlap;
 
 use anno::viz::Tradeoff;
 use clap::{Args, Subcommand, ValueEnum};
@@ -20,6 +21,8 @@ enum View {
     Tradeoff(RenderArgs),
     /// Summarize matching errors and character coverage in one or more anno eval --json reports
     Errors(RenderArgs),
+    /// Count shared character positions in grounded documents or replay an overlap summary
+    Overlap(RenderArgs),
 }
 
 #[derive(Debug, Args)]
@@ -135,5 +138,6 @@ pub fn run(args: VizArgs) -> Result<(), String> {
             }
         }),
         View::Errors(options) => options.render(errors::render),
+        View::Overlap(options) => options.render(overlap::render),
     }
 }

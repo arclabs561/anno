@@ -1,8 +1,8 @@
 //! Render measured extraction results as standalone SVG or self-contained HTML.
 //!
-//! Use [`Tradeoff`] to compare operating points across cohorts and [`errors`]
-//! to examine the outcomes of an entity evaluation. Both produce self-contained
-//! output without loading a model.
+//! Use [`overlap`] to measure shared characters in grounded documents, [`errors`]
+//! to examine entity evaluation outcomes, and [`Tradeoff`] to compare operating
+//! points across cohorts. Each view can render an offline report from a saved input.
 //!
 //! ```
 //! use anno::viz::Tradeoff;
@@ -16,6 +16,7 @@
 //! ```
 
 pub mod errors;
+pub mod overlap;
 mod tradeoff;
 
 pub use tradeoff::{OperatingPoint, Tradeoff, TradeoffSeries, TRADEOFF_SCHEMA};

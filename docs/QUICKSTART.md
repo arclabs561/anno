@@ -185,6 +185,11 @@ ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved t
 
 ## Visualize evaluation results
 
+For ordinary extraction output, `anno viz overlap documents.jsonl -o overlap.svg`
+measures how many mentions share a character and which labels are affected.
+It reads grounded documents directly and works without a gold reference.
+[Grounded extraction example and full GENIA replay](EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
+
 In this checkout, inspect what an extraction got wrong by piping its evaluation
 directly into the errors view. This example produces one wrong entity type and one
 missed name. Use `--metric char-masking` on `anno eval` to also see Unicode
@@ -232,13 +237,13 @@ these illustrative counts compare two settings on ten sentences.
 }
 ```
 
-Both views accept a JSON file or stdin and write standalone SVG to stdout by
+All three views accept a JSON file or stdin and write standalone SVG to stdout by
 default. A `.html` output file or `--format html` produces a self-contained
 page with an accessible data table. A `.json` output file or `--format json`
-writes the validated operating points or a pooled `anno.errors/v1` summary.
-Rust callers can read either report using
-`anno::viz::Tradeoff::from_json` or `anno::viz::errors::EvalErrors::from_json` and call
-`render_svg` or `render_html`. Rendering runs offline in the standard CLI.
+writes the validated operating points, a pooled `anno.errors/v1` report, or
+an `anno.overlap/v1` summary. Rust callers can use `Tradeoff`, `errors::EvalErrors`
+or `overlap::Overlap` from `anno::viz`. Each exposes `from_json`, `render_svg`
+and `render_html`. Rendering runs offline in the standard CLI.
 
 ## CLI: batch processing
 

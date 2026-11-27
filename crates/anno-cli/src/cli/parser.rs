@@ -142,7 +142,7 @@ pub enum Commands {
     #[command(visible_alias = "d")]
     Debug(commands::DebugArgs),
 
-    /// Render evaluation errors and operating-point comparisons as SVG or HTML
+    /// Visualize signal overlap, evaluation errors and operating-point comparisons
     Viz(commands::viz::VizArgs),
 
     /// Evaluate predictions against gold annotations

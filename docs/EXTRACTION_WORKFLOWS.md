@@ -26,6 +26,21 @@ generate co-occurrence edges when extraction yields no semantic relations.
 
 ### Review overlapping highlights
 
+Measure how often extracted signals compete for the same highlight before inspecting individual examples. Pipe one grounded extraction into the chart, or save counts across a pipeline run for later comparison.
+
+```sh
+anno extract --model pattern --format grounded --text 'Mail Ada at ada@example.org.' \
+  | anno viz overlap -o overlap.svg
+anno viz overlap documents.jsonl --title 'Support ticket extractions' -o overlap-counts.json
+anno viz overlap overlap-counts.json -o overlap.html
+```
+
+The chart counts documents and signals sharing at least one character with another signal. It also counts every Unicode scalar position in the grounded document text, including whitespace and text with no signals. Touching spans share zero characters. Gaps between segments of a discontinuous signal retain their own coverage. The label table shows how many signals participate and the percentage for each label. JSON and HTML retain every label. The saved counts contain label names and the chart title. Source text, surfaces and document identifiers stay in the input.
+
+On all three GENIA splits, **9,652 of 55,740 gold mentions (17.3%)** shared at least one character with another mention. Those overlaps occupied **47,678 of 3,103,238 characters (1.54%)**. A review that samples character offsets would rarely hit the overlaps that affect roughly one in six mentions. Protein had the most affected mentions (5,738 of 34,097). RNA had the highest affected share (418 of 933, or 44.8%). The study used four published annotation layers and included the 1,983 sentences without gold mentions. The counts describe annotation geometry and can be computed on predictions using the same command. [All label and character counts](eval/genia-span-overlap.json) · [Replay from the three pinned splits](../scripts/genia_grounded_overlap.py)
+
+![GENIA span overlap across all 18,546 sentences. Four bars show the source character counts covered by zero, one, two, or at least three gold mentions. A table gives affected and total mentions for each of the five labels.](figures/genia-span-overlap.svg)
+
 When a name seems to be missing from an HTML preview, inspect the entity list that produced it. In the GENIA test split, “cyclophilin gene” is a DNA mention and “cyclophilin” is a protein mention at the same start. Given both, `anno::export::to_html` highlights the longer phrase once. `anno::export::to_jsonl` writes a separate row for each mention. Use those rows and their offsets to review a suspected miss or score an extraction.
 
 Across all **18,546 sentences** in this GENIA release, the native HTML exporter hid at least one gold mention in **3,816 sentences (20.6%)**. It displayed 50,709 gold mentions and hid 5,031 (9.0%). The JSONL exporter preserved all 55,740 with their original labels, surfaces and offsets. Both exporters received the gold annotations directly, so the results measure what a reviewer can see when the supplied entities overlap. [Verified split counts and source files](eval/genia-native-exports.json)
@@ -40,6 +55,8 @@ To replay the exports, build the example and run the figure script from the repo
 cargo build --locked -p anno-eval --example genia_export
 python3 scripts/plot_genia_nesting.py target/genia-review \
   --native-export "${CARGO_TARGET_DIR:-target}/debug/examples/genia_export"
+python3 scripts/genia_grounded_overlap.py target/genia-review/genia-span-overlap.json
+anno viz overlap target/genia-review/genia-span-overlap.json -o target/genia-review/genia-span-overlap.svg
 ```
 
 The script checks all three publisher files against their SHA-256 digests. The Rust example reads each of the four IOB2 layers with `AnnotatedSentence::entities()` and passes the original labels to both exporters. Character offsets refer to a sentence reconstructed with one space between tokens. An independent decoder checks the entire text recovered from the HTML, the span and label of every highlight, and each JSONL row. All checks agreed on every sentence, including the 1,983 with no gold mentions. [Replay example](../crates/anno-eval/examples/genia_export.rs) · [Figure and checks](../scripts/plot_genia_nesting.py)

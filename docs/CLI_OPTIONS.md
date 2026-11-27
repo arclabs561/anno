@@ -15,6 +15,7 @@ See the [quickstart](QUICKSTART.md) for profile applicability.
 | `anno viz [OPTIONS] <COMMAND>` | — |
 | `anno viz tradeoff [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
 | `anno viz errors [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
+| `anno viz overlap [OPTIONS] [INPUT]` | `-o, --output`, `--format`, `--title` |
 | `anno eval [OPTIONS] [POSITIONAL]...` | `-t, --text`, `-f, --file`, `-m, --model`, `--predictions`, `--metric`, `-g, --gold`, `--gold-file`, `-o, --output`, `--json`, `--html`, `-v, --verbose`, `-q, --quiet` |
 | `anno validate [OPTIONS] <FILES>...` | — |
 | `anno analyze [OPTIONS] [POSITIONAL]...` | `-t, --text`, `-f, --file` |
