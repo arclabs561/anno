@@ -31,7 +31,10 @@ CACHE = re.compile(
 # These publications include offsets, skeletons, or individually licensed text subsets.
 # Their measured public files can identify bytes elsewhere, but cannot authorize reading
 # an entire, separately prepared cache under the registry name.
-PARTIAL_PUBLIC_SOURCES = {"DISRPT2025", "GUM", "MATRES", "TempEval3", "TweetNERD", "TwiConv"}
+PARTIAL_PUBLIC_SOURCES = {
+    "DISRPT2025", "GUM", "ISNotes", "MATRES", "NNE", "ProductReviewNER",
+    "TempEval3", "TweetNERD", "TwiConv", "TwitterGMNER",
+}
 FIELDS = (
     "cache_id",
     "object_kind",
