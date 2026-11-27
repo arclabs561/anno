@@ -54,19 +54,19 @@ pub struct QueryArgs {
     #[arg(short, long, value_name = "TEXT")]
     pub entity: Option<String>,
 
-    /// Minimum confidence threshold
-    #[arg(long, value_name = "FLOAT")]
+    /// Minimum confidence, inclusive, from 0 to 1
+    #[arg(long, value_name = "FLOAT", value_parser = parse_confidence)]
     pub min_confidence: Option<f64>,
 
     /// Filter expression (e.g., "type=ORG AND confidence>0.7")
     #[arg(short, long, value_name = "EXPR")]
     pub filter: Option<String>,
 
-    /// Start offset for range queries (character position)
+    /// Inclusive lower bound on mention start, in Unicode characters
     #[arg(long, value_name = "OFFSET")]
     pub start_offset: Option<usize>,
 
-    /// End offset for range queries (character position)
+    /// Exclusive end of the character range that must contain the whole mention
     #[arg(long, value_name = "OFFSET")]
     pub end_offset: Option<usize>,
 
@@ -105,6 +105,18 @@ struct FilterExpression {
     confidence_greater_than: Option<f64>,
 }
 
+fn parse_confidence(value: &str) -> Result<f64, String> {
+    let confidence = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid confidence threshold: {value}"))?;
+    if !(0.0..=1.0).contains(&confidence) {
+        return Err(format!(
+            "confidence threshold must be finite and within 0..=1: {value}"
+        ));
+    }
+    Ok(confidence)
+}
+
 fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
     let mut filter = FilterExpression::default();
     for clause in expr.split(" AND ") {
@@ -124,14 +136,7 @@ fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
             if filter.confidence_greater_than.is_some() {
                 return Err("filter may contain only one confidence clause".to_string());
             }
-            let confidence = confidence
-                .parse::<f64>()
-                .map_err(|_| format!("invalid confidence threshold in filter: {confidence}"))?;
-            if !confidence.is_finite() || !(0.0..=1.0).contains(&confidence) {
-                return Err(format!(
-                    "confidence threshold must be finite and within 0..=1: {confidence}"
-                ));
-            }
+            let confidence = parse_confidence(confidence)?;
             filter.confidence_greater_than = Some(confidence);
         } else {
             return Err(format!(
@@ -196,13 +201,17 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             doc.signals().to_vec()
         };
 
-        // Apply range filters using spatial index if both offsets provided
-        if let (Some(start), Some(end)) = (args.start_offset, args.end_offset) {
-            signals = doc
-                .query_signals_in_range_indexed(start, end)
-                .into_iter()
-                .cloned()
-                .collect();
+        if args.start_offset.is_some() || args.end_offset.is_some() {
+            let start = args.start_offset.unwrap_or(0);
+            let end = args.end_offset.unwrap_or(usize::MAX);
+            if start > end {
+                return Err("--start-offset must be at or before --end-offset".into());
+            }
+            signals.retain(|signal| {
+                signal
+                    .text_offsets()
+                    .is_some_and(|(left, right)| left >= start && right <= end)
+            });
         }
 
         // Apply additional filters
