@@ -70,9 +70,8 @@ jobs:
           from pathlib import Path
           from huggingface_hub import snapshot_download
           fixture = json.loads(Path("testdata/grounded/gliner_relex_reference.json").read_bytes())
-          weights = snapshot_download(fixture["checkpoint"], revision=fixture["revision"], allow_patterns=[
-              "model.safetensors", "gliner_config.json", "tokenizer*.json", "added_tokens.json",
-              "special_tokens_map.json", "spm.model"])
+          # The subsequent offline joint exporter opens the complete pinned snapshot.
+          weights = snapshot_download(fixture["checkpoint"], revision=fixture["revision"])
           with open(os.environ["GITHUB_ENV"], "a") as env:
               print("RELEX_WEIGHTS=" + weights, file=env)
               print("HF_HUB_OFFLINE=1", file=env)
