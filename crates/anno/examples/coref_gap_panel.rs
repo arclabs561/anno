@@ -1,5 +1,9 @@
 //! Stream labeled-corpus excerpts into one resolver without exposing gold links.
-use anno::backends::coref::{fcoref::FCoref, mention_ranking::MentionRankingCoref, MaverickCoref};
+use anno::backends::coref::{
+    fcoref::FCoref,
+    mention_ranking::{MentionRankingConfig, MentionRankingCoref},
+    MaverickCoref,
+};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -49,9 +53,13 @@ fn supplied_native(
 
 fn main() -> Result<(), Box<dyn Error>> {
     let requested = std::env::args().nth(1).ok_or("expected backend name")?;
-    let native = MentionRankingCoref::new();
+    let be_phrase = requested == "mention-ranking-copula";
+    let native = MentionRankingCoref::with_config(MentionRankingConfig {
+        enable_be_phrase_detection: be_phrase,
+        ..Default::default()
+    });
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
-        "mention-ranking" => None,
+        "mention-ranking" | "mention-ranking-copula" => None,
         "fcoref" => Some(Box::new(FCoref::from_path(&std::env::var(
             "FCOREF_MODEL_PATH",
         )?)?)),
@@ -60,12 +68,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             std::env::var("MAVERICK_MODEL_PATH")?,
             false,
         )?)),
-        _ => return Err("expected mention-ranking, fcoref or maverick".into()),
+        _ => {
+            return Err(
+                "expected mention-ranking, mention-ranking-copula, fcoref or maverick".into(),
+            )
+        }
     };
     let model = neural.as_deref().unwrap_or(&native);
+    let producer = if be_phrase {
+        requested.as_str()
+    } else {
+        model.name()
+    };
     for line in io::stdin().lock().lines() {
         let doc: Input = serde_json::from_str(&line?)?;
         if let Some(mentions) = &doc.mentions {
+            if be_phrase {
+                return Err("mention-ranking-copula requires the raw-text path".into());
+            }
             let length = doc.text.chars().count();
             if mentions
                 .iter()
@@ -91,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         println!(
                             "{}",
                             serde_json::json!({
-                                "id": doc.id, "producer": model.name(),
+                                "id": doc.id, "producer": producer,
                                 "unsupported": "supplied_span_splits_token"
                             })
                         );
@@ -104,7 +124,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         println!(
             "{}",
-            serde_json::json!({"id": doc.id, "producer": model.name(), "clusters": spans})
+            serde_json::json!({"id": doc.id, "producer": producer, "clusters": spans})
         );
     }
     Ok(())
