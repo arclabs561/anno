@@ -168,6 +168,10 @@ def aggregate(results):
     summary["rival_higher"] = {
         key: sum(r["rival"][key] > r["exact"][key] for r in results)
         for key in ("name_mention", "pair", "total")}
+    summary["exact_pair_term_positive"] = sum(r["exact"]["pair"] > 0 for r in results)
+    summary["larger_mention_than_pair_disadvantage"] = sum(
+        r["rival"]["name_mention"] - r["exact"]["name_mention"] > r["rival"]["pair"] - r["exact"]["pair"]
+        for r in results)
     summary["rival_total_changed_from_stock"] = sum(
         f32(r["stock_rival"]["total"]) != f32(r["rival"]["total"]) for r in results)
     return summary
