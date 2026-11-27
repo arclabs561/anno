@@ -625,3 +625,110 @@ fn query_keeps_one_sided_bounds_and_composes_type_with_range() {
         assert!(!dir.join("report").exists());
     }
 }
+
+// Exhaustively enumerate valid one-to-one pairings as an independent oracle
+// for small groups of duplicate spans. Integer eighths are exact in f64.
+fn max_unchanged(left: &[u8], right: &[u8], tolerance: u8) -> usize {
+    let Some((&first, rest)) = left.split_first() else {
+        return 0;
+    };
+    let mut best = max_unchanged(rest, right, tolerance);
+    for (i, &candidate) in right.iter().enumerate() {
+        if first.abs_diff(candidate) <= tolerance {
+            let mut others = right.to_vec();
+            others.remove(i);
+            best = best.max(1 + max_unchanged(rest, &others, tolerance));
+        }
+    }
+    best
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn compare_duplicate_scores_match_exhaustive_oracle(
+        left in prop::collection::vec(0u8..=8, 0..6),
+        right in prop::collection::vec(0u8..=8, 0..6),
+        tolerance in 0u8..=3,
+    ) {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        for (file,scores) in [("a.json",&left),("b.json",&right)] {
+            let rows: Vec<_> = scores.iter().map(|&s| serde_json::json!({"text":"Ada","type":"PER","start":0,"end":3,"confidence":f64::from(s)/8.0})).collect();
+            fs::write(dir.join(file), serde_json::json!({"entities":rows}).to_string()).unwrap();
+        }
+        let epsilon = (f64::from(tolerance)/8.0).to_string();
+        let compare = |a,b| -> Value { serde_json::from_slice(&ok(dir,&["compare",a,b,"--confidence-epsilon",&epsilon,"--format","json","--changes-only"])).unwrap() };
+        let result = compare("a.json","b.json");
+        let matched = max_unchanged(&left,&right,tolerance);
+        prop_assert_eq!(result["unchanged"].as_u64(),Some(matched as u64));
+        prop_assert_eq!(result["modified"].as_u64(),Some((left.len().min(right.len())-matched) as u64));
+        prop_assert_eq!(result["added"].as_u64(),Some(right.len().saturating_sub(left.len()) as u64));
+        prop_assert_eq!(result["removed"].as_u64(),Some(left.len().saturating_sub(right.len()) as u64));
+        let identity = compare("a.json","a.json");
+        prop_assert!(identity["diffs"].as_array().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn comparison_rejects_partial_input_and_invalid_tolerances() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(dir.join("bad.json"),r#"{"entities":[{"text":"Ada","type":"PER","start":0,"end":3,"confidence":1.0},{"text":"incomplete"}]}"#).unwrap();
+    for (extra, diagnostic) in [
+        (vec![], "entities[1]"),
+        (vec!["--confidence-epsilon=NaN"], "confidence"),
+        (vec!["--confidence-epsilon=1.1"], "confidence"),
+    ] {
+        fs::write(dir.join("report"), "existing report").unwrap();
+        let mut args = vec!["compare", "bad.json", "bad.json", "--output", "report"];
+        args.extend(extra);
+        let result = invoke(dir, &args);
+        assert!(!result.status.success());
+        assert!(result.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&result.stderr).contains(diagnostic));
+        assert_eq!(
+            fs::read_to_string(dir.join("report")).unwrap(),
+            "existing report"
+        );
+    }
+}
+
+#[test]
+fn identical_duplicate_mentions_compare_equal_in_either_order() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    let mut rows: Vec<_> = [0.2, 0.9]
+        .into_iter()
+        .map(|confidence| {
+            serde_json::json!({
+                "text":"Ada","type":"PER","start":0,"end":3,"confidence":confidence
+            })
+        })
+        .collect();
+    for name in ["original.json", "reversed.json"] {
+        fs::write(
+            dir.join(name),
+            serde_json::json!({"entities":rows}).to_string(),
+        )
+        .unwrap();
+        rows.reverse();
+    }
+    for other in ["original.json", "reversed.json"] {
+        let report: Value = serde_json::from_slice(&ok(
+            dir,
+            &[
+                "compare",
+                "original.json",
+                other,
+                "--format",
+                "json",
+                "--changes-only",
+            ],
+        ))
+        .unwrap();
+        assert_eq!(report["unchanged"], 2);
+        assert_eq!(report["modified"], 0);
+        assert_eq!(report["diffs"], serde_json::json!([]));
+    }
+}

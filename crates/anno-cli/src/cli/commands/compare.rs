@@ -33,7 +33,7 @@ pub struct CompareArgs {
     pub format: String,
 
     /// Confidence delta threshold for treating an otherwise-identical entity as modified
-    #[arg(long, default_value_t = 0.05)]
+    #[arg(long, default_value_t = 0.05, value_parser = super::super::utils::parse_confidence)]
     pub confidence_epsilon: f64,
 
     /// Only emit changed entities (added/removed/modified); omit unchanged diffs
@@ -45,9 +45,10 @@ pub struct CompareArgs {
     pub output: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct ComparableEntity {
     text: String,
+    #[serde(rename = "type")]
     entity_type: String,
     start: usize,
     end: usize,
@@ -246,18 +247,20 @@ fn parse_entities_from_any_json(content: &str) -> Result<Vec<ComparableEntity>, 
 
     // Case 1: extract output: { entities: [...] }
     if let Some(arr) = v.get("entities").and_then(|e| e.as_array()) {
-        return Ok(arr
+        return arr
             .iter()
-            .filter_map(|e| {
-                Some(ComparableEntity {
-                    text: e.get("text")?.as_str()?.to_string(),
-                    entity_type: e.get("type")?.as_str()?.to_string(),
-                    start: e.get("start")?.as_u64()? as usize,
-                    end: e.get("end")?.as_u64()? as usize,
-                    confidence: e.get("confidence")?.as_f64()?,
-                })
+            .enumerate()
+            .map(|(i, row)| {
+                let entity: ComparableEntity = serde_json::from_value(row.clone())
+                    .map_err(|e| format!("entities[{i}]: {e}"))?;
+                if entity.start > entity.end || !(0.0..=1.0).contains(&entity.confidence) {
+                    return Err(format!(
+                        "entities[{i}]: expected ordered offsets and confidence in 0..=1"
+                    ));
+                }
+                Ok(entity)
             })
-            .collect());
+            .collect();
     }
 
     // Case 2: GroundedDocument JSON
@@ -299,10 +302,20 @@ fn compare_entities(
     let mut remaining_a: Vec<ComparableEntity> = Vec::new();
     let mut remaining_b: Vec<ComparableEntity> = Vec::new();
 
-    let mut map_b_exact: HashMap<(String, String, usize, usize), Vec<ComparableEntity>> =
-        HashMap::new();
-    for e in b.iter().cloned() {
-        map_b_exact.entry(e.exact_key()).or_default().push(e);
+    let mut groups = std::collections::BTreeMap::new();
+    for e in a {
+        groups
+            .entry(e.exact_key())
+            .or_insert_with(|| (Vec::new(), Vec::new()))
+            .0
+            .push(e);
+    }
+    for e in b {
+        groups
+            .entry(e.exact_key())
+            .or_insert_with(|| (Vec::new(), Vec::new()))
+            .1
+            .push(e);
     }
 
     let mut diffs: Vec<DiffEntry> = Vec::new();
@@ -313,39 +326,61 @@ fn compare_entities(
         modified: 0,
     };
 
-    for ea in a.iter().cloned() {
-        let key = ea.exact_key();
-        if let Some(list) = map_b_exact.get_mut(&key) {
-            if let Some(eb) = list.pop() {
-                let conf_delta = (ea.confidence - eb.confidence).abs();
-                let change_type = if conf_delta <= eps {
-                    counts.unchanged += 1;
-                    "unchanged"
-                } else {
-                    counts.modified += 1;
-                    "modified"
-                };
-                if !(changes_only && change_type == "unchanged") {
-                    diffs.push(DiffEntry {
-                        text: ea.text.clone(),
-                        entity_type: ea.entity_type.clone(),
-                        change_type: change_type.to_string(),
-                        start_a: Some(ea.start),
-                        end_a: Some(ea.end),
-                        confidence_a: Some(ea.confidence),
-                        start_b: Some(eb.start),
-                        end_b: Some(eb.end),
-                        confidence_b: Some(eb.confidence),
-                    });
-                }
-                continue;
+    for (_, (mut left, mut right)) in groups {
+        left.sort_by(|a, b| a.confidence.total_cmp(&b.confidence));
+        right.sort_by(|a, b| a.confidence.total_cmp(&b.confidence));
+        let mut left = left.into_iter().peekable();
+        let mut right = right.into_iter().peekable();
+        let mut unmatched_left = Vec::new();
+        let mut unmatched_right = Vec::new();
+        let mut pairs = Vec::new();
+        // In sorted order, the smaller out-of-tolerance score cannot match
+        // any later score on the opposite side.
+        while let (Some(&ea), Some(&eb)) = (left.peek(), right.peek()) {
+            if (ea.confidence - eb.confidence).abs() <= eps {
+                pairs.push((ea, eb, "unchanged"));
+                left.next();
+                right.next();
+            } else if ea.confidence < eb.confidence {
+                unmatched_left.push(ea);
+                left.next();
+            } else {
+                unmatched_right.push(eb);
+                right.next();
             }
         }
-        remaining_a.push(ea);
-    }
-
-    for (_k, mut leftover) in map_b_exact {
-        remaining_b.append(&mut leftover);
+        unmatched_left.extend(left);
+        unmatched_right.extend(right);
+        let common = unmatched_left.len().min(unmatched_right.len());
+        pairs.extend(
+            unmatched_left
+                .drain(..common)
+                .zip(unmatched_right.drain(..common))
+                .map(|(ea, eb)| (ea, eb, "modified")),
+        );
+        remaining_a.extend(unmatched_left.into_iter().cloned());
+        remaining_b.extend(unmatched_right.into_iter().cloned());
+        for (ea, eb, change) in pairs {
+            if change == "unchanged" {
+                counts.unchanged += 1;
+                if changes_only {
+                    continue;
+                }
+            } else {
+                counts.modified += 1;
+            }
+            diffs.push(DiffEntry {
+                text: ea.text.clone(),
+                entity_type: ea.entity_type.clone(),
+                change_type: change.into(),
+                start_a: Some(ea.start),
+                end_a: Some(ea.end),
+                confidence_a: Some(ea.confidence),
+                start_b: Some(eb.start),
+                end_b: Some(eb.end),
+                confidence_b: Some(eb.confidence),
+            });
+        }
     }
 
     // Phase 2: loose matches by (text,type) for span shifts / approximate pairing
@@ -354,7 +389,11 @@ fn compare_entities(
         by_key_b.entry(e.loose_key()).or_default().push(e);
     }
     for list in by_key_b.values_mut() {
-        list.sort_by_key(|e| (e.start, e.end));
+        list.sort_by(|a, b| {
+            (a.start, a.end)
+                .cmp(&(b.start, b.end))
+                .then_with(|| a.confidence.total_cmp(&b.confidence))
+        });
     }
 
     for ea in remaining_a {
@@ -378,9 +417,9 @@ fn compare_entities(
 
             // Greedy: choose closest span by absolute start distance.
             let mut best_i = 0usize;
-            let mut best_d = (ea.start as i64 - candidates[0].start as i64).abs();
+            let mut best_d = ea.start.abs_diff(candidates[0].start);
             for (i, eb) in candidates.iter().enumerate().skip(1) {
-                let d = (ea.start as i64 - eb.start as i64).abs();
+                let d = ea.start.abs_diff(eb.start);
                 if d < best_d {
                     best_d = d;
                     best_i = i;

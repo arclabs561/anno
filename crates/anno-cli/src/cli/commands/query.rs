@@ -7,6 +7,7 @@ mod publication;
 mod relations;
 mod source_span;
 
+use super::super::utils::parse_confidence;
 use clap::{Parser, Subcommand};
 use publication::CatalogRecord;
 use std::fs;
@@ -103,18 +104,6 @@ pub struct QueryArgs {
 struct FilterExpression {
     entity_type: Option<String>,
     confidence_greater_than: Option<f64>,
-}
-
-fn parse_confidence(value: &str) -> Result<f64, String> {
-    let confidence = value
-        .parse::<f64>()
-        .map_err(|_| format!("invalid confidence threshold: {value}"))?;
-    if !(0.0..=1.0).contains(&confidence) {
-        return Err(format!(
-            "confidence threshold must be finite and within 0..=1: {value}"
-        ));
-    }
-    Ok(confidence)
 }
 
 fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
