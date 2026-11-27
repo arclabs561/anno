@@ -25,6 +25,8 @@ Each excerpt contributes two labeled decisions. Linking both candidates when onl
 
 The full-test candidate still missed 1,642 of the 1,773 true links with every endpoint supplied. Keep the automatic assignment policy pending a test of which candidate wins. Trace which names precede the pronoun and fall within the distance cap. Where both compete, measure the winner's margin over the other name and the threshold for making a link. Check whether abstaining on small margins reduces wrong identities while retaining the newly recovered links. The one-for-one tradeoff on new test articles gives that experiment a concrete baseline.
 
+The [follow-up margin trial](native-gap-margin.md) retained stock at the development split's wrong-link budget. The [literary transfer trial](litbank-pronoun-transfer.md) applied that frozen choice to a separate set of works.
+
 ## Reproduce
 
 Obtain the three pinned GAP TSVs in a single local directory. Use a disposable checkout with ONNX Runtime available for the existing example. The native resolver needs no model weights. The runner verifies every file digest, historical per-passage stock decisions and a project-authored example where the workers must differ. The JSON stores aggregate counts and fingerprints. [Runner](../../scripts/qa/native_gap_neutral_type.py) · [Pinned files](https://github.com/google-research-datasets/gap-coreference/tree/83135f26025cdd705c04f77e940d0c9201116b80)

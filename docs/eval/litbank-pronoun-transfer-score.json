@@ -1,0 +1,109 @@
+{
+  "articles": 62,
+  "comparison_margin": 0.15,
+  "comparison_vetoes_due_to_rival": 0,
+  "frozen": {
+    "abstained": 1769,
+    "correct": 7,
+    "wrong": 14,
+    "wrong_distractor": 10,
+    "wrong_when_neither": 4
+  },
+  "gold_links": 1296,
+  "neutral": {
+    "abstained": 1654,
+    "correct": 72,
+    "wrong": 64,
+    "wrong_distractor": 35,
+    "wrong_when_neither": 29
+  },
+  "neutral_at_comparison_margin": {
+    "abstained": 1769,
+    "correct": 7,
+    "wrong": 14,
+    "wrong_distractor": 10,
+    "wrong_when_neither": 4
+  },
+  "neutral_binary_sha256": "84739733e794c665cd916455c6ba83a63cd02babba71f806a09c75369585e809",
+  "neutral_diagnostics": {
+    "eligible_names": {
+      "0": 806,
+      "1": 750,
+      "2": 234
+    },
+    "gold_stage": {
+      "gold_first_below_or_at_threshold": 481,
+      "gold_outscored": 57,
+      "gold_outside_distance": 686,
+      "gold_selected_directly": 72,
+      "neither_gold": 494
+    },
+    "group_links": {
+      "0": 1654,
+      "1": 136
+    },
+    "unique_link_without_direct_edge": 0
+  },
+  "policy_sha256": "4e29da0117ce05c178983d594d485d03be29f73e4386e39431a900005513ea46",
+  "rows": 1790,
+  "source_sha256": "6242423aad72a180252da886d0f7c21d390137a30ac22806ac0a17aeeed064c2",
+  "stock": {
+    "abstained": 1769,
+    "correct": 7,
+    "wrong": 14,
+    "wrong_distractor": 10,
+    "wrong_when_neither": 4
+  },
+  "stock_binary_sha256": "438ba664980618fb1987063ba84cba15fcdebd5b25ed8bd6e68730d8ea8ed644",
+  "stock_diagnostics": {
+    "eligible_names": {
+      "0": 806,
+      "1": 750,
+      "2": 234
+    },
+    "gold_stage": {
+      "gold_first_below_or_at_threshold": 546,
+      "gold_outscored": 57,
+      "gold_outside_distance": 686,
+      "gold_selected_directly": 7,
+      "neither_gold": 494
+    },
+    "group_links": {
+      "0": 1769,
+      "1": 21
+    },
+    "unique_link_without_direct_edge": 0
+  },
+  "stock_to_comparison_margin": {
+    "changed_issued_target": 0,
+    "queries": {
+      "abstain_to_abstain": 1769,
+      "correct_to_correct": 7,
+      "wrong_to_wrong": 14
+    },
+    "works": {
+      "correct": {
+        "equal": 62
+      },
+      "wrong": {
+        "equal": 62
+      }
+    }
+  },
+  "stock_to_frozen": {
+    "changed_issued_target": 0,
+    "queries": {
+      "abstain_to_abstain": 1769,
+      "correct_to_correct": 7,
+      "wrong_to_wrong": 14
+    },
+    "works": {
+      "correct": {
+        "equal": 62
+      },
+      "wrong": {
+        "equal": 62
+      }
+    }
+  }
+}
