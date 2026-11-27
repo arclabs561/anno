@@ -14,10 +14,14 @@ In a Rust project, run `cargo add anno@0.15 --no-default-features` for the
 offline extractor. Put this in `src/main.rs` and run `cargo run`:
 
 ```rust
+use anno::extract;
+
 fn main() -> anno::Result<()> {
-    let text = "Lynn Conway worked at IBM.";
-    for mention in anno::extract(text)? {
-        println!("{} [{}]", mention.text, mention.entity_type);
+    let text =
+        "Lynn Conway worked at IBM.";
+    for e in extract(text)? {
+        println!("{} [{}]",
+            e.text, e.entity_type);
     }
     Ok(())
 }
