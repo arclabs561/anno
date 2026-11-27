@@ -1,0 +1,61 @@
+{
+  "schema": "anno.tradeoff/v1",
+  "series": [
+    {
+      "gold": 397,
+      "label": "Development · six domains",
+      "observations": 96,
+      "points": [
+        {
+          "correct": 129,
+          "label": "Stock",
+          "unmatched": 297
+        },
+        {
+          "correct": 142,
+          "label": "Confidence",
+          "unmatched": 364
+        },
+        {
+          "correct": 141,
+          "label": "Both margins",
+          "unmatched": 365
+        },
+        {
+          "correct": 148,
+          "label": "All above 0.40",
+          "unmatched": 431
+        }
+      ]
+    },
+    {
+      "gold": 646,
+      "label": "Held-out test · six domains",
+      "observations": 192,
+      "points": [
+        {
+          "correct": 211,
+          "label": "Stock",
+          "unmatched": 526
+        },
+        {
+          "correct": 231,
+          "label": "Confidence",
+          "unmatched": 666
+        },
+        {
+          "correct": 235,
+          "label": "Both margins",
+          "unmatched": 662
+        },
+        {
+          "correct": 234,
+          "label": "All above 0.40",
+          "unmatched": 732
+        }
+      ]
+    }
+  ],
+  "title": "How much do extra CrossRE relation suggestions recover?",
+  "unit": "sentences"
+}

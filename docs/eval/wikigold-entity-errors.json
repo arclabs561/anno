@@ -1,0 +1,166 @@
+{
+  "schema": "anno.errors/v1",
+  "reports": 1696,
+  "metric": "entity",
+  "prediction_source": {
+    "kind": "saved_documents"
+  },
+  "title": "WikiGold entity errors under stock routing (no BERT)",
+  "entities": {
+    "gold_count": 3558,
+    "predicted_count": 3718,
+    "exact": 2034,
+    "same_span_wrong_label": 536,
+    "partial_overlap": 347,
+    "missed_gold": 641,
+    "extra_predictions": 801
+  },
+  "same_span_label_confusions": [
+    {
+      "gold": "MISC",
+      "predicted": "ORG",
+      "pairs": 134
+    },
+    {
+      "gold": "MISC",
+      "predicted": "PER",
+      "pairs": 90
+    },
+    {
+      "gold": "LOC",
+      "predicted": "ORG",
+      "pairs": 65
+    },
+    {
+      "gold": "ORG",
+      "predicted": "PER",
+      "pairs": 65
+    },
+    {
+      "gold": "ORG",
+      "predicted": "LOC",
+      "pairs": 55
+    },
+    {
+      "gold": "LOC",
+      "predicted": "PER",
+      "pairs": 44
+    },
+    {
+      "gold": "MISC",
+      "predicted": "LOC",
+      "pairs": 39
+    },
+    {
+      "gold": "PER",
+      "predicted": "ORG",
+      "pairs": 32
+    },
+    {
+      "gold": "PER",
+      "predicted": "LOC",
+      "pairs": 11
+    },
+    {
+      "gold": "PER",
+      "predicted": "DATE",
+      "pairs": 1
+    }
+  ],
+  "metadata": {
+    "by_gold_label": {
+      "LOC": {
+        "boundary_error": 53,
+        "correct": 727,
+        "false_negative": 125,
+        "type_mismatch": 109
+      },
+      "MISC": {
+        "boundary_error": 121,
+        "false_negative": 328,
+        "type_mismatch": 263
+      },
+      "ORG": {
+        "boundary_error": 102,
+        "correct": 576,
+        "false_negative": 100,
+        "type_mismatch": 120
+      },
+      "PER": {
+        "boundary_error": 71,
+        "correct": 731,
+        "false_negative": 88,
+        "type_mismatch": 44
+      }
+    },
+    "by_predicted_label": {
+      "DATE": {
+        "boundary_error": 1,
+        "false_positive": 221,
+        "type_mismatch": 1
+      },
+      "LOC": {
+        "boundary_error": 74,
+        "correct": 727,
+        "false_positive": 123,
+        "type_mismatch": 105
+      },
+      "MONEY": {
+        "boundary_error": 1,
+        "false_positive": 25
+      },
+      "ORG": {
+        "boundary_error": 169,
+        "correct": 576,
+        "false_positive": 230,
+        "type_mismatch": 231
+      },
+      "PER": {
+        "boundary_error": 102,
+        "correct": 731,
+        "false_positive": 171,
+        "type_mismatch": 199
+      },
+      "PERCENT": {
+        "false_positive": 20
+      },
+      "TIME": {
+        "false_positive": 11
+      }
+    },
+    "partial_overlap_labels_from_aligned_signals": {
+      "different_labels": 210,
+      "same_label": 137
+    },
+    "predicted_in_gold_inventory": 3438,
+    "predicted_outside_gold_inventory": 280,
+    "scope": "Each sentence occurrence contributes one anno eval --json report, including gold-empty occurrences. All final prediction labels are included.",
+    "source": {
+      "bytes": 318530,
+      "cold_s3_artifact": 15123052847,
+      "cold_s3_receipt": "wikigold-cold.json",
+      "cold_s3_workflow_run": 45834640325,
+      "distinct_sentence_texts": 1687,
+      "document_markers_excluded": 145,
+      "documents_with_sentences": 145,
+      "gold_empty_sentences": 355,
+      "gold_spans": 3558,
+      "native_gold_cases_sha256": "25ebf59f7db0e89410130ae9e99f1293f24548742e62185c605699eb109d916d",
+      "publisher": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt",
+      "sentence_occurrences": 1696,
+      "sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+      "tagged_tokens": 6431,
+      "tokens": 39007
+    },
+    "stock": {
+      "checkpoint": "deepanwa/NuNerZero_onnx@40349bb15d985ced384bed5c35115fd70069f4b9",
+      "checkpoint_sha256": {
+        "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+        "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+        "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+      },
+      "model": "stock native stacked, FP32 NuNER available, BERT absent",
+      "ordered_final_typed_spans_sha256": "eba388dec93c184b91800ef33d557cb30575c65aa36526efbe32e467aa639e23"
+    }
+  }
+}

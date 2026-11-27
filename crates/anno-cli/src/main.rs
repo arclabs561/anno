@@ -89,6 +89,7 @@ fn main() -> ExitCode {
     let result: Result<(), CliError> = match cli.command {
         Some(Commands::Extract(args)) => extract::run(args),
         Some(Commands::Debug(args)) => debug::run(args).map_err(CliError::from),
+        Some(Commands::Viz(args)) => viz::run(args).map_err(CliError::from),
         Some(Commands::Eval(args)) => eval::run(args).map_err(CliError::from),
         Some(Commands::Joint(args)) => joint::run(args),
         Some(Commands::Validate(args)) => validate::run(args).map_err(CliError::from),

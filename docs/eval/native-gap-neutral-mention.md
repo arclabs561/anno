@@ -27,6 +27,8 @@ The full-test candidate still missed 1,642 of the 1,773 true links with every en
 
 The [follow-up margin trial](native-gap-margin.md) retained stock at the development split's wrong-link budget. The [literary transfer trial](litbank-pronoun-transfer.md) applied that frozen choice to a separate set of works.
 
+A second comparison required keeping at least 80% of the neutral arm's correct development links and examined the resulting error counts on GAP and Winogender. [Correct links retained at each cutoff](native-gap-link-retention.md)
+
 ## Reproduce
 
 The coreference benchmark workflow replays the current native ranker on the three pinned GAP TSVs. It checks the complete cluster partitions and link counts for supplied-span and raw-text input. Passage text stays in the runner's temporary directory. An intentional output change requires a new measured baseline and a review of the changed decisions.

@@ -1,0 +1,73 @@
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+index 00698c6..5f98f22 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+@@ -13,6 +13,37 @@ use features::{animacy_from_entity_type, animacy_from_pronoun};
+
+ const CANDIDATE_LOG: &str = "anno::coref_candidates";
+
++// QA fixture for the supplied-span experiment. Negative infinity represents a
++// lone candidate, whose lead over an absent rival is unbounded.
++fn qa_suppress_pronoun_link(winner: f64, rival: f64, threshold: f64) -> bool {
++    enum Rule {
++        Rival,
++        Threshold,
++    }
++    static SETTINGS: std::sync::OnceLock<(Rule, f64)> = std::sync::OnceLock::new();
++    let (rule, minimum) = SETTINGS.get_or_init(|| {
++        let rule = match std::env::var("ANNO_QA_MARGIN_RULE").as_deref() {
++            Ok("rival") | Err(std::env::VarError::NotPresent) => Rule::Rival,
++            Ok("threshold") => Rule::Threshold,
++            _ => panic!("ANNO_QA_MARGIN_RULE must be rival or threshold"),
++        };
++        let minimum = std::env::var("ANNO_QA_MIN_MARGIN")
++            .unwrap_or_else(|_| "0".into())
++            .parse::<f64>()
++            .expect("ANNO_QA_MIN_MARGIN must be a number");
++        assert!(
++            minimum.is_finite() && minimum >= 0.0,
++            "ANNO_QA_MIN_MARGIN must be finite and nonnegative"
++        );
++        (rule, minimum)
++    });
++    let comparator = match rule {
++        Rule::Rival => rival,
++        Rule::Threshold => threshold,
++    };
++    winner - comparator < *minimum
++}
++
+ /// Mention-ranking coreference resolver.
+ pub struct MentionRankingCoref {
+     /// Configuration.
+@@ -808,6 +839,7 @@ impl MentionRankingCoref {
+             self.config.link_threshold
+         };
+         let mut best_score = effective_threshold;
++        let mut rival_score = f64::NEG_INFINITY;
+         let mut traced_candidates =
+             log::log_enabled!(target: CANDIDATE_LOG, log::Level::Trace).then(Vec::new);
+
+@@ -830,10 +862,22 @@ impl MentionRankingCoref {
+                 candidates.push((j, score));
+             }
+             if score > best_score {
++                if best_antecedent.is_some() {
++                    rival_score = best_score;
++                }
+                 best_score = score;
+                 best_antecedent = Some(j);
++            } else {
++                // A candidate below the native link threshold still competes.
++                rival_score = rival_score.max(score);
+             }
+         }
++        if mention.mention_type == MentionType::Pronominal
++            && best_antecedent.is_some()
++            && qa_suppress_pronoun_link(best_score, rival_score, effective_threshold)
++        {
++            best_antecedent = None;
++        }
+         if let Some(candidates) = traced_candidates {
+             // Emit the same scores and winner the caller used, without source text.
+             log::trace!(target: CANDIDATE_LOG, "{}", serde_json::json!({

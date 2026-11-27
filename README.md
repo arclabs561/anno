@@ -83,6 +83,7 @@ limits it to available local models, patterns and heuristics.
 
 ## More examples
 
+- See which extraction labels overlap, count evaluation mistakes, or compare how many matches a fallback recovers for its extra predictions. [Built-in visualization commands](docs/QUICKSTART.md#visualize-evaluation-results)
 - [Compare two harbor bulletins in Python](crates/anno-py/README.md#compare-dates-in-two-bulletins). The deadline moved from December 4 to December 7. Find the line that changed in each edition.
 - [Choose your own entity types](docs/QUICKSTART.md#cli-extract-entities). Give GLiNER labels such as `DRUG` and `SYMPTOM` to look for in a passage.
 - [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.

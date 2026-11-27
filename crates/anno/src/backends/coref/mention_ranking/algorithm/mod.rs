@@ -11,6 +11,8 @@ use crate::Animacy;
 
 use features::{animacy_from_entity_type, animacy_from_pronoun};
 
+const CANDIDATE_LOG: &str = "anno::coref_candidates";
+
 /// Mention-ranking coreference resolver.
 pub struct MentionRankingCoref {
     /// Configuration.
@@ -814,7 +816,8 @@ impl MentionRankingCoref {
         text: &str,
         mut observe: impl FnMut(usize, f64, f64),
     ) -> Option<usize> {
-        let mention = &mentions[window.end];
+        let i = window.end;
+        let mention = &mentions[i];
         let mut best_antecedent: Option<usize> = None;
         // Pronouns get a lower threshold: they rely on type-compat +
         // gender/number agreement rather than string matching, so their
@@ -825,6 +828,8 @@ impl MentionRankingCoref {
             self.config.link_threshold
         };
         let mut best_score = effective_threshold;
+        let mut traced_candidates =
+            log::log_enabled!(target: CANDIDATE_LOG, log::Level::Trace).then(Vec::new);
 
         for j in window.rev() {
             let antecedent = &mentions[j];
@@ -836,10 +841,25 @@ impl MentionRankingCoref {
 
             let score = self.score_pair(mention, antecedent, distance, Some(text));
             observe(j, score, effective_threshold);
+            if let Some(candidates) = &mut traced_candidates {
+                candidates.push((j, score));
+            }
             if score > best_score {
                 best_score = score;
                 best_antecedent = Some(j);
             }
+        }
+        if let Some(candidates) = traced_candidates {
+            // Emit the same scores and winner the caller used, without source text.
+            log::trace!(target: CANDIDATE_LOG, "{}", serde_json::json!({
+                "index": i,
+                "span": [mention.start, mention.end],
+                "mention_type": mention.mention_type,
+                "threshold": effective_threshold,
+                "max_distance": self.config.max_distance,
+                "candidates": candidates,
+                "selected": best_antecedent,
+            }));
         }
         best_antecedent
     }

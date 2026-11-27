@@ -1,0 +1,3533 @@
+{
+  "balanced_study_sha256": "97d2016f229bf0c2339ee53c0062da4f1112ba70ce74cd38639d5583acf88631",
+  "candidate_weights_label_direction": {
+    "both_margins": [
+      0.5,
+      0.5
+    ],
+    "direction_margin": [
+      0.0,
+      0.5
+    ],
+    "label_margin": [
+      0.5,
+      0.0
+    ],
+    "score": [
+      0.0,
+      0.0
+    ]
+  },
+  "checkpoint": "knowledgator/gliner-relex-large-v1.0",
+  "checkpoint_files_sha256": {
+    "added_tokens.json": "14fedd7e9f345ea45fd9b74245468121d5ccac83e523cad1680529d00bb0e8e8",
+    "gliner_config.json": "009031313c27dbdc255d4e9d85bdfb89f17259ccf4c82e8982ac763c249c1cdb",
+    "model.safetensors": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+    "special_tokens_map.json": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21",
+    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+    "tokenizer.json": "d9f64f3126faa24e3ef6bdc47e7120eef528a49cd8b447bdd6865bcf2043cd65",
+    "tokenizer_config.json": "ee20eaa4db6f56045339841383f83e98cb79f1672a93bb76a9735243ca65d0fa"
+  },
+  "checkpoint_revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290",
+  "checks": {
+    "balanced_test_directed_score_rows_checked": 21782,
+    "balanced_test_occurrences_compared_to_trained_export": 192,
+    "balanced_test_predicate_probabilities_checked": 334422,
+    "maximum_absolute_predicate_probability_difference": 1.4901161193847656e-08,
+    "native_full_release_comparison": {
+      "ai": {
+        "native_onnx": {
+          "gold": 1164,
+          "matched": 256,
+          "predicted": 963,
+          "sentences": 431
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      },
+      "literature": {
+        "native_onnx": {
+          "gold": 1623,
+          "matched": 614,
+          "predicted": 2174,
+          "sentences": 416
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      },
+      "music": {
+        "native_onnx": {
+          "gold": 2415,
+          "matched": 834,
+          "predicted": 2619,
+          "sentences": 399
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      },
+      "news": {
+        "native_onnx": {
+          "gold": 396,
+          "matched": 192,
+          "predicted": 989,
+          "sentences": 400
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      },
+      "politics": {
+        "native_onnx": {
+          "gold": 2124,
+          "matched": 623,
+          "predicted": 2202,
+          "sentences": 400
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      },
+      "science": {
+        "native_onnx": {
+          "gold": 1446,
+          "matched": 368,
+          "predicted": 1458,
+          "sentences": 400
+        },
+        "public_pytorch_minus_native_onnx": {
+          "gold": 0,
+          "matched": 0,
+          "predicted": 0,
+          "sentences": 0
+        }
+      }
+    },
+    "native_full_release_receipt_sha256": "3f5686f115265c9c66a3f9e85b22d0f44a86fee3ff5fdddad773e9db974a79f0",
+    "source_occurrences_with_directed_stock_graph_parity": 2446
+  },
+  "content_holdout": {
+    "ai": {
+      "eligible_unique_texts": 300,
+      "index_text_sha256": "b7351846f0c1bf4bfb7ed80bf0fbee69e8859da94128326d4082b521549ce48d",
+      "selected": 300,
+      "source_sentences": 431
+    },
+    "literature": {
+      "eligible_unique_texts": 415,
+      "index_text_sha256": "d885ffc01aa22bb024fcba1e81e4b6da55d0f05b4c45d0a141d597daab7f7323",
+      "selected": 415,
+      "source_sentences": 416
+    },
+    "music": {
+      "eligible_unique_texts": 373,
+      "index_text_sha256": "54f0f5c870bc89b25cba9d23c74eaa63e2298a02c0869d8c95cc6f89ce306ca4",
+      "selected": 373,
+      "source_sentences": 399
+    },
+    "news": {
+      "eligible_unique_texts": 374,
+      "index_text_sha256": "4b8eb1b3bbde8318f0e755e95dc54d880cfad83fda75288af541b3d4a1b39d07",
+      "selected": 374,
+      "source_sentences": 400
+    },
+    "politics": {
+      "eligible_unique_texts": 394,
+      "index_text_sha256": "c2deac0b747f7e2c3569b90d4a1ea1fffd43189ee4dfb625f3b6c7a4a93a6672",
+      "selected": 394,
+      "source_sentences": 400
+    },
+    "science": {
+      "eligible_unique_texts": 383,
+      "index_text_sha256": "e78c602fc94f6b8095e33e19f420743519d61cf94478751b8ced8df1384f9a07",
+      "selected": 383,
+      "source_sentences": 400
+    }
+  },
+  "crossre_revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+  "excluded_from_content_holdout_indices": {
+    "ai": {
+      "development_text": [
+        324,
+        414,
+        418
+      ],
+      "historical_ai_text": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127
+      ],
+      "repeated_test_text": [],
+      "training_text": []
+    },
+    "literature": {
+      "development_text": [
+        171
+      ],
+      "historical_ai_text": [],
+      "repeated_test_text": [],
+      "training_text": []
+    },
+    "music": {
+      "development_text": [
+        0,
+        43,
+        48,
+        66,
+        103,
+        148,
+        156,
+        243,
+        265,
+        276,
+        282,
+        350,
+        353,
+        380,
+        382
+      ],
+      "historical_ai_text": [],
+      "repeated_test_text": [
+        108,
+        175,
+        262,
+        273,
+        300,
+        343
+      ],
+      "training_text": [
+        145,
+        183,
+        230,
+        270,
+        283
+      ]
+    },
+    "news": {
+      "development_text": [
+        78,
+        350,
+        377
+      ],
+      "historical_ai_text": [],
+      "repeated_test_text": [
+        35,
+        39,
+        75,
+        143,
+        150,
+        157,
+        191,
+        249,
+        288,
+        292,
+        299,
+        315,
+        317,
+        324,
+        328,
+        331,
+        338,
+        340,
+        342,
+        344,
+        368,
+        378,
+        386
+      ],
+      "training_text": []
+    },
+    "politics": {
+      "development_text": [
+        2,
+        14,
+        67,
+        92,
+        231
+      ],
+      "historical_ai_text": [],
+      "repeated_test_text": [
+        10
+      ],
+      "training_text": []
+    },
+    "science": {
+      "development_text": [
+        20,
+        25,
+        31,
+        34,
+        47,
+        53,
+        132,
+        172,
+        179,
+        236,
+        279,
+        303,
+        335,
+        388
+      ],
+      "historical_ai_text": [],
+      "repeated_test_text": [
+        120,
+        292,
+        359
+      ],
+      "training_text": []
+    }
+  },
+  "exclusion_precedence": [
+    "training_text",
+    "historical_ai_text",
+    "development_text",
+    "repeated_test_text"
+  ],
+  "export_source_sha256": "4c33cdcfb391db0be2f779f537d18de5fa7cd5fcf2e987ae77cfc403439c2427",
+  "package_versions": {
+    "gliner": "0.2.30",
+    "tokenizers": "0.23.3",
+    "torch": "2.15.0+cpu",
+    "transformers": "5.22.2"
+  },
+  "panels": {
+    "additional_test": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 1713,
+          "correct_added": 194,
+          "correct_gained_vs_score_only": 53,
+          "correct_lost_vs_score_only": 55,
+          "different_from_score_only": 402,
+          "gold_empty_unmatched": 354,
+          "on_already_emitted_pair": 162,
+          "unmatched_added": 1519,
+          "unmatched_other_label_on_reference_pair": 130,
+          "unmatched_other_label_on_reversed_pair": 68,
+          "unmatched_reverses_exact_reference": 8,
+          "unmatched_unrelated_annotated_entities": 216,
+          "unmatched_with_inexact_endpoint": 1097
+        },
+        "direction_margin": {
+          "added": 1713,
+          "correct_added": 198,
+          "correct_gained_vs_score_only": 12,
+          "correct_lost_vs_score_only": 10,
+          "different_from_score_only": 83,
+          "gold_empty_unmatched": 354,
+          "on_already_emitted_pair": 361,
+          "unmatched_added": 1515,
+          "unmatched_other_label_on_reference_pair": 176,
+          "unmatched_other_label_on_reversed_pair": 63,
+          "unmatched_reverses_exact_reference": 8,
+          "unmatched_unrelated_annotated_entities": 197,
+          "unmatched_with_inexact_endpoint": 1071
+        },
+        "gate_0.40": {
+          "added": 3080,
+          "correct_added": 386,
+          "gold_empty_unmatched": 599,
+          "on_already_emitted_pair": 661,
+          "unmatched_added": 2694,
+          "unmatched_other_label_on_reference_pair": 322,
+          "unmatched_other_label_on_reversed_pair": 114,
+          "unmatched_reverses_exact_reference": 18,
+          "unmatched_unrelated_annotated_entities": 396,
+          "unmatched_with_inexact_endpoint": 1844
+        },
+        "label_margin": {
+          "added": 1713,
+          "correct_added": 188,
+          "correct_gained_vs_score_only": 50,
+          "correct_lost_vs_score_only": 58,
+          "different_from_score_only": 442,
+          "gold_empty_unmatched": 354,
+          "on_already_emitted_pair": 142,
+          "unmatched_added": 1525,
+          "unmatched_other_label_on_reference_pair": 125,
+          "unmatched_other_label_on_reversed_pair": 67,
+          "unmatched_reverses_exact_reference": 12,
+          "unmatched_unrelated_annotated_entities": 226,
+          "unmatched_with_inexact_endpoint": 1095
+        },
+        "score": {
+          "added": 1713,
+          "correct_added": 196,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 354,
+          "on_already_emitted_pair": 349,
+          "unmatched_added": 1517,
+          "unmatched_other_label_on_reference_pair": 175,
+          "unmatched_other_label_on_reversed_pair": 60,
+          "unmatched_reverses_exact_reference": 13,
+          "unmatched_unrelated_annotated_entities": 203,
+          "unmatched_with_inexact_endpoint": 1066
+        }
+      },
+      "domains": {
+        "ai": {
+          "index_text_sha256": "148d66dc5f8c3930d3b5e5b07b1ca3fd07dbf4c4d0edd09f4fd7dfe05619a4c5",
+          "one_per_sentence_upper_bound": 37,
+          "stock": {
+            "empty_gold": 63,
+            "gold": 760,
+            "matched": 160,
+            "predicted": 626,
+            "scored_pairs": 30788,
+            "sentences": 268,
+            "unique_gold": 759,
+            "unmatched": 466
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 187,
+              "correct_added": 22,
+              "correct_gained_vs_score_only": 4,
+              "correct_lost_vs_score_only": 6,
+              "different_from_score_only": 36,
+              "unmatched_added": 165
+            },
+            "direction_margin": {
+              "added": 187,
+              "correct_added": 26,
+              "correct_gained_vs_score_only": 3,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 6,
+              "unmatched_added": 161
+            },
+            "gate_0.40": {
+              "added": 230,
+              "correct_added": 28,
+              "unmatched_added": 202
+            },
+            "label_margin": {
+              "added": 187,
+              "correct_added": 19,
+              "correct_gained_vs_score_only": 2,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 38,
+              "unmatched_added": 168
+            },
+            "score": {
+              "added": 187,
+              "correct_added": 24,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 163
+            }
+          }
+        },
+        "literature": {
+          "index_text_sha256": "868a8ea7ff4a45b0d725eb5dc6388a02677e7fc04cbc43f74ca2803d903a6ca4",
+          "one_per_sentence_upper_bound": 103,
+          "stock": {
+            "empty_gold": 44,
+            "gold": 1492,
+            "matched": 559,
+            "predicted": 2002,
+            "scored_pairs": 44402,
+            "sentences": 383,
+            "unique_gold": 1492,
+            "unmatched": 1443
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 357,
+              "correct_added": 35,
+              "correct_gained_vs_score_only": 15,
+              "correct_lost_vs_score_only": 16,
+              "different_from_score_only": 102,
+              "unmatched_added": 322
+            },
+            "direction_margin": {
+              "added": 357,
+              "correct_added": 34,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 16,
+              "unmatched_added": 323
+            },
+            "gate_0.40": {
+              "added": 665,
+              "correct_added": 67,
+              "unmatched_added": 598
+            },
+            "label_margin": {
+              "added": 357,
+              "correct_added": 34,
+              "correct_gained_vs_score_only": 16,
+              "correct_lost_vs_score_only": 18,
+              "different_from_score_only": 112,
+              "unmatched_added": 323
+            },
+            "score": {
+              "added": 357,
+              "correct_added": 36,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 321
+            }
+          }
+        },
+        "music": {
+          "index_text_sha256": "1a73702829582c20ea4963de3bad954fd5625c171a6ad10fb4a63cdc68175d3e",
+          "one_per_sentence_upper_bound": 90,
+          "stock": {
+            "empty_gold": 48,
+            "gold": 2047,
+            "matched": 703,
+            "predicted": 2224,
+            "scored_pairs": 48514,
+            "sentences": 341,
+            "unique_gold": 2047,
+            "unmatched": 1521
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 306,
+              "correct_added": 42,
+              "correct_gained_vs_score_only": 16,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 78,
+              "unmatched_added": 264
+            },
+            "direction_margin": {
+              "added": 306,
+              "correct_added": 34,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 15,
+              "unmatched_added": 272
+            },
+            "gate_0.40": {
+              "added": 689,
+              "correct_added": 90,
+              "unmatched_added": 599
+            },
+            "label_margin": {
+              "added": 306,
+              "correct_added": 41,
+              "correct_gained_vs_score_only": 15,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 90,
+              "unmatched_added": 265
+            },
+            "score": {
+              "added": 306,
+              "correct_added": 33,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 273
+            }
+          }
+        },
+        "news": {
+          "index_text_sha256": "e965836d393c293bba9e17fea8f07a467cf1e6ab189523b40e39626b54686704",
+          "one_per_sentence_upper_bound": 19,
+          "stock": {
+            "empty_gold": 193,
+            "gold": 370,
+            "matched": 181,
+            "predicted": 924,
+            "scored_pairs": 13112,
+            "sentences": 342,
+            "unique_gold": 370,
+            "unmatched": 743
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 255,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 61,
+              "unmatched_added": 251
+            },
+            "direction_margin": {
+              "added": 255,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 17,
+              "unmatched_added": 248
+            },
+            "gate_0.40": {
+              "added": 352,
+              "correct_added": 21,
+              "unmatched_added": 331
+            },
+            "label_margin": {
+              "added": 255,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 64,
+              "unmatched_added": 251
+            },
+            "score": {
+              "added": 255,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 248
+            }
+          }
+        },
+        "politics": {
+          "index_text_sha256": "b4ce7dd36a4db56c91df188ca03dd53398e2a57ed870fe9ade5cef6173d5bf8d",
+          "one_per_sentence_upper_bound": 104,
+          "stock": {
+            "empty_gold": 61,
+            "gold": 1903,
+            "matched": 547,
+            "predicted": 1985,
+            "scored_pairs": 46944,
+            "sentences": 362,
+            "unique_gold": 1903,
+            "unmatched": 1438
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 325,
+              "correct_added": 48,
+              "correct_gained_vs_score_only": 9,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 64,
+              "unmatched_added": 277
+            },
+            "direction_margin": {
+              "added": 325,
+              "correct_added": 52,
+              "correct_gained_vs_score_only": 5,
+              "correct_lost_vs_score_only": 4,
+              "different_from_score_only": 15,
+              "unmatched_added": 273
+            },
+            "gate_0.40": {
+              "added": 633,
+              "correct_added": 108,
+              "unmatched_added": 525
+            },
+            "label_margin": {
+              "added": 325,
+              "correct_added": 48,
+              "correct_gained_vs_score_only": 9,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 73,
+              "unmatched_added": 277
+            },
+            "score": {
+              "added": 325,
+              "correct_added": 51,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 274
+            }
+          }
+        },
+        "science": {
+          "index_text_sha256": "ba4e283f680fe4170b002397648e64e53a712228d9b6d04b6d60ccd8b97d5b2e",
+          "one_per_sentence_upper_bound": 80,
+          "stock": {
+            "empty_gold": 93,
+            "gold": 1323,
+            "matched": 341,
+            "predicted": 1280,
+            "scored_pairs": 58256,
+            "sentences": 351,
+            "unique_gold": 1323,
+            "unmatched": 939
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 283,
+              "correct_added": 43,
+              "correct_gained_vs_score_only": 9,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 61,
+              "unmatched_added": 240
+            },
+            "direction_margin": {
+              "added": 283,
+              "correct_added": 45,
+              "correct_gained_vs_score_only": 2,
+              "correct_lost_vs_score_only": 2,
+              "different_from_score_only": 14,
+              "unmatched_added": 238
+            },
+            "gate_0.40": {
+              "added": 511,
+              "correct_added": 72,
+              "unmatched_added": 439
+            },
+            "label_margin": {
+              "added": 283,
+              "correct_added": 42,
+              "correct_gained_vs_score_only": 8,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 65,
+              "unmatched_added": 241
+            },
+            "score": {
+              "added": 283,
+              "correct_added": 45,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 238
+            }
+          }
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 35,
+        "below_mention_threshold_head": 174,
+        "below_mention_threshold_tail": 434,
+        "endpoint_outside_span_grid": 9,
+        "flat_overlap_suppression": 804,
+        "ordered_pair_not_generated": 3,
+        "predicate_below_threshold": 3846,
+        "predicate_outside_schema": 99
+      },
+      "reference_structure": {
+        "directed_pairs": 7456,
+        "directed_pairs_with_annotated_reverse": 192,
+        "keys_also_annotated_in_reverse": 4,
+        "multilabel_directed_pairs": 433,
+        "self_relation_keys": 3
+      },
+      "retained_low_scored_keys": {
+        "above_all_unannotated_labels": 1755,
+        "above_unannotated_reverse": 3368,
+        "at_least_one_unannotated_rival_higher": 2158,
+        "both_rivals_higher": 405,
+        "different_predicate_annotated_in_reverse": 121,
+        "in_suggestion_band_keys": 726,
+        "in_suggestion_band_occurrences": 726,
+        "literal_below_first": 2208,
+        "literal_first": 1637,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 455,
+        "only_annotated_labels_higher": 118,
+        "reference_occurrences": 3846,
+        "reverse_also_correct": 4,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 4,
+        "unannotated_label_higher": 2090,
+        "unannotated_reverse_higher": 473,
+        "unique_keys": 3845
+      },
+      "stock": {
+        "empty_gold": 502,
+        "gold": 7895,
+        "matched": 2491,
+        "predicted": 9041,
+        "scored_pairs": 242016,
+        "sentences": 2047,
+        "unique_gold": 7894,
+        "unmatched": 6550
+      },
+      "stronger_label_confusions": {
+        "artifact → compare": 1,
+        "artifact → named": 4,
+        "artifact → origin": 72,
+        "artifact → physical": 1,
+        "artifact → role": 4,
+        "artifact → temporal": 4,
+        "artifact → topic": 5,
+        "artifact → type-of": 1,
+        "cause-effect → general-affiliation": 1,
+        "cause-effect → named": 4,
+        "cause-effect → opposite": 5,
+        "cause-effect → part-of": 21,
+        "cause-effect → related-to": 1,
+        "cause-effect → role": 15,
+        "cause-effect → temporal": 1,
+        "cause-effect → topic": 1,
+        "cause-effect → usage": 6,
+        "compare → named": 4,
+        "compare → opposite": 3,
+        "compare → part-of": 8,
+        "compare → physical": 2,
+        "compare → related-to": 3,
+        "compare → type-of": 2,
+        "compare → usage": 1,
+        "general-affiliation → artifact": 1,
+        "general-affiliation → cause-effect": 1,
+        "general-affiliation → compare": 2,
+        "general-affiliation → named": 5,
+        "general-affiliation → origin": 3,
+        "general-affiliation → part-of": 19,
+        "general-affiliation → physical": 29,
+        "general-affiliation → related-to": 24,
+        "general-affiliation → role": 6,
+        "general-affiliation → temporal": 2,
+        "general-affiliation → topic": 3,
+        "general-affiliation → type-of": 44,
+        "general-affiliation → usage": 40,
+        "general-affiliation → win-defeat": 1,
+        "named → artifact": 3,
+        "named → compare": 14,
+        "named → general-affiliation": 2,
+        "named → opposite": 2,
+        "named → origin": 17,
+        "named → part-of": 13,
+        "named → physical": 5,
+        "named → related-to": 4,
+        "named → role": 3,
+        "named → social": 2,
+        "named → temporal": 1,
+        "named → topic": 2,
+        "named → type-of": 11,
+        "named → usage": 1,
+        "opposite → compare": 17,
+        "opposite → general-affiliation": 2,
+        "opposite → named": 1,
+        "opposite → origin": 2,
+        "opposite → physical": 2,
+        "opposite → related-to": 3,
+        "opposite → role": 8,
+        "opposite → social": 8,
+        "opposite → temporal": 3,
+        "opposite → win-defeat": 1,
+        "origin → artifact": 27,
+        "origin → compare": 1,
+        "origin → general-affiliation": 3,
+        "origin → named": 14,
+        "origin → part-of": 10,
+        "origin → related-to": 9,
+        "origin → social": 2,
+        "origin → topic": 8,
+        "origin → type-of": 7,
+        "origin → usage": 9,
+        "part-of → artifact": 3,
+        "part-of → compare": 4,
+        "part-of → general-affiliation": 42,
+        "part-of → named": 18,
+        "part-of → opposite": 1,
+        "part-of → origin": 8,
+        "part-of → physical": 19,
+        "part-of → related-to": 25,
+        "part-of → role": 27,
+        "part-of → temporal": 25,
+        "part-of → topic": 2,
+        "part-of → type-of": 56,
+        "part-of → usage": 4,
+        "physical → artifact": 5,
+        "physical → cause-effect": 1,
+        "physical → compare": 11,
+        "physical → general-affiliation": 27,
+        "physical → named": 21,
+        "physical → opposite": 5,
+        "physical → origin": 28,
+        "physical → part-of": 97,
+        "physical → related-to": 7,
+        "physical → role": 53,
+        "physical → social": 9,
+        "physical → temporal": 13,
+        "physical → topic": 6,
+        "physical → type-of": 3,
+        "physical → win-defeat": 6,
+        "related-to → artifact": 10,
+        "related-to → cause-effect": 2,
+        "related-to → compare": 10,
+        "related-to → general-affiliation": 20,
+        "related-to → named": 17,
+        "related-to → opposite": 3,
+        "related-to → origin": 15,
+        "related-to → part-of": 49,
+        "related-to → physical": 23,
+        "related-to → role": 13,
+        "related-to → social": 9,
+        "related-to → temporal": 9,
+        "related-to → topic": 29,
+        "related-to → type-of": 9,
+        "related-to → usage": 15,
+        "related-to → win-defeat": 1,
+        "role → artifact": 1,
+        "role → cause-effect": 6,
+        "role → compare": 22,
+        "role → general-affiliation": 24,
+        "role → named": 53,
+        "role → opposite": 27,
+        "role → origin": 22,
+        "role → part-of": 103,
+        "role → physical": 76,
+        "role → related-to": 95,
+        "role → social": 53,
+        "role → temporal": 37,
+        "role → topic": 3,
+        "role → type-of": 13,
+        "role → usage": 13,
+        "role → win-defeat": 176,
+        "social → artifact": 1,
+        "social → compare": 5,
+        "social → named": 3,
+        "social → opposite": 2,
+        "social → origin": 3,
+        "social → related-to": 22,
+        "temporal → artifact": 2,
+        "temporal → cause-effect": 1,
+        "temporal → compare": 5,
+        "temporal → general-affiliation": 1,
+        "temporal → named": 5,
+        "temporal → opposite": 3,
+        "temporal → origin": 14,
+        "temporal → part-of": 9,
+        "temporal → physical": 2,
+        "temporal → related-to": 1,
+        "temporal → role": 3,
+        "temporal → topic": 2,
+        "temporal → win-defeat": 29,
+        "topic → artifact": 2,
+        "topic → general-affiliation": 47,
+        "topic → named": 1,
+        "topic → opposite": 1,
+        "topic → origin": 2,
+        "topic → part-of": 6,
+        "topic → physical": 2,
+        "topic → related-to": 7,
+        "topic → usage": 2,
+        "type-of → compare": 3,
+        "type-of → general-affiliation": 28,
+        "type-of → named": 2,
+        "type-of → origin": 1,
+        "type-of → part-of": 44,
+        "type-of → physical": 1,
+        "type-of → related-to": 1,
+        "type-of → win-defeat": 1,
+        "usage → artifact": 1,
+        "usage → general-affiliation": 12,
+        "usage → origin": 1,
+        "usage → part-of": 3,
+        "usage → physical": 1,
+        "usage → related-to": 2,
+        "usage → role": 1,
+        "usage → topic": 1,
+        "usage → type-of": 10,
+        "win-defeat → artifact": 3,
+        "win-defeat → compare": 3,
+        "win-defeat → general-affiliation": 3,
+        "win-defeat → opposite": 3,
+        "win-defeat → part-of": 2,
+        "win-defeat → physical": 1,
+        "win-defeat → related-to": 3,
+        "win-defeat → role": 16,
+        "win-defeat → temporal": 1,
+        "win-defeat → topic": 1,
+        "win-defeat → type-of": 7,
+        "win-defeat → usage": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 726,
+        "eligible_gold_occurrences": 726,
+        "one_per_sentence_upper_bound": 433,
+        "sentences_with_an_eligible_edge": 1713
+      },
+      "suppressed_low_scored_keys": {
+        "above_all_unannotated_labels": 297,
+        "above_unannotated_reverse": 553,
+        "at_least_one_unannotated_rival_higher": 311,
+        "both_rivals_higher": 35,
+        "different_predicate_annotated_in_reverse": 10,
+        "in_suggestion_band_keys": 117,
+        "in_suggestion_band_occurrences": 117,
+        "literal_below_first": 320,
+        "literal_first": 278,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 91,
+        "only_annotated_labels_higher": 19,
+        "reference_occurrences": 598,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 301,
+        "unannotated_reverse_higher": 45,
+        "unique_keys": 598
+      }
+    },
+    "all_eligible_test": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 1873,
+          "correct_added": 218,
+          "correct_gained_vs_score_only": 58,
+          "correct_lost_vs_score_only": 56,
+          "different_from_score_only": 423,
+          "gold_empty_unmatched": 386,
+          "on_already_emitted_pair": 177,
+          "unmatched_added": 1655,
+          "unmatched_other_label_on_reference_pair": 147,
+          "unmatched_other_label_on_reversed_pair": 72,
+          "unmatched_reverses_exact_reference": 8,
+          "unmatched_unrelated_annotated_entities": 246,
+          "unmatched_with_inexact_endpoint": 1182
+        },
+        "direction_margin": {
+          "added": 1873,
+          "correct_added": 218,
+          "correct_gained_vs_score_only": 14,
+          "correct_lost_vs_score_only": 12,
+          "different_from_score_only": 91,
+          "gold_empty_unmatched": 386,
+          "on_already_emitted_pair": 382,
+          "unmatched_added": 1655,
+          "unmatched_other_label_on_reference_pair": 195,
+          "unmatched_other_label_on_reversed_pair": 66,
+          "unmatched_reverses_exact_reference": 8,
+          "unmatched_unrelated_annotated_entities": 228,
+          "unmatched_with_inexact_endpoint": 1158
+        },
+        "gate_0.40": {
+          "added": 3309,
+          "correct_added": 409,
+          "gold_empty_unmatched": 636,
+          "on_already_emitted_pair": 704,
+          "unmatched_added": 2900,
+          "unmatched_other_label_on_reference_pair": 349,
+          "unmatched_other_label_on_reversed_pair": 117,
+          "unmatched_reverses_exact_reference": 20,
+          "unmatched_unrelated_annotated_entities": 441,
+          "unmatched_with_inexact_endpoint": 1973
+        },
+        "label_margin": {
+          "added": 1873,
+          "correct_added": 212,
+          "correct_gained_vs_score_only": 54,
+          "correct_lost_vs_score_only": 58,
+          "different_from_score_only": 466,
+          "gold_empty_unmatched": 386,
+          "on_already_emitted_pair": 157,
+          "unmatched_added": 1661,
+          "unmatched_other_label_on_reference_pair": 142,
+          "unmatched_other_label_on_reversed_pair": 71,
+          "unmatched_reverses_exact_reference": 12,
+          "unmatched_unrelated_annotated_entities": 258,
+          "unmatched_with_inexact_endpoint": 1178
+        },
+        "score": {
+          "added": 1873,
+          "correct_added": 216,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 386,
+          "on_already_emitted_pair": 370,
+          "unmatched_added": 1657,
+          "unmatched_other_label_on_reference_pair": 193,
+          "unmatched_other_label_on_reversed_pair": 63,
+          "unmatched_reverses_exact_reference": 14,
+          "unmatched_unrelated_annotated_entities": 235,
+          "unmatched_with_inexact_endpoint": 1152
+        }
+      },
+      "domains": {
+        "ai": {
+          "index_text_sha256": "b7351846f0c1bf4bfb7ed80bf0fbee69e8859da94128326d4082b521549ce48d",
+          "one_per_sentence_upper_bound": 43,
+          "stock": {
+            "empty_gold": 71,
+            "gold": 833,
+            "matched": 175,
+            "predicted": 693,
+            "scored_pairs": 34538,
+            "sentences": 300,
+            "unique_gold": 832,
+            "unmatched": 518
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 213,
+              "correct_added": 26,
+              "correct_gained_vs_score_only": 5,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 37,
+              "unmatched_added": 187
+            },
+            "direction_margin": {
+              "added": 213,
+              "correct_added": 30,
+              "correct_gained_vs_score_only": 4,
+              "correct_lost_vs_score_only": 2,
+              "different_from_score_only": 7,
+              "unmatched_added": 183
+            },
+            "gate_0.40": {
+              "added": 252,
+              "correct_added": 29,
+              "unmatched_added": 223
+            },
+            "label_margin": {
+              "added": 213,
+              "correct_added": 23,
+              "correct_gained_vs_score_only": 2,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 39,
+              "unmatched_added": 190
+            },
+            "score": {
+              "added": 213,
+              "correct_added": 28,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 185
+            }
+          }
+        },
+        "literature": {
+          "index_text_sha256": "d885ffc01aa22bb024fcba1e81e4b6da55d0f05b4c45d0a141d597daab7f7323",
+          "one_per_sentence_upper_bound": 107,
+          "stock": {
+            "empty_gold": 47,
+            "gold": 1613,
+            "matched": 612,
+            "predicted": 2171,
+            "scored_pairs": 47862,
+            "sentences": 415,
+            "unique_gold": 1613,
+            "unmatched": 1559
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 386,
+              "correct_added": 37,
+              "correct_gained_vs_score_only": 15,
+              "correct_lost_vs_score_only": 16,
+              "different_from_score_only": 106,
+              "unmatched_added": 349
+            },
+            "direction_margin": {
+              "added": 386,
+              "correct_added": 36,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 17,
+              "unmatched_added": 350
+            },
+            "gate_0.40": {
+              "added": 725,
+              "correct_added": 70,
+              "unmatched_added": 655
+            },
+            "label_margin": {
+              "added": 386,
+              "correct_added": 36,
+              "correct_gained_vs_score_only": 16,
+              "correct_lost_vs_score_only": 18,
+              "different_from_score_only": 118,
+              "unmatched_added": 350
+            },
+            "score": {
+              "added": 386,
+              "correct_added": 38,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 348
+            }
+          }
+        },
+        "music": {
+          "index_text_sha256": "54f0f5c870bc89b25cba9d23c74eaa63e2298a02c0869d8c95cc6f89ce306ca4",
+          "one_per_sentence_upper_bound": 102,
+          "stock": {
+            "empty_gold": 53,
+            "gold": 2187,
+            "matched": 759,
+            "predicted": 2389,
+            "scored_pairs": 53032,
+            "sentences": 373,
+            "unique_gold": 2187,
+            "unmatched": 1630
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 334,
+              "correct_added": 51,
+              "correct_gained_vs_score_only": 19,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 82,
+              "unmatched_added": 283
+            },
+            "direction_margin": {
+              "added": 334,
+              "correct_added": 40,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 15,
+              "unmatched_added": 294
+            },
+            "gate_0.40": {
+              "added": 727,
+              "correct_added": 97,
+              "unmatched_added": 630
+            },
+            "label_margin": {
+              "added": 334,
+              "correct_added": 50,
+              "correct_gained_vs_score_only": 18,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 95,
+              "unmatched_added": 284
+            },
+            "score": {
+              "added": 334,
+              "correct_added": 39,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 295
+            }
+          }
+        },
+        "news": {
+          "index_text_sha256": "4b8eb1b3bbde8318f0e755e95dc54d880cfad83fda75288af541b3d4a1b39d07",
+          "one_per_sentence_upper_bound": 21,
+          "stock": {
+            "empty_gold": 210,
+            "gold": 394,
+            "matched": 190,
+            "predicted": 972,
+            "scored_pairs": 13994,
+            "sentences": 374,
+            "unique_gold": 394,
+            "unmatched": 782
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 279,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 64,
+              "unmatched_added": 275
+            },
+            "direction_margin": {
+              "added": 279,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 17,
+              "unmatched_added": 272
+            },
+            "gate_0.40": {
+              "added": 382,
+              "correct_added": 22,
+              "unmatched_added": 360
+            },
+            "label_margin": {
+              "added": 279,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 68,
+              "unmatched_added": 275
+            },
+            "score": {
+              "added": 279,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 272
+            }
+          }
+        },
+        "politics": {
+          "index_text_sha256": "c2deac0b747f7e2c3569b90d4a1ea1fffd43189ee4dfb625f3b6c7a4a93a6672",
+          "one_per_sentence_upper_bound": 113,
+          "stock": {
+            "empty_gold": 63,
+            "gold": 2092,
+            "matched": 602,
+            "predicted": 2169,
+            "scored_pairs": 51300,
+            "sentences": 394,
+            "unique_gold": 2092,
+            "unmatched": 1567
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 352,
+              "correct_added": 55,
+              "correct_gained_vs_score_only": 10,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 70,
+              "unmatched_added": 297
+            },
+            "direction_margin": {
+              "added": 352,
+              "correct_added": 58,
+              "correct_gained_vs_score_only": 5,
+              "correct_lost_vs_score_only": 4,
+              "different_from_score_only": 17,
+              "unmatched_added": 294
+            },
+            "gate_0.40": {
+              "added": 669,
+              "correct_added": 115,
+              "unmatched_added": 554
+            },
+            "label_margin": {
+              "added": 352,
+              "correct_added": 55,
+              "correct_gained_vs_score_only": 10,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 78,
+              "unmatched_added": 297
+            },
+            "score": {
+              "added": 352,
+              "correct_added": 57,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 295
+            }
+          }
+        },
+        "science": {
+          "index_text_sha256": "e78c602fc94f6b8095e33e19f420743519d61cf94478751b8ced8df1384f9a07",
+          "one_per_sentence_upper_bound": 83,
+          "stock": {
+            "empty_gold": 105,
+            "gold": 1422,
+            "matched": 364,
+            "predicted": 1384,
+            "scored_pairs": 63072,
+            "sentences": 383,
+            "unique_gold": 1422,
+            "unmatched": 1020
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 309,
+              "correct_added": 45,
+              "correct_gained_vs_score_only": 9,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 64,
+              "unmatched_added": 264
+            },
+            "direction_margin": {
+              "added": 309,
+              "correct_added": 47,
+              "correct_gained_vs_score_only": 3,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 18,
+              "unmatched_added": 262
+            },
+            "gate_0.40": {
+              "added": 554,
+              "correct_added": 76,
+              "unmatched_added": 478
+            },
+            "label_margin": {
+              "added": 309,
+              "correct_added": 44,
+              "correct_gained_vs_score_only": 8,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 68,
+              "unmatched_added": 265
+            },
+            "score": {
+              "added": 309,
+              "correct_added": 47,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 262
+            }
+          }
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 38,
+        "below_mention_threshold_head": 199,
+        "below_mention_threshold_tail": 482,
+        "endpoint_outside_span_grid": 9,
+        "flat_overlap_suppression": 871,
+        "ordered_pair_not_generated": 3,
+        "predicate_below_threshold": 4134,
+        "predicate_outside_schema": 103
+      },
+      "reference_structure": {
+        "directed_pairs": 8059,
+        "directed_pairs_with_annotated_reverse": 210,
+        "keys_also_annotated_in_reverse": 4,
+        "multilabel_directed_pairs": 476,
+        "self_relation_keys": 3
+      },
+      "retained_low_scored_keys": {
+        "above_all_unannotated_labels": 1898,
+        "above_unannotated_reverse": 3615,
+        "at_least_one_unannotated_rival_higher": 2308,
+        "both_rivals_higher": 441,
+        "different_predicate_annotated_in_reverse": 135,
+        "in_suggestion_band_keys": 779,
+        "in_suggestion_band_occurrences": 779,
+        "literal_below_first": 2369,
+        "literal_first": 1764,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 505,
+        "only_annotated_labels_higher": 134,
+        "reference_occurrences": 4134,
+        "reverse_also_correct": 4,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 4,
+        "unannotated_label_higher": 2235,
+        "unannotated_reverse_higher": 514,
+        "unique_keys": 4133
+      },
+      "stock": {
+        "empty_gold": 549,
+        "gold": 8541,
+        "matched": 2702,
+        "predicted": 9778,
+        "scored_pairs": 263798,
+        "sentences": 2239,
+        "unique_gold": 8540,
+        "unmatched": 7076
+      },
+      "stronger_label_confusions": {
+        "artifact → compare": 1,
+        "artifact → named": 4,
+        "artifact → origin": 79,
+        "artifact → physical": 1,
+        "artifact → related-to": 1,
+        "artifact → role": 5,
+        "artifact → temporal": 4,
+        "artifact → topic": 5,
+        "artifact → type-of": 1,
+        "cause-effect → general-affiliation": 1,
+        "cause-effect → named": 4,
+        "cause-effect → opposite": 5,
+        "cause-effect → part-of": 21,
+        "cause-effect → related-to": 1,
+        "cause-effect → role": 16,
+        "cause-effect → temporal": 1,
+        "cause-effect → topic": 1,
+        "cause-effect → usage": 6,
+        "compare → general-affiliation": 1,
+        "compare → named": 6,
+        "compare → opposite": 3,
+        "compare → part-of": 8,
+        "compare → physical": 2,
+        "compare → related-to": 3,
+        "compare → type-of": 2,
+        "compare → usage": 1,
+        "general-affiliation → artifact": 1,
+        "general-affiliation → cause-effect": 1,
+        "general-affiliation → compare": 2,
+        "general-affiliation → named": 5,
+        "general-affiliation → opposite": 1,
+        "general-affiliation → origin": 4,
+        "general-affiliation → part-of": 20,
+        "general-affiliation → physical": 29,
+        "general-affiliation → related-to": 27,
+        "general-affiliation → role": 6,
+        "general-affiliation → temporal": 2,
+        "general-affiliation → topic": 3,
+        "general-affiliation → type-of": 51,
+        "general-affiliation → usage": 41,
+        "general-affiliation → win-defeat": 1,
+        "named → artifact": 3,
+        "named → compare": 14,
+        "named → general-affiliation": 3,
+        "named → opposite": 2,
+        "named → origin": 17,
+        "named → part-of": 13,
+        "named → physical": 5,
+        "named → related-to": 4,
+        "named → role": 4,
+        "named → social": 2,
+        "named → temporal": 2,
+        "named → topic": 2,
+        "named → type-of": 12,
+        "named → usage": 1,
+        "opposite → compare": 17,
+        "opposite → general-affiliation": 2,
+        "opposite → named": 1,
+        "opposite → origin": 2,
+        "opposite → physical": 3,
+        "opposite → related-to": 3,
+        "opposite → role": 8,
+        "opposite → social": 8,
+        "opposite → temporal": 3,
+        "opposite → win-defeat": 1,
+        "origin → artifact": 28,
+        "origin → compare": 2,
+        "origin → general-affiliation": 3,
+        "origin → named": 14,
+        "origin → part-of": 10,
+        "origin → related-to": 9,
+        "origin → role": 6,
+        "origin → social": 2,
+        "origin → topic": 9,
+        "origin → type-of": 7,
+        "origin → usage": 9,
+        "part-of → artifact": 5,
+        "part-of → compare": 4,
+        "part-of → general-affiliation": 42,
+        "part-of → named": 18,
+        "part-of → opposite": 1,
+        "part-of → origin": 8,
+        "part-of → physical": 21,
+        "part-of → related-to": 25,
+        "part-of → role": 28,
+        "part-of → temporal": 25,
+        "part-of → topic": 2,
+        "part-of → type-of": 65,
+        "part-of → usage": 4,
+        "physical → artifact": 5,
+        "physical → cause-effect": 1,
+        "physical → compare": 11,
+        "physical → general-affiliation": 27,
+        "physical → named": 23,
+        "physical → opposite": 5,
+        "physical → origin": 29,
+        "physical → part-of": 101,
+        "physical → related-to": 9,
+        "physical → role": 55,
+        "physical → social": 10,
+        "physical → temporal": 13,
+        "physical → topic": 6,
+        "physical → type-of": 3,
+        "physical → win-defeat": 6,
+        "related-to → artifact": 10,
+        "related-to → cause-effect": 2,
+        "related-to → compare": 15,
+        "related-to → general-affiliation": 21,
+        "related-to → named": 19,
+        "related-to → opposite": 3,
+        "related-to → origin": 23,
+        "related-to → part-of": 56,
+        "related-to → physical": 30,
+        "related-to → role": 13,
+        "related-to → social": 9,
+        "related-to → temporal": 9,
+        "related-to → topic": 29,
+        "related-to → type-of": 10,
+        "related-to → usage": 15,
+        "related-to → win-defeat": 1,
+        "role → artifact": 1,
+        "role → cause-effect": 6,
+        "role → compare": 25,
+        "role → general-affiliation": 26,
+        "role → named": 54,
+        "role → opposite": 27,
+        "role → origin": 22,
+        "role → part-of": 106,
+        "role → physical": 82,
+        "role → related-to": 104,
+        "role → social": 56,
+        "role → temporal": 38,
+        "role → topic": 3,
+        "role → type-of": 13,
+        "role → usage": 13,
+        "role → win-defeat": 195,
+        "social → artifact": 1,
+        "social → compare": 5,
+        "social → named": 3,
+        "social → opposite": 3,
+        "social → origin": 3,
+        "social → related-to": 22,
+        "temporal → artifact": 2,
+        "temporal → cause-effect": 1,
+        "temporal → compare": 5,
+        "temporal → general-affiliation": 1,
+        "temporal → named": 5,
+        "temporal → opposite": 3,
+        "temporal → origin": 15,
+        "temporal → part-of": 9,
+        "temporal → physical": 2,
+        "temporal → related-to": 1,
+        "temporal → role": 3,
+        "temporal → social": 1,
+        "temporal → topic": 2,
+        "temporal → win-defeat": 30,
+        "topic → artifact": 2,
+        "topic → general-affiliation": 48,
+        "topic → named": 1,
+        "topic → opposite": 1,
+        "topic → origin": 2,
+        "topic → part-of": 6,
+        "topic → physical": 2,
+        "topic → related-to": 7,
+        "topic → social": 1,
+        "topic → type-of": 1,
+        "topic → usage": 2,
+        "type-of → compare": 3,
+        "type-of → general-affiliation": 29,
+        "type-of → named": 3,
+        "type-of → origin": 1,
+        "type-of → part-of": 46,
+        "type-of → physical": 1,
+        "type-of → related-to": 1,
+        "type-of → win-defeat": 1,
+        "usage → artifact": 1,
+        "usage → general-affiliation": 14,
+        "usage → origin": 1,
+        "usage → part-of": 3,
+        "usage → physical": 1,
+        "usage → related-to": 2,
+        "usage → role": 1,
+        "usage → topic": 1,
+        "usage → type-of": 12,
+        "win-defeat → artifact": 4,
+        "win-defeat → compare": 4,
+        "win-defeat → general-affiliation": 3,
+        "win-defeat → opposite": 3,
+        "win-defeat → part-of": 2,
+        "win-defeat → physical": 2,
+        "win-defeat → related-to": 3,
+        "win-defeat → role": 16,
+        "win-defeat → temporal": 1,
+        "win-defeat → topic": 1,
+        "win-defeat → type-of": 9,
+        "win-defeat → usage": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 779,
+        "eligible_gold_occurrences": 779,
+        "one_per_sentence_upper_bound": 469,
+        "sentences_with_an_eligible_edge": 1873
+      },
+      "suppressed_low_scored_keys": {
+        "above_all_unannotated_labels": 335,
+        "above_unannotated_reverse": 608,
+        "at_least_one_unannotated_rival_higher": 332,
+        "both_rivals_higher": 37,
+        "different_predicate_annotated_in_reverse": 10,
+        "in_suggestion_band_keys": 133,
+        "in_suggestion_band_occurrences": 133,
+        "literal_below_first": 342,
+        "literal_first": 314,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 97,
+        "only_annotated_labels_higher": 21,
+        "reference_occurrences": 656,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 321,
+        "unannotated_reverse_higher": 48,
+        "unique_keys": 656
+      }
+    },
+    "balanced_test": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 160,
+          "correct_added": 24,
+          "correct_gained_vs_score_only": 5,
+          "correct_lost_vs_score_only": 1,
+          "different_from_score_only": 21,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 136,
+          "unmatched_other_label_on_reference_pair": 17,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_unrelated_annotated_entities": 30,
+          "unmatched_with_inexact_endpoint": 85
+        },
+        "direction_margin": {
+          "added": 160,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 2,
+          "correct_lost_vs_score_only": 2,
+          "different_from_score_only": 8,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 21,
+          "unmatched_added": 140,
+          "unmatched_other_label_on_reference_pair": 19,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_unrelated_annotated_entities": 31,
+          "unmatched_with_inexact_endpoint": 87
+        },
+        "gate_0.40": {
+          "added": 229,
+          "correct_added": 23,
+          "gold_empty_unmatched": 37,
+          "on_already_emitted_pair": 43,
+          "unmatched_added": 206,
+          "unmatched_other_label_on_reference_pair": 27,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 2,
+          "unmatched_unrelated_annotated_entities": 45,
+          "unmatched_with_inexact_endpoint": 129
+        },
+        "label_margin": {
+          "added": 160,
+          "correct_added": 24,
+          "correct_gained_vs_score_only": 4,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 24,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 15,
+          "unmatched_added": 136,
+          "unmatched_other_label_on_reference_pair": 17,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_unrelated_annotated_entities": 32,
+          "unmatched_with_inexact_endpoint": 83
+        },
+        "score": {
+          "added": 160,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 32,
+          "on_already_emitted_pair": 21,
+          "unmatched_added": 140,
+          "unmatched_other_label_on_reference_pair": 18,
+          "unmatched_other_label_on_reversed_pair": 3,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 32,
+          "unmatched_with_inexact_endpoint": 86
+        }
+      },
+      "domains": {
+        "ai": {
+          "index_text_sha256": "5858a4d5a9ddc1b2180b4949ed7722356bb3fbcb7198a263666c3ead1be4de6a",
+          "one_per_sentence_upper_bound": 6,
+          "stock": {
+            "empty_gold": 8,
+            "gold": 73,
+            "matched": 15,
+            "predicted": 67,
+            "scored_pairs": 3750,
+            "sentences": 32,
+            "unique_gold": 73,
+            "unmatched": 52
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 26,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 1,
+              "unmatched_added": 22
+            },
+            "direction_margin": {
+              "added": 26,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 1,
+              "unmatched_added": 22
+            },
+            "gate_0.40": {
+              "added": 22,
+              "correct_added": 1,
+              "unmatched_added": 21
+            },
+            "label_margin": {
+              "added": 26,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 22
+            },
+            "score": {
+              "added": 26,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 22
+            }
+          }
+        },
+        "literature": {
+          "index_text_sha256": "5d8354e166826e5abafe4f9c252be78de89d225ddadf0f5985d83fb2e8dad02a",
+          "one_per_sentence_upper_bound": 4,
+          "stock": {
+            "empty_gold": 3,
+            "gold": 121,
+            "matched": 53,
+            "predicted": 169,
+            "scored_pairs": 3460,
+            "sentences": 32,
+            "unique_gold": 121,
+            "unmatched": 116
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 29,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 27
+            },
+            "direction_margin": {
+              "added": 29,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 27
+            },
+            "gate_0.40": {
+              "added": 60,
+              "correct_added": 3,
+              "unmatched_added": 57
+            },
+            "label_margin": {
+              "added": 29,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 6,
+              "unmatched_added": 27
+            },
+            "score": {
+              "added": 29,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 27
+            }
+          }
+        },
+        "music": {
+          "index_text_sha256": "2a57ecb04914047dd3596a20edf2c3c902674f17d5f25f28ce75607873aefcc1",
+          "one_per_sentence_upper_bound": 12,
+          "stock": {
+            "empty_gold": 5,
+            "gold": 140,
+            "matched": 56,
+            "predicted": 165,
+            "scored_pairs": 4518,
+            "sentences": 32,
+            "unique_gold": 140,
+            "unmatched": 109
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 28,
+              "correct_added": 9,
+              "correct_gained_vs_score_only": 3,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 19
+            },
+            "direction_margin": {
+              "added": 28,
+              "correct_added": 6,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 22
+            },
+            "gate_0.40": {
+              "added": 38,
+              "correct_added": 7,
+              "unmatched_added": 31
+            },
+            "label_margin": {
+              "added": 28,
+              "correct_added": 9,
+              "correct_gained_vs_score_only": 3,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 5,
+              "unmatched_added": 19
+            },
+            "score": {
+              "added": 28,
+              "correct_added": 6,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 22
+            }
+          }
+        },
+        "news": {
+          "index_text_sha256": "0d7d1cf0e7bf04e45aaffebda5a70a6d01ca2cfd8fc3afc450730d2cfa0003a3",
+          "one_per_sentence_upper_bound": 2,
+          "stock": {
+            "empty_gold": 17,
+            "gold": 24,
+            "matched": 9,
+            "predicted": 48,
+            "scored_pairs": 882,
+            "sentences": 32,
+            "unique_gold": 24,
+            "unmatched": 39
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 24,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 3,
+              "unmatched_added": 24
+            },
+            "direction_margin": {
+              "added": 24,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 24
+            },
+            "gate_0.40": {
+              "added": 30,
+              "correct_added": 1,
+              "unmatched_added": 29
+            },
+            "label_margin": {
+              "added": 24,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 24
+            },
+            "score": {
+              "added": 24,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 24
+            }
+          }
+        },
+        "politics": {
+          "index_text_sha256": "12da4c805da521200f93611532d4041565ec30fb78e9e9ef5afb2d348bbc71df",
+          "one_per_sentence_upper_bound": 9,
+          "stock": {
+            "empty_gold": 2,
+            "gold": 189,
+            "matched": 55,
+            "predicted": 184,
+            "scored_pairs": 4356,
+            "sentences": 32,
+            "unique_gold": 189,
+            "unmatched": 129
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 27,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 6,
+              "unmatched_added": 20
+            },
+            "direction_margin": {
+              "added": 27,
+              "correct_added": 6,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 2,
+              "unmatched_added": 21
+            },
+            "gate_0.40": {
+              "added": 36,
+              "correct_added": 7,
+              "unmatched_added": 29
+            },
+            "label_margin": {
+              "added": 27,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 5,
+              "unmatched_added": 20
+            },
+            "score": {
+              "added": 27,
+              "correct_added": 6,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 21
+            }
+          }
+        },
+        "science": {
+          "index_text_sha256": "cd4b1dc2b263aee6ffd287d2c6aadb079bbbd498ed9bbdc71a03280e124c3034",
+          "one_per_sentence_upper_bound": 3,
+          "stock": {
+            "empty_gold": 12,
+            "gold": 99,
+            "matched": 23,
+            "predicted": 104,
+            "scored_pairs": 4816,
+            "sentences": 32,
+            "unique_gold": 99,
+            "unmatched": 81
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 26,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 3,
+              "unmatched_added": 24
+            },
+            "direction_margin": {
+              "added": 26,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 4,
+              "unmatched_added": 24
+            },
+            "gate_0.40": {
+              "added": 43,
+              "correct_added": 4,
+              "unmatched_added": 39
+            },
+            "label_margin": {
+              "added": 26,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 3,
+              "unmatched_added": 24
+            },
+            "score": {
+              "added": 26,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 24
+            }
+          }
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 3,
+        "below_mention_threshold_head": 25,
+        "below_mention_threshold_tail": 48,
+        "flat_overlap_suppression": 67,
+        "predicate_below_threshold": 288,
+        "predicate_outside_schema": 4
+      },
+      "reference_structure": {
+        "directed_pairs": 603,
+        "directed_pairs_with_annotated_reverse": 18,
+        "keys_also_annotated_in_reverse": 0,
+        "multilabel_directed_pairs": 43,
+        "self_relation_keys": 0
+      },
+      "retained_low_scored_keys": {
+        "above_all_unannotated_labels": 143,
+        "above_unannotated_reverse": 247,
+        "at_least_one_unannotated_rival_higher": 150,
+        "both_rivals_higher": 36,
+        "different_predicate_annotated_in_reverse": 14,
+        "in_suggestion_band_keys": 53,
+        "in_suggestion_band_occurrences": 53,
+        "literal_below_first": 161,
+        "literal_first": 127,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 50,
+        "only_annotated_labels_higher": 16,
+        "reference_occurrences": 288,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 145,
+        "unannotated_reverse_higher": 41,
+        "unique_keys": 288
+      },
+      "stock": {
+        "empty_gold": 47,
+        "gold": 646,
+        "matched": 211,
+        "predicted": 737,
+        "scored_pairs": 21782,
+        "sentences": 192,
+        "unique_gold": 646,
+        "unmatched": 526
+      },
+      "stronger_label_confusions": {
+        "artifact → origin": 7,
+        "artifact → related-to": 1,
+        "artifact → role": 1,
+        "cause-effect → role": 1,
+        "compare → general-affiliation": 1,
+        "compare → named": 2,
+        "general-affiliation → opposite": 1,
+        "general-affiliation → origin": 1,
+        "general-affiliation → part-of": 1,
+        "general-affiliation → related-to": 3,
+        "general-affiliation → type-of": 7,
+        "general-affiliation → usage": 1,
+        "named → general-affiliation": 1,
+        "named → role": 1,
+        "named → temporal": 1,
+        "named → type-of": 1,
+        "opposite → physical": 1,
+        "origin → artifact": 1,
+        "origin → compare": 1,
+        "origin → role": 6,
+        "origin → topic": 1,
+        "part-of → artifact": 2,
+        "part-of → physical": 2,
+        "part-of → role": 1,
+        "part-of → type-of": 9,
+        "physical → named": 2,
+        "physical → origin": 1,
+        "physical → part-of": 4,
+        "physical → related-to": 2,
+        "physical → role": 2,
+        "physical → social": 1,
+        "related-to → compare": 5,
+        "related-to → general-affiliation": 1,
+        "related-to → named": 2,
+        "related-to → origin": 8,
+        "related-to → part-of": 7,
+        "related-to → physical": 7,
+        "related-to → type-of": 1,
+        "role → compare": 3,
+        "role → general-affiliation": 2,
+        "role → named": 1,
+        "role → part-of": 3,
+        "role → physical": 6,
+        "role → related-to": 9,
+        "role → social": 3,
+        "role → temporal": 1,
+        "role → win-defeat": 19,
+        "social → opposite": 1,
+        "temporal → origin": 1,
+        "temporal → social": 1,
+        "temporal → win-defeat": 1,
+        "topic → general-affiliation": 1,
+        "topic → social": 1,
+        "topic → type-of": 1,
+        "type-of → general-affiliation": 1,
+        "type-of → named": 1,
+        "type-of → part-of": 2,
+        "usage → general-affiliation": 2,
+        "usage → type-of": 2,
+        "win-defeat → artifact": 1,
+        "win-defeat → compare": 1,
+        "win-defeat → physical": 1,
+        "win-defeat → type-of": 2
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 53,
+        "eligible_gold_occurrences": 53,
+        "one_per_sentence_upper_bound": 36,
+        "sentences_with_an_eligible_edge": 160
+      },
+      "suppressed_low_scored_keys": {
+        "above_all_unannotated_labels": 38,
+        "above_unannotated_reverse": 55,
+        "at_least_one_unannotated_rival_higher": 21,
+        "both_rivals_higher": 2,
+        "different_predicate_annotated_in_reverse": 0,
+        "in_suggestion_band_keys": 16,
+        "in_suggestion_band_occurrences": 16,
+        "literal_below_first": 22,
+        "literal_first": 36,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 6,
+        "only_annotated_labels_higher": 2,
+        "reference_occurrences": 58,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 20,
+        "unannotated_reverse_higher": 3,
+        "unique_keys": 58
+      }
+    },
+    "full_official_test": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 2022,
+          "correct_added": 238,
+          "correct_gained_vs_score_only": 61,
+          "correct_lost_vs_score_only": 57,
+          "different_from_score_only": 448,
+          "gold_empty_unmatched": 421,
+          "on_already_emitted_pair": 185,
+          "unmatched_added": 1784,
+          "unmatched_other_label_on_reference_pair": 154,
+          "unmatched_other_label_on_reversed_pair": 76,
+          "unmatched_reverses_exact_reference": 8,
+          "unmatched_unrelated_annotated_entities": 264,
+          "unmatched_with_inexact_endpoint": 1282
+        },
+        "direction_margin": {
+          "added": 2022,
+          "correct_added": 236,
+          "correct_gained_vs_score_only": 14,
+          "correct_lost_vs_score_only": 12,
+          "different_from_score_only": 96,
+          "gold_empty_unmatched": 421,
+          "on_already_emitted_pair": 403,
+          "unmatched_added": 1786,
+          "unmatched_other_label_on_reference_pair": 207,
+          "unmatched_other_label_on_reversed_pair": 67,
+          "unmatched_reverses_exact_reference": 9,
+          "unmatched_unrelated_annotated_entities": 246,
+          "unmatched_with_inexact_endpoint": 1257
+        },
+        "gate_0.40": {
+          "added": 3543,
+          "correct_added": 436,
+          "gold_empty_unmatched": 696,
+          "on_already_emitted_pair": 739,
+          "unmatched_added": 3107,
+          "unmatched_other_label_on_reference_pair": 378,
+          "unmatched_other_label_on_reversed_pair": 125,
+          "unmatched_reverses_exact_reference": 21,
+          "unmatched_unrelated_annotated_entities": 463,
+          "unmatched_with_inexact_endpoint": 2120
+        },
+        "label_margin": {
+          "added": 2022,
+          "correct_added": 232,
+          "correct_gained_vs_score_only": 57,
+          "correct_lost_vs_score_only": 59,
+          "different_from_score_only": 495,
+          "gold_empty_unmatched": 421,
+          "on_already_emitted_pair": 165,
+          "unmatched_added": 1790,
+          "unmatched_other_label_on_reference_pair": 149,
+          "unmatched_other_label_on_reversed_pair": 75,
+          "unmatched_reverses_exact_reference": 13,
+          "unmatched_unrelated_annotated_entities": 275,
+          "unmatched_with_inexact_endpoint": 1278
+        },
+        "score": {
+          "added": 2022,
+          "correct_added": 234,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 421,
+          "on_already_emitted_pair": 389,
+          "unmatched_added": 1788,
+          "unmatched_other_label_on_reference_pair": 203,
+          "unmatched_other_label_on_reversed_pair": 64,
+          "unmatched_reverses_exact_reference": 15,
+          "unmatched_unrelated_annotated_entities": 253,
+          "unmatched_with_inexact_endpoint": 1253
+        }
+      },
+      "domains": {
+        "ai": {
+          "index_text_sha256": "020a1887ce7a144270a5732523a633322629c68b1e97e5561dd2d11638a6136d",
+          "one_per_sentence_upper_bound": 64,
+          "stock": {
+            "empty_gold": 105,
+            "gold": 1164,
+            "matched": 256,
+            "predicted": 963,
+            "scored_pairs": 48674,
+            "sentences": 431,
+            "unique_gold": 1163,
+            "unmatched": 707
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 303,
+              "correct_added": 34,
+              "correct_gained_vs_score_only": 5,
+              "correct_lost_vs_score_only": 8,
+              "different_from_score_only": 52,
+              "unmatched_added": 269
+            },
+            "direction_margin": {
+              "added": 303,
+              "correct_added": 39,
+              "correct_gained_vs_score_only": 4,
+              "correct_lost_vs_score_only": 2,
+              "different_from_score_only": 11,
+              "unmatched_added": 264
+            },
+            "gate_0.40": {
+              "added": 375,
+              "correct_added": 42,
+              "unmatched_added": 333
+            },
+            "label_margin": {
+              "added": 303,
+              "correct_added": 31,
+              "correct_gained_vs_score_only": 2,
+              "correct_lost_vs_score_only": 8,
+              "different_from_score_only": 57,
+              "unmatched_added": 272
+            },
+            "score": {
+              "added": 303,
+              "correct_added": 37,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 266
+            }
+          }
+        },
+        "literature": {
+          "index_text_sha256": "493e2d31fcfffa5c065f87bb8619648dfe49ce82604ad77eeedda8d4cce70465",
+          "one_per_sentence_upper_bound": 108,
+          "stock": {
+            "empty_gold": 47,
+            "gold": 1623,
+            "matched": 614,
+            "predicted": 2174,
+            "scored_pairs": 48018,
+            "sentences": 416,
+            "unique_gold": 1623,
+            "unmatched": 1560
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 387,
+              "correct_added": 38,
+              "correct_gained_vs_score_only": 16,
+              "correct_lost_vs_score_only": 16,
+              "different_from_score_only": 107,
+              "unmatched_added": 349
+            },
+            "direction_margin": {
+              "added": 387,
+              "correct_added": 36,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 17,
+              "unmatched_added": 351
+            },
+            "gate_0.40": {
+              "added": 727,
+              "correct_added": 71,
+              "unmatched_added": 656
+            },
+            "label_margin": {
+              "added": 387,
+              "correct_added": 37,
+              "correct_gained_vs_score_only": 17,
+              "correct_lost_vs_score_only": 18,
+              "different_from_score_only": 119,
+              "unmatched_added": 350
+            },
+            "score": {
+              "added": 387,
+              "correct_added": 38,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 349
+            }
+          }
+        },
+        "music": {
+          "index_text_sha256": "ad87942e8eaa69a995e04839bbce4e62e0a3bf4bf344e3c99e1fe7c5dbf78e04",
+          "one_per_sentence_upper_bound": 112,
+          "stock": {
+            "empty_gold": 55,
+            "gold": 2415,
+            "matched": 834,
+            "predicted": 2619,
+            "scored_pairs": 58120,
+            "sentences": 399,
+            "unique_gold": 2415,
+            "unmatched": 1785
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 359,
+              "correct_added": 59,
+              "correct_gained_vs_score_only": 20,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 86,
+              "unmatched_added": 300
+            },
+            "direction_margin": {
+              "added": 359,
+              "correct_added": 47,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 15,
+              "unmatched_added": 312
+            },
+            "gate_0.40": {
+              "added": 793,
+              "correct_added": 108,
+              "unmatched_added": 685
+            },
+            "label_margin": {
+              "added": 359,
+              "correct_added": 58,
+              "correct_gained_vs_score_only": 19,
+              "correct_lost_vs_score_only": 7,
+              "different_from_score_only": 99,
+              "unmatched_added": 301
+            },
+            "score": {
+              "added": 359,
+              "correct_added": 46,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 313
+            }
+          }
+        },
+        "news": {
+          "index_text_sha256": "2ff28b915cb86d45fe48e7e1cee742e10dfe2bddcd0a149f74561c4e02874c83",
+          "one_per_sentence_upper_bound": 21,
+          "stock": {
+            "empty_gold": 234,
+            "gold": 396,
+            "matched": 192,
+            "predicted": 989,
+            "scored_pairs": 14188,
+            "sentences": 400,
+            "unique_gold": 396,
+            "unmatched": 797
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 294,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 64,
+              "unmatched_added": 290
+            },
+            "direction_margin": {
+              "added": 294,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 17,
+              "unmatched_added": 287
+            },
+            "gate_0.40": {
+              "added": 388,
+              "correct_added": 22,
+              "unmatched_added": 366
+            },
+            "label_margin": {
+              "added": 294,
+              "correct_added": 4,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 68,
+              "unmatched_added": 290
+            },
+            "score": {
+              "added": 294,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 287
+            }
+          }
+        },
+        "politics": {
+          "index_text_sha256": "7fc4579128ee20e645cfbd1a4f69482424e728e9227b939626ce5444d0e7cda6",
+          "one_per_sentence_upper_bound": 115,
+          "stock": {
+            "empty_gold": 63,
+            "gold": 2124,
+            "matched": 623,
+            "predicted": 2202,
+            "scored_pairs": 52154,
+            "sentences": 400,
+            "unique_gold": 2124,
+            "unmatched": 1579
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 357,
+              "correct_added": 56,
+              "correct_gained_vs_score_only": 10,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 71,
+              "unmatched_added": 301
+            },
+            "direction_margin": {
+              "added": 357,
+              "correct_added": 59,
+              "correct_gained_vs_score_only": 5,
+              "correct_lost_vs_score_only": 4,
+              "different_from_score_only": 18,
+              "unmatched_added": 298
+            },
+            "gate_0.40": {
+              "added": 681,
+              "correct_added": 116,
+              "unmatched_added": 565
+            },
+            "label_margin": {
+              "added": 357,
+              "correct_added": 56,
+              "correct_gained_vs_score_only": 10,
+              "correct_lost_vs_score_only": 12,
+              "different_from_score_only": 79,
+              "unmatched_added": 301
+            },
+            "score": {
+              "added": 357,
+              "correct_added": 58,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 299
+            }
+          }
+        },
+        "science": {
+          "index_text_sha256": "46984176e0589c66806eb608532893286263e681b3ac00f77c57cf03b0cc3cbf",
+          "one_per_sentence_upper_bound": 85,
+          "stock": {
+            "empty_gold": 116,
+            "gold": 1446,
+            "matched": 368,
+            "predicted": 1458,
+            "scored_pairs": 65452,
+            "sentences": 400,
+            "unique_gold": 1446,
+            "unmatched": 1090
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 322,
+              "correct_added": 47,
+              "correct_gained_vs_score_only": 10,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 68,
+              "unmatched_added": 275
+            },
+            "direction_margin": {
+              "added": 322,
+              "correct_added": 48,
+              "correct_gained_vs_score_only": 3,
+              "correct_lost_vs_score_only": 3,
+              "different_from_score_only": 18,
+              "unmatched_added": 274
+            },
+            "gate_0.40": {
+              "added": 579,
+              "correct_added": 77,
+              "unmatched_added": 502
+            },
+            "label_margin": {
+              "added": 322,
+              "correct_added": 46,
+              "correct_gained_vs_score_only": 9,
+              "correct_lost_vs_score_only": 11,
+              "different_from_score_only": 73,
+              "unmatched_added": 276
+            },
+            "score": {
+              "added": 322,
+              "correct_added": 48,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 274
+            }
+          }
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 39,
+        "below_mention_threshold_head": 225,
+        "below_mention_threshold_tail": 525,
+        "endpoint_outside_span_grid": 9,
+        "flat_overlap_suppression": 937,
+        "ordered_pair_not_generated": 3,
+        "predicate_below_threshold": 4435,
+        "predicate_outside_schema": 108
+      },
+      "reference_structure": {
+        "directed_pairs": 8671,
+        "directed_pairs_with_annotated_reverse": 222,
+        "keys_also_annotated_in_reverse": 4,
+        "multilabel_directed_pairs": 491,
+        "self_relation_keys": 3
+      },
+      "retained_low_scored_keys": {
+        "above_all_unannotated_labels": 2061,
+        "above_unannotated_reverse": 3885,
+        "at_least_one_unannotated_rival_higher": 2447,
+        "both_rivals_higher": 471,
+        "different_predicate_annotated_in_reverse": 137,
+        "in_suggestion_band_keys": 832,
+        "in_suggestion_band_occurrences": 832,
+        "literal_below_first": 2511,
+        "literal_first": 1923,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 517,
+        "only_annotated_labels_higher": 138,
+        "reference_occurrences": 4435,
+        "reverse_also_correct": 4,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 4,
+        "unannotated_label_higher": 2373,
+        "unannotated_reverse_higher": 545,
+        "unique_keys": 4434
+      },
+      "stock": {
+        "empty_gold": 620,
+        "gold": 9168,
+        "matched": 2887,
+        "predicted": 10405,
+        "scored_pairs": 286606,
+        "sentences": 2446,
+        "unique_gold": 9167,
+        "unmatched": 7518
+      },
+      "stronger_label_confusions": {
+        "artifact → compare": 1,
+        "artifact → named": 5,
+        "artifact → origin": 83,
+        "artifact → physical": 1,
+        "artifact → related-to": 1,
+        "artifact → role": 5,
+        "artifact → temporal": 4,
+        "artifact → topic": 5,
+        "artifact → type-of": 1,
+        "cause-effect → general-affiliation": 1,
+        "cause-effect → named": 4,
+        "cause-effect → opposite": 5,
+        "cause-effect → part-of": 21,
+        "cause-effect → related-to": 1,
+        "cause-effect → role": 16,
+        "cause-effect → temporal": 1,
+        "cause-effect → topic": 1,
+        "cause-effect → usage": 6,
+        "compare → general-affiliation": 1,
+        "compare → named": 6,
+        "compare → opposite": 3,
+        "compare → part-of": 8,
+        "compare → physical": 2,
+        "compare → related-to": 3,
+        "compare → type-of": 2,
+        "compare → usage": 6,
+        "general-affiliation → artifact": 4,
+        "general-affiliation → cause-effect": 1,
+        "general-affiliation → compare": 2,
+        "general-affiliation → named": 7,
+        "general-affiliation → opposite": 1,
+        "general-affiliation → origin": 4,
+        "general-affiliation → part-of": 21,
+        "general-affiliation → physical": 32,
+        "general-affiliation → related-to": 45,
+        "general-affiliation → role": 6,
+        "general-affiliation → temporal": 2,
+        "general-affiliation → topic": 4,
+        "general-affiliation → type-of": 57,
+        "general-affiliation → usage": 46,
+        "general-affiliation → win-defeat": 1,
+        "named → artifact": 3,
+        "named → compare": 14,
+        "named → general-affiliation": 3,
+        "named → opposite": 2,
+        "named → origin": 18,
+        "named → part-of": 14,
+        "named → physical": 5,
+        "named → related-to": 4,
+        "named → role": 4,
+        "named → social": 2,
+        "named → temporal": 2,
+        "named → topic": 2,
+        "named → type-of": 14,
+        "named → usage": 1,
+        "opposite → compare": 17,
+        "opposite → general-affiliation": 2,
+        "opposite → named": 1,
+        "opposite → origin": 2,
+        "opposite → physical": 3,
+        "opposite → related-to": 3,
+        "opposite → role": 8,
+        "opposite → social": 8,
+        "opposite → temporal": 3,
+        "opposite → win-defeat": 1,
+        "origin → artifact": 30,
+        "origin → cause-effect": 1,
+        "origin → compare": 2,
+        "origin → general-affiliation": 4,
+        "origin → named": 14,
+        "origin → part-of": 11,
+        "origin → related-to": 10,
+        "origin → role": 6,
+        "origin → social": 2,
+        "origin → topic": 9,
+        "origin → type-of": 8,
+        "origin → usage": 9,
+        "part-of → artifact": 5,
+        "part-of → compare": 4,
+        "part-of → general-affiliation": 53,
+        "part-of → named": 21,
+        "part-of → opposite": 1,
+        "part-of → origin": 8,
+        "part-of → physical": 22,
+        "part-of → related-to": 27,
+        "part-of → role": 30,
+        "part-of → temporal": 26,
+        "part-of → topic": 3,
+        "part-of → type-of": 74,
+        "part-of → usage": 5,
+        "physical → artifact": 8,
+        "physical → cause-effect": 1,
+        "physical → compare": 11,
+        "physical → general-affiliation": 29,
+        "physical → named": 23,
+        "physical → opposite": 5,
+        "physical → origin": 38,
+        "physical → part-of": 102,
+        "physical → related-to": 10,
+        "physical → role": 61,
+        "physical → social": 10,
+        "physical → temporal": 13,
+        "physical → topic": 6,
+        "physical → type-of": 3,
+        "physical → win-defeat": 6,
+        "related-to → artifact": 10,
+        "related-to → cause-effect": 2,
+        "related-to → compare": 17,
+        "related-to → general-affiliation": 22,
+        "related-to → named": 27,
+        "related-to → opposite": 3,
+        "related-to → origin": 24,
+        "related-to → part-of": 58,
+        "related-to → physical": 30,
+        "related-to → role": 13,
+        "related-to → social": 9,
+        "related-to → temporal": 9,
+        "related-to → topic": 29,
+        "related-to → type-of": 11,
+        "related-to → usage": 15,
+        "related-to → win-defeat": 1,
+        "role → artifact": 3,
+        "role → cause-effect": 6,
+        "role → compare": 25,
+        "role → general-affiliation": 26,
+        "role → named": 54,
+        "role → opposite": 27,
+        "role → origin": 24,
+        "role → part-of": 109,
+        "role → physical": 83,
+        "role → related-to": 106,
+        "role → social": 56,
+        "role → temporal": 38,
+        "role → topic": 3,
+        "role → type-of": 13,
+        "role → usage": 13,
+        "role → win-defeat": 195,
+        "social → artifact": 1,
+        "social → compare": 5,
+        "social → named": 3,
+        "social → opposite": 3,
+        "social → origin": 3,
+        "social → related-to": 22,
+        "temporal → artifact": 2,
+        "temporal → cause-effect": 1,
+        "temporal → compare": 5,
+        "temporal → general-affiliation": 1,
+        "temporal → named": 5,
+        "temporal → opposite": 3,
+        "temporal → origin": 16,
+        "temporal → part-of": 10,
+        "temporal → physical": 2,
+        "temporal → related-to": 1,
+        "temporal → role": 3,
+        "temporal → social": 1,
+        "temporal → topic": 2,
+        "temporal → win-defeat": 30,
+        "topic → artifact": 2,
+        "topic → general-affiliation": 52,
+        "topic → named": 1,
+        "topic → opposite": 1,
+        "topic → origin": 2,
+        "topic → part-of": 6,
+        "topic → physical": 2,
+        "topic → related-to": 8,
+        "topic → social": 1,
+        "topic → type-of": 1,
+        "topic → usage": 2,
+        "type-of → compare": 3,
+        "type-of → general-affiliation": 33,
+        "type-of → named": 4,
+        "type-of → origin": 1,
+        "type-of → part-of": 49,
+        "type-of → physical": 1,
+        "type-of → related-to": 3,
+        "type-of → usage": 1,
+        "type-of → win-defeat": 1,
+        "usage → artifact": 1,
+        "usage → general-affiliation": 17,
+        "usage → named": 3,
+        "usage → origin": 2,
+        "usage → part-of": 3,
+        "usage → physical": 1,
+        "usage → related-to": 2,
+        "usage → role": 1,
+        "usage → topic": 2,
+        "usage → type-of": 13,
+        "win-defeat → artifact": 4,
+        "win-defeat → compare": 4,
+        "win-defeat → general-affiliation": 3,
+        "win-defeat → opposite": 3,
+        "win-defeat → part-of": 2,
+        "win-defeat → physical": 2,
+        "win-defeat → related-to": 3,
+        "win-defeat → role": 17,
+        "win-defeat → temporal": 1,
+        "win-defeat → topic": 1,
+        "win-defeat → type-of": 9,
+        "win-defeat → usage": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 832,
+        "eligible_gold_occurrences": 832,
+        "one_per_sentence_upper_bound": 505,
+        "sentences_with_an_eligible_edge": 2022
+      },
+      "suppressed_low_scored_keys": {
+        "above_all_unannotated_labels": 356,
+        "above_unannotated_reverse": 653,
+        "at_least_one_unannotated_rival_higher": 360,
+        "both_rivals_higher": 41,
+        "different_predicate_annotated_in_reverse": 12,
+        "in_suggestion_band_keys": 140,
+        "in_suggestion_band_occurrences": 140,
+        "literal_below_first": 370,
+        "literal_first": 335,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 97,
+        "only_annotated_labels_higher": 21,
+        "reference_occurrences": 705,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 349,
+        "unannotated_reverse_higher": 52,
+        "unique_keys": 705
+      }
+    },
+    "outside_content_holdout": {
+      "additional_edges": {
+        "both_margins": {
+          "added": 149,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 3,
+          "correct_lost_vs_score_only": 1,
+          "different_from_score_only": 25,
+          "gold_empty_unmatched": 35,
+          "on_already_emitted_pair": 8,
+          "unmatched_added": 129,
+          "unmatched_other_label_on_reference_pair": 7,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_unrelated_annotated_entities": 18,
+          "unmatched_with_inexact_endpoint": 100
+        },
+        "direction_margin": {
+          "added": 149,
+          "correct_added": 18,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 5,
+          "gold_empty_unmatched": 35,
+          "on_already_emitted_pair": 21,
+          "unmatched_added": 131,
+          "unmatched_other_label_on_reference_pair": 12,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 18,
+          "unmatched_with_inexact_endpoint": 99
+        },
+        "gate_0.40": {
+          "added": 234,
+          "correct_added": 27,
+          "gold_empty_unmatched": 60,
+          "on_already_emitted_pair": 35,
+          "unmatched_added": 207,
+          "unmatched_other_label_on_reference_pair": 29,
+          "unmatched_other_label_on_reversed_pair": 8,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 22,
+          "unmatched_with_inexact_endpoint": 147
+        },
+        "label_margin": {
+          "added": 149,
+          "correct_added": 20,
+          "correct_gained_vs_score_only": 3,
+          "correct_lost_vs_score_only": 1,
+          "different_from_score_only": 29,
+          "gold_empty_unmatched": 35,
+          "on_already_emitted_pair": 8,
+          "unmatched_added": 129,
+          "unmatched_other_label_on_reference_pair": 7,
+          "unmatched_other_label_on_reversed_pair": 4,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 17,
+          "unmatched_with_inexact_endpoint": 100
+        },
+        "score": {
+          "added": 149,
+          "correct_added": 18,
+          "correct_gained_vs_score_only": 0,
+          "correct_lost_vs_score_only": 0,
+          "different_from_score_only": 0,
+          "gold_empty_unmatched": 35,
+          "on_already_emitted_pair": 19,
+          "unmatched_added": 131,
+          "unmatched_other_label_on_reference_pair": 10,
+          "unmatched_other_label_on_reversed_pair": 1,
+          "unmatched_reverses_exact_reference": 1,
+          "unmatched_unrelated_annotated_entities": 18,
+          "unmatched_with_inexact_endpoint": 101
+        }
+      },
+      "domains": {
+        "ai": {
+          "index_text_sha256": "bc9c1bbe7b0ca3a73463b96147b762bd1ac7b05c36b4b9ba3bcacc5d350da28a",
+          "one_per_sentence_upper_bound": 21,
+          "stock": {
+            "empty_gold": 34,
+            "gold": 331,
+            "matched": 81,
+            "predicted": 270,
+            "scored_pairs": 14136,
+            "sentences": 131,
+            "unique_gold": 331,
+            "unmatched": 189
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 90,
+              "correct_added": 8,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 15,
+              "unmatched_added": 82
+            },
+            "direction_margin": {
+              "added": 90,
+              "correct_added": 9,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 81
+            },
+            "gate_0.40": {
+              "added": 123,
+              "correct_added": 13,
+              "unmatched_added": 110
+            },
+            "label_margin": {
+              "added": 90,
+              "correct_added": 8,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 1,
+              "different_from_score_only": 18,
+              "unmatched_added": 82
+            },
+            "score": {
+              "added": 90,
+              "correct_added": 9,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 81
+            }
+          }
+        },
+        "literature": {
+          "index_text_sha256": "ace843c4dcb54f74d3fc60ae216e54f3604dbd0c27de6928f20cb96e036f18f0",
+          "one_per_sentence_upper_bound": 1,
+          "stock": {
+            "empty_gold": 0,
+            "gold": 10,
+            "matched": 2,
+            "predicted": 3,
+            "scored_pairs": 156,
+            "sentences": 1,
+            "unique_gold": 10,
+            "unmatched": 1
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 1,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 0
+            },
+            "direction_margin": {
+              "added": 1,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 1
+            },
+            "gate_0.40": {
+              "added": 2,
+              "correct_added": 1,
+              "unmatched_added": 1
+            },
+            "label_margin": {
+              "added": 1,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 0
+            },
+            "score": {
+              "added": 1,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 1
+            }
+          }
+        },
+        "music": {
+          "index_text_sha256": "cefafb3ad347a4164a99c5e7953efe355348c2f23548355248b07efa0509b9fc",
+          "one_per_sentence_upper_bound": 10,
+          "stock": {
+            "empty_gold": 2,
+            "gold": 228,
+            "matched": 75,
+            "predicted": 230,
+            "scored_pairs": 5088,
+            "sentences": 26,
+            "unique_gold": 228,
+            "unmatched": 155
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 25,
+              "correct_added": 8,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 17
+            },
+            "direction_margin": {
+              "added": 25,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 18
+            },
+            "gate_0.40": {
+              "added": 66,
+              "correct_added": 11,
+              "unmatched_added": 55
+            },
+            "label_margin": {
+              "added": 25,
+              "correct_added": 8,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 17
+            },
+            "score": {
+              "added": 25,
+              "correct_added": 7,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 18
+            }
+          }
+        },
+        "news": {
+          "index_text_sha256": "099d72a0d1f1418b2d5a6063e992cc57abca938ebf2b8529bc26c1d89b4dbe06",
+          "one_per_sentence_upper_bound": 0,
+          "stock": {
+            "empty_gold": 24,
+            "gold": 2,
+            "matched": 2,
+            "predicted": 17,
+            "scored_pairs": 194,
+            "sentences": 26,
+            "unique_gold": 2,
+            "unmatched": 15
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 15,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 15
+            },
+            "direction_margin": {
+              "added": 15,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 15
+            },
+            "gate_0.40": {
+              "added": 6,
+              "correct_added": 0,
+              "unmatched_added": 6
+            },
+            "label_margin": {
+              "added": 15,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 15
+            },
+            "score": {
+              "added": 15,
+              "correct_added": 0,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 15
+            }
+          }
+        },
+        "politics": {
+          "index_text_sha256": "881ed148d89cb88cc488b3fef348809a6c6410552123bd5d1b6aa68fd36776e8",
+          "one_per_sentence_upper_bound": 2,
+          "stock": {
+            "empty_gold": 0,
+            "gold": 32,
+            "matched": 21,
+            "predicted": 33,
+            "scored_pairs": 854,
+            "sentences": 6,
+            "unique_gold": 32,
+            "unmatched": 12
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 5,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 4
+            },
+            "direction_margin": {
+              "added": 5,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 4
+            },
+            "gate_0.40": {
+              "added": 12,
+              "correct_added": 1,
+              "unmatched_added": 11
+            },
+            "label_margin": {
+              "added": 5,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 1,
+              "unmatched_added": 4
+            },
+            "score": {
+              "added": 5,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 4
+            }
+          }
+        },
+        "science": {
+          "index_text_sha256": "9bcba95977760ec63ebf50d25b08f4366ef645c6732a25d19438307ef548f09c",
+          "one_per_sentence_upper_bound": 2,
+          "stock": {
+            "empty_gold": 11,
+            "gold": 24,
+            "matched": 4,
+            "predicted": 74,
+            "scored_pairs": 2380,
+            "sentences": 17,
+            "unique_gold": 24,
+            "unmatched": 70
+          },
+          "suggestions": {
+            "both_margins": {
+              "added": 13,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 4,
+              "unmatched_added": 11
+            },
+            "direction_margin": {
+              "added": 13,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 12
+            },
+            "gate_0.40": {
+              "added": 25,
+              "correct_added": 1,
+              "unmatched_added": 24
+            },
+            "label_margin": {
+              "added": 13,
+              "correct_added": 2,
+              "correct_gained_vs_score_only": 1,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 5,
+              "unmatched_added": 11
+            },
+            "score": {
+              "added": 13,
+              "correct_added": 1,
+              "correct_gained_vs_score_only": 0,
+              "correct_lost_vs_score_only": 0,
+              "different_from_score_only": 0,
+              "unmatched_added": 12
+            }
+          }
+        }
+      },
+      "misses_by_first_loss": {
+        "below_mention_threshold_both": 1,
+        "below_mention_threshold_head": 26,
+        "below_mention_threshold_tail": 43,
+        "flat_overlap_suppression": 66,
+        "predicate_below_threshold": 301,
+        "predicate_outside_schema": 5
+      },
+      "reference_structure": {
+        "directed_pairs": 612,
+        "directed_pairs_with_annotated_reverse": 12,
+        "keys_also_annotated_in_reverse": 0,
+        "multilabel_directed_pairs": 15,
+        "self_relation_keys": 0
+      },
+      "retained_low_scored_keys": {
+        "above_all_unannotated_labels": 163,
+        "above_unannotated_reverse": 270,
+        "at_least_one_unannotated_rival_higher": 139,
+        "both_rivals_higher": 30,
+        "different_predicate_annotated_in_reverse": 2,
+        "in_suggestion_band_keys": 53,
+        "in_suggestion_band_occurrences": 53,
+        "literal_below_first": 142,
+        "literal_first": 159,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 12,
+        "only_annotated_labels_higher": 4,
+        "reference_occurrences": 301,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 138,
+        "unannotated_reverse_higher": 31,
+        "unique_keys": 301
+      },
+      "stock": {
+        "empty_gold": 71,
+        "gold": 627,
+        "matched": 185,
+        "predicted": 627,
+        "scored_pairs": 22808,
+        "sentences": 207,
+        "unique_gold": 627,
+        "unmatched": 442
+      },
+      "stronger_label_confusions": {
+        "artifact → named": 1,
+        "artifact → origin": 4,
+        "compare → usage": 5,
+        "general-affiliation → artifact": 3,
+        "general-affiliation → named": 2,
+        "general-affiliation → part-of": 1,
+        "general-affiliation → physical": 3,
+        "general-affiliation → related-to": 18,
+        "general-affiliation → topic": 1,
+        "general-affiliation → type-of": 6,
+        "general-affiliation → usage": 5,
+        "named → origin": 1,
+        "named → part-of": 1,
+        "named → type-of": 2,
+        "origin → artifact": 2,
+        "origin → cause-effect": 1,
+        "origin → general-affiliation": 1,
+        "origin → part-of": 1,
+        "origin → related-to": 1,
+        "origin → type-of": 1,
+        "part-of → general-affiliation": 11,
+        "part-of → named": 3,
+        "part-of → physical": 1,
+        "part-of → related-to": 2,
+        "part-of → role": 2,
+        "part-of → temporal": 1,
+        "part-of → topic": 1,
+        "part-of → type-of": 9,
+        "part-of → usage": 1,
+        "physical → artifact": 3,
+        "physical → general-affiliation": 2,
+        "physical → origin": 9,
+        "physical → part-of": 1,
+        "physical → related-to": 1,
+        "physical → role": 6,
+        "related-to → compare": 2,
+        "related-to → general-affiliation": 1,
+        "related-to → named": 8,
+        "related-to → origin": 1,
+        "related-to → part-of": 2,
+        "related-to → type-of": 1,
+        "role → artifact": 2,
+        "role → origin": 2,
+        "role → part-of": 3,
+        "role → physical": 1,
+        "role → related-to": 2,
+        "temporal → origin": 1,
+        "temporal → part-of": 1,
+        "topic → general-affiliation": 4,
+        "topic → related-to": 1,
+        "type-of → general-affiliation": 4,
+        "type-of → named": 1,
+        "type-of → part-of": 3,
+        "type-of → related-to": 2,
+        "type-of → usage": 1,
+        "usage → general-affiliation": 3,
+        "usage → named": 3,
+        "usage → origin": 1,
+        "usage → topic": 1,
+        "usage → type-of": 1,
+        "win-defeat → role": 1
+      },
+      "suggestion_opportunity": {
+        "eligible_gold_keys": 53,
+        "eligible_gold_occurrences": 53,
+        "one_per_sentence_upper_bound": 36,
+        "sentences_with_an_eligible_edge": 149
+      },
+      "suppressed_low_scored_keys": {
+        "above_all_unannotated_labels": 21,
+        "above_unannotated_reverse": 45,
+        "at_least_one_unannotated_rival_higher": 28,
+        "both_rivals_higher": 4,
+        "different_predicate_annotated_in_reverse": 2,
+        "in_suggestion_band_keys": 7,
+        "in_suggestion_band_occurrences": 7,
+        "literal_below_first": 28,
+        "literal_first": 21,
+        "literal_tied_first": 0,
+        "on_multilabel_directed_pair": 0,
+        "reference_occurrences": 49,
+        "reverse_also_correct": 0,
+        "reverse_unavailable": 0,
+        "same_predicate_annotated_in_reverse": 0,
+        "unannotated_label_higher": 28,
+        "unannotated_reverse_higher": 4,
+        "unique_keys": 49
+      }
+    }
+  },
+  "selected_on_original_development": "score",
+  "source_sha256": {
+    "ai-dev.json": "52fa53bf57b51b63f49ee58420188e49c5bd04a34cd6e0b99089676b0ba2264a",
+    "ai-test.json": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+    "ai-train.json": "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
+    "literature-dev.json": "2ada55425867b63613c07b79c0370139018978757509d6543c667826bad43c21",
+    "literature-test.json": "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a",
+    "literature-train.json": "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
+    "music-dev.json": "dd046e83e655a11a6456ff13a9afd2e5bb9679419e643fc2924a3f1eec670830",
+    "music-test.json": "647d2edbb47d8793339bd6e21b88d3a4059f1464ca3e08597bf4bd333910a4b4",
+    "music-train.json": "b6229afa107f7b64a5fc7ceda09eaffa98bb30dae05d51aeb60eef5ab3e73500",
+    "news-dev.json": "e087bb168732b8e923e32bb4ee9b2ab582342f9962eaf9487e1a43d7e361f5e0",
+    "news-test.json": "0378cb359dfd37e0ac46d0488baf3809ae7a06dbbe99d19af570af9a2de41535",
+    "news-train.json": "a8e206fa6f1a449e9af0a85ed349bc98b82e89771b4735a1856044c744abcc97",
+    "politics-dev.json": "9ae8b87114774d0a78b6a9dcac0f434e59c38ba9fb243eaaff2f7df75ffa4fab",
+    "politics-test.json": "95e2432cd6aac170f17019ec96aea60bd2674a7a8583ce4d7d8aaf3c37e0d441",
+    "politics-train.json": "63061d1abd26e9a7f8ef84f9b6aba9c5a1c2f37697270666a3c33b5925b9f125",
+    "science-dev.json": "6a2b5ed08528b504ca7eefa7cec1354d3d2f7f3f0bebeb7f43f82bed077f4d45",
+    "science-test.json": "d1c0bace45532227b44de23121394bc660690b6f1e3c3f011f633eb2c9bd5a42",
+    "science-train.json": "1f860783dc2f05b09ac85447f523b6fafdddc6d861995994ac7bdcba9a01a5f6"
+  },
+  "stock_gate": 0.5,
+  "suggestion_floor": 0.3,
+  "test_text_repetition": {
+    "different_directed_references_groups": 6,
+    "different_references_and_different_stock_match_counts_groups": 2,
+    "distinct_test_texts": 2408,
+    "occurrences_with_different_directed_references": 12,
+    "repeated_text_groups": 25,
+    "single_domain_groups_with_different_directed_references": 6,
+    "test_occurrences_in_repeated_groups": 63
+  }
+}
