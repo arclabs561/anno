@@ -1,0 +1,217 @@
+{
+  "articles": 1834,
+  "comparison_margin": 0.15,
+  "comparison_vetoes_due_to_rival": 0,
+  "development_grid": [
+    {
+      "abstained": 1739,
+      "correct": 123,
+      "margin": 0,
+      "wrong": 138,
+      "wrong_distractor": 126,
+      "wrong_when_neither": 12
+    },
+    {
+      "abstained": 1795,
+      "correct": 103,
+      "margin": 0.025,
+      "wrong": 102,
+      "wrong_distractor": 97,
+      "wrong_when_neither": 5
+    },
+    {
+      "abstained": 1848,
+      "correct": 82,
+      "margin": 0.05,
+      "wrong": 70,
+      "wrong_distractor": 66,
+      "wrong_when_neither": 4
+    },
+    {
+      "abstained": 1884,
+      "correct": 63,
+      "margin": 0.075,
+      "wrong": 53,
+      "wrong_distractor": 49,
+      "wrong_when_neither": 4
+    },
+    {
+      "abstained": 1908,
+      "correct": 50,
+      "margin": 0.1,
+      "wrong": 42,
+      "wrong_distractor": 38,
+      "wrong_when_neither": 4
+    },
+    {
+      "abstained": 1955,
+      "correct": 20,
+      "margin": 0.125,
+      "wrong": 25,
+      "wrong_distractor": 22,
+      "wrong_when_neither": 3
+    },
+    {
+      "abstained": 1983,
+      "correct": 9,
+      "margin": 0.15,
+      "wrong": 8,
+      "wrong_distractor": 8,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 1986,
+      "correct": 7,
+      "margin": 0.175,
+      "wrong": 7,
+      "wrong_distractor": 7,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 1993,
+      "correct": 3,
+      "margin": 0.2,
+      "wrong": 4,
+      "wrong_distractor": 4,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 1993,
+      "correct": 3,
+      "margin": 0.225,
+      "wrong": 4,
+      "wrong_distractor": 4,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 1993,
+      "correct": 3,
+      "margin": 0.25,
+      "wrong": 4,
+      "wrong_distractor": 4,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 1998,
+      "correct": 0,
+      "margin": 0.3,
+      "wrong": 2,
+      "wrong_distractor": 2,
+      "wrong_when_neither": 0
+    },
+    {
+      "abstained": 2000,
+      "correct": 0,
+      "margin": 0.4,
+      "wrong": 0,
+      "wrong_distractor": 0,
+      "wrong_when_neither": 0
+    }
+  ],
+  "frozen": {
+    "abstained": 1983,
+    "correct": 9,
+    "wrong": 8,
+    "wrong_distractor": 8,
+    "wrong_when_neither": 0
+  },
+  "gold_links": 1799,
+  "neutral": {
+    "abstained": 1739,
+    "correct": 123,
+    "wrong": 138,
+    "wrong_distractor": 126,
+    "wrong_when_neither": 12
+  },
+  "neutral_at_comparison_margin": {
+    "abstained": 1983,
+    "correct": 9,
+    "wrong": 8,
+    "wrong_distractor": 8,
+    "wrong_when_neither": 0
+  },
+  "neutral_binary_sha256": "84739733e794c665cd916455c6ba83a63cd02babba71f806a09c75369585e809",
+  "neutral_diagnostics": {
+    "eligible_names": {
+      "0": 467,
+      "1": 622,
+      "2": 911
+    },
+    "gold_stage": {
+      "gold_first_below_or_at_threshold": 547,
+      "gold_follows_pronoun": 353,
+      "gold_outscored": 394,
+      "gold_outside_distance": 382,
+      "gold_selected_directly": 123,
+      "neither_gold": 201
+    },
+    "group_links": {
+      "0": 1739,
+      "1": 261
+    },
+    "unique_link_without_direct_edge": 0
+  },
+  "policy_sha256": "4e29da0117ce05c178983d594d485d03be29f73e4386e39431a900005513ea46",
+  "rows": 2000,
+  "source_sha256": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+  "stock": {
+    "abstained": 1983,
+    "correct": 9,
+    "wrong": 8,
+    "wrong_distractor": 8,
+    "wrong_when_neither": 0
+  },
+  "stock_binary_sha256": "438ba664980618fb1987063ba84cba15fcdebd5b25ed8bd6e68730d8ea8ed644",
+  "stock_diagnostics": {
+    "eligible_names": {
+      "0": 467,
+      "1": 622,
+      "2": 911
+    },
+    "gold_stage": {
+      "gold_first_below_or_at_threshold": 661,
+      "gold_follows_pronoun": 353,
+      "gold_outscored": 394,
+      "gold_outside_distance": 382,
+      "gold_selected_directly": 9,
+      "neither_gold": 201
+    },
+    "group_links": {
+      "0": 1983,
+      "1": 17
+    },
+    "unique_link_without_direct_edge": 0
+  },
+  "stock_to_comparison_margin": {
+    "changed_issued_target": 0,
+    "queries": {
+      "abstain_to_abstain": 1983,
+      "correct_to_correct": 9,
+      "wrong_to_wrong": 8
+    },
+    "works": {
+      "correct": {
+        "equal": 1834
+      },
+      "wrong": {
+        "equal": 1834
+      }
+    }
+  },
+  "stock_to_frozen": {
+    "changed_issued_target": 0,
+    "queries": {
+      "abstain_to_abstain": 1983,
+      "correct_to_correct": 9,
+      "wrong_to_wrong": 8
+    },
+    "works": {
+      "correct": {
+        "equal": 1834
+      },
+      "wrong": {
+        "equal": 1834
+      }
+    }
+  }
+}

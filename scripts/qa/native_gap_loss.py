@@ -114,11 +114,23 @@ def audit(docs, traces, published):
         "mention-ranking/predicted"
     ]:
         raise ValueError("native outputs differ from published decisions or counts")
+    return dict(
+        data_sha256=published["sha256"],
+        revision=published["revision"],
+        split=published["split"],
+        output_errors=output_errors(published),
+        **stage_details(docs, traces),
+    )
+
+
+def stage_details(docs, traces):
     counts, combinations, relations = Counter(), Counter(), Counter()
     rows = []
     false_links = []
     names = Counter()
     for (doc_id, text, targets, labels), trace in zip(docs, traces, strict=True):
+        if trace["id"] != doc_id:
+            raise ValueError("trace and source document IDs differ")
         proposed = set(map(tuple, trace["proposed"]))
         retained = list(map(tuple, trace["retained"]))
         groups = [set(map(tuple, c)) for c in trace["clusters"]]
@@ -214,9 +226,6 @@ def audit(docs, traces, published):
             combinations[" / ".join(statuses)] += 1
             rows.append(row)
     return dict(
-        data_sha256=published["sha256"],
-        revision=published["revision"],
-        split=published["split"],
         documents=len(docs),
         gold_pairs=len(rows),
         name_boundary_observations=dict(sorted(names.items())),
@@ -224,19 +233,12 @@ def audit(docs, traces, published):
         endpoint_status_pairs=dict(sorted(combinations.items())),
         direct_pair_when_retained=dict(sorted(relations.items())),
         false_links=false_links,
-        output_errors=output_errors(published),
         rows=rows,
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tsv", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--local-details", type=Path, help="optional row-level replay file outside the repository")
-    args = parser.parse_args()
+def trace_documents(docs):
     root = Path(__file__).resolve().parents[2]
-    docs = panel(args.tsv)
     with tempfile.TemporaryDirectory() as tmp:
         source, trace = Path(tmp) / "input.jsonl", Path(tmp) / "trace.jsonl"
         source.write_text(
@@ -263,7 +265,19 @@ def main():
             },
             check=True,
         )
-        traces = [json.loads(line) for line in trace.read_text().splitlines()]
+        with trace.open() as stream:
+            return [json.loads(line) for line in stream]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("tsv", type=Path)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--local-details", type=Path, help="optional row-level replay file outside the repository")
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[2]
+    docs = panel(args.tsv)
+    traces = trace_documents(docs)
     published = json.loads((root / "docs/eval/coref-panels.json").read_text())["gap"]
     result = audit(docs, traces, published)
     gap_receipts.write(args.output, gap_receipts.stages(result), result, args.local_details)

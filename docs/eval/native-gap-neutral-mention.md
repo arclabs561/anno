@@ -25,6 +25,8 @@ Each excerpt contributes two labeled decisions. Linking both candidates when onl
 
 The full-test candidate still missed 1,642 of the 1,773 true links with every endpoint supplied. Keep the automatic assignment policy pending a test of which candidate wins. Trace which names precede the pronoun and fall within the distance cap. Where both compete, measure the winner's margin over the other name and the threshold for making a link. Check whether abstaining on small margins reduces wrong identities while retaining the newly recovered links. The one-for-one tradeoff on new test articles gives that experiment a concrete baseline.
 
+The [follow-up margin trial](native-gap-margin.md) retained stock at the development split's wrong-link budget. The [literary transfer trial](litbank-pronoun-transfer.md) applied that frozen choice to a separate set of works.
+
 ## Reproduce
 
 The coreference benchmark workflow replays the current native ranker on the three pinned GAP TSVs. It checks the complete cluster partitions and link counts for supplied-span and raw-text input. Passage text stays in the runner's temporary directory. An intentional output change requires a new measured baseline and a review of the changed decisions.

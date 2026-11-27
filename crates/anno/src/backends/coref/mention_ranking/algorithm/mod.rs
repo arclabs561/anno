@@ -814,7 +814,7 @@ impl MentionRankingCoref {
         for j in (0..i).rev().take(max_antecedents) {
             let antecedent = &mentions[j];
 
-            // Also check character distance as a fallback
+            // Stop at the first gap beyond the inclusive character limit.
             let distance = mention.start.saturating_sub(antecedent.end);
             if distance > self.config.max_distance {
                 break;
@@ -1293,13 +1293,8 @@ fn spans_overlap(a: &crate::Location, b: &crate::Location) -> bool {
 use crate::CoreferenceResolver;
 use crate::Entity;
 
-impl CoreferenceResolver for MentionRankingCoref {
-    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
-        if entities.is_empty() {
-            return vec![];
-        }
-
-        // Convert Entity to RankedMention
+impl MentionRankingCoref {
+    fn prepare_supplied_mentions(&self, entities: &[Entity]) -> Vec<RankedMention> {
         let mut mentions: Vec<RankedMention> = entities
             .iter()
             .map(|e| {
@@ -1347,7 +1342,16 @@ impl CoreferenceResolver for MentionRankingCoref {
             self.extract_features(mention);
         }
 
-        // Link mentions into clusters
+        mentions
+    }
+}
+
+impl CoreferenceResolver for MentionRankingCoref {
+    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
+        if entities.is_empty() {
+            return vec![];
+        }
+        let mentions = self.prepare_supplied_mentions(entities);
         // Note: CoreferenceResolver trait doesn't provide source text,
         // so context-aware features (be-phrase, filtering) are disabled
         let clusters = self.link_mentions(&mentions, "");
@@ -1386,6 +1390,8 @@ impl CoreferenceResolver for MentionRankingCoref {
     }
 }
 
+#[cfg(test)]
+mod gap_supplied_trace;
 #[cfg(test)]
 mod gap_trace;
 
