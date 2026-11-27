@@ -1,0 +1,22 @@
+--- a/crates/anno/src/backends/coref/fcoref/scoring.rs
++++ b/crates/anno/src/backends/coref/fcoref/scoring.rs
+@@ -366,5 +366,19 @@
+         antecedents.push(if best_score >= 0.0 { best_ante } else { i });
+     }
+
++    if std::env::var_os("ANNO_FCOREF_PAIR_SCORES").is_some() {
++        let rows: Vec<_> = (0..k)
++            .map(|i| {
++                let pairs: Vec<_> = (0..i)
++                    .map(|j| {
++                        let pair = coref_logits[[i, j]];
++                        (pair, top_k_logits[i] + top_k_logits[j] + pair)
++                    })
++                    .collect();
++                (top_k_starts[i], top_k_ends[i], top_k_logits[i], antecedents[i], pairs)
++            })
++            .collect();
++        eprintln!("FCOREF_PAIR_SCORES {}", serde_json::json!(rows));
++    }
+     antecedents
+ }
