@@ -1,0 +1,324 @@
+{
+  "gap_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  },
+  "litbank_sha256": "6242423aad72a180252da886d0f7c21d390137a30ac22806ac0a17aeeed064c2",
+  "panels": {
+    "development": {
+      "arms": {
+        "stock": {
+          "abstained": 1983,
+          "correct": 9,
+          "wrong": 8,
+          "wrong_distractor": 8,
+          "wrong_when_neither": 0
+        },
+        "typed": {
+          "abstained": 1317,
+          "correct": 354,
+          "wrong": 329,
+          "wrong_distractor": 292,
+          "wrong_when_neither": 37
+        },
+        "unique_support": {
+          "abstained": 1678,
+          "correct": 178,
+          "wrong": 144,
+          "wrong_distractor": 129,
+          "wrong_when_neither": 15
+        }
+      },
+      "paired_with_stock": {
+        "typed": {
+          "changed_issued_target": 666,
+          "queries": {
+            "abstain_to_abstain": 1317,
+            "abstain_to_correct": 345,
+            "abstain_to_wrong": 321,
+            "correct_to_correct": 9,
+            "wrong_to_wrong": 8
+          },
+          "works": {
+            "correct": {
+              "equal": 1496,
+              "increased": 338
+            },
+            "wrong": {
+              "equal": 1521,
+              "increased": 313
+            }
+          }
+        },
+        "unique_support": {
+          "changed_issued_target": 335,
+          "queries": {
+            "abstain_to_abstain": 1663,
+            "abstain_to_correct": 177,
+            "abstain_to_wrong": 143,
+            "correct_to_abstain": 8,
+            "correct_to_correct": 1,
+            "wrong_to_abstain": 7,
+            "wrong_to_wrong": 1
+          },
+          "works": {
+            "correct": {
+              "decreased": 8,
+              "equal": 1650,
+              "increased": 176
+            },
+            "wrong": {
+              "decreased": 7,
+              "equal": 1686,
+              "increased": 141
+            }
+          }
+        }
+      },
+      "rows": 2000,
+      "sources": 1834,
+      "supported_names": {
+        "0": 382,
+        "1": 876,
+        "2": 742
+      }
+    },
+    "litbank": {
+      "arms": {
+        "stock": {
+          "abstained": 1769,
+          "correct": 7,
+          "wrong": 14,
+          "wrong_distractor": 10,
+          "wrong_when_neither": 4
+        },
+        "typed": {
+          "abstained": 1322,
+          "correct": 257,
+          "wrong": 211,
+          "wrong_distractor": 115,
+          "wrong_when_neither": 96
+        },
+        "unique_support": {
+          "abstained": 1695,
+          "correct": 41,
+          "wrong": 54,
+          "wrong_distractor": 17,
+          "wrong_when_neither": 37
+        }
+      },
+      "paired_with_stock": {
+        "typed": {
+          "changed_issued_target": 447,
+          "queries": {
+            "abstain_to_abstain": 1322,
+            "abstain_to_correct": 250,
+            "abstain_to_wrong": 197,
+            "correct_to_correct": 7,
+            "wrong_to_wrong": 14
+          },
+          "works": {
+            "correct": {
+              "equal": 11,
+              "increased": 51
+            },
+            "wrong": {
+              "equal": 17,
+              "increased": 45
+            }
+          }
+        },
+        "unique_support": {
+          "changed_issued_target": 114,
+          "queries": {
+            "abstain_to_abstain": 1675,
+            "abstain_to_correct": 41,
+            "abstain_to_wrong": 53,
+            "correct_to_abstain": 7,
+            "wrong_to_abstain": 13,
+            "wrong_to_wrong": 1
+          },
+          "works": {
+            "correct": {
+              "decreased": 3,
+              "equal": 36,
+              "increased": 23
+            },
+            "wrong": {
+              "decreased": 7,
+              "equal": 32,
+              "increased": 23
+            }
+          }
+        }
+      },
+      "rows": 1790,
+      "sources": 62,
+      "supported_names": {
+        "0": 84,
+        "1": 536,
+        "2": 1170
+      }
+    },
+    "test": {
+      "arms": {
+        "stock": {
+          "abstained": 1983,
+          "correct": 3,
+          "wrong": 14,
+          "wrong_distractor": 13,
+          "wrong_when_neither": 1
+        },
+        "typed": {
+          "abstained": 1335,
+          "correct": 321,
+          "wrong": 344,
+          "wrong_distractor": 290,
+          "wrong_when_neither": 54
+        },
+        "unique_support": {
+          "abstained": 1673,
+          "correct": 167,
+          "wrong": 160,
+          "wrong_distractor": 135,
+          "wrong_when_neither": 25
+        }
+      },
+      "paired_with_stock": {
+        "typed": {
+          "changed_issued_target": 649,
+          "queries": {
+            "abstain_to_abstain": 1335,
+            "abstain_to_correct": 317,
+            "abstain_to_wrong": 331,
+            "correct_to_correct": 3,
+            "wrong_to_correct": 1,
+            "wrong_to_wrong": 13
+          },
+          "works": {
+            "correct": {
+              "equal": 1517,
+              "increased": 308
+            },
+            "wrong": {
+              "decreased": 1,
+              "equal": 1497,
+              "increased": 327
+            }
+          }
+        },
+        "unique_support": {
+          "changed_issued_target": 323,
+          "queries": {
+            "abstain_to_abstain": 1667,
+            "abstain_to_correct": 165,
+            "abstain_to_wrong": 151,
+            "correct_to_abstain": 2,
+            "correct_to_correct": 1,
+            "wrong_to_abstain": 4,
+            "wrong_to_correct": 1,
+            "wrong_to_wrong": 9
+          },
+          "works": {
+            "correct": {
+              "decreased": 2,
+              "equal": 1661,
+              "increased": 162
+            },
+            "wrong": {
+              "decreased": 4,
+              "equal": 1672,
+              "increased": 149
+            }
+          }
+        }
+      },
+      "rows": 2000,
+      "sources": 1825,
+      "supported_names": {
+        "0": 379,
+        "1": 924,
+        "2": 697
+      }
+    },
+    "validation": {
+      "arms": {
+        "stock": {
+          "abstained": 448,
+          "correct": 0,
+          "wrong": 6,
+          "wrong_distractor": 6,
+          "wrong_when_neither": 0
+        },
+        "typed": {
+          "abstained": 286,
+          "correct": 83,
+          "wrong": 85,
+          "wrong_distractor": 73,
+          "wrong_when_neither": 12
+        },
+        "unique_support": {
+          "abstained": 375,
+          "correct": 41,
+          "wrong": 38,
+          "wrong_distractor": 34,
+          "wrong_when_neither": 4
+        }
+      },
+      "paired_with_stock": {
+        "typed": {
+          "changed_issued_target": 163,
+          "queries": {
+            "abstain_to_abstain": 286,
+            "abstain_to_correct": 82,
+            "abstain_to_wrong": 80,
+            "wrong_to_correct": 1,
+            "wrong_to_wrong": 5
+          },
+          "works": {
+            "correct": {
+              "equal": 254,
+              "increased": 74
+            },
+            "wrong": {
+              "decreased": 1,
+              "equal": 254,
+              "increased": 73
+            }
+          }
+        },
+        "unique_support": {
+          "changed_issued_target": 80,
+          "queries": {
+            "abstain_to_abstain": 372,
+            "abstain_to_correct": 40,
+            "abstain_to_wrong": 36,
+            "wrong_to_abstain": 3,
+            "wrong_to_correct": 1,
+            "wrong_to_wrong": 2
+          },
+          "works": {
+            "correct": {
+              "equal": 290,
+              "increased": 38
+            },
+            "wrong": {
+              "decreased": 4,
+              "equal": 290,
+              "increased": 34
+            }
+          }
+        }
+      },
+      "rows": 454,
+      "sources": 328,
+      "supported_names": {
+        "0": 79,
+        "1": 191,
+        "2": 184
+      }
+    }
+  },
+  "selected_on_development": "stock"
+}

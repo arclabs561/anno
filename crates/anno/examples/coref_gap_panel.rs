@@ -3,8 +3,9 @@
 use anno::backends::coref::fcoref::FCoref;
 use anno::backends::coref::{mention_ranking::MentionRankingCoref, MaverickCoref};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType};
+use anno::{HeuristicNER, Model};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::io::{self, BufRead};
 
@@ -21,6 +22,7 @@ fn supplied_native(
     model: &MentionRankingCoref,
     doc: &Input,
     mentions: &[Span],
+    person_spans: &BTreeSet<Span>,
 ) -> Result<Vec<Vec<Span>>, Box<dyn Error>> {
     let mut entities: Vec<_> = mentions
         .iter()
@@ -28,7 +30,11 @@ fn supplied_native(
             let surface: String = doc.text.chars().skip(start).take(end - start).collect();
             Entity::new(
                 surface,
-                EntityType::custom("mention", EntityCategory::Misc),
+                if person_spans.contains(&(start, end)) {
+                    EntityType::Person
+                } else {
+                    EntityType::custom("mention", EntityCategory::Misc)
+                },
                 start,
                 end,
                 1.0,
@@ -52,8 +58,9 @@ fn supplied_native(
 fn main() -> Result<(), Box<dyn Error>> {
     let requested = std::env::args().nth(1).ok_or("expected backend name")?;
     let native = MentionRankingCoref::new();
+    let typing = (requested == "mention-ranking-person-evidence").then(HeuristicNER::new);
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
-        "mention-ranking" => None,
+        "mention-ranking" | "mention-ranking-person-evidence" => None,
         #[cfg(not(feature = "onnx"))]
         "fcoref" => return Err("fcoref requires the onnx feature".into()),
         #[cfg(feature = "onnx")]
@@ -65,7 +72,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             std::env::var("MAVERICK_MODEL_PATH")?,
             false,
         )?)),
-        _ => return Err("expected mention-ranking, fcoref or maverick".into()),
+        _ => {
+            return Err(
+                "expected mention-ranking, mention-ranking-person-evidence, fcoref or maverick"
+                    .into(),
+            )
+        }
     };
     let model = neural.as_deref().unwrap_or(&native);
     for line in io::stdin().lock().lines() {
@@ -79,8 +91,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err(format!("{} has an invalid supplied character range", doc.id).into());
             }
         }
+        let mut person_spans = BTreeSet::new();
+        if let Some(typer) = &typing {
+            let supplied = doc
+                .mentions
+                .as_ref()
+                .ok_or("person evidence requires supplied mentions")?;
+            for entity in typer.extract_entities(&doc.text, None)? {
+                let span = (entity.start(), entity.end());
+                if entity.entity_type == EntityType::Person && supplied.contains(&span) {
+                    person_spans.insert(span);
+                }
+            }
+        }
         let spans = match (doc.mentions.as_ref(), neural.is_none()) {
-            (Some(mentions), true) => supplied_native(&native, &doc, mentions)?,
+            (Some(mentions), true) => supplied_native(&native, &doc, mentions, &person_spans)?,
             (mentions, _) => {
                 let outcome = match mentions {
                     Some(mentions) => model.resolve_mentions(&doc.text, mentions),
@@ -107,10 +132,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 clusters.into_iter().map(|c| c.spans).collect()
             }
         };
-        println!(
-            "{}",
-            serde_json::json!({"id": doc.id, "producer": model.name(), "clusters": spans})
-        );
+        let mut output =
+            serde_json::json!({"id": doc.id, "producer": model.name(), "clusters": spans});
+        if typing.is_some() {
+            output["person_spans"] = serde_json::to_value(&person_spans)?;
+        }
+        println!("{output}");
     }
     Ok(())
 }

@@ -52,3 +52,26 @@ python3 scripts/qa/litbank_pronoun_distance.py "$private/panel.tsv" "$stock" "$p
 ```
 
 Rebuilt executables can have different hashes. Compare the selection, policy and score fields and use the local development receipt to bind the scoring run to the same executables.
+
+## Does predicting person types identify the antecedent?
+
+We ran the native heuristic entity recognizer on the complete English excerpt, then passed the three supplied spans through the stock mention ranker. An exact character-span match to a predicted person received Anno's `Person` type. All other supplied spans kept the same generic type as the baseline. The model saw the source and the sorted spans. It received no gold links, role labels or literary chain IDs. We also evaluated a stricter rule that issued a choice only when the native partition selected one name and that name was the sole candidate tagged as a person. Ambiguous partitions abstained in every arm. [Native example](../../crates/anno/examples/coref_gap_panel.rs) · [Scorer](../../scripts/qa/native_pronoun_person_evidence.py)
+
+| Panel | Stock correct / wrong | With predicted person types | Sole supported name required |
+|---|---:|---:|---:|
+| GAP development, 2,000 | 9 / 8 | 354 / 329 | 178 / 144 |
+| GAP validation, 454 | 0 / 6 | 83 / 85 | 41 / 38 |
+| GAP test, 2,000 | 3 / 14 | 321 / 344 | 167 / 160 |
+| LitBank, 1,790 | 7 / 14 | 257 / 211 | 41 / 54 |
+
+Development selection maximized correct issued choices subject to at most eight wrong choices, then preferred fewer wrong choices and retained stock on an exact tie. Stock won. The same three arms were replayed unchanged on the other two official GAP splits and the previously studied literary panel. This is a transfer check on supplied spans. In particular, the stock result does not estimate end-to-end pronoun resolution on unrestricted text. [Panel digests, grouped changes and decision totals](native-pronoun-person-evidence.json)
+
+Both names received exact person support on 1,170 of the 1,790 literary questions. Another 536 had support for exactly one. Person typing helps the ranker issue links, but a missed person tag on the other name makes the exclusive rule an unreliable identity signal. Even that rule exceeded the development wrong-link budget by 136. No resolver policy was promoted.
+
+The existing coreference benchmark workflow replays all three GAP splits and checks the stored counts. To include the private literary panel, use the panel-generation instructions above and the same pinned GAP release:
+
+```sh
+cargo build --locked -p anno --no-default-features --example coref_gap_panel
+python3 scripts/qa/native_pronoun_person_evidence.py "$gap" target/debug/examples/coref_gap_panel \
+  --litbank-panel "$private/panel.tsv" --check
+```
