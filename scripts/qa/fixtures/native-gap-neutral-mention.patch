@@ -1,0 +1,50 @@
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+index 5b7db6d..7b081a0 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+@@ -1568,6 +1568,26 @@ mod tests {
+
+         let score = coref.score_pair(&m2, &m1, 6, None);
+         assert!(score > 0.0, "Pronoun with matching gender should link");
++
++        let with_antecedent_type = |kind| {
++            let mut named = m1.clone();
++            named.entity_type = Some(kind);
++            coref.score_pair(&m2, &named, 6, None)
++        };
++        let untyped = crate::EntityType::custom("mention", crate::EntityCategory::Misc);
++        assert_eq!(with_antecedent_type(untyped), score);
++        let person_bonus = 0.4 * coref.config.type_compat_weight;
++        let nonperson_penalty = 0.3 * coref.config.type_compat_weight;
++        assert!(
++            (with_antecedent_type(crate::EntityType::Person) - score - person_bonus).abs() < 1e-12
++        );
++        for kind in [
++            crate::EntityType::Organization,
++            crate::EntityType::custom("artifact", crate::EntityCategory::Misc),
++            crate::EntityType::custom("mention", crate::EntityCategory::Place),
++        ] {
++            assert!((with_antecedent_type(kind) - score + nonperson_penalty).abs() < 1e-12);
++        }
+     }
+
+     #[test]
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs
+index 3961494..9b835ce 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs
+@@ -206,7 +206,13 @@ impl MentionRankingCoref {
+                 if is_person_pronoun {
+                     if matches!(ant_type, crate::EntityType::Person) {
+                         score += self.config.type_compat_weight * 0.4;
+-                    } else {
++                    } else if !matches!(
++                        ant_type,
++                        crate::EntityType::Custom {
++                            name,
++                            category: crate::EntityCategory::Misc
++                        } if name == "mention"
++                    ) {
+                         score -= self.config.type_compat_weight * 0.3;
+                     }
+                 } else if is_it_pronoun {
