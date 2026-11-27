@@ -237,26 +237,24 @@ def stage_details(docs, traces):
     )
 
 
-def trace_documents(docs):
+def trace_documents(docs, *, test_binary=None):
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory() as tmp:
         source, trace = Path(tmp) / "input.jsonl", Path(tmp) / "trace.jsonl"
         source.write_text(
             "".join(json.dumps(dict(id=i, text=t)) + "\n" for i, t, *_ in docs)
         )
+        test_name = "gap_trace::trace_native_gap"
+        command = (
+            [test_binary.resolve(), test_name, "--ignored"]
+            if test_binary is not None
+            else [
+                "cargo", "test", "--locked", "-p", "anno", "--no-default-features",
+                "--lib", test_name, "--", "--ignored",
+            ]
+        )
         subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "anno",
-                "--no-default-features",
-                "--lib",
-                "gap_trace::trace_native_gap",
-                "--",
-                "--ignored",
-            ],
+            command,
             cwd=root,
             env={
                 **os.environ,

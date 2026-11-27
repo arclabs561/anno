@@ -1,7 +1,10 @@
 //! Stream labeled-corpus excerpts into one resolver without exposing gold links.
 #[cfg(feature = "onnx")]
 use anno::backends::coref::fcoref::FCoref;
-use anno::backends::coref::{mention_ranking::MentionRankingCoref, MaverickCoref};
+use anno::backends::coref::{
+    mention_ranking::{MentionRankingConfig, MentionRankingCoref},
+    MaverickCoref,
+};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType};
 use anno::{HeuristicNER, Model};
 use serde::Deserialize;
@@ -57,10 +60,14 @@ fn supplied_native(
 
 fn main() -> Result<(), Box<dyn Error>> {
     let requested = std::env::args().nth(1).ok_or("expected backend name")?;
-    let native = MentionRankingCoref::new();
+    let be_phrase = requested == "mention-ranking-copula";
+    let native = MentionRankingCoref::with_config(MentionRankingConfig {
+        enable_be_phrase_detection: be_phrase,
+        ..Default::default()
+    });
     let typing = (requested == "mention-ranking-person-evidence").then(HeuristicNER::new);
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
-        "mention-ranking" | "mention-ranking-person-evidence" => None,
+        "mention-ranking" | "mention-ranking-copula" | "mention-ranking-person-evidence" => None,
         #[cfg(not(feature = "onnx"))]
         "fcoref" => return Err("fcoref requires the onnx feature".into()),
         #[cfg(feature = "onnx")]
@@ -74,15 +81,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?)),
         _ => {
             return Err(
-                "expected mention-ranking, mention-ranking-person-evidence, fcoref or maverick"
+                "expected mention-ranking, mention-ranking-copula, mention-ranking-person-evidence, fcoref or maverick"
                     .into(),
             )
         }
     };
     let model = neural.as_deref().unwrap_or(&native);
+    let producer = if be_phrase {
+        requested.as_str()
+    } else {
+        model.name()
+    };
     for line in io::stdin().lock().lines() {
         let doc: Input = serde_json::from_str(&line?)?;
         if let Some(mentions) = &doc.mentions {
+            if be_phrase {
+                return Err("mention-ranking-copula requires the raw-text path".into());
+            }
             let length = doc.text.chars().count();
             if mentions
                 .iter()
@@ -121,7 +136,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         println!(
                             "{}",
                             serde_json::json!({
-                                "id": doc.id, "producer": model.name(),
+                                "id": doc.id, "producer": producer,
                                 "unsupported": "supplied_span_splits_token"
                             })
                         );
@@ -132,8 +147,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 clusters.into_iter().map(|c| c.spans).collect()
             }
         };
-        let mut output =
-            serde_json::json!({"id": doc.id, "producer": model.name(), "clusters": spans});
+        let mut output = serde_json::json!({"id": doc.id, "producer": producer, "clusters": spans});
         if typing.is_some() {
             output["person_spans"] = serde_json::to_value(&person_spans)?;
         }

@@ -1,0 +1,258 @@
+{
+  "candidate_patch_sha256": "9b2fdd62cb4b302293a9309ca3d5ca680a1f302e0ea9768a6ff2821ff3799ad2",
+  "panels": {
+    "development": {
+      "changed_partitions": 868,
+      "co_clustered_pairs_among_common_unmarked_spans": {
+        "candidate": 4742,
+        "gained": 11,
+        "lost": 5,
+        "stock": 4736
+      },
+      "correct_links": {
+        "candidate": 118,
+        "gained": 44,
+        "lost": 0,
+        "stock": 74
+      },
+      "excerpts": 2000,
+      "gold_pairs": 1799,
+      "gold_pairs_with_both_exact_spans": {
+        "proposed": {
+          "candidate": 1194,
+          "gained": 316,
+          "lost": 0,
+          "stock": 878
+        },
+        "retained": {
+          "candidate": 1188,
+          "gained": 316,
+          "lost": 6,
+          "stock": 878
+        },
+        "returned": {
+          "candidate": 216,
+          "gained": 65,
+          "lost": 2,
+          "stock": 153
+        }
+      },
+      "lost_correct_links_by_candidate_stage": {},
+      "newly_wrong_links_by_candidate_outcome": {
+        "neither_name_is_gold": 14,
+        "only_linked_the_distractor": 78
+      },
+      "newly_wrong_links_by_stock_stage": {
+        "name_not_proposed": 92
+      },
+      "partition_sha256": {
+        "candidate": "3a12f424ac7c0b3d8238184a4b9392941bfbd5fae25691be89d4e3ec3d9c34b2",
+        "stock": "bee9809324c404e9b0fd82ea2a382166133a105f2ce05e486924df00362231f4"
+      },
+      "passes_gate": false,
+      "targeted_partial_names": {
+        "correct_links_gained": 44,
+        "exact_proposals_gained": 316,
+        "stock_pairs": 535
+      },
+      "unmarked_spans": {
+        "proposed": {
+          "candidate": 40260,
+          "gained": 4263,
+          "lost": 0,
+          "stock": 35997
+        },
+        "retained": {
+          "candidate": 29598,
+          "gained": 4263,
+          "lost": 10620,
+          "stock": 35955
+        },
+        "returned": {
+          "candidate": 8546,
+          "gained": 904,
+          "lost": 1868,
+          "stock": 9510
+        }
+      },
+      "wrong_links": {
+        "candidate": 161,
+        "gained": 92,
+        "lost": 0,
+        "stock": 69
+      }
+    },
+    "test": {
+      "changed_partitions": 940,
+      "co_clustered_pairs_among_common_unmarked_spans": {
+        "candidate": 4670,
+        "gained": 10,
+        "lost": 16,
+        "stock": 4676
+      },
+      "correct_links": {
+        "candidate": 125,
+        "gained": 42,
+        "lost": 2,
+        "stock": 85
+      },
+      "excerpts": 2000,
+      "gold_pairs": 1773,
+      "gold_pairs_with_both_exact_spans": {
+        "proposed": {
+          "candidate": 1148,
+          "gained": 303,
+          "lost": 0,
+          "stock": 845
+        },
+        "retained": {
+          "candidate": 1140,
+          "gained": 303,
+          "lost": 8,
+          "stock": 845
+        },
+        "returned": {
+          "candidate": 207,
+          "gained": 64,
+          "lost": 6,
+          "stock": 149
+        }
+      },
+      "lost_correct_links_by_candidate_stage": {
+        "isolated_endpoint": 1,
+        "separate_clusters": 1
+      },
+      "newly_wrong_links_by_candidate_outcome": {
+        "neither_name_is_gold": 8,
+        "only_linked_the_distractor": 93
+      },
+      "newly_wrong_links_by_stock_stage": {
+        "name_not_proposed": 101
+      },
+      "partition_sha256": {
+        "candidate": "901177c5ca43052ed013122f74bfb13e3eb42b0e40e19630802fc393ab18ded8",
+        "stock": "a6987bbb6371b150421a687dc31895d8080df720cf3b349e45daedd6615e0dd2"
+      },
+      "passes_gate": false,
+      "targeted_partial_names": {
+        "correct_links_gained": 42,
+        "exact_proposals_gained": 303,
+        "stock_pairs": 538
+      },
+      "unmarked_spans": {
+        "proposed": {
+          "candidate": 41074,
+          "gained": 4476,
+          "lost": 0,
+          "stock": 36598
+        },
+        "retained": {
+          "candidate": 29907,
+          "gained": 4476,
+          "lost": 11116,
+          "stock": 36547
+        },
+        "returned": {
+          "candidate": 8475,
+          "gained": 936,
+          "lost": 1951,
+          "stock": 9490
+        }
+      },
+      "wrong_links": {
+        "candidate": 164,
+        "gained": 101,
+        "lost": 1,
+        "stock": 64
+      }
+    },
+    "validation": {
+      "changed_partitions": 175,
+      "co_clustered_pairs_among_common_unmarked_spans": {
+        "candidate": 1318,
+        "gained": 1,
+        "lost": 0,
+        "stock": 1317
+      },
+      "correct_links": {
+        "candidate": 33,
+        "gained": 6,
+        "lost": 0,
+        "stock": 27
+      },
+      "excerpts": 454,
+      "gold_pairs": 392,
+      "gold_pairs_with_both_exact_spans": {
+        "proposed": {
+          "candidate": 273,
+          "gained": 62,
+          "lost": 0,
+          "stock": 211
+        },
+        "retained": {
+          "candidate": 271,
+          "gained": 62,
+          "lost": 2,
+          "stock": 211
+        },
+        "returned": {
+          "candidate": 60,
+          "gained": 14,
+          "lost": 2,
+          "stock": 48
+        }
+      },
+      "lost_correct_links_by_candidate_stage": {},
+      "newly_wrong_links_by_candidate_outcome": {
+        "neither_name_is_gold": 1,
+        "only_linked_the_distractor": 16
+      },
+      "newly_wrong_links_by_stock_stage": {
+        "name_not_proposed": 17
+      },
+      "partition_sha256": {
+        "candidate": "e72f045ca01b7ccaa00997fa4513813ec44cc74b9b09367518dcc83b1d8ca7fb",
+        "stock": "3408990d58c81bde6b4d5d4099613436ab89a13c2fea4f83ea42d00fbf0d0a68"
+      },
+      "passes_gate": false,
+      "targeted_partial_names": {
+        "correct_links_gained": 6,
+        "exact_proposals_gained": 62,
+        "stock_pairs": 102
+      },
+      "unmarked_spans": {
+        "proposed": {
+          "candidate": 8855,
+          "gained": 850,
+          "lost": 0,
+          "stock": 8005
+        },
+        "retained": {
+          "candidate": 6735,
+          "gained": 850,
+          "lost": 2094,
+          "stock": 7979
+        },
+        "returned": {
+          "candidate": 2112,
+          "gained": 191,
+          "lost": 371,
+          "stock": 2292
+        }
+      },
+      "wrong_links": {
+        "candidate": 55,
+        "gained": 17,
+        "lost": 2,
+        "stock": 40
+      }
+    }
+  },
+  "source_revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "source_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  },
+  "stock_revision": "01370e52ba97d5a094c3a3a0e9d3b038ef7063f9"
+}
