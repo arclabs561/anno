@@ -136,6 +136,7 @@ jobs:
           name: fcoref-cgroup
           path: ${{ steps.replay.outputs.receipt }}
       - name: Test the pinned Aurelius caller and document budget migration
+        if: "${{ !cancelled() && steps.ort.outcome == 'success' }}"
         env:
           ORT_DYLIB_PATH: ${{ steps.ort.outputs.library }}
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
