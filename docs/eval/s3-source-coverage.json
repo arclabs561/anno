@@ -1,0 +1,61 @@
+{
+  "digests_shared_by_multiple_cache_ids": 1,
+  "digests_shared_by_multiple_objects": 12,
+  "distinct_matched_publisher_digests": 24,
+  "distinct_payload_digests_read": 46,
+  "eligible_listed_ids_without_own_publisher_digest": 18,
+  "eligible_snapshot_positions": {
+    "current": 11
+  },
+  "listing_started_utc": "2026-11-27T03:45:06.772737+00:00",
+  "objects_by_kind": {
+    "legacy": 60,
+    "manifest": 11,
+    "pointer": 11,
+    "snapshot": 11,
+    "unrecognized": 200
+  },
+  "objects_listed": 293,
+  "payload_objects_by_outcome": {
+    "matches_own_publisher_file": 33,
+    "no_independent_corpus_measurement": 2,
+    "no_matching_publisher_digest": 6,
+    "no_own_publisher_digest_and_no_cross_id_match": 20,
+    "public_release_covers_only_part_of_source": 1,
+    "requires_separate_source_access": 4,
+    "shared_read_exclusion": 5
+  },
+  "publisher_digests_compared": 2161,
+  "read_pointer_outcomes": {
+    "read": 11
+  },
+  "registry_entries": 462,
+  "registry_ids_by_eligibility": {
+    "eligible": {
+      "with_payload": 48,
+      "without_payload": 141
+    },
+    "no_independent_corpus_measurement": {
+      "with_payload": 2,
+      "without_payload": 173
+    },
+    "public_release_covers_only_part_of_source": {
+      "with_payload": 1,
+      "without_payload": 10
+    },
+    "requires_separate_source_access": {
+      "with_payload": 4,
+      "without_payload": 70
+    },
+    "shared_read_exclusion": {
+      "with_payload": 5,
+      "without_payload": 8
+    }
+  },
+  "registry_ids_with_any_publisher_match": 24,
+  "registry_ids_with_measured_publisher_digests": 164,
+  "registry_ids_with_own_publisher_match": 24,
+  "registry_ids_with_payload": 60,
+  "repository_commit": "3d2667cf3a2e028ca3004d2ee8c91ba3a6c0d2e2",
+  "workflow_run_id": "45935952288"
+}

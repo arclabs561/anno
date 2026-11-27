@@ -64,6 +64,7 @@ def render(directory, config):
             EVAL / "wnut-submission-results.csv",
         ),
         ("plot_wnut_native.py", EVAL / "wnut-native-comparison.json", directory),
+        ("plot_s3_source_evidence.py", EVAL / "s3-source-coverage.json", directory),
         (
             "plot_genia_nesting.py",
             directory,

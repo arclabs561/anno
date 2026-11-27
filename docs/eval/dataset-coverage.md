@@ -92,7 +92,17 @@ The following actions partition all **241** IDs without an independent content m
 
 ## What the S3 cache establishes
 
-On November 27, trusted CI listed **293 objects**, including **71 registered payload objects for 60 dataset IDs**. Against the 943 publisher digests in that run’s checkout, **33 payload objects matched independently measured files for 24 IDs**. The verifier read 24 more payload objects without a matching reference, and skipped 14 under the source-access and measurement rules. Nine matching objects repeated a measured digest. Eleven snapshot pointers identified current snapshots. The artifact gives the edition, split or subset for each match, including the WNUT-17 and GENIA test inputs. An exact test-file match establishes the identity of that input only. [Dated publisher-match figure and receipts](https://github.com/arclabs561/anno/actions/runs/45932680120/artifacts/15168989664) · [Trusted run](https://github.com/arclabs561/anno/actions/runs/45932680120)
+<!-- coverage-s3 -->
+
+On **2026-11-27 UTC**, trusted CI listed **293 objects** under `datasets/`. It recognized 71 payload objects for **60 registry IDs**. Comparing the eligible bytes with 2,161 independently measured publisher digests identified **33 payload objects for 24 IDs** that matched a file recorded for their own dataset. Each match identifies a particular file or split. [Trusted run](https://github.com/arclabs561/anno/actions/runs/45935952288) · [Counts and exclusions](s3-source-coverage.json) · [File matches and measured units](s3-publisher-file-matches.csv)
+
+<!-- /coverage-s3 -->
+
+![Outcomes for recognized S3 payloads at the dated comparison, including verified publisher-file matches, unmatched reads and skipped reads.](../figures/s3-publisher-matches.png)
+
+The file ledger distinguishes a match to a test input, such as WNUT-17 or GENIA, from a match to a complete release. Identical legacy and snapshot bytes can produce multiple matching objects. Keys outside the recognized registry layout contribute only to the listing count. [File matches and partitions](s3-publisher-file-matches.csv) · [How CI reads and verifies cache objects](../S3_CACHE_CI.md#verify-the-live-dataset-cache)
+
+Between the two November 27 runs, the publisher reference set grew from 943 digests to 2,161. Two additional payloads met the read criteria. Both runs verified the same 24 dataset IDs. In the expanded run, 26 payloads were read without a match and 12 were skipped. For a dataset that still lacks a match, the most useful missing evidence is the publisher revision, split and input digest recorded when that cache was built. [Earlier comparison](https://github.com/arclabs561/anno/actions/runs/45932680120) · [Expanded comparison artifact](https://github.com/arclabs561/anno/actions/runs/45935952288/artifacts/15169944240)
 
 The November 25 authenticated inventory listed **293 objects** and found payloads for **60 registry IDs**. The objects comprised 60 legacy payloads, 11 snapshots, 11 pointers, 11 manifests and 200 unrecognized keys. Five payloads fell under shared-read exclusions and three required a local source. The verifier compared WikiGold's S3 and publisher inputs down to the token labels and 3,558 entity spans. [Inventory and WikiGold verification](https://github.com/arclabs561/anno/actions/runs/45628266135/job/139254208115) · [Verification scope](../S3_CACHE_CI.md#verify-the-live-dataset-cache)
 
