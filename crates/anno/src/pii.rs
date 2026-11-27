@@ -340,26 +340,24 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     let mut sorted: Vec<&PiiEntity> = entities.iter().collect();
     sorted.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
     sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
-    let mut merged: Vec<(usize, usize, &str)> = Vec::with_capacity(sorted.len());
-    for entity in sorted {
-        assert!(entity.start <= entity.end, "PII span ends before it starts");
-        if let Some((_, end, _)) = merged.last_mut() {
-            if span_union::absorb(end, entity.start, entity.end) {
-                continue;
-            }
-        }
-        merged.push((entity.start, entity.end, entity.pii_type.as_str()));
-    }
+    assert!(
+        sorted.iter().all(|entity| entity.start <= entity.end),
+        "PII span ends before it starts"
+    );
+    let merged = merged_runs(sorted.iter().copied());
     // Count down to preserve the historical right-to-left token numbering.
     let mut type_counts = HashMap::<&str, usize>::new();
-    for &(_, _, pii_type) in &merged {
-        *type_counts.entry(pii_type).or_default() += 1;
+    for run in &merged {
+        *type_counts
+            .entry(sorted[run.first].pii_type.as_str())
+            .or_default() += 1;
     }
 
     let mut result = String::with_capacity(text.len());
     let mut chars = text.chars();
     let mut previous_end = 0;
-    for (start, end, pii_type) in merged {
+    for span_union::Run { start, end, first } in merged {
+        let pii_type = sorted[first].pii_type.as_str();
         result.extend(chars.by_ref().take(start - previous_end));
         chars.by_ref().take(end - start).for_each(drop);
         let count = type_counts.get_mut(pii_type).expect("counted merged type");
@@ -558,6 +556,20 @@ pub fn scan_and_redact(text: &str, model: &dyn crate::Model) -> crate::Result<St
     Ok(redact(text, &pii_entities))
 }
 
+/// Character spans in stable input order (start ascending, longest first for ties).
+fn merged_runs<'a>(sorted: impl Iterator<Item = &'a PiiEntity>) -> Vec<span_union::Run> {
+    span_union::union_sorted(
+        sorted
+            .enumerate()
+            .map(|(first, entity)| span_union::Run {
+                start: entity.start,
+                end: entity.end,
+                first,
+            })
+            .collect(),
+    )
+}
+
 /// Remove duplicate PII entities and merge overlaps into their union.
 ///
 /// After merging NER-based and regex-based detections, duplicates and overlaps
@@ -569,27 +581,23 @@ fn dedup_overlapping(text: &str, entities: &mut Vec<PiiEntity>) {
     entities.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
     // Dedup exact duplicates
     entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
-    // Merge overlaps into their union: dropping a span that overlaps a kept one
-    // would remove it from the reported entities and leave its uncovered tail
-    // unredacted. The merged span keeps the type of the earliest-starting span.
-    let mut merged: Vec<PiiEntity> = Vec::with_capacity(entities.len());
-    for entity in entities.drain(..) {
-        if let Some(last) = merged.last_mut() {
-            let previous_end = last.end;
-            if span_union::absorb(&mut last.end, entity.start, entity.end) {
-                if last.end != previous_end {
-                    last.text = text
-                        .chars()
-                        .skip(last.start)
-                        .take(last.end - last.start)
-                        .collect();
-                }
-                continue;
-            }
+    let merged = merged_runs(entities.iter());
+    let count = merged.len();
+    for (dst, run) in merged.into_iter().enumerate() {
+        // Retained source positions increase, so earlier swaps leave this
+        // source in its original slot. Move its strings without cloning.
+        entities.swap(dst, run.first);
+        let entity = &mut entities[dst];
+        if run.end != entity.end {
+            entity.end = run.end;
+            entity.text = text
+                .chars()
+                .skip(run.start)
+                .take(run.end - run.start)
+                .collect();
         }
-        merged.push(entity);
     }
-    *entities = merged;
+    entities.truncate(count);
 }
 
 // ---------------------------------------------------------------------------
@@ -973,6 +981,34 @@ mod tests {
         let mut reversed = entities.clone();
         reversed.reverse();
         assert_eq!(redact(text, &reversed), "[PERSON_1] called.");
+    }
+
+    #[test]
+    fn compacted_runs_retain_each_owners_metadata() {
+        let text = "abé水c🙂de";
+        let entities = [
+            (4, 6, "C", "high", "alias C"),
+            (1, 3, "inner", "low", ""),
+            (7, 8, "E", "low", "alias E"),
+            (0, 2, "A", "high", ""),
+            (3, 4, "B", "mid", "alias B"),
+            (5, 7, "inner", "low", ""),
+        ]
+        .map(|(start, end, kind, risk, surface)| PiiEntity {
+            start,
+            end,
+            pii_type: kind.into(),
+            risk_level: risk.into(),
+            text: surface.into(),
+        });
+        assert_eq!(redact(text, &entities), "[A_1][B_1][C_1][E_1]");
+        assert_eq!(
+            replace(text, &entities, |e| format!(
+                "({},{},{})",
+                e.pii_type, e.risk_level, e.text
+            )),
+            "(A,high,abé)(B,mid,alias B)(C,high,c🙂d)(E,low,alias E)",
+        );
     }
 
     #[test]

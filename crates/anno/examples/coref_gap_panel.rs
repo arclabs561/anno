@@ -1,6 +1,7 @@
 //! Stream labeled-corpus excerpts into one resolver without exposing gold links.
+#[cfg(feature = "onnx")]
+use anno::backends::coref::fcoref::FCoref;
 use anno::backends::coref::{
-    fcoref::FCoref,
     mention_ranking::{MentionRankingConfig, MentionRankingCoref},
     MaverickCoref,
 };
@@ -60,6 +61,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
         "mention-ranking" | "mention-ranking-copula" => None,
+        #[cfg(not(feature = "onnx"))]
+        "fcoref" => return Err("fcoref requires the onnx feature".into()),
+        #[cfg(feature = "onnx")]
         "fcoref" => Some(Box::new(FCoref::from_path(&std::env::var(
             "FCOREF_MODEL_PATH",
         )?)?)),

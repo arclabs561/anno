@@ -6,7 +6,11 @@ use std::{env, fs, path::Path, time::Instant};
 use tokenizers::Tokenizer;
 
 fn fixture(dir: &Path, count: usize) -> (String, Vec<(usize, usize)>) {
-    let text = "x ".repeat(count - 19)
+    // The caller-cap fixture starts with nonbreaking whitespace. Pretokenized
+    // surfaces are unchanged, but subsequent byte and character offsets differ.
+    let prefix = if count >= 4096 { "\u{a0}" } else { "" };
+    let text = prefix.to_owned()
+        + &"x ".repeat(count - 19)
         + "Alice reviewed the proposal. She approved it. Bob objected. She overruled him.";
     let words: Vec<_> = Regex::new(r"\w+|[^\s\w]")
         .unwrap()
@@ -34,11 +38,16 @@ fn main() {
         "choose one or two encoder threads"
     );
     assert!(
-        (511..=522).contains(&count),
-        "fixture supports 511–522 encoded tokens"
+        matches!(count, 511..=522 | 4096 | 4097),
+        "fixture supports 511–522, 4096, or 4097 encoded tokens"
     );
     let dir = Path::new(model_dir);
     let (text, words) = fixture(dir, count);
+    let byte_boundaries: Vec<_> = text
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(text.len()))
+        .collect();
     let ref_text = include_str!("../tests/fixtures/fcoref_word_budget.json");
     let reference: Vec<(usize, usize, f32)> = serde_json::from_str(ref_text).unwrap();
     let load = Instant::now();
@@ -73,7 +82,10 @@ fn main() {
                 .iter()
                 .enumerate()
                 .map(|(i, m)| {
-                    assert_eq!(m.text, text[m.character_start..m.character_end]);
+                    assert_eq!(
+                        m.text,
+                        text[byte_boundaries[m.character_start]..byte_boundaries[m.character_end]]
+                    );
                     if count == 521 {
                         let (s, e, score) = reference[i];
                         assert_eq!((s, e), (m.character_start, m.character_end));
