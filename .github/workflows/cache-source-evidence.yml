@@ -1,5 +1,18 @@
 name: Compare S3 cache with measured publisher files
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cache-source-evidence.yml
+      - scripts/qa/cache_source_evidence.py
+      - scripts/plot_s3_source_evidence.py
+      - docs/eval/dataset-coverage.csv
+      - docs/eval/dataset-direct-files.csv
+      - docs/eval/dataset-github-sources.csv
+      - docs/eval/dataset-hf-splits.csv
+      - docs/eval/dataset-repo-files.csv
 
 permissions: {}
 
@@ -22,7 +35,9 @@ jobs:
         with:
           enable-cache: false
       - name: Install the pinned comparison dependencies
-        run: uv sync --python 3.12 --script scripts/qa/cache_source_evidence.py
+        run: |
+          uv sync --python 3.12 --script scripts/qa/cache_source_evidence.py
+          uv sync --python 3.12 --script scripts/plot_s3_source_evidence.py
       - name: Assume the cache role for the dataset prefix listing
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
         with:
@@ -35,6 +50,13 @@ jobs:
         run: >-
           uv run --offline --python 3.12 --script scripts/qa/cache_source_evidence.py
           "$RUNNER_TEMP/cache-source-evidence" --bucket "$BUCKET" --role "$CACHE_ROLE"
+      - name: Plot the measured-file comparison
+        if: ${{ !cancelled() }}
+        run: |
+          evidence="$RUNNER_TEMP/cache-source-evidence"
+          if test -f "$evidence/cache-source-coverage.json"; then
+            uv run --offline --python 3.12 --script scripts/plot_s3_source_evidence.py "$evidence/cache-source-coverage.json" "$evidence"
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: ${{ !cancelled() }}
         with:
@@ -42,5 +64,7 @@ jobs:
           path: |
             ${{ runner.temp }}/cache-source-evidence/cache-source-coverage.json
             ${{ runner.temp }}/cache-source-evidence/publisher-file-matches.csv
+            ${{ runner.temp }}/cache-source-evidence/s3-publisher-matches.png
+            ${{ runner.temp }}/cache-source-evidence/s3-publisher-matches.svg
           if-no-files-found: error
           retention-days: 30
