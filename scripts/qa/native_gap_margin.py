@@ -98,14 +98,15 @@ def lookup(row, trace):
                   margin, above_threshold, len(visits), stage, len(supported))
 
 
-def run(rows, worker):
+def run(rows, worker, *, book_distance=False):
     with tempfile.TemporaryDirectory() as directory:
         source, output = (Path(directory) / name for name in ("input.jsonl", "trace.jsonl"))
         with source.open("w", encoding="utf-8") as f:
             for row in rows:
                 print(json.dumps(payload(row, "supplied")), file=f)
         env = dict(os.environ, ANNO_GAP_TRACE_INPUT=str(source), ANNO_GAP_TRACE_OUTPUT=str(output))
-        subprocess.run([str(worker.resolve()), "gap_supplied_trace::trace_supplied_ranking", "--ignored"],
+        test = "trace_stock_book_distance" if book_distance else "trace_supplied_ranking"
+        subprocess.run([str(worker.resolve()), f"gap_supplied_trace::{test}", "--ignored"],
                        env=env, check=True, stdout=subprocess.DEVNULL)
         with output.open(encoding="utf-8") as f:
             return [lookup(row, json.loads(trace)) for row, trace in zip(rows, f, strict=True)]

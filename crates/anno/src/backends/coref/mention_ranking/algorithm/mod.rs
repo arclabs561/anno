@@ -814,7 +814,7 @@ impl MentionRankingCoref {
         for j in (0..i).rev().take(max_antecedents) {
             let antecedent = &mentions[j];
 
-            // Also check character distance as a fallback
+            // Stop at the first gap beyond the inclusive character limit.
             let distance = mention.start.saturating_sub(antecedent.end);
             if distance > self.config.max_distance {
                 break;

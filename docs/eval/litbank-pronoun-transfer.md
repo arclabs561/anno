@@ -12,6 +12,17 @@ The 0.15 comparator changed zero issued targets. Correct and wrong counts were u
 
 Of the 1,296 answerable questions, 686 correct names lay outside the native antecedent distance limit. In another 546 the correct name ranked first but failed the stock threshold. In 57 a competitor outscored it. The remaining seven were linked correctly. Each prediction used the pronoun and two marked spans with the same generic mention type. Distances and name surfaces matter on this path. The experiment does not measure finding mentions in raw prose. [Ranker and trace protocol](native-gap-margin.md)
 
+## Does widening the search recover links?
+
+Widening the distance limit from 100 to 500 Unicode scalars brought all 686 formerly unreachable correct names into consideration. It changed zero answers across 62 works. Of those newly reachable names, 371 ranked first but missed the stock acceptance threshold, and 315 lost to the other name. The wider search scored 3,580 pronoun–name pairs, up from 1,218. Seven of the 1,296 answerable cases received the correct link at either distance. [Paired distance receipt](litbank-pronoun-distance.json)
+
+| Maximum gap | Eligible correct names | Correct names selected directly | Correct / wrong / abstained |
+|---|---:|---:|---:|
+| 100 scalars | 610 | 7 | 7 / 14 / 1,769 |
+| 500 scalars | 1,296 | 7 | 7 / 14 / 1,769 |
+
+This exploratory replay used the previously inspected panel. We fixed one alternative beforehand, taking 500 from the repository’s book-scale preset and keeping every other stock setting. The panel’s own 500-scalar lookback bounds both offered names, so full eligibility at that cap follows from case selection. The scorer still penalizes longer gaps and rewards proximity. The cap applies alongside the type-specific count limit and includes a gap equal to the cap. Four authored controls record actual scored visits at gaps of 100, 101, 500 and 501 with multibyte padding. [Replay script and controls](../../scripts/qa/litbank_pronoun_distance.py) · [Native scoring](../../crates/anno/src/backends/coref/mention_ranking/algorithm/scoring.rs)
+
 ## How the transfer questions were chosen
 
 We froze selection before applying the development rule. We examined 63 works from the pinned LitBank release, the complement of Anno's earlier 27-work competing-name panel and ten-work fold-0 panel. The existing BRAT reader checks source text at the annotated ranges, joins coreference and entity layers, and discards ambiguous chain identifiers. Among the aligned person pronouns, we considered every occurrence of *he*, *she*, *him*, *her*, *his* and *hers*. The selector looks back 500 Unicode scalars for two preceding, nonoverlapping, proper person names with distinct case-folded surfaces. It chooses the most recently ending name, then the nearest qualifying earlier name. A is the earlier position and B the later one. Only after both positions are fixed does it read their relationship to the pronoun's chain. The excerpt starts at the beginning of the lookback and includes up to 80 scalars after the pronoun. [Selector](../../scripts/qa/litbank_pronoun_transfer.py) · [Source reader](../../scripts/qa/coref_corpora/litbank.py)
@@ -32,6 +43,12 @@ python3 scripts/qa/litbank_pronoun_transfer.py "$litbank" "$gap" "$private/panel
 python3 scripts/qa/native_gap_margin.py freeze "$gap/gap-development.tsv" "$stock" "$neutral" "$private/policy.json" "$private/development.json"
 cmp "$private/policy.json" docs/eval/native-gap-margin-policy.json
 python3 scripts/qa/native_gap_margin.py score "$private/panel.tsv" "$stock" "$neutral" "$private/policy.json" "$private/score.json" --development-receipt "$private/development.json"
+```
+
+Run the distance comparison with a stock worker built from a checkout containing both trace entry points:
+
+```sh
+python3 scripts/qa/litbank_pronoun_distance.py "$private/panel.tsv" "$stock" "$private/distance.json" --check
 ```
 
 Rebuilt executables can have different hashes. Compare the selection, policy and score fields and use the local development receipt to bind the scoring run to the same executables.

@@ -84,8 +84,8 @@ pub struct MentionRankingConfig {
     /// Default: 300.
     pub nominal_max_antecedents: usize,
 
-    /// Legacy uniform max distance (in characters). Used as fallback.
-    /// Prefer type-specific limits for better accuracy.
+    /// Inclusive scalar gap from the prior mention's end to the current start.
+    /// Both clustering strategies apply it alongside the type-specific candidate count.
     pub max_distance: usize,
 
     // =========================================================================
@@ -234,7 +234,7 @@ impl Default for MentionRankingConfig {
             proper_max_antecedents: 300,  // Can span 1700+ mentions
             nominal_max_antecedents: 300, // Similar to proper nouns
 
-            // Legacy uniform limit (fallback)
+            // Uniform Unicode-scalar gap cap
             max_distance: 100,
 
             // Global proper noun coreference

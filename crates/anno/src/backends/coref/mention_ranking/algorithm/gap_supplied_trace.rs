@@ -14,10 +14,23 @@ struct Input {
 #[test]
 #[ignore = "set ANNO_GAP_TRACE_INPUT and ANNO_GAP_TRACE_OUTPUT to local JSONL paths"]
 fn trace_supplied_ranking() {
+    trace(MentionRankingCoref::new());
+}
+
+#[test]
+#[ignore = "local corpus replay changing only the default character-distance cap"]
+fn trace_stock_book_distance() {
+    let config = MentionRankingConfig {
+        max_distance: MentionRankingConfig::book_scale().max_distance,
+        ..MentionRankingConfig::default()
+    };
+    trace(MentionRankingCoref::with_config(config));
+}
+
+fn trace(model: MentionRankingCoref) {
     let input = std::fs::File::open(std::env::var("ANNO_GAP_TRACE_INPUT").unwrap()).unwrap();
     let output = std::fs::File::create(std::env::var("ANNO_GAP_TRACE_OUTPUT").unwrap()).unwrap();
     let mut writer = std::io::BufWriter::new(output);
-    let model = MentionRankingCoref::new();
     assert!(matches!(
         model.config.clustering_strategy,
         ClusteringStrategy::LeftToRight
