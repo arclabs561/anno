@@ -36,7 +36,6 @@ BERT_FILES = {
     "tokenizer.json": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34",
     "config.json": "e3cc09261a1c73bda961e030563585b2be563bef339a78e11c802c3377b98d66",
 }
-LABELS = set(PROJECTION.values())
 
 
 def file_sha(path):
@@ -46,6 +45,19 @@ def file_sha(path):
 
 def text_sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def verify_checkpoints(checkpoint, bert):
+    if (bert / "model_quantized.onnx").exists():
+        raise ValueError(
+            "The local BERT loader would select a quantized graph instead of the pinned FP32 graph"
+        )
+    for directory, members in ((checkpoint, FILES), (bert, BERT_FILES)):
+        for path, expected in members.items():
+            if file_sha(directory / path) != expected:
+                raise ValueError(
+                    f"Unexpected pinned checkpoint member {directory / path}"
+                )
 
 
 def run_worker(binary, checkpoint, cases, bert=None):
@@ -70,34 +82,57 @@ def run_worker(binary, checkpoint, cases, bert=None):
     return rows
 
 
-def add_case(totals, text, source_gold, old_rows, new_rows, training_names):
-    gold = {(a, b, PROJECTION[t]) for a, b, t in source_gold}
+def add_case(
+    totals,
+    text,
+    source_gold,
+    old_rows,
+    new_rows,
+    training_names,
+    projection=PROJECTION,
+    by_label=None,
+):
+    labels = set(projection.values())
+    gold = {(a, b, projection[t]) for a, b, t in source_gold}
     if len(gold) != len(source_gold):
         raise ValueError("Projected gold collision")
-    unseen = {v for v in gold if text[v[0] : v[1]].casefold() not in training_names}
     old, new = ({tuple(s) for s in rows} for rows in (old_rows, new_rows))
-    old_fp, new_fp = ({s for s in arm - gold if s[2] in LABELS} for arm in (old, new))
+    old_fp, new_fp = ({s for s in arm - gold if s[2] in labels} for arm in (old, new))
     gained, lost = (new - old) & gold, (old - new) & gold
     totals.update(
         {
             "gold": len(gold),
-            "unfamiliar_gold": len(unseen),
             "gold_empty_sentences": int(not gold),
             "stock_exact": len(old & gold),
             "candidate_exact": len(new & gold),
             "exact_gained": len(gained),
             "exact_lost": len(lost),
-            "unfamiliar_gained": len(gained & unseen),
-            "unfamiliar_lost": len(lost & unseen),
             "stock_in_schema_unmatched": len(old_fp),
             "candidate_in_schema_unmatched": len(new_fp),
             "in_schema_unmatched_added": len(new_fp - old_fp),
             "in_schema_unmatched_removed": len(old_fp - new_fp),
-            "stock_outside_schema": sum(s[2] not in LABELS for s in old),
-            "candidate_outside_schema": sum(s[2] not in LABELS for s in new),
+            "stock_outside_schema": sum(s[2] not in labels for s in old),
+            "candidate_outside_schema": sum(s[2] not in labels for s in new),
             "sentences_with_changed_output": int(new != old),
         }
     )
+    if training_names is not None:
+        unseen = {v for v in gold if text[v[0] : v[1]].casefold() not in training_names}
+        totals.update(
+            unfamiliar_gold=len(unseen),
+            unfamiliar_gained=len(gained & unseen),
+            unfamiliar_lost=len(lost & unseen),
+        )
+    if by_label is not None:
+        for name, spans in (
+            ("gold", gold),
+            ("exact_gained", gained),
+            ("exact_lost", lost),
+            ("unmatched_added", new_fp - old_fp),
+            ("unmatched_removed", old_fp - new_fp),
+        ):
+            for _, _, label in spans:
+                by_label[label][name] += 1
 
 
 def timing(rows):
@@ -121,7 +156,34 @@ def gold_label_counts(cases, gates):
     return {"full_split": dict(all_labels), "stock_skipped": dict(skipped_labels)}
 
 
-def measure(split, cases, names, args, gates, bert):
+def map_prediction_labels(rows, aliases, gold, counts):
+    mapped = []
+    for start, end, label in rows:
+        span = (start, end, aliases.get(label, label))
+        if label in aliases:
+            counts[label]["emitted"] += 1
+            counts[label]["exact_after_mapping"] += int(span in gold)
+        mapped.append(span)
+    if len(set(mapped)) != len(mapped):
+        raise ValueError("Projected prediction collision")
+    return mapped
+
+
+def measure(
+    split,
+    cases,
+    names,
+    args,
+    gates,
+    bert,
+    *,
+    projection=PROJECTION,
+    prediction_aliases=None,
+    by_label=None,
+    skipped_calls=None,
+    repeat_skipped_timing=False,
+):
+    labels = set(projection.values())
     skipped = [i for i, row in enumerate(gates) if not row["ran"]]
     routed = [i for i, row in enumerate(gates) if row["ran"]]
     controls = sorted(routed, key=lambda i: (text_sha(cases[i][0]), i))[:8]
@@ -136,9 +198,8 @@ def measure(split, cases, names, args, gates, bert):
     stock = run_worker(args.stock, args.checkpoint, cases, bert)
     if any(row["ran"] != gate["ran"] for row, gate in zip(stock, gates, strict=True)):
         raise ValueError("The loaded stock layers disagreed with the routing probe")
-    candidate = run_worker(
-        args.always if bert else args.candidate, args.checkpoint, inputs, bert
-    )
+    candidate_worker = args.always if bert else args.candidate
+    candidate = run_worker(candidate_worker, args.checkpoint, inputs, bert)
     changed = dict(zip(selected, candidate, strict=True))
     if not all(row["ran"] for row in candidate):
         raise ValueError("The comparison must run NuNER on every selected sentence")
@@ -157,17 +218,54 @@ def measure(split, cases, names, args, gates, bert):
             if row["ran"] != stock[i]["ran"] or row["spans"] != stock[i]["spans"]:
                 raise ValueError("BERT-backed output changed under the proposed guard")
     all_counts, skipped_counts, added_errors = Counter(), Counter(), Counter()
+    alias_counts = {
+        arm: {
+            label: {"emitted": 0, "exact_after_mapping": 0}
+            for label in (prediction_aliases or {})
+        }
+        for arm in ("stock", "candidate")
+    }
     for i, (text, gold) in enumerate(cases):
         # All inputs for which code paths differ have measured candidate outputs.
         old = stock[i]["spans"]
         new = changed.get(i, stock[i])["spans"]
-        add_case(all_counts, text, gold, old, new, names)
+        targets = {(a, b, projection[t]) for a, b, t in gold}
+        if prediction_aliases:
+            old = map_prediction_labels(
+                old, prediction_aliases, targets, alias_counts["stock"]
+            )
+            new = map_prediction_labels(
+                new, prediction_aliases, targets, alias_counts["candidate"]
+            )
+        case_counts = Counter()
+        add_case(
+            case_counts,
+            text,
+            gold,
+            old,
+            new,
+            names,
+            projection,
+            by_label=None if stock[i]["ran"] else by_label,
+        )
+        all_counts.update(case_counts)
         if stock[i]["ran"]:
             continue
-        add_case(skipped_counts, text, gold, old, new, names)
-        targets = {(a, b, PROJECTION[t]) for a, b, t in gold}
+        skipped_counts.update(case_counts)
+        if skipped_calls is not None:
+            gain = bool(case_counts["exact_gained"])
+            extra = bool(case_counts["in_schema_unmatched_added"])
+            skipped_calls.update(
+                {
+                    "gained_with_added_unmatched": int(gain and extra),
+                    "gained_without_added_unmatched": int(gain and not extra),
+                    "no_gain_with_added_unmatched": int(not gain and extra),
+                    "no_gain_without_added_unmatched": int(not gain and not extra),
+                    "any_exact_loss": int(bool(case_counts["exact_lost"])),
+                }
+            )
         for a, b, kind in ({tuple(s) for s in new} - {tuple(s) for s in old}) - targets:
-            if kind not in LABELS:
+            if kind not in labels:
                 continue
             if any(a == start and b == end for start, end, _ in targets):
                 reason = "same_span_wrong_label"
@@ -183,7 +281,23 @@ def measure(split, cases, names, args, gates, bert):
         file=sys.stderr,
         flush=True,
     )
-    return {
+    timed = {
+        "stock": [stock[i] for i in skipped],
+        "candidate": [changed[i] for i in skipped],
+    }
+    if repeat_skipped_timing:
+        timed_cases = [cases[i] for i in skipped]
+        for name, binary in (("stock", args.stock), ("candidate", candidate_worker)):
+            measured = run_worker(binary, args.checkpoint, timed_cases, bert)
+            if any(
+                r["ran"] != s["ran"] or r["spans"] != s["spans"]
+                for r, s in zip(measured, timed[name], strict=True)
+            ):
+                raise ValueError(
+                    f"The repeated {name} timing pass changed routing or predictions"
+                )
+            timed[name] = measured
+    result = {
         "all_sentences": len(cases),
         "stock_skipped": len(skipped),
         "stock_routed": len(routed),
@@ -193,10 +307,12 @@ def measure(split, cases, names, args, gates, bert):
         "skipped_subset": dict(skipped_counts),
         "added_unmatched_by_overlap": dict(added_errors),
         "warm_skipped_subset_latency": {
-            "stock": timing([stock[i] for i in skipped]),
-            "candidate": timing([changed[i] for i in skipped]),
+            name: timing(rows) for name, rows in timed.items()
         },
     }
+    if prediction_aliases:
+        result["full_split_prediction_alias_counts"] = alias_counts
+    return result
 
 
 def main():
@@ -212,14 +328,10 @@ def main():
     ):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
-    if (args.bert / "model_quantized.onnx").exists():
-        parser.error(
-            "The local BERT loader would select a quantized graph instead of the pinned FP32 graph"
-        )
-    for directory, members in ((args.checkpoint, FILES), (args.bert, BERT_FILES)):
-        for path, expected in members.items():
-            if file_sha(directory / path) != expected:
-                parser.error(f"Unexpected pinned checkpoint member {directory / path}")
+    try:
+        verify_checkpoints(args.checkpoint, args.bert)
+    except ValueError as error:
+        parser.error(str(error))
     with MANIFEST.open(newline="", encoding="utf-8") as f:
         hashes = {
             r["path"]: r["sha256"]

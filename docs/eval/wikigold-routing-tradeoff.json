@@ -1,0 +1,75 @@
+{
+  "schema": "anno.tradeoff/v1",
+  "series": [
+    {
+      "gold": 264,
+      "label": "WNUT-17 test · BERT absent",
+      "observations": 295,
+      "points": [
+        {
+          "correct": 31,
+          "label": "Stock",
+          "unmatched": 257
+        },
+        {
+          "correct": 111,
+          "label": "Run NuNER",
+          "unmatched": 397
+        }
+      ]
+    },
+    {
+      "gold": 264,
+      "label": "WNUT-17 test · BERT loaded",
+      "observations": 295,
+      "points": [
+        {
+          "correct": 87,
+          "label": "Stock",
+          "unmatched": 263
+        },
+        {
+          "correct": 101,
+          "label": "Run NuNER",
+          "unmatched": 382
+        }
+      ]
+    },
+    {
+      "gold": 731,
+      "label": "WikiGold · BERT absent",
+      "observations": 313,
+      "points": [
+        {
+          "correct": 231,
+          "label": "Stock",
+          "unmatched": 307
+        },
+        {
+          "correct": 435,
+          "label": "Run NuNER",
+          "unmatched": 274
+        }
+      ]
+    },
+    {
+      "gold": 731,
+      "label": "WikiGold · BERT loaded",
+      "observations": 313,
+      "points": [
+        {
+          "correct": 563,
+          "label": "Stock",
+          "unmatched": 233
+        },
+        {
+          "correct": 567,
+          "label": "Run NuNER",
+          "unmatched": 254
+        }
+      ]
+    }
+  ],
+  "title": "Running NuNER on stock-skipped sentences",
+  "unit": "sentences"
+}

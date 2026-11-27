@@ -1,0 +1,288 @@
+{
+  "arms": {
+    "with_bert": {
+      "added_unmatched_by_overlap": {
+        "different_overlapping_span": 1,
+        "no_reference_overlap": 21,
+        "same_span_wrong_label": 1
+      },
+      "all_sentences": 1696,
+      "full_split": {
+        "candidate_exact": 2854,
+        "candidate_in_schema_unmatched": 1351,
+        "candidate_outside_schema": 279,
+        "exact_gained": 4,
+        "exact_lost": 0,
+        "gold": 3558,
+        "gold_empty_sentences": 355,
+        "in_schema_unmatched_added": 23,
+        "in_schema_unmatched_removed": 2,
+        "sentences_with_changed_output": 26,
+        "stock_exact": 2850,
+        "stock_in_schema_unmatched": 1330,
+        "stock_outside_schema": 279
+      },
+      "full_split_prediction_alias_counts": {
+        "candidate": {
+          "misc": {
+            "emitted": 857,
+            "exact_after_mapping": 497
+          }
+        },
+        "stock": {
+          "misc": {
+            "emitted": 857,
+            "exact_after_mapping": 497
+          }
+        }
+      },
+      "guarded_healthy_bert_controls": 16,
+      "routed_control_sentences": 8,
+      "skipped_by_label": {
+        "LOC": {
+          "exact_gained": 0,
+          "exact_lost": 0,
+          "gold": 215,
+          "unmatched_added": 3,
+          "unmatched_removed": 0
+        },
+        "MISC": {
+          "exact_gained": 0,
+          "exact_lost": 0,
+          "gold": 145,
+          "unmatched_added": 0,
+          "unmatched_removed": 0
+        },
+        "ORG": {
+          "exact_gained": 4,
+          "exact_lost": 0,
+          "gold": 165,
+          "unmatched_added": 12,
+          "unmatched_removed": 1
+        },
+        "PER": {
+          "exact_gained": 0,
+          "exact_lost": 0,
+          "gold": 206,
+          "unmatched_added": 8,
+          "unmatched_removed": 1
+        }
+      },
+      "skipped_sentence_outcomes": {
+        "any_exact_loss": 0,
+        "gained_with_added_unmatched": 0,
+        "gained_without_added_unmatched": 4,
+        "no_gain_with_added_unmatched": 22,
+        "no_gain_without_added_unmatched": 287
+      },
+      "skipped_subset": {
+        "candidate_exact": 567,
+        "candidate_in_schema_unmatched": 254,
+        "candidate_outside_schema": 102,
+        "exact_gained": 4,
+        "exact_lost": 0,
+        "gold": 731,
+        "gold_empty_sentences": 27,
+        "in_schema_unmatched_added": 23,
+        "in_schema_unmatched_removed": 2,
+        "sentences_with_changed_output": 26,
+        "stock_exact": 563,
+        "stock_in_schema_unmatched": 233,
+        "stock_outside_schema": 102
+      },
+      "stock_routed": 1383,
+      "stock_skipped": 313,
+      "warm_skipped_subset_latency": {
+        "candidate": {
+          "calls": 313,
+          "median_ms": 829.12,
+          "p95_ms": 1416.74,
+          "total_seconds": 285.573
+        },
+        "stock": {
+          "calls": 313,
+          "median_ms": 77.99,
+          "p95_ms": 145.04,
+          "total_seconds": 26.781
+        }
+      }
+    },
+    "without_bert": {
+      "added_unmatched_by_overlap": {
+        "different_overlapping_span": 60,
+        "no_reference_overlap": 24,
+        "same_span_wrong_label": 31
+      },
+      "all_sentences": 1696,
+      "full_split": {
+        "candidate_exact": 2238,
+        "candidate_in_schema_unmatched": 1371,
+        "candidate_outside_schema": 280,
+        "exact_gained": 220,
+        "exact_lost": 16,
+        "gold": 3558,
+        "gold_empty_sentences": 355,
+        "in_schema_unmatched_added": 115,
+        "in_schema_unmatched_removed": 148,
+        "sentences_with_changed_output": 205,
+        "stock_exact": 2034,
+        "stock_in_schema_unmatched": 1404,
+        "stock_outside_schema": 280
+      },
+      "full_split_prediction_alias_counts": {
+        "candidate": {
+          "misc": {
+            "emitted": 0,
+            "exact_after_mapping": 0
+          }
+        },
+        "stock": {
+          "misc": {
+            "emitted": 0,
+            "exact_after_mapping": 0
+          }
+        }
+      },
+      "guarded_healthy_bert_controls": 0,
+      "routed_control_sentences": 8,
+      "skipped_by_label": {
+        "LOC": {
+          "exact_gained": 76,
+          "exact_lost": 2,
+          "gold": 215,
+          "unmatched_added": 26,
+          "unmatched_removed": 27
+        },
+        "MISC": {
+          "exact_gained": 0,
+          "exact_lost": 0,
+          "gold": 145,
+          "unmatched_added": 0,
+          "unmatched_removed": 0
+        },
+        "ORG": {
+          "exact_gained": 62,
+          "exact_lost": 12,
+          "gold": 165,
+          "unmatched_added": 61,
+          "unmatched_removed": 61
+        },
+        "PER": {
+          "exact_gained": 82,
+          "exact_lost": 2,
+          "gold": 206,
+          "unmatched_added": 28,
+          "unmatched_removed": 60
+        }
+      },
+      "skipped_sentence_outcomes": {
+        "any_exact_loss": 11,
+        "gained_with_added_unmatched": 33,
+        "gained_without_added_unmatched": 115,
+        "no_gain_with_added_unmatched": 57,
+        "no_gain_without_added_unmatched": 108
+      },
+      "skipped_subset": {
+        "candidate_exact": 435,
+        "candidate_in_schema_unmatched": 274,
+        "candidate_outside_schema": 102,
+        "exact_gained": 220,
+        "exact_lost": 16,
+        "gold": 731,
+        "gold_empty_sentences": 27,
+        "in_schema_unmatched_added": 115,
+        "in_schema_unmatched_removed": 148,
+        "sentences_with_changed_output": 205,
+        "stock_exact": 231,
+        "stock_in_schema_unmatched": 307,
+        "stock_outside_schema": 102
+      },
+      "stock_routed": 1383,
+      "stock_skipped": 313,
+      "warm_skipped_subset_latency": {
+        "candidate": {
+          "calls": 313,
+          "median_ms": 640.71,
+          "p95_ms": 1088.6,
+          "total_seconds": 222.983
+        },
+        "stock": {
+          "calls": 313,
+          "median_ms": 0.19,
+          "p95_ms": 1.12,
+          "total_seconds": 0.111
+        }
+      }
+    }
+  },
+  "bert_checkpoint": "protectai/bert-base-NER-onnx@84d28ab2bc28401b4353b26033eb043c8c8a0739",
+  "bert_sha256": {
+    "config.json": "e3cc09261a1c73bda961e030563585b2be563bef339a78e11c802c3377b98d66",
+    "model.onnx": "e2165e300f6e0016c1f295bcdee36e084371e1f4f3564cd7e47cb833b58a75b7",
+    "tokenizer.json": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34"
+  },
+  "checkpoint": "deepanwa/NuNerZero_onnx@40349bb15d985ced384bed5c35115fd70069f4b9",
+  "checkpoint_sha256": {
+    "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+    "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+    "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+  },
+  "gold_by_source_label": {
+    "full_split": {
+      "LOC": 1014,
+      "MISC": 712,
+      "ORG": 898,
+      "PER": 934
+    },
+    "stock_skipped": {
+      "LOC": 215,
+      "MISC": 145,
+      "ORG": 165,
+      "PER": 206
+    }
+  },
+  "identical_worker_bytes_to_wnut": true,
+  "launcher_cpu_affinity": [
+    0,
+    1
+  ],
+  "nuner_threshold": 0.9,
+  "output_threshold": 0.5,
+  "patch_sha256": {
+    "nuner-always-routing.patch": "162fe59395f70f760a72ff915a4f424d22b8d29792bfb20fbd5a464743a3c70d",
+    "nuner-fallback-routing.patch": "c8fdd69326d2060c53b43e6870b488a777685fcb45d3d5ed6442bc0d318d7558"
+  },
+  "prediction_aliases": {
+    "misc": "MISC"
+  },
+  "projection": {
+    "LOC": "LOC",
+    "MISC": "MISC",
+    "ORG": "ORG",
+    "PER": "PER"
+  },
+  "reference_wnut_baseline_revision": "75f961e54631774b4e74547a383eaf8fc79a772d",
+  "reference_wnut_receipt_sha256": "68215f0cbab1ac8c166c1353e9fe77eb0f4e714e5782e380e62132dfc38b262e",
+  "source": {
+    "bytes": 318530,
+    "cold_s3_artifact": 15123052847,
+    "cold_s3_receipt": "wikigold-cold.json",
+    "cold_s3_workflow_run": 45834640325,
+    "distinct_sentence_texts": 1687,
+    "document_markers_excluded": 145,
+    "documents_with_sentences": 145,
+    "gold_empty_sentences": 355,
+    "gold_spans": 3558,
+    "native_gold_cases_sha256": "25ebf59f7db0e89410130ae9e99f1293f24548742e62185c605699eb109d916d",
+    "publisher": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt",
+    "sentence_occurrences": 1696,
+    "sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+    "tagged_tokens": 6431,
+    "tokens": 39007
+  },
+  "worker_sha256": {
+    "always": "226df4076f691224135f3fdb9c345831443ba94f15c62f4fd43f7aa2bfb2e173",
+    "candidate": "e69de290913ee1b8f650af34cfb4636df6bdf68ca6be805cbc2bd6b8544839fa",
+    "stock": "f597da6b531716259d550b9c67e7a9876337a4fd05282cf296f1231c6e7c8242"
+  }
+}
