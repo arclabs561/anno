@@ -2,6 +2,8 @@
 crates/anno-eval/fixtures/matrix-smoke.conll text eol=lf
 scripts/qa/fixtures/matrix-smoke-timex.jsonl text eol=lf
 scripts/qa/fixtures/timex-contrast/rows.jsonl text eol=lf
+# The frozen unified diff uses one context-marker space for an empty source line.
+scripts/qa/fixtures/native-gap-multiword.patch text eol=lf whitespace=-blank-at-eol
 crates/anno-py/examples/bulletins/bulletin-edition-*.txt text eol=lf
 
 # Raw SHA-256 identities for the bibliography frame and sealed study.

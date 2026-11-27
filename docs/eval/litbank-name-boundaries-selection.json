@@ -1,0 +1,12 @@
+{
+  "complete_works": 27,
+  "exact_proper_person_by_words": {
+    "multiword": 196,
+    "one_word": 241
+  },
+  "gold_annotated_boundaries": 7377,
+  "litbank_brat_manifest_sha256": "3ea0274466d12f3731f2007134575282ca2a47aafc4d6ce855a1f239946e3288",
+  "revision": "3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+  "source_scalars": 297234,
+  "work_and_gold_sha256": "69fef0fe12308cc20eba781c9c074b8ab9611d2dc5b0e27e5b75b4eb6bbe3c87"
+}

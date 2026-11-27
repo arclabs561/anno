@@ -139,9 +139,10 @@ pub struct MentionRankingConfig {
     // =========================================================================
     // i2b2-inspired rule-based features (Chen et al. 2011)
     // =========================================================================
-    /// Enable "be phrase" detection for identity linking.
-    /// Patterns like "X is Y" or "resolution of X is Y" strongly indicate coreference.
-    /// From i2b2 clinical coref: achieved high precision on medical texts.
+    /// Add a score bonus for linking phrases such as "is" or "also known as"
+    /// between two mentions. A bare denial such as "X is not Y" receives no
+    /// bonus. Other uses of "is", including "X is helping Y", can still fire.
+    /// This lexical heuristic is inspired by Chen et al. (2011).
     pub enable_be_phrase_detection: bool,
 
     /// Weight for be-phrase identity signal.

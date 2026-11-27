@@ -2320,6 +2320,29 @@ mod tests {
     // =========================================================================
 
     #[test]
+    fn explicit_denial_withholds_the_copula_bonus_in_returned_clusters() {
+        let model = MentionRankingCoref::with_config(MentionRankingConfig {
+            enable_be_phrase_detection: true,
+            ..Default::default()
+        });
+        for (connector, expected) in [
+            ("is", true),
+            ("is not", false),
+            ("was", true),
+            ("was NOT", false),
+            ("is  not", false),
+            ("also known as", true),
+        ] {
+            let text = format!("Witnesses confirmed Zoë {connector} Iva.");
+            let groups = crate::CorefBackend::resolve(&model, &text).unwrap();
+            let linked = groups.iter().any(|g| {
+                g.mentions.iter().any(|m| m == "Zoë") && g.mentions.iter().any(|m| m == "Iva")
+            });
+            assert_eq!(linked, expected, "{text}");
+        }
+    }
+
+    #[test]
     fn test_be_phrase_detection() {
         let config = MentionRankingConfig::clinical();
         let coref = MentionRankingCoref::with_config(config);

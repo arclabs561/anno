@@ -3,7 +3,10 @@
 //! `--classify-mentions` sets the mention type using only its supplied surface.
 #[cfg(feature = "onnx")]
 use anno::backends::coref::fcoref::FCoref;
-use anno::backends::coref::{mention_ranking::MentionRankingCoref, MaverickCoref};
+use anno::backends::coref::{
+    mention_ranking::{MentionRankingConfig, MentionRankingCoref},
+    MaverickCoref,
+};
 use anno::{CorefBackend, CoreferenceResolver, Entity, EntityCategory, EntityType, MentionType};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -75,6 +78,7 @@ fn supplied_native(
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args().skip(1);
     let requested = args.next().ok_or("expected backend name")?;
+    let be_phrase = requested == "mention-ranking-copula";
     let mut trace_ranking = false;
     let mut classify_mentions = false;
     for flag in args {
@@ -91,9 +95,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         log::set_logger(&RankingTrace).map_err(|_| "could not install the ranking trace logger")?;
         log::set_max_level(log::LevelFilter::Trace);
     }
-    let native = MentionRankingCoref::new();
+    let native = MentionRankingCoref::with_config(MentionRankingConfig {
+        enable_be_phrase_detection: be_phrase,
+        ..Default::default()
+    });
     let neural: Option<Box<dyn CorefBackend>> = match requested.as_str() {
-        "mention-ranking" => None,
+        "mention-ranking" | "mention-ranking-copula" => None,
         #[cfg(not(feature = "onnx"))]
         "fcoref" => return Err("fcoref requires the onnx feature".into()),
         #[cfg(feature = "onnx")]
@@ -105,9 +112,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             std::env::var("MAVERICK_MODEL_PATH")?,
             false,
         )?)),
-        _ => return Err("expected mention-ranking, fcoref or maverick".into()),
+        _ => {
+            return Err(
+                "expected mention-ranking, mention-ranking-copula, fcoref or maverick".into(),
+            )
+        }
     };
     let model = neural.as_deref().unwrap_or(&native);
+    let producer = if be_phrase {
+        requested.as_str()
+    } else {
+        model.name()
+    };
     for line in io::stdin().lock().lines() {
         let doc: Input = serde_json::from_str(&line?)?;
         if (trace_ranking || classify_mentions) && doc.mentions.is_none() {
@@ -116,6 +132,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             );
         }
         if let Some(mentions) = &doc.mentions {
+            if be_phrase {
+                return Err("mention-ranking-copula requires the raw-text path".into());
+            }
             let length = doc.text.chars().count();
             if mentions
                 .iter()
@@ -146,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         println!(
                             "{}",
                             serde_json::json!({
-                                "id": doc.id, "producer": model.name(),
+                                "id": doc.id, "producer": producer,
                                 "unsupported": "supplied_span_splits_token"
                             })
                         );
@@ -159,7 +178,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         println!(
             "{}",
-            serde_json::json!({"id": doc.id, "producer": model.name(), "clusters": spans})
+            serde_json::json!({"id": doc.id, "producer": producer, "clusters": spans})
         );
     }
     Ok(())
