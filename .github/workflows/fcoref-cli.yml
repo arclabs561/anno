@@ -1,6 +1,8 @@
 name: FCoref CLI with real weights
 
 on:
+  schedule:
+    - cron: '37 5 * * 3'
   workflow_dispatch:
     inputs:
       caller_budget:
@@ -31,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fcoref-cli-${{ github.ref }}
+  group: fcoref-cli-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -106,7 +108,7 @@ jobs:
       - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
         id: replay
         env:
-          CALLER_BUDGET: ${{ inputs.caller_budget }}
+          CALLER_BUDGET: ${{ github.event_name == 'schedule' || inputs.caller_budget }}
           RUNTIME_IMAGE: ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
           ORT_LIBRARY: ${{ steps.ort.outputs.library }}
         run: |
