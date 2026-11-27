@@ -130,7 +130,7 @@ jobs:
                                   notice=archive.read(k).decode(errors="ignore").lower()
                                   print("LICENSE_FLAGS "+json.dumps({s:s in notice for s in ["creative commons", "public domain", "cc0", "mit license", "attribution", "noncommercial", "non-commercial", "sharealike"]},sort_keys=True))
           item="https://dspace.lib.cranfield.ac.uk/server/api/core/items/2f8e234f-2636-410f-926c-7ece7c2438ac"
-          with urlopen(item, timeout=20) as response:
+          with urlopen(Request(item, headers={"User-Agent":"AnnoCorpusCoverage/1.0","Accept":"*/*"}), timeout=20) as response:
               md=json.load(response)["metadata"]
           print("SOURCE_RIGHTS "+json.dumps({k:[v["value"] for v in values] for k,values in md.items() if "rights" in k.lower() or "license" in k.lower()},sort_keys=True))
           PY
