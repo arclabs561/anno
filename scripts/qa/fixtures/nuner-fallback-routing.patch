@@ -1,0 +1,102 @@
+diff --git a/crates/anno/src/backends/stacked/mod.rs b/crates/anno/src/backends/stacked/mod.rs
+index 758fbab..392914d 100644
+--- a/crates/anno/src/backends/stacked/mod.rs
++++ b/crates/anno/src/backends/stacked/mod.rs
+@@ -646,8 +646,13 @@ impl StackedNER {
+         for layer in &self.layers {
+             let layer_name = layer.name();
+
+-            // Skip NuNER when text is well-capitalized (saves ~2s latency)
+-            if skip_nuner && layer_name.to_lowercase().contains("nuner") {
++            // BERT must have completed on this input before it can stand in for NuNER.
++            if skip_nuner
++                && layer_name.to_lowercase().contains("nuner")
++                && layer_outcomes.iter().any(|outcome| matches!(
++                    outcome, StackedLayerOutcome::Succeeded { layer, .. } if layer == "bert-onnx"
++                ))
++            {
+                 log::debug!("StackedNER: skipping NuNER (text appears well-capitalized)");
+                 layer_outcomes.push(StackedLayerOutcome::Skipped {
+                     layer: layer_name.to_string(),
+diff --git a/crates/anno/src/backends/stacked/tests.rs b/crates/anno/src/backends/stacked/tests.rs
+index cc60d2a..4011223 100644
+--- a/crates/anno/src/backends/stacked/tests.rs
++++ b/crates/anno/src/backends/stacked/tests.rs
+@@ -591,26 +591,24 @@ fn test_layer_error_handling() {
+     let result = ner_all_fail.extract_entities("anything", None);
+     assert!(result.is_err(), "Should fail when ALL layers fail");
+
+-    // An adaptively skipped NuNER layer must not make a total attempted-layer
+-    // failure look like a best-effort success.
+-    let ner_fail_with_skipped_nuner = StackedNER::builder()
+-        .layer(FailingModel { name: "fail" })
+-        .layer(FailingModel { name: "nuner" })
++    let text = "Alice Smith works at Apple in California.";
++    let fallback = StackedNER::builder()
++        .layer(FailingModel { name: "bert-onnx" })
++        .layer(mock_model(
++            "nuner",
++            vec![mock_entity("Alice Smith", 0, EntityType::Person, 0.95)],
++        ))
+         .build();
+-    let error = ner_fail_with_skipped_nuner
+-        .extract_entities_with_report(
+-            "Alice Smith works at Apple in California.",
+-            None,
+-            StackedExtractionPolicy::BestEffort,
+-        )
+-        .unwrap_err();
+-    assert!(matches!(
+-        error.report().layer_outcomes(),
+-        [
+-            StackedLayerOutcome::Failed { layer: failed, .. },
+-            StackedLayerOutcome::Skipped { layer: skipped, reason },
+-        ] if failed == "fail" && skipped == "nuner" && reason.contains("well-capitalized")
+-    ));
++    let report = fallback
++        .extract_entities_with_report(text, None, StackedExtractionPolicy::BestEffort)
++        .unwrap();
++    assert!(
++        matches!(report.layer_outcomes(), [StackedLayerOutcome::Failed { .. }, StackedLayerOutcome::Succeeded { layer, .. }] if layer == "nuner")
++    );
++    assert_eq!(report.entities().len(), 1);
++    assert!(fallback
++        .extract_entities_with_report(text, None, StackedExtractionPolicy::Strict)
++        .is_err());
+
+     // Test 2: Failing layer AFTER working layer that produces entities
+     // - partial results are returned when subsequent layers fail
+@@ -1480,3 +1478,33 @@ fn highest_conf_prefers_higher() {
+         "HighestConf should prefer higher confidence"
+     );
+ }
++
++#[test]
++fn nuner_is_skipped_only_after_bert_succeeds() {
++    let text = "Alice Smith works at Apple in California.";
++    let alone = StackedNER::builder()
++        .layer(mock_model("nuner", vec![]))
++        .build();
++    let report = alone
++        .extract_entities_with_report(text, None, StackedExtractionPolicy::Strict)
++        .unwrap();
++    assert!(
++        matches!(report.layer_outcomes(), [StackedLayerOutcome::Succeeded { layer, .. }] if layer == "nuner")
++    );
++    let both = StackedNER::builder()
++        .layer(mock_model("bert-onnx", vec![]))
++        .layer(mock_model("nuner", vec![]))
++        .build();
++    let report = both
++        .extract_entities_with_report(text, None, StackedExtractionPolicy::Strict)
++        .unwrap();
++    assert!(
++        matches!(report.layer_outcomes(), [StackedLayerOutcome::Succeeded { .. }, StackedLayerOutcome::Skipped { layer, .. }] if layer == "nuner")
++    );
++    let short = both
++        .extract_entities_with_report("Ada", None, StackedExtractionPolicy::Strict)
++        .unwrap();
++    assert!(
++        matches!(short.layer_outcomes(), [StackedLayerOutcome::Succeeded { .. }, StackedLayerOutcome::Succeeded { layer, .. }] if layer == "nuner")
++    );
++}

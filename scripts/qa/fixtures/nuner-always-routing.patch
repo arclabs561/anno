@@ -1,0 +1,13 @@
+diff --git a/crates/anno/src/backends/stacked/mod.rs b/crates/anno/src/backends/stacked/mod.rs
+index 758fbab..54a6563 100644
+--- a/crates/anno/src/backends/stacked/mod.rs
++++ b/crates/anno/src/backends/stacked/mod.rs
+@@ -641,7 +641,7 @@ impl StackedNER {
+
+         // Adaptive NuNER: skip NuNER for well-capitalized text where BERT alone suffices.
+         // NuNER adds ~2s latency and mainly helps with lowercase entity names.
+-        let skip_nuner = !text_may_need_nuner(text);
++        let skip_nuner = false;
+
+         for layer in &self.layers {
+             let layer_name = layer.name();
