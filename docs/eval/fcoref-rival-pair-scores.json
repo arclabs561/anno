@@ -1,0 +1,158 @@
+{
+  "cases": 43,
+  "stock_rival": {
+    "pronoun_mention": {
+      "min": -2.191396951675415,
+      "median": -0.1751701831817627,
+      "max": 2.3070015907287598
+    },
+    "name_mention": {
+      "min": -4.627378463745117,
+      "median": -1.6941441297531128,
+      "max": 1.2898764610290527
+    },
+    "pair": {
+      "min": 0.9634712934494019,
+      "median": 8.098548889160156,
+      "max": 14.549160957336426
+    },
+    "total": {
+      "min": -1.0862408876419067,
+      "median": 6.315701484680176,
+      "max": 12.614595413208008
+    },
+    "winning_score": {
+      "min": 0.5443029403686523,
+      "median": 6.774362564086914,
+      "max": 12.614595413208008
+    },
+    "gap_to_winner": {
+      "min": 0.0,
+      "median": 0.0,
+      "max": 9.919035077095032
+    },
+    "below_null": 2,
+    "query_counts": {
+      "pronoun": 35,
+      "name": 8
+    },
+    "winner_counts": {
+      "direct": 38,
+      "other": 5
+    }
+  },
+  "rival": {
+    "pronoun_mention": {
+      "min": -2.191396951675415,
+      "median": -0.1751701831817627,
+      "max": 2.3070015907287598
+    },
+    "name_mention": {
+      "min": -4.627378463745117,
+      "median": -1.6941441297531128,
+      "max": 1.2898764610290527
+    },
+    "pair": {
+      "min": 0.9634712934494019,
+      "median": 8.098548889160156,
+      "max": 14.549160957336426
+    },
+    "total": {
+      "min": -1.0862408876419067,
+      "median": 6.315701484680176,
+      "max": 12.614595413208008
+    },
+    "winning_score": {
+      "min": 0.5443029403686523,
+      "median": 6.774362564086914,
+      "max": 12.614595413208008
+    },
+    "gap_to_winner": {
+      "min": 0.0,
+      "median": 0.0,
+      "max": 9.919035077095032
+    },
+    "below_null": 2,
+    "query_counts": {
+      "pronoun": 35,
+      "name": 8
+    },
+    "winner_counts": {
+      "direct": 38,
+      "other": 5
+    }
+  },
+  "exact": {
+    "pronoun_mention": {
+      "min": -2.191396951675415,
+      "median": -0.1751701831817627,
+      "max": 2.3070015907287598
+    },
+    "name_mention": {
+      "min": -21.52495574951172,
+      "median": -13.498032569885254,
+      "max": -8.00257396697998
+    },
+    "pair": {
+      "min": -5.81306266784668,
+      "median": 4.784560680389404,
+      "max": 12.04256820678711
+    },
+    "total": {
+      "min": -20.712692260742188,
+      "median": -9.760947227478027,
+      "max": -1.6225042343139648
+    },
+    "winning_score": {
+      "min": 0.0,
+      "median": 5.710569858551025,
+      "max": 12.614595413208008
+    },
+    "gap_to_winner": {
+      "min": 3.3000004291534424,
+      "median": 14.116468906402588,
+      "max": 26.08218002319336
+    },
+    "below_null": 43,
+    "query_counts": {
+      "pronoun": 35,
+      "name": 8
+    },
+    "winner_counts": {
+      "other": 35,
+      "null": 8
+    }
+  },
+  "rival_minus_exact": {
+    "name_mention": {
+      "min": 5.428710222244263,
+      "median": 11.93513035774231,
+      "max": 21.44302225112915
+    },
+    "pair": {
+      "min": -2.215701103210449,
+      "median": 3.6043035984039307,
+      "max": 13.589377403259277
+    },
+    "total": {
+      "min": 3.3000004291534424,
+      "median": 15.336061000823975,
+      "max": 27.29427719116211
+    }
+  },
+  "rival_higher": {
+    "name_mention": 43,
+    "pair": 41,
+    "total": 43
+  },
+  "rival_total_changed_from_stock": 0,
+  "binary_sha256": "d90084c34dc1b376e0d09eb6f276a0da022225e1e05ba1d8febdf58ae57d8f04",
+  "model_revision": "e91dfff12879495d882ba9460d0c5d5dd44ade59",
+  "model_files": {
+    "encoder.onnx": "190101f8e3b927bc7fb5e053f63fb82a85ef7e92dc2acd3a23a5ad0dd58553f4",
+    "scorer_weights.safetensors": "54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7",
+    "tokenizer.json": "5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1",
+    "config.json": "2d96a29d2ebd497d34580594f40ded241440411bcd83885b89d8fbb86189bc3b"
+  },
+  "private_rows_digest": "ca5328cd5331492fa64ad0c0767c2cace373321220eb9aa7312e88b73af42674"
+}
