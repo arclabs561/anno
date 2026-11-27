@@ -3,90 +3,70 @@
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Anno is a Rust library for finding entities in text and linking mentions of the
-same person, place, or thing. Each result points back to the words it came from.
+Anno finds mentions in text and links them to the words they refer to.
+Each mention carries its range in the original text.
 
-## Find mentions
+[Rust](#find-mentions-in-rust) · [Command line](docs/QUICKSTART.md#install) · [Python](#compare-two-notices-in-python)
 
-> **Sophie Wilson** designed the **ARM** processor.
+## Find mentions in Rust
 
-Pass the sentence to `anno::extract`. The offline extractor finds a person
-and an organization, each with a range in the original sentence.
+In a Rust project, run `cargo add anno@0.15 --no-default-features` for the
+offline extractor. Put this in `src/main.rs` and run `cargo run`:
+
+```rust
+fn main() -> anno::Result<()> {
+    let text = "Lynn Conway worked at IBM.";
+    for mention in anno::extract(text)? {
+        println!("{} [{}]", mention.text, mention.entity_type);
+    }
+    Ok(())
+}
+```
 
 ```text
-Sophie Wilson   PER    0..13
-ARM             ORG   27..30
+Lynn Conway [PER]
+IBM [ORG]
 ```
 
-Try the example from a checkout with Rust 1.91 or later:
+## Compare two notices in Python
 
-```sh
-cargo run -p anno \
-  --no-default-features \
-  --example quickstart
-```
+A harbor office issued a revised bulletin. Which date changed?
+Install the Python bindings with `python -m pip install anno-py`.
+The [bulletin example](crates/anno-py/README.md#compare-dates-in-two-bulletins)
+uses `anno_py.Extractor()` on both editions and returns the source line for
+each changed date.
 
-In your own Rust project, install the library with `cargo add anno`.
-The range `0..13` covers the first 13 Unicode scalar values. To highlight
-a mention in a Rust string, convert its range to byte offsets.
-[Use the library](docs/QUICKSTART.md#library-usage) · [Work with offsets](docs/CONTRACT.md#source-text-and-offsets)
+> Applications for a winter berth close on **2026-12-04**.\
+> Applications for a winter berth now close on **2026-12-07**.
+
+The lines tell you what moved: applications stay open three days longer.
+Both notices still schedule the public drawing for December 9.
 
 ## Follow a pronoun across captions
 
 > **Émilie Durand** inspected *the east gate*.\
 > **She** said *it* would reopen on Monday.
 
-FCoref groups the two mentions of Durand and the two mentions of the gate.
-The caption file supplies the playback times. Together they let an editor
-select *She* in the second cue and jump to *Émilie Durand* in the first.
+Select *She* in the cue at **14.9 seconds**. FCoref links it to *Émilie
+Durand* in the cue at **12.3 seconds**. The caption adapter returns both cue
+ranges so an editor can jump to the earlier line.
+[Reproduce with FCoref](crates/anno/examples/caption_links/README.md)
 
-Add a microphone emoji and a space before *Émilie*. In the full transcript,
-*She* moves from character 39 to 41. In the recording, its cue still begins at
-14.9 seconds. The replay checks the links and cue ranges in both versions
-using a local FP32 model. [Run the caption example](crates/anno/examples/caption_links/README.md)
+## Can a missing mention be rescued?
 
-## Where do pronoun links go missing?
+In one FCoref replay, many missed pronoun links lacked an exact name or
+pronoun span in the output. Would giving those spans a place among the
+candidates recover the links?
 
-In Anno’s replay of 128 English passages from the GAP test split, 117
-pronoun–name pairs were labeled as referring to the same person. FCoref
-received the raw passages and predicted its own mentions.
-
-| FCoref output | Pairs |
-| --- | ---: |
-| Both mentions linked | 73 |
-| Mentions in separate clusters | 3 |
-| At least one span missing | 41 |
-
-Of the 44 true links FCoref missed, 41 had at least one mention missing
-at its exact source range. In the other three, both mentions appeared and
-FCoref placed them in different clusters. The study also reports false
-links and compares three resolvers on these passages.
-[Results, scoring method, and replay](docs/eval/coref-panels.md#gap-pronoun-decisions)
-
-## Command line
-
-```sh
-cargo install anno-cli --locked
-```
-
-```sh
-ANNO_NO_DOWNLOADS=1 anno extract --model heuristic \
-  --text "Lynn Conway worked at IBM and Xerox PARC in California."
-```
-
-```text
-PER:1 "Lynn Conway"
-ORG:2 "IBM" "Xerox PARC"
-LOC:1 "California"
-```
-
-Use `--format grounded` to retain the input text alongside its annotations.
-The default stack may download weights on first use. `ANNO_NO_DOWNLOADS=1`
-limits it to available local models, patterns and heuristics.
+On a separate panel of 256 GAP development passages, Anno reserved slots for
+the annotated names and pronouns while keeping the candidate budget fixed.
+**186 marked spans entered the candidate set. None of the 512 labeled link
+decisions changed.** The project kept the existing selection policy.
+[Original observation](docs/eval/coref-panels.md#gap-pronoun-decisions) ·
+[Experiment and replay](docs/eval/fcoref-marked-rescue.md)
 
 ## More examples
 
-- [Compare two harbor bulletins in Python](crates/anno-py/README.md#compare-dates-in-two-bulletins). The deadline moved from December 4 to December 7. Find the line that changed in each edition.
 - [Choose your own entity types](docs/QUICKSTART.md#cli-extract-entities). Give GLiNER labels such as `DRUG` and `SYMPTOM` to look for in a passage.
 - [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.
 - [Use your own tokenizer](crates/anno/examples/fcoref_word_spans.rs) or [process a directory of documents](docs/QUICKSTART.md#cli-batch-processing).
