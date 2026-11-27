@@ -9,55 +9,217 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Measure pinned language-project releases
+      - name: Replay the repository's reviewed dictionary reader
         shell: bash
         run: |
           python3 - <<'PY'
-          from concurrent.futures import ThreadPoolExecutor
-          from collections import Counter
-          import hashlib, json, re, urllib.request
+          """Count dictionary records from five language projects' published lexicons.
           
-          def run(item):
-              key, url = item
-              try:
-                  req = urllib.request.Request(url, headers={"User-Agent": "Anno public dataset inventory"})
-                  with urllib.request.urlopen(req, timeout=40) as response:
-                      b = response.read()
-                      final_url = response.geturl()
-                  result = {"source": key, "url": final_url, "bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}
-                  if key in ("Dothraki", "HighValyrian"):
-                      revision = json.loads(b)["query"]["pages"][0]["revisions"][0]
-                      text = revision["slots"]["main"]["content"]
-                      result.update(revid=revision["revid"], publisher_sha1=revision["sha1"], declared_size=revision["size"], content_bytes=len(text.encode()), content_sha1=hashlib.sha1(text.encode()).hexdigest(), content_sha256=hashlib.sha256(text.encode()).hexdigest())
-                      if key == "Dothraki":
-                          section = re.split(r"^==\s*Vocabulary List\s*==\s*$", text, flags=re.M)[1]
-                          section = re.split(r"^==\s*Abbreviations\s*==\s*$", section, flags=re.M)[0]
-                          tops=[line for line in section.splitlines() if re.match(r"^\*(?![:*#])", line)]
-                          result.update(entries=len(tops), bold=sum(bool(re.match(r"^\*\s*'''\S", row)) for row in tops))
-                      else:
-                          rows = [row for row in text.splitlines() if row.strip()]
-                          result.update(lines=len(rows), templates=sum(bool(re.fullmatch(r"\{\{hval-entry\|[^{}]+\}\}", row.strip())) for row in rows), unique=len(set(rows)))
-                  elif key == "InterslavicCorpus":
-                      data=json.loads(b)["wordList"]
-                      cols=data[0]
-                      result.update(headers=cols,rows=len(data)-1,shape=dict(Counter(map(len,data[1:]))))
-                      for name in ("id","isv","en"):
-                          if name in cols:
-                              values=[str(row[cols.index(name)] or "").strip() for row in data[1:]]
-                              result[name]={"nonempty":sum(bool(x) for x in values),"unique_nonempty":len(set(values)-{""})}
-                  elif key == "Navi":
-                      records=[r.split("\t") for r in b.decode("utf-8-sig").splitlines() if r.strip()]
-                      result.update(rows=len(records),fields=dict(Counter(map(len,records))),header=[k[:36] for k in records[0]][:6])
-                  else:
-                      rows=[r for r in b.decode("latin1").splitlines() if r.strip()]
-                      result.update(lines=len(rows), blank=len(b.decode("latin1").splitlines())-len(rows),
-                                    unique_leading_fields=len({r.split()[0] for r in rows}))
-                  return result
-              except Exception as exc:
-                  return {"source":key,"error":str(exc)}
-          wiki="https://wiki.languageinvention.com/api.php?action=query&format=json&formatversion=2&prop=revisions&rvslots=main&rvprop=ids%7Csha1%7Csize%7Ccontent&revids="
-          sources={"Dothraki":wiki+"1214223","HighValyrian":wiki+"1310494","InterslavicCorpus":"https://raw.githubusercontent.com/sonic16x/interslavic/6d8dad7922a7b2c379d8944f521c08d8f689734a/data/basic.json","Navi":"https://tirea.learnnavi.org/dictionarydata/NaviDictionary_en.tsv","Lojban/gismu":"https://www.lojban.org/static/publications/wordlists/gismu.txt","Lojban/cmavo":"https://www.lojban.org/static/publications/wordlists/cmavo.txt"}
+          Dothraki and High Valyrian use David J. Peterson's language wiki. Its High
+          Valyrian dictionary transcludes a separately versioned headword table. The
+          Interslavic project links its dictionary at https://interslavic.fun/resources/.
+          LearnNavi publishes the English glossary at https://tirea.learnnavi.org/dictionarydata/.
+          The Logical Language Group describes both baseline lists at
+          https://www.lojban.org/static/publications/wordlists.html.
+          """
+          
+          import csv
+          import hashlib
+          import json
+          import re
+          from io import StringIO
+          
+          WIKI = (
+              "https://wiki.languageinvention.com/api.php?action=query&format=json&formatversion=2&prop=revisions"
+              "&rvslots=main&rvprop=ids%7Csha1%7Csize%7Ccontent&revids="
+          )
+          SOURCES = {
+              "Dothraki": [WIKI + "1214223"],
+              "HighValyrian": [WIKI + "1310494"],
+              "InterslavicCorpus": [
+                  "https://raw.githubusercontent.com/sonic16x/interslavic/6d8dad7922a7b2c379d8944f521c08d8f689734a/data/basic.json"
+              ],
+              "Navi": ["https://tirea.learnnavi.org/dictionarydata/NaviDictionary_en.tsv"],
+              "Lojban": [
+                  "https://www.lojban.org/static/publications/wordlists/gismu.txt",
+                  "https://www.lojban.org/static/publications/wordlists/cmavo.txt",
+              ],
+          }
+          SHA256 = {
+              SOURCES["Dothraki"][
+                  0
+              ]: "492b0fc6d22f4c88b882252bd8182ad18ff29b2b1ed4ba972fc9fe02a84000e2",
+              SOURCES["HighValyrian"][
+                  0
+              ]: "c1f5ba84ea9ed9e4eed2cc1cef12ec2e42211361d934bad3314a9c65c0897c4e",
+              SOURCES["InterslavicCorpus"][
+                  0
+              ]: "dfa4bbe9cbb75174eb1c2128b9ed0ecd5a624c1a2de27794068095f092046ee3",
+              SOURCES["Navi"][
+                  0
+              ]: "6c83d278186a1e260627fc7447290c3aaebd3718ee3d572e501e874b839a5cd4",
+              SOURCES["Lojban"][
+                  0
+              ]: "f2fc4cff4f265ad02717d56733b4627ffa78c616db78dcaa44caab694e1dd5b7",
+              SOURCES["Lojban"][
+                  1
+              ]: "544414d61f3ff35dd2cf4e4f79f3c86bf9bb0568eb3403f57288057e16796402",
+          }
+          
+          
+          def wiki_entries(dataset, data):
+              (page,) = json.loads(data)["query"]["pages"]
+              (rev,) = page["revisions"]
+              revision = int(SOURCES[dataset][0].rsplit("=", 1)[1])
+              expected_title = (
+                  "Dothraki Dictionary"
+                  if dataset == "Dothraki"
+                  else "High Valyrian Dictionary/table"
+              )
+              content = rev["slots"]["main"]["content"]
+              encoded = content.encode("utf-8")
+              if (
+                  page["title"] != expected_title
+                  or rev["revid"] != revision
+                  or rev["size"] != len(encoded)
+                  or rev["sha1"] != hashlib.sha1(encoded).hexdigest()
+              ):
+                  raise ValueError(f"Invalid publisher revision for {expected_title}")
+              if dataset == "HighValyrian":
+                  lines = [line.strip() for line in content.splitlines() if line.strip()]
+                  if not lines or not all(
+                      re.fullmatch(r"\{\{hval-entry\|[^{}|]+\}\}", line) for line in lines
+                  ):
+                      raise ValueError("Expected one High Valyrian entry template per table row")
+                  return (
+                      len(lines),
+                      f"creator wiki term table, revision {revision}",
+                      "Listed terms include affixes and phrases. Definitions are maintained on individual pages.",
+                  )
+              section = re.search(
+                  r"^==\s*Vocabulary List\s*==\s*$(.*?)^==\s*Abbreviations\s*==\s*$",
+                  content,
+                  re.M | re.S,
+              )
+              if not section:
+                  raise ValueError("Missing Dothraki vocabulary section")
+              primary = [
+                  line
+                  for line in section.group(1).splitlines()
+                  if re.match(r"^\*(?![:*#])", line)
+              ]
+              if not primary or not all(re.match(r"^\*\s*'''.+?'''", line) for line in primary):
+                  raise ValueError("Unrecognized top-level Dothraki headword")
+              return (
+                  len(primary),
+                  f"creator wiki vocabulary list, revision {revision}",
+                  "One top-level dictionary entry per headword or phrase. Examples, subentries and abbreviations are excluded.",
+              )
+          
+          
+          def interslavic_entries(data):
+              columns, *rows = json.loads(data)["wordList"]
+              ident, headword, english = (columns.index(col) for col in ("id", "isv", "en"))
+              if not rows or not all(
+                  len(row) == len(columns) and row[ident] and row[headword] and row[english]
+                  for row in rows
+              ):
+                  raise ValueError("Incomplete Interslavic dictionary table")
+              if len({row[ident] for row in rows}) != len(rows):
+                  raise ValueError("Duplicate Interslavic dictionary entry ID")
+              return (
+                  len(rows),
+                  "dictionary core table at 6d8dad79",
+                  "One row per lexical ID. Translation fields and search indexes describe the same entries.",
+              )
+          
+          
+          def navi_entries(data):
+              reader = csv.DictReader(StringIO(data.decode("utf-8-sig")), delimiter="\t")
+              if reader.fieldnames != ["Frontside", "Flipside", "Category"]:
+                  raise ValueError("Unknown LearnNavi TSV columns")
+              count = 0
+              for row in reader:
+                  if None in row or not all(row.values()):
+                      raise ValueError("Incomplete LearnNavi dictionary row")
+                  count += 1
+              return (
+                  count,
+                  "LearnNavi Na'vi-to-English glossary",
+                  "One headword/gloss/category row per entry. Other translation exports and flashcard formats are excluded.",
+              )
+          
+          
+          def lojban_entries(source, data):
+              # Word spelling is fixed-width. Splitting on whitespace would collapse
+              # distinct multiword cmavo beginning with the same particle.
+              header, *rows = data.decode("latin-1").splitlines()
+              gismu = source.endswith("/gismu.txt")
+              width = 6 if gismu else 10
+              if ("gismu list" if gismu else "cmavo list") not in header:
+                  raise ValueError("Unknown Logical Language Group wordlist")
+              terms = [row[:width].strip() for row in rows]
+              if (
+                  not rows
+                  or len(set(terms)) != len(rows)
+                  or not all(re.fullmatch(r"[a-z'. ]+", term) for term in terms)
+                  or not all(row[20:].strip() for row in rows)
+              ):
+                  raise ValueError("Invalid spelling or gloss in Lojban wordlist")
+              subset = (
+                  "gismu and rafsi-bearing words, 1994 baseline"
+                  if gismu
+                  else "cmavo and compounds, 2002 baseline"
+              )
+              return (
+                  len(rows),
+                  subset,
+                  "Counts entries within this list. The paired baseline lists share 94 spellings.",
+              )
+          
+          
+          def measure(dataset, source, path):
+              """Return rows compatible with dataset_file_survey's publisher readers."""
+              if source not in SOURCES[dataset]:
+                  raise ValueError("Unknown language project release")
+              data = path.read_bytes()
+              if hashlib.sha256(data).hexdigest() != SHA256[source]:
+                  raise ValueError("Language project source differs from the pinned release")
+              if dataset in {"Dothraki", "HighValyrian"}:
+                  count, subset, scope = wiki_entries(dataset, data)
+              elif dataset == "InterslavicCorpus":
+                  count, subset, scope = interslavic_entries(data)
+              elif dataset == "Navi":
+                  count, subset, scope = navi_entries(data)
+              else:
+                  count, subset, scope = lojban_entries(source, data)
+              return [
+                  {
+                      "unit": "dictionary entries",
+                      "records": count,
+                      "split_or_subset": subset,
+                      "reason": f"{scope} This lexical release has no sentence-level gold NER labels.",
+                  }
+              ]
+          
+          from concurrent.futures import ThreadPoolExecutor
+          from pathlib import Path
+          import tempfile
+          import urllib.request
+          
+          def release_rows(item):
+              dataset, source = item
+              req = urllib.request.Request(source, headers={"User-Agent":"Anno dataset survey"})
+              with urllib.request.urlopen(req, timeout=45) as resp:
+                  data = resp.read()
+              with tempfile.TemporaryDirectory() as directory:
+                  path = Path(directory) / "download"
+                  path.write_bytes(data)
+                  for measured in measure(dataset, source, path):
+                      row = dict(id=dataset,source=source,scope="publisher release file",status="records measured",
+                                 sha256=hashlib.sha256(data).hexdigest(),bytes=len(data),tokens="",tagged="",**measured)
+                      print("ANNO_DIRECT_ROW "+json.dumps(row,sort_keys=True),flush=True)
+          
           with ThreadPoolExecutor(max_workers=6) as pool:
-              for row in pool.map(run,sources.items()):
-                  print(json.dumps(row,ensure_ascii=True,sort_keys=True),flush=True)
+              list(pool.map(release_rows, ((dataset, source) for dataset, urls in SOURCES.items() for source in urls)))
           PY
