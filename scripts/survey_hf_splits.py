@@ -9,6 +9,10 @@ registry specifies a file. Fresh surveys follow current provider metadata.
 To verify previously scanned rows at their exact revisions, run:
     python scripts/survey_hf_splits.py SNAPSHOT.csv REPLAY.csv --replay
 The replay covers measured splits only and compares every count to the ledger.
+To update the reviewed release routes in a prior ledger:
+    python scripts/survey_hf_splits.py SNAPSHOT.csv OUTPUT.csv --refresh-releases
+Use --id to restrict that refresh. ANNO_HF_SURVEY_CACHE optionally retains
+public files and pinned manifests in a caller-selected local directory.
 
 """
 
@@ -32,6 +36,8 @@ from urllib.request import Request, urlopen
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+
+import survey_hf_releases as releases
 
 HUB = "https://huggingface.co"
 VIEWER = "https://datasets-server.huggingface.co"
@@ -560,6 +566,7 @@ def mention_records(url):
     return rows
 
 
+@lru_cache(maxsize=None)
 def uner_counts(url):
     digest = hashlib.sha256()
     sentences = tokens = tagged = 0
@@ -788,7 +795,27 @@ def replay_schema(row, parquet):
     return {"pair": pair, "names": names}
 
 
+UNER_ALIASES = {"UNER", "UniversalNERBench"}
+UNER_SCOPE = "Registry alias of the Mayhew et al. (2024) UniversalNER corpus. Identical pinned IOB2 files and counts also appear under the other registry names."
+
+
+def alias_rows(rows, ids):
+    return [
+        dict(row, id=alias, scope_note=UNER_SCOPE)
+        for row in rows
+        if row["id"] == "UniversalNER" and row["status"] in SCANNED_STATUSES
+        for alias in sorted(UNER_ALIASES.intersection(ids))
+    ]
+
+
 def replay(row):
+    if row["id"] in UNER_ALIASES and row["repository"] == "universalner/universal_ner":
+        checked = replay(dict(row, id="UniversalNER"))
+        return dict(checked, id=row["id"], scope_note=UNER_SCOPE)
+    if (row["id"], row["repository"]) in releases.BY_ID_REPO and (
+        row.get("payload_sha256") or "#columns=" in row.get("payload_url", "")
+    ):
+        return releases.replay(row)
     repo, rev = row["repository"], row["parquet_revision"]
     current = dict(
         row,
@@ -848,7 +875,106 @@ def main():
         action="store_true",
         help="Verify measured rows from a previous survey CSV",
     )
+    parser.add_argument(
+        "--refresh-releases",
+        action="store_true",
+        help="Replace the curated public-release rows in a prior survey",
+    )
+    parser.add_argument(
+        "--id", action="append", help="Limit a curated refresh to named registry IDs"
+    )
     args = parser.parse_args()
+    if args.replay and args.refresh_releases:
+        parser.error("--refresh-releases and --replay are separate operations")
+    if args.workers < 1:
+        parser.error("--workers must be positive")
+    if args.id and not args.refresh_releases:
+        parser.error("--id requires --refresh-releases")
+    local_only = {
+        name.removesuffix(".cache")
+        for name, access, _ in csv.reader(
+            POLICY.read_text().splitlines(), delimiter="\t"
+        )
+        if access == "local"
+    }
+    restricted = {"Local", "Registration", "ContactAuthors", "Licensed"}
+    if args.refresh_releases:
+        inventory_path = (
+            Path(__file__).resolve().parents[1]
+            / "docs/eval/dataset-figure-inventory.csv"
+        )
+        with inventory_path.open(newline="") as file:
+            eligible = {
+                r["id"] for r in csv.DictReader(file) if r["access"] not in restricted
+            } - local_only
+        reviewed = releases.excluded_rows(set(args.id or eligible))
+        reviewed_pairs = {(r["id"], r["repository"]) for r in reviewed}
+        aliases = UNER_ALIASES.intersection(eligible, args.id or UNER_ALIASES)
+        selected = [
+            r
+            for r in releases.RELEASES
+            if set(r.ids.split()).issubset(eligible)
+            and (not args.id or set(r.ids.split()).intersection(args.id))
+        ]
+        refreshed_ids = (
+            {r["id"] for r in reviewed}
+            | aliases
+            | {i for release in selected for i in release.ids.split()}
+        )
+        if not refreshed_ids or (args.id and set(args.id) - refreshed_ids):
+            parser.error("Unknown or local-only curated release ID")
+        replaced = reviewed_pairs | {
+            (i, release.repo) for release in selected for i in release.ids.split()
+        }
+        with args.inventory.open(newline="") as file:
+            previous = list(csv.DictReader(file))
+        retained = [
+            r
+            for r in previous
+            if r["id"] not in aliases and (r["id"], r["repository"]) not in replaced
+        ]
+        retained.extend(reviewed)
+        with ThreadPoolExecutor(args.workers) as pool:
+            current = releases.survey(selected, pool)
+            previously_measured = {
+                (r["id"], r["repository"])
+                for r in previous
+                if r["status"] in SCANNED_STATUSES
+            }
+            for row in current:
+                if (
+                    row["status"] in {"unavailable", "scan_failed"}
+                    and (row["id"], row["repository"]) in previously_measured
+                ):
+                    parser.exit(
+                        1,
+                        f"Refresh did not complete for {row['id']} at {row['repository']}: {row['reason']}\n",
+                    )
+            retained.extend(current)
+            if aliases:
+                originals = [
+                    r
+                    for r in retained
+                    if r["id"] == "UniversalNER" and r["status"] in SCANNED_STATUSES
+                ]
+                if not originals:
+                    parser.error(
+                        "Alias refresh needs measured UniversalNER rows in the input ledger"
+                    )
+                retained.extend(alias_rows(list(pool.map(replay, originals)), aliases))
+        write_rows(
+            sorted(
+                retained,
+                key=lambda r: (
+                    r["id"],
+                    r.get("config", ""),
+                    r.get("split", ""),
+                    r["repository"],
+                ),
+            ),
+            args.output,
+        )
+        return
     if args.replay:
         with args.inventory.open(newline="") as file:
             measured = [
@@ -859,15 +985,22 @@ def main():
         write_rows(results, args.output)
         return
     with args.inventory.open(newline="") as file:
-        selected = list(targets(csv.DictReader(file)))
+        inventory = list(csv.DictReader(file))
+        inventory_ids = {
+            i["id"] for i in inventory if i["access"] not in restricted
+        } - local_only
+        curated = [
+            r
+            for r in releases.RELEASES
+            if inventory_ids.intersection(r.ids.split())
+            and not set(r.ids.split()).intersection(local_only)
+        ]
+        selected = [
+            t
+            for t in targets(inventory)
+            if (t[0]["id"], t[1]) not in releases.BY_ID_REPO
+        ]
     with ThreadPoolExecutor(args.workers) as pool:
-        local_only = {
-            name.removesuffix(".cache")
-            for name, access, _ in csv.reader(
-                POLICY.read_text().splitlines(), delimiter="\t"
-            )
-            if access == "local"
-        }
         plans = list(pool.map(plan, ((*target, local_only) for target in selected)))
         rows = [row for ready, _ in plans for row in ready]
         jobs = [job for _, pending in plans for job in pending]
@@ -876,13 +1009,18 @@ def main():
             flush=True,
         )
         rows.extend(pool.map(measure, jobs))
+        rows.extend(
+            row for row in releases.survey(curated, pool) if row["id"] in inventory_ids
+        )
+    rows.extend(releases.excluded_rows(inventory_ids))
+    rows.extend(alias_rows(rows, inventory_ids))
     rows.sort(key=lambda r: (r["id"], r.get("config", ""), r.get("split", "")))
     write_rows(rows, args.output)
 
 
 def write_rows(rows, output):
     for row in rows:
-        row["scope_note"] = scope_note(row)
+        row["scope_note"] = row.get("scope_note") or scope_note(row)
     with output.open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()

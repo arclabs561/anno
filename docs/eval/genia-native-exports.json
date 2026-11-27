@@ -1,0 +1,62 @@
+{
+  "dataset_id": "GENIANested",
+  "input": "All four gold IOB2 layers. Tokens within each sentence are joined by one ASCII space.",
+  "native_build": {
+    "anno_eval_version": "0.16.0",
+    "example_rs_sha256": "e1a628c34457b8edaa6e3377e921085b93fab84ff65e0f1496bcb6fa8b78794a",
+    "export_rs_sha256": "a4df802cbfba4d8891c8fb70bb3ec4b8f736dece89687523f63f399a0795383e",
+    "loader_rs_sha256": "b12bb4f18d333f9e2afce55044d001077c02e11f25230332c8707c6e761ec5e5"
+  },
+  "checks_per_sentence": [
+    "Decoded anno::export::to_html markup recovers the entire input text.",
+    "Every mark has the expected Unicode character interval and original label, in order.",
+    "Every anno::export::to_jsonl row matches gold offsets, label, surface and sentence ID, including multiplicity."
+  ],
+  "splits": {
+    "train": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.train.iob2",
+        "sha256": "3ed32dcec4813c7af2b7add3803d6007162acf9967b26388441ac5d132f0455d",
+        "token_records": 454882,
+        "tagged_tokens": 121306
+      },
+      "sentences_verified": 15023,
+      "gold_mentions": 45929,
+      "jsonl_rows": 45929,
+      "html_marks": 41862,
+      "hidden_mentions": 4067,
+      "sentences_with_hidden_mentions": 3081,
+      "sentences_without_gold_mentions": 1516
+    },
+    "dev": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.dev.iob2",
+        "sha256": "b8565cf774e8fceb38af62bbab0b84981640accc63fc5680223b97007da35903",
+        "token_records": 48932,
+        "tagged_tokens": 12386
+      },
+      "sentences_verified": 1669,
+      "gold_mentions": 4337,
+      "jsonl_rows": 4337,
+      "html_marks": 3964,
+      "hidden_mentions": 373,
+      "sentences_with_hidden_mentions": 307,
+      "sentences_without_gold_mentions": 231
+    },
+    "test": {
+      "source": {
+        "url": "https://raw.githubusercontent.com/thecharm/boundary-aware-nested-ner/7e87e1cb282a4441f1136c8eac5de5aedad60138/Our_boundary-aware_model/data/genia/genia.test.iob2",
+        "sha256": "607cfab2744aff2d8af5c5613320c8138605aca64a987c8ab2d98e5dfe067691",
+        "token_records": 57021,
+        "tagged_tokens": 14456
+      },
+      "sentences_verified": 1854,
+      "gold_mentions": 5474,
+      "jsonl_rows": 5474,
+      "html_marks": 4883,
+      "hidden_mentions": 591,
+      "sentences_with_hidden_mentions": 428,
+      "sentences_without_gold_mentions": 236
+    }
+  }
+}

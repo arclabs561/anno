@@ -1,0 +1,17 @@
+id,disposition,source,scope_and_access
+AgMNER,author request required,https://pmc.ncbi.nlm.nih.gov/articles/PMC11825947/,The authors of the cited multimodal crop entity-recognition paper make the data available upon reasonable request to the corresponding author.
+AviationProductsNER,publisher scope verified,https://doi.org/10.57996/cran.ceres-2614,The separate Cranfield ApNER release supplies all three annotated splits and specifies CC BY 4.0. The registry points to the paper. The deposit dates to August 2024.
+BioMNER,edition unresolved,https://huggingface.co/datasets/tner/bionlp2004,The linked BioNLP 2004 release describes molecular entity types. The registry describes research-method mentions. Provider split counts cannot resolve that task mismatch.
+DutchArchaeologyNER,edition unresolved,https://zenodo.org/records/3544544,The authors' version 1.0 release is measured as DutchArchaeology. The v2 registry entry points to a DANS landing page. A separately versioned edition matching this entry remains unidentified.
+ELGold,publisher scope verified,https://doi.org/10.34808/8zbz-1e66,Olewniczak and Szymański released 276 English texts with inline annotations in eleven genre/subgenre groups. The publisher defines no train/test split. The registry describes Polish JSONL and declares train/test.
+GermEval2014,publisher scope verified,https://sites.google.com/site/germeval2014ner/data,The organizer provides train/dev/test with outer and embedded BIO entity labels. The registered project URL and paper link do not identify this release correctly.
+GermEvalDiscontinuous,edition unresolved,https://sites.google.com/site/germeval2014ner/data,The organizer provides nested spans in two BIO layers. It supplies no links for reconstructing discontinuous mentions. A separately identified discontinuous release remains unverified.
+MUC6,licensed distribution,https://catalog.ldc.upenn.edu/LDC2003T13,The MUC-6 catalog lists an LDC agreement and restricted rights for its source newswire.
+MUC7,licensed distribution,https://catalog.ldc.upenn.edu/LDC2001T02,The MUC-7 catalog lists an LDC distribution agreement.
+NomBankImplicit,licensed distribution,https://catalog.ldc.upenn.edu/LDC2008T23,The linked release is NomBank 1.0 under an LDC agreement. The catalog does not establish a separate implicit-argument layer.
+OntoNotes50,licensed distribution,https://catalog.ldc.upenn.edu/LDC2013T19,The linked OntoNotes 5.0 collection requires the LDC distribution agreement.
+OntoNotesCoref,licensed distribution,https://catalog.ldc.upenn.edu/LDC2013T19,The linked OntoNotes 5.0 collection distributes the coreference layer under its LDC user agreement.
+OntoNotesSample,edition unresolved,https://catalog.ldc.upenn.edu/LDC2013T19,The registry describes a sample. The linked Hub full-corpus partitions do not identify which licensed examples constitute that sample.
+PDTB3,licensed distribution,https://catalog.ldc.upenn.edu/LDC2019T05,Penn Discourse Treebank 3.0 is distributed under the listed LDC licensing instructions.
+RSTDT,licensed distribution,https://catalog.ldc.upenn.edu/LDC2002T07,The RST Discourse Treebank catalog lists an LDC distribution agreement.
+Saraga,publisher scope verified,https://github.com/MTG/saraga/blob/bd103295689ad11a5ed19038b7469e91b5c3c124/LICENSE.md,The publisher specifies CC BY-NC 4.0 for audio and manual or automatic annotations and AGPLv3 for code. The measured inputs are recording metadata and human timing marks. Audio is outside this survey. The license file leaves editorial metadata terms unspecified.

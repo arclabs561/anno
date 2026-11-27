@@ -7,7 +7,9 @@ previous evidence CSV with --pins to replay its repo revisions. Repository revis
 the author repository and checksum-verified external tar; its bytes and sha256
 refer to the archive, and path identifies the member. split can also identify
 a publisher partition (domain, book or category) when there is no split. A cache
-directory can retain Git trees; failed lookups are retried on subsequent runs.
+directory can retain Git trees and downloaded publisher files. For ZIP sources,
+path identifies the measured member or directory. Bytes/sha256 describe the
+archive except for SLUE, which hashes each uncompressed transcript member.
 """
 
 import argparse
@@ -19,22 +21,43 @@ import json
 import re
 import subprocess
 import tarfile
-import zipfile
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import survey_publisher_annotations as publisher
+import survey_scrolls_qmsum
+import survey_slue_manifest
 from survey_repo_files import measure as measure_token_file
 
 ROOT = Path(__file__).resolve().parents[1]
-FIELDS = "id registry_url repository revision path split status reason source_url sha256 bytes metric unit value".split()
+FIELDS = [
+    "id",
+    "registry_url",
+    "repository",
+    "revision",
+    "path",
+    "split",
+    "status",
+    "reason",
+    "source_url",
+    "sha256",
+    "bytes",
+    "metric",
+    "unit",
+    "value",
+]
 RAW_EXTRAS = {"BBQ", "GAP", "MuDoCo"}
 # Match only reviewed paths. The captured group denotes the split or source
 # partition; labels such as 'all' and 'unsplit' are explicit where appropriate.
 PATHS = {
+    **publisher.PATHS,
     "BBQ": r"data/([^/]+)\.jsonl",
     "GAP": r"gap-(development|validation|test)\.tsv",
     "MuDoCo": r"mudoco_(\w+)\.json",
@@ -76,6 +99,7 @@ def api(repository, path):
     response = subprocess.run(
         ["gh", "api", "repos/" + repository + "/" + path],
         capture_output=True,
+        check=False,
         timeout=90,
     )
     if response.returncode:
@@ -113,6 +137,11 @@ def tree(repository, revision, cache):
 
 def metrics(dataset, raw):
     """Return tuples of (unit, count) for one identified source file."""
+    if dataset in publisher.PATHS:
+        values = publisher.file_metrics(dataset, raw)
+        if not values or not any(values.values()):
+            raise ValueError("empty publisher data file")
+        return list(values.items())
     if dataset == "DISAPERE":
         totals = Counter()
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -339,45 +368,72 @@ def scico(base):
 
 
 def inspect(args):
-    row, repository, inventory, local = args
+    row, repository, inventory, local, cache = args
     dataset = row["id"]
     revision = inventory.get("sha", "")
-    base = dict(
-        id=dataset, registry_url=row["url"], repository=repository, revision=revision
-    )
+    base = {
+        "id": dataset,
+        "registry_url": row["url"],
+        "repository": repository,
+        "revision": revision,
+    }
 
     def skip(reason):
         return [dict(base, status="unmeasured", reason=reason)]
 
     if not repository:
         return skip("owner page or incomplete repository URL")
+    if dataset in publisher.EXCLUSION_REASONS:
+        return skip(publisher.EXCLUSION_REASONS[dataset])
+    transformed = (
+        survey_scrolls_qmsum.survey(row["url"], cache)
+        if dataset == "ScrollsQMSum"
+        else []
+    )
     if inventory["status"] != "ok":
-        return skip(
+        return transformed + skip(
             "repository/tree lookup failed: "
             + inventory.get("code", inventory["status"])
         )
-    if dataset in local or row["access"] in {
-        "Local",
-        "ContactAuthors",
-        "Registration",
-        "DependsOnOther",
-    }:
+    if dataset in local or (
+        row["access"]
+        in {
+            "Local",
+            "ContactAuthors",
+            "Registration",
+            "DependsOnOther",
+        }
+        and dataset not in publisher.PUBLIC_ANNOTATIONS
+    ):
         return skip("local or access-dependent registry entry; tree metadata only")
+    if dataset == "SLUE":
+        return survey_slue_manifest.survey(base)
+    if dataset in publisher.CONLL2002:
+        return publisher.conll2002(base, inventory, cache)
+    if dataset == "MAVENArg":
+        return publisher.maven_release(base, cache)
+    if dataset in publisher.ARCHIVE_PATHS:
+        return publisher.archive_metrics(base, inventory, cache)
     if dataset == "SciCo":
         return scico(base)
     if dataset not in PATHS:
         if repository == COLLECTION:
+            named = {
+                p.split("/")[1] for p in inventory["files"] if p.startswith("data/")
+            }
             reason = (
-                "named folder has documentation only"
+                "named MalwareTextDB folder contains README, label names and config only"
                 if dataset == "MalwareTextDB"
-                else "collection-level link; no verified matching release for this registry ID"
+                else f"collection-level link; none of its {len(named)} named data folders identifies this registry corpus"
             )
         else:
             reason = "repository tree inspected; no reviewed release-file mapping in this survey"
         if inventory.get("truncated"):
             reason += "; GitHub returned a truncated tree"
         return skip(reason)
-    records = []
+    records = (
+        publisher.maven_release(base, cache) if dataset == "MAVEN" else transformed
+    )
     for path, size in sorted(inventory["files"].items()):
         match = re.fullmatch(PATHS[dataset], path)
         if not match:
@@ -386,8 +442,14 @@ def inspect(args):
         url = f"https://raw.githubusercontent.com/{repository}/{revision}/{urllib.parse.quote(path)}"
         entry = dict(base, path=path, split=partition, source_url=url)
         try:
-            with urllib.request.urlopen(url, timeout=60) as response:
-                raw = response.read()
+            if dataset in publisher.PATHS:
+                key = "raw-" + hashlib.sha256(url.encode()).hexdigest()
+                raw = publisher.cached_download(
+                    cache, key, url, expected_size=size
+                ).read_bytes()
+            else:
+                with urllib.request.urlopen(url, timeout=60) as response:
+                    raw = response.read()
             if len(raw) != size:
                 raise ValueError("size differs from pinned tree")
             values = metrics(dataset, raw)
@@ -395,6 +457,7 @@ def inspect(args):
                 dict(
                     entry,
                     status="ok",
+                    reason=publisher.SCOPES.get(dataset, ""),
                     bytes=size,
                     sha256=hashlib.sha256(raw).hexdigest(),
                     metric="count",
@@ -403,7 +466,14 @@ def inspect(args):
                 )
                 for unit, value in values
             )
-        except (OSError, ValueError, KeyError, TypeError, AssertionError) as exc:
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AssertionError,
+            ET.ParseError,
+        ) as exc:
             records.append(
                 dict(entry, status="unmeasured", reason=f"{type(exc).__name__}: {exc}")
             )
@@ -422,6 +492,9 @@ def main():
     parser.add_argument(
         "--pins", type=Path, help="use revisions from existing evidence CSV"
     )
+    parser.add_argument(
+        "--only", action="append", metavar="ID", help="measure a named ID (repeatable)"
+    )
     args = parser.parse_args()
     if args.cache_dir:
         args.cache_dir.mkdir(exist_ok=True, parents=True)
@@ -431,7 +504,17 @@ def main():
             for row in csv.DictReader(f)
             if urllib.parse.urlsplit(row["url"]).hostname == "github.com"
             or row["id"] in RAW_EXTRAS
+            or row["id"] in publisher.AUTHOR_REPOS
         ]
+    if args.only:
+        rows = [r for r in rows if r["id"] in args.only]
+        missing = set(args.only) - {r["id"] for r in rows}
+        if missing:
+            parser.error("unknown GitHub survey IDs: " + ", ".join(sorted(missing)))
+
+    def repository(row):
+        return publisher.AUTHOR_REPOS.get(row["id"], repo_ref(row["url"]))
+
     pins = {}
     if args.pins:
         with args.pins.open(newline="") as f:
@@ -446,8 +529,8 @@ def main():
         for l in rules.read_text().splitlines()
         if l.split("\t")[1] == "local"
     }
-    repos = sorted({repo_ref(row["url"]) for row in rows} - {""})
-    with ThreadPoolExecutor(6) as pool:
+    repos = sorted({repository(row) for row in rows} - {""})
+    with tempfile.TemporaryDirectory() as temp, ThreadPoolExecutor(6) as pool:
         trees = dict(
             zip(
                 repos,
@@ -459,7 +542,13 @@ def main():
         batches = pool.map(
             inspect,
             [
-                (r, repo_ref(r["url"]), trees.get(repo_ref(r["url"]), {}), local)
+                (
+                    r,
+                    repository(r),
+                    trees.get(repository(r), {}),
+                    local,
+                    args.cache_dir or Path(temp),
+                )
                 for r in rows
             ],
         )

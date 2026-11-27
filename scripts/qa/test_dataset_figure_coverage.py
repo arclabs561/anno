@@ -59,8 +59,10 @@ class DatasetFigureCoverageTest(unittest.TestCase):
                     )
             ledgers = {
                 "direct-files": (
-                    "id,status,records,tokens,tagged,unit\n"
-                    "Overlap,tagged tokens measured,,8,0,tokens\n"
+                    "id,status,records,tokens,tagged,unit,source,sha256\n"
+                    "Overlap,tagged tokens measured,,8,0,tokens,file,f\n"
+                    "Records,records measured,4,,,docs,one.zip,z\n"
+                    "Records,records measured,2,,,docs,one.zip,z\n"
                 ),
                 "hf-splits": (
                     "id,status,rows,tokens,tagged,provider_rows\n"
@@ -117,6 +119,10 @@ class DatasetFigureCoverageTest(unittest.TestCase):
         row = self.by_id["Overlap"]
         self.assertEqual(row["tagged_tokens_measured"], "1")
         self.assertEqual(set(row["tagged_routes"].split(" | ")), {"direct", "hf"})
+
+    def test_several_partitions_can_share_one_physical_file(self):
+        row = self.by_id["Records"]
+        self.assertEqual((row["direct_measured_files"], row["direct_measured_partitions"]), ("1", "2"))
 
     def test_unlabelled_scan_only_qualifies_for_record_coverage(self):
         for ident in ("Unlabelled", "Records", "Empty"):

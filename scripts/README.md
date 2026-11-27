@@ -28,21 +28,22 @@ Every published dataset figure is in **`docs/figures/`** as a regular Git-tracke
 Run these commands from the repository root with `just` and `uv` installed. On first use, `uv` installs the plotting dependencies. The render reads only files in the checkout.
 
 ```sh
-just dataset-figures           # Preview all PNGs, SVGs and four derived CSVs in .generated/dataset-figures/
+just dataset-figures           # Preview all PNGs, SVGs and five derived CSVs in .generated/dataset-figures/
 just dataset-figures --update  # Refresh the published PNGs and derived CSVs after a change
 just dataset-figures --check   # Verify the published pixels and CSV contents
 ```
 
 With `uv` alone, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Pass `--output PATH` for a separate preview directory. Each figure generator also runs independently with Python and Matplotlib. [Single entry point and renderer dependencies](refresh_dataset_figures.py)
 
-**When the figures change.** For new source data or model results, first refresh the relevant pinned measurements using the source commands below. For a change to the chart design, edit its generator. Run `--update`, review the figures and captions, then commit the changed inputs, code and outputs together. CI renders the figures on Linux for pull requests that touch figure inputs, generators or published PNGs. It compares image dimensions and pixels, checks the four derived CSVs, and names any stale result. Maintainers can also run the check on demand. [CI workflow](../.github/workflows/dataset-figures.yml)
+**When the figures change.** For new source data or model results, first refresh the relevant pinned measurements using the source commands below. For a change to the chart design, edit its generator. Run `--update`, review the figures and captions, then commit the changed inputs, code and outputs together. CI renders the figures on Linux for pull requests and merges to `main` that touch figure inputs, generators or published PNGs. It compares image dimensions and pixels, checks five derived CSVs and the numerical sections of the coverage guide, and names any stale result. Maintainers can also run the check on demand. [CI workflow](../.github/workflows/dataset-figures.yml)
 
-Each figure build saves its PNGs, SVGs and four derived CSVs as the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. Its separate `s3-dataset-cache-figures` artifact contains the live inventory figure and its verification results. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
+Each figure build saves its PNGs, SVGs and five derived CSVs as the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. The `s3-dataset-cache-figures` artifact contains the live inventory figure and WikiGold verification. The `cache-source-evidence` artifact contains the broader publisher-file matches, with their figure and counts. That comparison also refreshes after changes to the measured-file ledgers on `main`. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
 
 ```sh
 gh workflow run dataset-figures.yml --ref main
 gh run download RUN_ID --name dataset-figures --dir .generated/ci-figures
 gh run download RUN_ID --name s3-dataset-cache-figures --dir .generated/ci-s3
+gh run download RUN_ID --name cache-source-evidence --dir .generated/ci-source-matches
 ```
 
 The source refresh examples below use these paths.
@@ -58,7 +59,9 @@ mkdir -p "$out"
 ```sh
 python3 scripts/plot_wnut_novelty.py "$out"
 cmp "$out/wnut-submission-results.csv" "$ledgers/wnut-submission-results.csv"
-python3 scripts/plot_genia_nesting.py "$out"
+cargo build --locked -p anno-eval --example genia_export
+python3 scripts/plot_genia_nesting.py "$out" --native-export "${CARGO_TARGET_DIR:-target}/debug/examples/genia_export"
+cmp "$out/genia-native-exports.json" "$ledgers/genia-native-exports.json"
 cmp "$out/genia-nesting-counts.json" "$ledgers/genia-nesting-counts.json"
 python3 scripts/survey_crossre_prompts.py "$out/crossre-prompt-scope.csv"
 cmp "$out/crossre-prompt-scope.csv" "$ledgers/crossre-prompt-scope.csv"
@@ -66,7 +69,9 @@ cmp "$out/crossre-prompt-scope.csv" "$ledgers/crossre-prompt-scope.csv"
 
 For offline WNUT replay, add `--data-dir PATH_TO_CHECKOUT` at upstream commit `e52a2d2a71ac1a051ca2d532eef28653c5c02603`. For GENIA or CrossRE, add `--cache-dir PATH_TO_POPULATED_REPO_FILE_CACHE`. GENIA also accepts `--input PATH_TO_GENIA_TEST_IOB2` for a test-only calculation. [WNUT source](https://github.com/leondz/emerging_entities_17/tree/e52a2d2a71ac1a051ca2d532eef28653c5c02603) · [GENIA and CrossRE file manifest](../docs/eval/dataset-repo-files.csv)
 
-**Refresh source measurements.** The direct survey also generates the task-tag, PII fixture, WikiGold/WNUT-16, token-density and MIT query figures. Install the system libarchive and the Python `libarchive-c` package to read the FINER RAR release. The Hugging Face scan requires `pyarrow`. The GitHub source and archived CI surveys use an authenticated `gh` CLI. Run the following with network access and the same `out` and `ledgers` variables as above.
+[Native WNUT-17 replay](../docs/DOMAIN_QA.md#compare-native-anno-on-unfamiliar-names) builds the selected Anno revisions, runs the same 1,287 test sentences through both binaries and writes the aggregate used by the native comparison figure. [Six-domain CrossRE replay](../docs/eval/crossre-full-prompt-comparison.md) records the model, corpus files and two prompt conditions.
+
+**Refresh source measurements.** The direct survey also generates the task-tag, PII fixture, WikiGold/WNUT-16, token-density and MIT query figures. Install the system libarchive and the Python `libarchive-c` package to read the FINER RAR release. The Hugging Face scan and the Quoref and CHIA direct readers use `pyarrow`. Replaying CHIA’s seeded split also uses NumPy. The GitHub source and archived CI surveys use an authenticated `gh` CLI. Run the following with network access and the same `out` and `ledgers` variables as above.
 
 ```sh
 python3 scripts/plot_datasets.py "$out"
@@ -75,10 +80,11 @@ python3 scripts/survey_repo_files.py --manifest "$ledgers/dataset-repo-files.csv
 python3 scripts/survey_hf_splits.py "$out/anno-all.csv" "$out/dataset-hf-splits.csv"
 python3 scripts/survey_github_sources.py --inventory "$out/anno-all.csv" \
   --output "$out/dataset-github-sources.csv"
+python3 scripts/survey_registry_pointers.py "$out/anno-all.csv" "$out/dataset-registry-pointers.csv"
 python3 scripts/survey_matrix_evidence.py --limit 100 --output "$out/dataset-matrix-evidence.csv"
 ```
 
-To rebuild coverage for this refresh, use `$out/anno-all.csv` as the inventory and the five new ledgers in `$out`. The direct reader accepts `--source-cache PATH` to reuse downloaded bytes. For the 15 GB medieval charter release it reads the ZIP directory and all four annotated text members in about 7.5 MB of verified ranges. For replay, `survey_repo_files.py` checks files against the supplied manifest. Add `--pins "$ledgers/dataset-github-sources.csv"` to the GitHub survey to select the recorded repository revisions. The following commands verify previously measured Hugging Face splits and rerun the recorded CI prechecks, subject to log availability.
+To rebuild coverage for this refresh, use `$out/anno-all.csv` as the inventory and the new ledgers in `$out`. The direct reader accepts `--source-cache PATH` to reuse downloaded bytes. For the 15 GB medieval charter release it reads the ZIP directory and all four annotated text members in about 7.5 MB of verified ranges. For replay, `survey_repo_files.py` checks files against the supplied manifest. Add `--pins "$ledgers/dataset-github-sources.csv"` to the GitHub survey to select the recorded repository revisions. The following commands verify previously measured Hugging Face splits and rerun the recorded CI prechecks, subject to log availability.
 
 ```sh
 python3 scripts/survey_hf_splits.py --replay "$ledgers/dataset-hf-splits.csv" "$out/hf-replay.csv"

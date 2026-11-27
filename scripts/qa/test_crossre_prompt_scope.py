@@ -40,6 +40,8 @@ class CrossREPromptScopeTest(unittest.TestCase):
             (1, 1, 1),
         )
         self.assertEqual(counts["gold_relations"], 4)
+        self.assertEqual(counts["gold_relations_in_one_predicate_sentences"], 2)
+        self.assertEqual(counts["predicate_choices_summed_over_gold_relations"], 6)
         self.assertEqual(counts["relations_with_unseen_predicate"], 1)
         self.assertEqual(counts["relations_with_unseen_endpoint_type"], 1)
         self.assertEqual(counts["relations_outside_train_predicate_roles"], 2)

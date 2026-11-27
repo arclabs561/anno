@@ -144,7 +144,7 @@ just qa-spans target/debug/anno stacked
 python3 scripts/qa/check_span_assertions.py --fixture cases.json --predictions batch.jsonl
 ```
 
-The [diagnostic fixture](../scripts/qa/fixtures/typed-span-assertions.json) includes credentials, a delivery channel and organization initials. Its failures expose current backend behavior. Exit 0 means all assertions passed, 1 means at least one assertion failed, and 2 means the input or run was invalid. For a custom assertion type, pass its exact spelling with `--allow-type LABEL`. Other custom predictions still appear in the overlap report. Saved batch JSONL must include a per-document `source_sha256` matching the exact UTF-8 fixture text, including line endings. The report lists overlapping entities so a reviewer can inspect both boundaries and labels.
+The [diagnostic fixture](../scripts/qa/fixtures/typed-span-assertions.json) tests how Anno classifies professional designations such as CPA and P.Eng., a message medium and agency initials. Its failures expose current backend behavior. Exit 0 means all assertions passed, 1 means at least one assertion failed, and 2 means the input or run was invalid. For a custom assertion type, pass its exact spelling with `--allow-type LABEL`. Other custom predictions still appear in the overlap report. Saved batch JSONL must include a per-document `source_sha256` matching the exact UTF-8 fixture text, including line endings. The report lists overlapping entities so a reviewer can inspect both boundaries and labels.
 
 To compare weekday handling, run `just qa-spans target/debug/anno pattern scripts/qa/fixtures/weekday-span-assertions.json`.
 Each case protects a person or film title and checks a date in the same sentence. The two weekday
@@ -283,11 +283,13 @@ The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local pane
 
 ### Which datasets do the token counts describe?
 
-Check whether the survey measured the kind of text you plan to review. It measured 13 of 63 registered news entries and 13 of 21 Wikipedia entries. Five news entries and seven Wikipedia entries supply a fraction of tokens inside annotations. All 17 entries classified as clinical lack a corpus measurement in this survey. [Counts for every domain](eval/dataset-coverage-by-domain.csv) · [Sources and exclusions](eval/dataset-coverage.md)
+For a WikiANN review, estimate how much text will be highlighted from the **training split in the language you plan to review**. That estimate came within five percentage points of the test rate in **143 of 176 languages**. Using the median of the other languages’ training rates did so for **52**. The median error was 1.17 and 9.36 points, respectively. The unit is a token position carrying a WikiANN silver label. Estimating reviewer time requires a timed sample from your application. [Per-language estimates and observed rates](eval/dataset-wikiann-split-density.csv)
 
-![Survey coverage in the eight largest registered domains and the remainder. For each, the bars and counts distinguish tagged tokens, other measured records and missing corpus measurements.](figures/dataset-coverage.png)
+![At five percentage points of error, 143 WikiANN languages are inside the tolerance using their own training splits and 52 are inside using the other languages.](figures/wikiann-split-density.png)
 
-For a WikiANN review, estimate the share of highlighted text from the training split in the language you plan to review. Its median error on test was 1.17 percentage points across 176 languages, compared with 9.36 points using the other languages’ median training rate. To see which inputs your evaluator can load, run `anno sampler eligibility --task ner --require-cached`. [WikiANN split comparison](eval/dataset-coverage.md#estimate-review-volume-for-a-wikiann-language) · [Measured density across 49 entries](eval/dataset-coverage.md#compare-annotation-density-across-datasets) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
+On MultiCoNER v2, each language’s own training rate predicted both held-out splits within five percentage points for all 12 single-language tracks. Median absolute error was **0.53 points on development and 0.29 on test**. Using the median training rate of the other 11 languages raised those errors to **2.35 and 2.23 points** and met the five-point threshold for 9 development and 11 test tracks. Chinese had the largest test miss with the cross-language estimate at 10.94 points. These counts exclude the pooled multilingual track. [MultiCoNER v2 per-language counts and estimates](eval/dataset-multiconer-v2-split-density.csv)
+
+For another corpus, check its observed partitions and annotation scheme before borrowing a rate. To see which inputs your evaluator can load, run `anno sampler eligibility --task ner --require-cached`. [Density by dataset](eval/dataset-coverage.md#compare-annotation-density-across-datasets) · [Source coverage and exclusions](eval/dataset-coverage.md) · [Local cache eligibility](EVALUATION_SAMPLING.md#inspect-dataset-eligibility)
 
 ### Decide what to keep
 

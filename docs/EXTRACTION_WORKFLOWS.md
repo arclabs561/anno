@@ -24,6 +24,26 @@ saved documents in one file, export numbers artifacts in input order starting
 at one. Graph CSV preserves an empty recorded edge set. Exporting raw text can
 generate co-occurrence edges when extraction yields no semantic relations.
 
+### Review overlapping highlights
+
+When a name seems to be missing from an HTML preview, inspect the entity list that produced it. In the GENIA test split, “cyclophilin gene” is a DNA mention and “cyclophilin” is a protein mention at the same start. Given both, `anno::export::to_html` highlights the longer phrase once. `anno::export::to_jsonl` writes a separate row for each mention. Use those rows and their offsets to review a suspected miss or score an extraction.
+
+Across all **18,546 sentences** in this GENIA release, the native HTML exporter hid at least one gold mention in **3,816 sentences (20.6%)**. It displayed 50,709 gold mentions and hid 5,031 (9.0%). The JSONL exporter preserved all 55,740 with their original labels, surfaces and offsets. Both exporters received the gold annotations directly, so the results measure what a reviewer can see when the supplied entities overlap. [Verified split counts and source files](eval/genia-native-exports.json)
+
+![GENIA HTML hid 8.9% of train mentions, 8.6% of dev mentions and 10.8% of test mentions. The share of sentences with any hidden mention was 20.5%, 18.4% and 23.1% respectively. Additional panels show annotation depths and the seven most frequent nested label pairs.](figures/anno-genia-nesting.png)
+
+The test split’s most frequent nesting was a protein inside a DNA mention (190 pairs). Across train, dev and test, protein inside protein led (1,863 pairs). The figure counts strictly contained mention pairs. A mention can belong to more than one pair. [Nesting counts by split and label](eval/genia-nesting-counts.json)
+
+To replay the exports, build the example and run the figure script from the repository root.
+
+```sh
+cargo build --locked -p anno-eval --example genia_export
+python3 scripts/plot_genia_nesting.py target/genia-review \
+  --native-export "${CARGO_TARGET_DIR:-target}/debug/examples/genia_export"
+```
+
+The script checks all three publisher files against their SHA-256 digests. The Rust example reads each of the four IOB2 layers with `AnnotatedSentence::entities()` and passes the original labels to both exporters. Character offsets refer to a sentence reconstructed with one space between tokens. An independent decoder checks the entire text recovered from the HTML, the span and label of every highlight, and each JSONL row. All checks agreed on every sentence, including the 1,983 with no gold mentions. [Replay example](../crates/anno-eval/examples/genia_export.rs) · [Figure and checks](../scripts/plot_genia_nesting.py)
+
 ## Offline deterministic profile
 
 Run the built-in profile without downloading a model or dataset:
@@ -149,14 +169,6 @@ The CLI fixture documents under `crates/anno-cli/tests/fixtures/` are useful
 for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
-
-## Review overlapping highlights
-
-In the GENIA test file, “cyclophilin gene” is a DNA mention and “cyclophilin” inside it is a protein mention. Given both spans, the Rust function `anno::export::to_html` highlights the whole phrase once. It processes earlier starts first, prefers the longer span at a shared start, and skips later overlaps. A reviewer looking for the protein would miss a correct extraction.
-
-![GENIA train, dev and test mentions hidden by HTML highlighting, annotated tokens by number of active layers, and the seven most frequent nested label pairs.](figures/anno-genia-nesting.png)
-
-Across the three published GENIA splits, that display rule would show **50,709 of 55,740 reference mentions** and hide **5,031 (9.0%)**. It hides 4,067 of 45,929 training mentions, 373 of 4,337 development mentions, and 591 of 5,474 test mentions. The original test-only replay shows 4,883 highlights. The most frequent nested pair also changes with scope. The test split has 190 protein mentions inside DNA mentions, its most frequent pair. Across all splits, protein inside protein leads with 1,863 pairs. When reviewing a suspected miss, inspect the original entity list or pass it to `anno::export::to_jsonl`, which writes one row per entity. Use those spans to calculate recall. [Export functions](../crates/anno/src/export.rs) · [Pinned split files and SHA-256 digests](eval/dataset-repo-files.csv) · [Reproduce the figures](../scripts/README.md#reproduce-the-dataset-figures)
 
 ## Comparing contract passage suggestions
 

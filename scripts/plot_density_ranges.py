@@ -8,11 +8,13 @@ Quartiles use linear interpolation, and are reported for at least four units.
 
 import argparse
 import csv
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 from statistics import median, quantiles
+from urllib.parse import unquote, urlsplit
 
 import matplotlib
 
@@ -23,12 +25,24 @@ SPECIAL = {
     "WikiANN": "Silver entity tags",
     "WikiNeural": "Silver entity tags",
     "PolyglotNER": "Silver entity tags",
+    "FictionNER750M": "Silver entity tags",
+    "MSNER": "Mixed silver and manual entity tags",
     "ATISFlightBooking": "Slot tags",
     "MitMovie": "Slot tags",
     "MitRestaurant": "Slot tags",
     "ZELDA": "Entity links",
     "PIIMasking200k": "PII subword tags",
 }
+
+
+# In the original AnEM train export and NCBI's AIONER conversion, projecting
+# word + BIO and removing AIONER's <ALL> / </ALL> markers yields the same
+# SHA-256 including sentence boundaries. Only these pinned inputs are merged.
+ANEM_TRAIN_SOURCES = {
+    "b52ac2c1de5fbfc47d4c180ed83df03b95d7e7b4d1f5545ba878f65b7e7368e9",
+    "5f84d3f2b897b3d91c6d782cdeafaf50cea0df4c79ffee9fdba38f588a7d5ab4",
+}
+ANEM_TRAIN_CONTENT = "ed0720ed1837b90a8504dc76baacb265a8f8859019a28e36ebc57086374bf066"
 
 
 def read_csv(path):
@@ -52,6 +66,15 @@ class Observation:
         return Fraction(self.tagged, self.tokens)
 
 
+def is_archive(source):
+    path = urlsplit(source).path.lower()
+    return bool(
+        re.search(r"\.(?:zip|tar(?:\.(?:gz|bz2|xz))?|tgz)(?:/content)?$", path)
+    ) or any(
+        segment in path for segment in ("/zip/", "/tar.gz/", "/zipball/", "/tarball/")
+    )
+
+
 def collect(direct, repository, hub, github):
     observations = []
     # Published NER partitions and their HF conversions can have identical counts.
@@ -65,6 +88,12 @@ def collect(direct, repository, hub, github):
         if tagged < 0 or tokens < tagged:
             raise ValueError(f"Invalid tagged-token counts for {dataset}, {source}")
         if tokens:
+            if (
+                dataset == "AnEM"
+                and partition == "train"
+                and digest in ANEM_TRAIN_SOURCES
+            ):
+                identity = ("token and label sequence", ANEM_TRAIN_CONTENT)
             observations.append(
                 Observation(
                     dataset, route, source, partition, identity, tagged, tokens, digest
@@ -92,12 +121,27 @@ def collect(direct, repository, hub, github):
             row["sha256"],
         )
 
+    # A direct survey can report multiple independently measured scopes while
+    # hashing their one enclosing archive (e.g. AnEM train and test). Equal
+    # numerator/denominator pairs in separate archive members remain two units.
+    direct_parts = defaultdict(set)
+    for row in direct:
+        if row["status"] == "tagged tokens measured" and is_archive(row["source"]):
+            partition = row.get("split_or_subset") or row["scope"]
+            direct_parts[row["id"], row["sha256"]].add(
+                (urlsplit(row["source"]).fragment, partition)
+            )
+
     for row in direct:
         if row["status"] == "tagged tokens measured":
-            identity = physical_to_split.get(
-                (row["id"], row["sha256"]), ("sha256", row["sha256"])
-            )
+            key = row["id"], row["sha256"]
+            identity = physical_to_split.get(key, ("sha256", row["sha256"]))
             partition = row.get("split_or_subset") or row["scope"]
+            if len(direct_parts.get(key, ())) > 1 and is_archive(row["source"]):
+                member = unquote(
+                    urlsplit(row["source"]).fragment.removeprefix("member=")
+                )
+                identity = ("archive", row["sha256"], member, partition)
             add(
                 row["id"],
                 "direct file",
@@ -153,18 +197,28 @@ def collect(direct, repository, hub, github):
     counts = defaultdict(dict)
     for row in github:
         if row["status"] == "ok" and row["unit"] in {"tokens", "tagged tokens"}:
-            key = (row["id"], row["source_url"], row["split"], row["sha256"])
+            key = (
+                row["id"],
+                row["source_url"],
+                row["path"],
+                row["split"],
+                row["sha256"],
+            )
             previous = counts[key].setdefault(row["unit"], row["value"])
             if previous != row["value"]:
                 raise ValueError(f"Conflicting GitHub counts for {key}")
-    for (dataset, source, partition, digest), values in counts.items():
+    for (dataset, source, path, partition, digest), values in counts.items():
         if {"tokens", "tagged tokens"} <= values.keys():
+            archive = is_archive(source)
+            identity = (
+                ("archive", digest, path, partition) if archive else ("sha256", digest)
+            )
             add(
                 dataset,
                 "GitHub file",
                 source,
-                partition,
-                ("sha256", digest),
+                f"{path} ({partition})" if archive else partition,
+                identity,
                 values["tagged tokens"],
                 values["tokens"],
                 digest,
@@ -256,7 +310,7 @@ def plot(rows, output):
     fig.text(
         title_x,
         1 - 0.47 / height,
-        f"{len(rows)} registry entries · {units:,} measured files or partitions · equal weight per measurement",
+        f"{len(rows)} registry IDs · {units:,} file/split entries · equal weights within IDs · aliases can share files",
         fontsize=9.2,
         color=muted,
         va="top",
@@ -294,6 +348,7 @@ def plot(rows, output):
     labels = {
         "Entity tags": "Entity",
         "Silver entity tags": "Silver entity",
+        "Mixed silver and manual entity tags": "Silver + manual",
         "Entity links": "Entity links",
         "Slot tags": "Slots",
         "PII subword tags": "PII subwords",

@@ -52,7 +52,9 @@
           "cell_type": 50,
           "protein": 1554
         }
-      }
+      },
+      "sentences": 15023,
+      "sentences_with_hidden_mentions": 3081
     },
     "dev": {
       "source": {
@@ -99,7 +101,9 @@
           "cell_type": 1,
           "protein": 126
         }
-      }
+      },
+      "sentences": 1669,
+      "sentences_with_hidden_mentions": 307
     },
     "test": {
       "source": {
@@ -144,7 +148,9 @@
           "cell_type": 5,
           "protein": 183
         }
-      }
+      },
+      "sentences": 1854,
+      "sentences_with_hidden_mentions": 428
     }
   }
 }

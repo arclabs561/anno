@@ -55,11 +55,16 @@ def split_counts(
     entity_types, examples, training_types, training_heads, training_tails
 ):
     empty = single = relations = unseen_predicate = unseen_endpoint = outside_roles = 0
+    single_predicate_relations = 0
+    predicate_choices_across_relations = 0
     predicates = set()
     for sentence in examples:
         labels = {label for _, label, _ in sentence}
         empty += not labels
-        single += len(labels) == 1
+        if len(labels) == 1:
+            single += 1
+            single_predicate_relations += len(sentence)
+        predicate_choices_across_relations += len(labels) * len(sentence)
         predicates.update(labels)
         for head, label, tail in sentence:
             relations += 1
@@ -79,6 +84,8 @@ def split_counts(
         "relations_with_unseen_predicate": unseen_predicate,
         "relations_with_unseen_endpoint_type": unseen_endpoint,
         "relations_outside_train_predicate_roles": outside_roles,
+        "gold_relations_in_one_predicate_sentences": single_predicate_relations,
+        "predicate_choices_summed_over_gold_relations": predicate_choices_across_relations,
     }
 
 

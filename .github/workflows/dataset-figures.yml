@@ -6,15 +6,33 @@ on:
       - .github/workflows/dataset-figures.yml
       - .github/workflows/verify-dataset-cache.yml
       - scripts/refresh_dataset_figures.py
+      - scripts/figure_coverage_report.py
       - scripts/plot_*.py
       - scripts/qa/joint_baseline/**
       - docs/figures/*.png
       - docs/eval/dataset-*.csv
+      - docs/eval/dataset-coverage.md
       - docs/eval/crossre-prompt-scope.csv
       - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/genia-nesting-counts.json
       - docs/eval/ner-language-length.json
       - docs/eval/wnut-submission-results.csv
+      - docs/eval/wnut-*.json
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dataset-figures.yml
+      - scripts/refresh_dataset_figures.py
+      - scripts/figure_coverage_report.py
+      - scripts/plot_*.py
+      - docs/figures/*.png
+      - docs/eval/dataset-*.csv
+      - docs/eval/crossre-full-prompt-comparison.json
+      - docs/eval/crossre-prompt-scope.csv
+      - docs/eval/genia-nesting-counts.json
+      - docs/eval/ner-language-length.json
+      - docs/eval/wnut-*.csv
+      - docs/eval/wnut-*.json
   workflow_dispatch:
 
 permissions:
@@ -30,6 +48,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - name: Check paired CrossRE inputs and outcomes
+        run: python3 -m unittest discover -s scripts/qa -p 'test_crossre_prompt*.py'
       - name: Render and compare the published figures
         run: uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check --output "$RUNNER_TEMP/dataset-figures"
       - name: Save the rendered images and measurements
@@ -48,3 +68,11 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/verify-dataset-cache.yml
+
+  publisher-files:
+    name: Match cached inputs to measured publisher files
+    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/cache-source-evidence.yml

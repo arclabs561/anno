@@ -1,53 +1,53 @@
-# Full-domain relation extraction on CrossRE AI and literature
+# How much do gold prompts change CrossRE relation extraction?
 
-GLiNER-Relex received either a fixed vocabulary from the domain's 100 training sentences or the entity and relation labels occurring in each test sentence's gold relations. All four producer–prompt combinations predicted their own mention endpoints. Moving from the train vocabulary to the reference-conditioned prompt changed strict F1 by 32.2 percentage points on AI and 26.4 on literature. The comparison uses all 847 sentences and 2,787 gold relations in the two official test splits. [Measurements](crossre-full-prompt-comparison.json) · [Dataset paper](https://aclanthology.org/2022.findings-emnlp.263/)
+On all 2,446 official test sentences, GLiNER-Relex scored **29.5% strict F1** when given the entity and predicate vocabularies from each domain’s training split. Supplying the labels from each test sentence’s gold relations raised pooled F1 to **58.2%**, a gain of 28.7 percentage points on the same 9,168 reference relations. Use the fixed-prompt column when choosing an extractor for text whose labels are unknown. Music scored above news with the fixed prompt (33.1% versus 27.7%). News scored above music with the gold prompt (74.2% versus 59.6%). [Paired measurements](crossre-full-prompt-comparison.json) · [CrossRE paper](https://aclanthology.org/2022.findings-emnlp.263/)
 
-![Gold prompts disclose zero or one predicate type in 350 of 400 news sentences and 141 of 416 literature sentences. On AI and literature, removing predictions on sentences with no gold relations adds 2.0 and 1.6 F1 points. The full gold prompts add 32.2 and 26.4 points.](../figures/crossre-prompts.png)
+![The top panel counts sentences with zero, one or several gold predicate types in all six CrossRE test domains. In the lower panel, pooled GLiNER-Relex strict F1 is 29.5% with a fixed vocabulary, 32.2% after filtering predictions on relation-free sentences and 58.2% with sentence-specific gold labels.](../figures/crossre-prompts.png)
 
-Across all six test domains, the reference prompt tells the extractor that **620 of 2,446 sentences have no relation** and gives it exactly one possible predicate type in another **718**. A single predicate can still connect several different pairs. Report which vocabulary the caller will have at prediction time. For an application that knows only the training labels, compare the fixed-prompt scores. [All 18 split measurements](crossre-prompt-scope.csv)
+**Filtered** recalculates the fixed-prompt score after removing its 1,659 predictions on the 620 sentences with no reference relation. All 2,446 sentences and 9,168 reference relations still count. Knowing which sentences are relation-free accounts for 2.7 F1 points in this calculation. Supplying the full gold prompt adds a further 26.0 points. Both diagnostics require the held-out annotations. Removing 315 false alarms adds 8.2 points in news. Removing 341 adds 2.4 points in music, whose reference set is more than six times larger. [Numerators, denominators and prompt policies](crossre-full-prompt-comparison.json)
 
-| Test domain | Producer | Prompt | Exact / predicted / gold | Strict P / R / F1 | Wall (s) | CPU (s) | Peak RSS (GiB) |
-|---|---|---|---:|---:|---:|---:|---:|
-| AI | GLiNER-Relex | Train inventory | 256 / 963 / 1164 | 26.6% / 22.0% / **24.1%** | 806.5 | 1323.7 | 2.80 |
-| AI | GLiNER-Relex | Document gold | 680 / 1251 / 1164 | 54.4% / 58.4% / **56.3%** | 563.7 | 930.8 | 2.90 |
-| AI | TPLinker heuristic | Train inventory | 0 / 0 / 1164 | — / 0.0% / **0.0%** | 8.4 | 2.1 | 0.05 |
-| AI | TPLinker heuristic | Document gold | 0 / 0 / 1164 | — / 0.0% / **0.0%** | 3.1 | 0.8 | 0.05 |
-| Literature | GLiNER-Relex | Train inventory | 614 / 2174 / 1623 | 28.2% / 37.8% / **32.3%** | 649.9 | 1215.6 | 2.60 |
-| Literature | GLiNER-Relex | Document gold | 964 / 1660 / 1623 | 58.1% / 59.4% / **58.7%** | 410.1 | 769.0 | 2.73 |
-| Literature | TPLinker heuristic | Train inventory | 0 / 0 / 1623 | — / 0.0% / **0.0%** | 12.4 | 4.5 | 0.05 |
-| Literature | TPLinker heuristic | Document gold | 0 / 1 / 1623 | 0.0% / 0.0% / **0.0%** | 3.3 | 1.6 | 0.05 |
+| Test domain | Gold relations | Fixed exact / emitted | Gold-prompt exact / emitted | Fixed F1 | Filtered F1 | Gold F1 | Gain (pts) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **All domains** | 9,168 | 2,887 / 10,405 | 5,246 / 8,858 | 29.5% | 32.2% | 58.2% | +28.7 |
+| AI | 1,164 | 256 / 963 | 680 / 1,251 | 24.1% | 26.0% | 56.3% | +32.2 |
+| Literature | 1,623 | 614 / 2,174 | 964 / 1,660 | 32.3% | 34.0% | 58.7% | +26.4 |
+| Music | 2,415 | 834 / 2,619 | 1,390 / 2,246 | 33.1% | 35.5% | 59.6% | +26.5 |
+| News | 396 | 192 / 989 | 296 / 402 | 27.7% | 35.9% | 74.2% | +46.5 |
+| Politics | 2,124 | 623 / 2,202 | 1,140 / 1,881 | 28.8% | 30.4% | 56.9% | +28.1 |
+| Science | 1,446 | 368 / 1,458 | 776 / 1,418 | 25.3% | 29.9% | 54.2% | +28.8 |
 
-The numerator is the count of one-to-one exact matches of directed head span, tail span and case-insensitive relation label within a sentence. The denominator includes all gold relations, even when the fixed schema lacks their label. Entity type strings do not enter the strict match. A dash is undefined precision because the producer predicted no relations. TPLinker used Anno's heuristic path on every sentence. These two English Wikipedia-derived domains measure sentence-level extraction. They provide no measurement of document-level clustering, pretrained exposure to these texts, or neural TPLinker quality.
+An exact match requires the directed head and tail character spans and a case-insensitive predicate in the same sentence. Matching is one-to-one, including duplicate occurrences, and ignores endpoint type strings. Every condition predicts its own endpoints. Pooled F1 uses the sum of exact, emitted and gold counts across domains. Music and politics contribute 49.5% of the reference edges from 32.7% of the sentences. [Native scoring](../../crates/anno-eval/src/eval/relation.rs)
+
+The gold prompts add **2,359 net exact matches**. Only 108 reference relations use a predicate missing from that domain’s training inventory. Even if gold prompts recovered all 108, at least **2,251** of the net gain came from relations whose predicate was already available. The experiment changes the entity and predicate lists together. Measuring their separate contributions requires holding one list fixed. An earlier per-edge replay found 19 AI relations and 23 literature relations that only the fixed prompt matched. [Error analysis](backend-residuals.md) · [Training-vocabulary coverage](crossre-prompt-scope.csv)
+
+On the same six splits, Anno’s TPLinker heuristic emitted two relations with the fixed inventories and nine with gold prompts. It matched zero reference edges in either condition. With an empty predicate list the heuristic uses its built-in relation vocabulary. Eight of its nine gold-prompt outputs consequently occurred on sentences with no reference relation. [Effective producers and counts](crossre-full-prompt-comparison.json) · [TPLinker fallback](../../crates/anno/src/backends/tplinker.rs)
 
 ## Which labels reach the model?
 
-| Full test split | Training entity / relation labels | Test sentences / gold relations | Sentences without relations | Gold with unseen relation label | Gold with unseen endpoint type |
-|---|---:|---:|---:|---:|---:|
-| AI | 14 / 15 | 431 / 1,164 | 105 | 12 | 6 |
-| Literature | 13 / 16 | 416 / 1,623 | 47 | 2 | 15 |
+The fixed prompt uses the entity and predicate inventories from that domain’s publisher training split. The document-gold prompt uses the entity types at the endpoints of its annotated relations and the predicates on those relations. It gives the extractor an empty predicate list on 620 of 2,446 test sentences and a single possible predicate type on another 718. A single predicate can still connect several pairs. [Prompt construction and scoring](../../crates/anno-eval/src/eval/task_evaluator.rs) · [All 18 split measurements](crossre-prompt-scope.csv)
 
-AI has 11 instances of `opposite` and one of `social` outside the train relation inventory. Literature has two of `usage`. A gold triplet with an unseen endpoint type can still match by its spans and relation label. GLiNER-Relex predicted 160 triplets on relation-free AI sentences and 181 on relation-free literature sentences with the fixed vocabulary. With an empty relation-label list, Relex emits no triplets. Removing only these false positives from the saved fixed runs gives 26.0% strict F1 on AI and 34.0% on literature, keeping every gold relation in the denominator. The remaining gaps to the per-sentence gold runs are 30.3 and 24.8 points. The gold prompt changes both the entity and relation vocabularies on positive sentences, so these runs measure their combined effect. [Paired trial receipt](crossre-full-prompt-comparison.json)
+Measured per gold relation, the document prompt offers 2.4 predicate choices on average. The fixed inventories contain 14 to 17. For 2,440 of 9,168 gold relations (26.6%), the prompt supplies exactly one predicate, leaving the extractor to find its directed endpoints. This applies to 196 of 396 news relations (49.5%) and 245 of 1,623 literature relations (15.1%). To reproduce the average, multiply each sentence’s number of distinct predicates by its gold relation count, sum across sentences and divide by 9,168. [Predicate counts weighted by relations](crossre-prompt-scope.csv)
 
-Neither domain has identical token sequences across its train and test files. AI contains one repeated test token sequence and one duplicate annotated triplet within a sentence. The full-split evaluation retains them. Both the native input/reference digest and the original file digests are recorded with the results. The native digest is identical across the four runs within each domain. [Pinned train and test files](https://github.com/mainlp/CrossRE/tree/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data)
+The training vocabulary excludes 108 of 9,168 test relations (1.2%) by predicate. A stricter rule would also require the head and tail types to have occurred in their respective roles for that predicate during training. Those occurrences can come from different examples. That rule excludes 2,006 relations (21.9%), including the 108. Science illustrates the distinction. Its training vocabulary contains every test predicate, yet 466 of 1,446 gold relations fall outside the observed endpoint roles. The GLiNER-Relex runs use the broader inventories. [Split measurements](crossre-prompt-scope.csv) · [JointIE role restriction on an AI sample](joint-edge-loss.md)
 
 ## Which other domains did the corpus survey cover?
 
-The corpus reader counted 5,265 sentences across train, development and test in all six CrossRE domains. Each token covered by one or more gold entity spans counts once. The news and music test files have nearly the same sentence count, yet music contains over five times as many entity-covered tokens. A reviewer planning a fixed-size panel will also encounter 396 gold relation occurrences in news and 2,415 in music. Only AI and literature have paired full-test model predictions. [All 18 split files and SHA-256 digests](dataset-repo-files.csv)
+The corpus reader counts 5,265 sentences across all 18 train, development and test files. The model comparison scores the six official test files. The training files supply vocabularies, and development contributes to the corpus survey. Music and news have almost the same test sentence count. Music has more than five times as many tokens inside gold entity spans and over six times as many gold relations. Each token covered by one or more gold entity spans counts once. [File sizes, token counts and SHA-256 identities](dataset-repo-files.csv)
 
-| Test domain | Sentences | Tokens inside gold entity spans / all tokens | Gold relations | Unseen predicate | Outside training head/tail roles |
-|---|---:|---:|---:|---:|---:|
-| AI | 431 | 3,782 / 12,991 (29.1%) | 1,164 | 12 | 326 |
-| Literature | 416 | 5,318 / 16,157 (32.9%) | 1,623 | 2 | 264 |
-| Music | 399 | 6,870 / 17,099 (40.2%) | 2,415 | 31 | 370 |
-| News | 400 | 1,344 / 5,134 (26.2%) | 396 | 35 | 87 |
-| Politics | 400 | 6,156 / 16,531 (37.2%) | 2,124 | 28 | 493 |
-| Science | 400 | 4,882 / 14,304 (34.1%) | 1,446 | 0 | 466 |
+| Domain | Training sentences | Train entity / predicate types | Test sentences | Tokens in entity spans / all test tokens | Test gold relations | Unseen predicate | Outside training head/tail roles |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AI | 100 | 14 / 15 | 431 | 3,782 / 12,991 (29.1%) | 1,164 | 12 | 326 |
+| Literature | 100 | 13 / 16 | 416 | 5,318 / 16,157 (32.9%) | 1,623 | 2 | 264 |
+| Music | 100 | 14 / 14 | 399 | 6,870 / 17,099 (40.2%) | 2,415 | 31 | 370 |
+| News | 164 | 5 / 14 | 400 | 1,344 / 5,134 (26.2%) | 396 | 35 | 87 |
+| Politics | 101 | 13 / 15 | 400 | 6,156 / 16,531 (37.2%) | 2,124 | 28 | 493 |
+| Science | 103 | 18 / 17 | 400 | 4,882 / 14,304 (34.1%) | 1,446 | 0 | 466 |
 
-A caller restricting predicates to the domain's training list would exclude **108 of 9,168 test relations (1.2%)** by label. A stricter rule also requires the gold head type to have appeared as a head for that predicate during training and the gold tail type to have appeared as a tail. The two roles may come from different training examples. This rule would exclude **2,006 of 9,168 typed relations (21.9%)**, including the 108 with unseen predicates. In science, training supplies every test predicate, yet the role rule would exclude 466 of 1,446 gold relations. These are counts of gold annotations a schema permits. The paired GLiNER-Relex runs above used the broader lists. [Split measurements](crossre-prompt-scope.csv) · [Measured JointIE role restriction on an AI prefix](joint-edge-loss.md)
+Five music test token sequences also occur in its training file. The other five domains have zero exact within-domain train–test token-sequence matches. Repetitions within a test file remain in the score, including 24 repeated news rows by token sequence. The upstream checkpoint’s training exposure to these test texts is unknown. [Corpus identities and duplicate counts](crossre-full-prompt-comparison.json)
 
 ## Reproduce the comparison
 
-To rebuild the corpus measurements, read all 18 pinned publisher files with the Python standard library. The script verifies each file digest and its sentence and token counts against the ledger. On held-out rows, it uses only the training split from the same domain to construct predicate and role inventories. The chart renders offline from the checked-in CSV and paired model receipt. [Corpus reader](../../scripts/survey_crossre_prompts.py) · [Matplotlib generator](../../scripts/plot_benchmark_examples.py)
+The Python corpus reader verifies all 18 pinned publisher file digests and their sentence and token counts. Add `--cache-dir PATH` to reuse a publisher-file cache. The Matplotlib generator renders PNG and SVG from the checked-in CSV and model measurements. [Corpus reader](../../scripts/survey_crossre_prompts.py) · [Figure generator](../../scripts/plot_benchmark_examples.py)
 
 ```sh
 python3 scripts/survey_crossre_prompts.py /tmp/crossre-prompt-scope.csv
@@ -55,21 +55,29 @@ cmp /tmp/crossre-prompt-scope.csv docs/eval/crossre-prompt-scope.csv
 python3 scripts/plot_benchmark_examples.py .generated/dataset-figures
 ```
 
-Add `--cache-dir PATH` to the survey command to reuse the publisher file survey's cache.
-
-Cache a verified native joint export for `knowledgator/gliner-relex-large-v1.0` and build the CLI with `eval` and `onnx`. The replay requires Linux and a Python 3 standard library. It verifies dataset checksums before building the prompt, the effective producer for every document, the graph, tokenizer and model configuration fingerprints, identical sample hashes, and quality denominators. The upstream repository declares GPL-3.0 and does not specify separate terms for the annotations. Use the data under the terms applicable to your work. The following commands keep the raw inputs and replay artifacts in a temporary directory outside the checkout. Choose two CPU numbers allowed on your host. [Replay script](../../scripts/qa/crossre_prompt_replay.py) · [Backend setup](../BACKENDS.md)
+For fresh predictions, build the Linux CLI with `eval` and `onnx` and prepare the joint ONNX export of `knowledgator/gliner-relex-large-v1.0`, revision `4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290`. The replay verifies the training and test file identities, the graph, tokenizer and configuration, the actual producer on every sentence, the prompt policy, the confidence threshold and the scored denominators. Domains that share Anno’s generic `CrossRE` dataset ID each get a separate cache. The TPLinker control runs with a private model cache to select Anno’s heuristic implementation. [Replay script](../../scripts/qa/crossre_prompt_replay.py) · [Model and runtime setup](../BACKENDS.md#architecture-specific-gotchas) · [Pinned model checkpoint](https://huggingface.co/knowledgator/gliner-relex-large-v1.0/tree/4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290)
 
 ```bash
+cargo build --locked -p anno-cli --bin anno --features eval,onnx
+python3 scripts/export_gliner_relex_onnx.py --joint \
+  --revision 4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290
 replay_dir="$(mktemp -d)"
 mkdir "$replay_dir/input"
+python3 scripts/qa/check_gliner_relex_cli.py --anno target/debug/anno \
+  --receipt "$replay_dir/model-check.json"
 base=https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data
-for domain in ai literature; do
+for domain in ai literature music news politics science; do
   for split in train test; do
     curl -fsSL "$base/$domain-$split.json" -o "$replay_dir/input/$domain-$split.json"
   done
 done
-python3 scripts/qa/crossre_prompt_replay.py --anno target/debug/anno \
-  --data "$replay_dir/input" --out "$replay_dir/results" --cpus 0,1
+cpus=$(python3 -c 'import os; print(",".join(map(str, sorted(os.sched_getaffinity(0))[:2])))')
+python3 scripts/qa/crossre_prompt_replay.py --anno target/debug/anno --all-domains \
+  --data "$replay_dir/input" --out "$replay_dir/results" --cpus "$cpus"
+python3 scripts/plot_benchmark_examples.py "$replay_dir/figures" \
+  --crossre-receipt "$replay_dir/results/summary.json"
 ```
 
-Each row uses a fresh process with the same CPU affinity, ONNX Runtime 1.24.2, threshold 0.5, and cached artifacts. The process times include startup, fingerprinting, model load and scoring. Other tasks shared the host. Wall times are one observation per condition. The fixed AI Relex arm used the earlier native executable from the 32-sentence comparison. The two executables use the same extraction and scoring implementations and the same graph, tokenizer and model configuration. Their binary hashes are recorded. [Earlier 32-sentence comparison](crossre-ai-prompt-comparison.md)
+Each condition uses a fresh process, native ONNX Runtime 1.24.2 and a confidence threshold of 0.5. AI and literature retain the earlier published measurements. Music, news, politics and science use Anno revision `f942797` with the generic dataset ID routed through its existing CrossRE relation reader. The rebuilt joint export has the same graph, tokenizer and configuration SHA-256 digests as the earlier trials. On the historical 32-sentence AI panel, the rebuilt CLI reproduced both GLiNER-Relex scores, all associated metrics and the ordered sample digest. A second pass with isolated model caches reproduced all 12 full-test heuristic conditions, including the ordered samples and every metric. [Frozen native evaluator](https://github.com/arclabs561/anno/blob/f9427977f2f27b32f26c4c77a6795a8a4dce596c/crates/anno-eval/src/eval/task_evaluator.rs) · [Pilot receipt](crossre-ai-prompt-comparison.json) · [Native model parity check](../../scripts/qa/check_gliner_relex_cli.py)
+
+The receipt records the train and test file digests for each domain and an ordered sample digest for each condition. The four additional domains also record the file digest reported by each native process. Each condition lists its executable identity, CPU affinity, elapsed and CPU time and peak resident memory. Times include startup and model loading on shared hosts. The CrossRE publisher repository specifies GPL-3.0 and gives no separate annotation terms. [Trial measurements](crossre-full-prompt-comparison.json) · [Earlier AI sample](crossre-ai-prompt-comparison.md) · [Publisher license](https://github.com/mainlp/CrossRE/blob/a58885fa760559d2dc9e176e730fe731f020d6f3/LICENSE)
