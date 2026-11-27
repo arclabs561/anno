@@ -2,6 +2,11 @@ name: FCoref CLI with real weights
 
 on:
   workflow_dispatch:
+    inputs:
+      caller_budget:
+        description: Replay the 4096-token caller limit and one-token overflow
+        type: boolean
+        default: false
   pull_request:
     paths:
       - '.github/workflows/fcoref-cli.yml'
@@ -101,6 +106,7 @@ jobs:
       - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
         id: replay
         env:
+          CALLER_BUDGET: ${{ inputs.caller_budget }}
           RUNTIME_IMAGE: ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
           ORT_LIBRARY: ${{ steps.ort.outputs.library }}
         run: |
@@ -108,7 +114,9 @@ jobs:
           echo "receipt=$receipt_dir/fcoref-cgroup.json" >> "$GITHUB_OUTPUT"
           docker pull "$RUNTIME_IMAGE"
           cpu=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
-          python3 scripts/qa/fcoref_cgroup/replay.py \
+          matrix=()
+          if [[ "$CALLER_BUDGET" == true ]]; then matrix+=(--caller-budget --repeats 1); fi
+          python3 scripts/qa/fcoref_cgroup/replay.py "${matrix[@]}" \
             --binary target/release/examples/fcoref_resource_profile --model "$FCOREF_MODEL_PATH" \
             --ort "$ORT_LIBRARY" --image "$RUNTIME_IMAGE" --cpu "$cpu" --output "$receipt_dir/fcoref-cgroup.json"
       - name: Upload the container resource receipt
