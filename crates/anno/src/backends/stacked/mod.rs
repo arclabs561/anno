@@ -207,6 +207,7 @@ pub struct StackedNER {
     layers: Vec<Arc<dyn Model + Send + Sync>>,
     strategy: ConflictStrategy,
     name: String,
+    nuner_fallback: bool,
     /// Cached static name (avoids Box::leak on every name() call)
     name_static: std::sync::OnceLock<&'static str>,
 }
@@ -275,6 +276,7 @@ impl StackedNERBuilder {
         Ok(StackedNER {
             layers: self.layers.into_iter().map(Arc::from).collect(),
             strategy: self.strategy,
+            nuner_fallback: false,
             name,
             name_static: std::sync::OnceLock::new(),
         })
@@ -290,6 +292,16 @@ impl StackedNER {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Run a loaded NuNER layer even on well-capitalized text when no earlier
+    /// BERT ONNX layer has succeeded on this input. This can recover mentions
+    /// when BERT is missing or fails, at the cost of an extra model inference.
+    /// A successful BERT inference with zero entities still counts as success.
+    #[must_use]
+    pub fn with_nuner_fallback(mut self) -> Self {
+        self.nuner_fallback = true;
+        self
     }
 
     /// Create a builder for custom configuration.
@@ -639,15 +651,18 @@ impl StackedNER {
         // ROI: High - called once per extract_entities, saves O(n) per entity in loop
         let text_char_count = text.chars().count();
 
-        // Adaptive NuNER: skip NuNER for well-capitalized text where BERT alone suffices.
-        // NuNER adds ~2s latency and mainly helps with lowercase entity names.
+        // The default gate uses sentence length and capitalization.
         let skip_nuner = !text_may_need_nuner(text);
 
         for layer in &self.layers {
             let layer_name = layer.name();
 
-            // Skip NuNER when text is well-capitalized (saves ~2s latency)
-            if skip_nuner && layer_name.to_lowercase().contains("nuner") {
+            if skip_nuner
+                && layer_name.to_lowercase().contains("nuner")
+                && (!self.nuner_fallback || layer_outcomes.iter().any(|outcome| matches!(
+                    outcome, StackedLayerOutcome::Succeeded { layer, .. } if layer == "bert-onnx"
+                )))
+            {
                 log::debug!("StackedNER: skipping NuNER (text appears well-capitalized)");
                 layer_outcomes.push(StackedLayerOutcome::Skipped {
                     layer: layer_name.to_string(),

@@ -45,10 +45,12 @@ def load_cases(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for arg in ["data", "stock", "candidate", "models", "output"]:
+    for arg in ["data", "stock", "models", "output"]:
         parser.add_argument("--" + arg, type=Path, required=True)
+    parser.add_argument("--candidate", type=Path, help="Historical worker with the guarded patch applied")
     args = parser.parse_args()
-    for worker in (args.stock, args.candidate):
+    candidate_worker = args.candidate or args.stock
+    for worker in {args.stock, candidate_worker}:
         verify_runtime(worker)
     cases = load_cases(args.data)
     os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:2])
@@ -60,7 +62,7 @@ def main():
     texts = [cases[i][0] for i in indices]
     with offline_stack(args.models, bert=False) as env:
         stock = observe(args.stock, texts, False, env, timeout=1200)
-        candidate = observe(args.candidate, texts, False, env, timeout=1200)
+        candidate = observe(candidate_worker, texts, False, env, timeout=1200, fallback=args.candidate is None)
 
     counts = Counter()
     for i, old, new in zip(indices, stock, candidate, strict=True):
@@ -86,7 +88,7 @@ def main():
     report = {"dataset": "WikiGold", "source_sha256": WIKIGOLD, "sentences": len(cases),
               "input_panel_sha256": text_sha("".join(text_sha(cases[i][0]) for i in indices)),
               "ort_sha256": ORT_SHA256, "checkpoint": CHECKPOINT, "checkpoint_sha256": FILES,
-              "workers_sha256": {"stock": digest(args.stock), "candidate": digest(args.candidate)},
+              "workers_sha256": {"stock": digest(args.stock), "candidate": digest(candidate_worker)},
               "cpu_affinity": sorted(os.sched_getaffinity(0)),
               "stock_skipped": size, "already_routed_controls": len(controls),
               "skipped_subset": dict(counts),

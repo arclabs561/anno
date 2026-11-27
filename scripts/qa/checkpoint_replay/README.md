@@ -11,7 +11,7 @@ python3 scripts/qa/checkpoint_replay/run.py --binary target/debug/anno \
 
 Omit `--fetch` for an offline replay. The verifier gives the loader only the verified files and runs one inference process at a time on up to two allowed CPUs. The hosted workflow additionally limits the replay service to 6 GiB with swap disabled. The receipt records binary and artifact hashes, ONNX Runtime identity, the cases that completed and cold elapsed time including model load. Its memory field is the largest individual child process peak RSS. The cases exercise integration and have no corpus-level accuracy denominator.
 
-The same job exercises the default model selected by `anno extract`. It creates two isolated offline Hugging Face caches, both containing the pinned NuNER FP32 checkpoint. Only one contains BERT-base. A layer observer checks which backends actually ran on all three inputs, while the CLI checks runtime provenance and Unicode entity spans on the first input.
+The same job exercises the default model selected by `anno extract`. It creates two isolated offline Hugging Face caches, both containing the pinned NuNER FP32 checkpoint. Only one contains BERT-base. A layer observer checks which backends actually ran on all three inputs under default routing and the Rust `with_nuner_fallback()` opt-in, while the CLI checks runtime provenance and Unicode entity spans on the first input.
 
 ```sh
 cargo build --locked -p anno --no-default-features --features onnx --example stacked_nuner_routing

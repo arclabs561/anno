@@ -39,8 +39,10 @@ def offline_stack(models, *, bert, fetch=False):
                "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"}
 
 
-def observe(worker, texts, bert, env, timeout=180):
+def observe(worker, texts, bert, env, timeout=180, *, fallback=False):
     command = [str(worker.resolve()), "--default-with-bert" if bert else "--default-no-bert"]
+    if fallback:
+        command.append("--nuner-fallback")
     result = subprocess.run(command, env=env, input="".join(json.dumps(t) + "\n" for t in texts),
                             text=True, capture_output=True, timeout=timeout)
     if result.returncode:
@@ -82,6 +84,12 @@ def main():
             for case, row in zip(cases, rows, strict=True):
                 if row["ran"] != case["nuner_ran"] or sorted(row["spans"]) != sorted(case["spans"]):
                     raise ValueError(f"Default stack differs for {name}: {row}")
+            fallback_rows = observe(args.worker, [c["text"] for c in cases], bert, env, fallback=True)
+            for row, opt_in in zip(rows, fallback_rows, strict=True):
+                if opt_in["ran"] != (row["ran"] or not bert):
+                    raise ValueError(f"Unexpected NuNER fallback decision for {name}: {opt_in}")
+                if opt_in["ran"] == row["ran"] and opt_in["spans"] != row["spans"]:
+                    raise ValueError(f"NuNER fallback changed an identically routed input: {opt_in}")
             # Exercise the ordinary CLI entry point as well as the detailed layer observer.
             case = cases[0]
             command = [args.cli.resolve(), "extract", "--quiet", "--format", "json", "--text", case["text"]]
@@ -98,7 +106,8 @@ def main():
             if sorted(spans) != sorted(case["spans"]):
                 raise ValueError(f"Default CLI spans differ for {name}: {spans}")
 
-        report["runs"][name] = {"layers": rows, "cli_runtime": runtime, "cli_spans": spans}
+        report["runs"][name] = {"layers": rows, "fallback_layers": fallback_rows,
+                               "cli_runtime": runtime, "cli_spans": spans}
     args.receipt.write_text(json.dumps(report, indent=2) + "\n")
 
 

@@ -15,12 +15,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         "expected --probe, --default-no-bert, --default-with-bert, or a local checkpoint directory",
     )?;
     let probe = arg == "--probe";
-    let bert = std::env::args().nth(2);
+    let default_stack = matches!(arg.as_str(), "--default-no-bert" | "--default-with-bert");
+    let second = std::env::args().nth(2);
+    let opt_in = default_stack && second.as_deref() == Some("--nuner-fallback");
+    if default_stack && second.is_some() && !opt_in {
+        return Err("default stack accepts only --nuner-fallback".into());
+    }
+    let bert = second.filter(|_| !default_stack);
     let expect_bert = arg == "--default-with-bert" || bert.is_some();
-    let model = if matches!(arg.as_str(), "--default-no-bert" | "--default-with-bert") {
+    let model = if default_stack {
         // The CLI Auto and Stacked routes use this constructor. The replay controls
         // model availability with an isolated, offline Hugging Face cache.
-        StackedNER::default()
+        let model = StackedNER::default();
+        if opt_in {
+            model.with_nuner_fallback()
+        } else {
+            model
+        }
     } else {
         let nuner = if probe {
             NuNER::new()
