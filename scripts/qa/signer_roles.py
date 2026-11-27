@@ -9,12 +9,13 @@ from pathlib import Path
 import subprocess
 
 import audit_gap_decisions as gap
+from coref_gap import check_file, FC_FILES
 
-ROOT = Path(__file__).resolve().parents[2]
 ARMS = {"native-entities": ("mention-ranking", "supplied"),
         "native-raw": ("mention-ranking", "predicted"),
         "native-copula-raw": ("mention-ranking-copula", "predicted"),
         "fcoref-raw": ("fcoref", "predicted"),
+        "fcoref-supplied": ("fcoref", "supplied"),
         "maverick-raw": ("maverick", "predicted"),
         "maverick-supplied": ("maverick", "supplied")}
 
@@ -79,15 +80,36 @@ def observe(row, result, producer, mode):
         outcome = "candidate_missing"
     else:
         outcome = "abstained"
+    exact_group = next((group for group in result["clusters"] if list(query) in group), [])
+    diagnostic = None
+    if outcome == "candidate_missing" and row["family"] in ("exclusive", "order_word"):
+        start = row["Text"].index("Only the ")
+        end = row["Text"].index(" signed the register", start)
+        if [start, end] in exact_group:
+            diagnostic = "exact_query_linked_to_cue_phrase_without_named_answer"
+    elif outcome == "candidate_missing" and row["family"] == "repeated_name":
+        start, end = names["AB".index(row["gold"])]
+        if row["Text"][end:end + 1] == "." and [start, end + 1] in exact_group:
+            diagnostic = "exact_query_linked_to_expected_name_with_period"
+    elif outcome == "query_missing" and len(enclosing_names) == 1 and row["gold"]:
+        diagnostic = ("enclosing_query_names_correct_candidate" if enclosing_names[0] == row["gold"]
+                      else "enclosing_query_names_wrong_candidate")
     return {"status": outcome, "choice": choice, "returned_query_A_B": bits[:3],
-            "names_linked_to_strictly_enclosing_query": "".join(enclosing_names)}
+            "names_linked_to_strictly_enclosing_query": "".join(enclosing_names),
+            **({"diagnostic": diagnostic} if diagnostic else {})}
 
 
 def summarize(rows, observations):
     outcomes = defaultdict(Counter)
+    coverage = defaultdict(Counter)
+    diagnostics = defaultdict(Counter)
     paired = defaultdict(list)
     for row, result in zip(rows, observations, strict=True):
         outcomes[row["family"]][result["status"]] += 1
+        if "diagnostic" in result:
+            diagnostics[row["family"]][result["diagnostic"]] += 1
+        if "returned_query_A_B" in result:
+            coverage[row["family"]][result["returned_query_A_B"]] += 1
         if row["gold"] is not None:
             paired[(row["family"], row["pair"])].append((row["gold"], result["choice"]))
     pairs = defaultdict(Counter)
@@ -105,7 +127,9 @@ def summarize(rows, observations):
         else:
             decision = "incomplete_unique_choices"
         pairs[family][decision] += 1
-    return {"by_family": dict(outcomes), "paired_unique_decisions": dict(pairs)}
+    return {"by_family": dict(outcomes), "source_span_diagnostics": dict(diagnostics),
+            "returned_query_A_B_by_family": dict(coverage),
+            "paired_unique_decisions": dict(pairs)}
 
 
 def digest(obj):
@@ -116,21 +140,26 @@ def digest(obj):
 def replay(rows, binary, arm):
     backend, mode = ARMS[arm]
     if backend == "fcoref":
-        expected = json.loads((ROOT / "docs/eval/fcoref-emitted-boundaries.json").read_text())
-        for name, sha in expected["model_files"].items():
-            with (Path(os.environ["FCOREF_MODEL_PATH"]) / name).open("rb") as stream:
-                if hashlib.file_digest(stream, "sha256").hexdigest() != sha:
-                    raise ValueError(f"FCoref export differs for {name}")
+        for name, sha in FC_FILES.items():
+            check_file(Path(os.environ["FCOREF_MODEL_PATH"]) / name, sha)
     calls = "".join(json.dumps(gap.payload(r, mode)) + "\n" for r in rows)
     proc = subprocess.run([str(binary.resolve()), backend], input=calls, text=True, capture_output=True,
                           env={**os.environ, "ANNO_NO_DOWNLOADS": "1", "HF_HUB_OFFLINE": "1",
                                "TRANSFORMERS_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false",
                                "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"})
+    unsupported = "Feature not available: fcoref cannot cluster supplied mentions"
+    if arm == "fcoref-supplied" and proc.returncode and not proc.stdout and (
+            f"fcoref on {rows[0]['ID']}: {unsupported}" in proc.stderr):
+        return {"backend": backend, "mode": mode, "status": "unsupported_operation",
+                "rejected_document": rows[0]["ID"], "reason": unsupported}, []
     if proc.returncode:
         raise ValueError(f"{backend} worker failed: {proc.stderr}")
-    records = [observe(r, json.loads(line), backend, mode)
-               for r, line in zip(rows, proc.stdout.splitlines(), strict=True)]
-    details = [{**{"id": row["ID"]}, **observation} for row, observation in zip(rows, records, strict=True)]
+    outputs = [json.loads(line) for line in proc.stdout.splitlines()]
+    records = [observe(row, output, backend, mode)
+               for row, output in zip(rows, outputs, strict=True)]
+    details = [{"id": row["ID"], **observation, **(
+        {"clusters": sorted(sorted(group) for group in output["clusters"])} if "clusters" in output else {})}
+        for row, observation, output in zip(rows, records, outputs, strict=True)]
     return {"backend": backend, "mode": mode, **summarize(rows, records),
             "observations_sha256": digest(details)}, details
 

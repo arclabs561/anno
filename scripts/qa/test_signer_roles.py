@@ -39,6 +39,23 @@ class SignerRolesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate"):
             score([[p, a], [p, b]])
 
+    def test_named_answer_and_intermediate_role_evidence_remain_distinct(self):
+        rows = signer.panel()
+        row = next(r for r in rows if r["family"] == "exclusive")
+        p, _, _ = signer.gap.spans(row)
+        start = row["Text"].index("Only the ")
+        end = row["Text"].index(" signed the register", start)
+        out = {"id": row["ID"], "producer": "fcoref", "clusters": [[list(p), [start, end]]]}
+        result = signer.observe(row, out, "fcoref", "predicted")
+        self.assertEqual(result["status"], "candidate_missing")
+        self.assertEqual(result["diagnostic"], "exact_query_linked_to_cue_phrase_without_named_answer")
+        row = next(r for r in rows if r["family"] == "repeated_name" and r["gold"] == "B")
+        p, _, (start, end) = signer.gap.spans(row)
+        out.update(id=row["ID"], clusters=[[list(p), [start, end + 1]]])
+        result = signer.observe(row, out, "fcoref", "predicted")
+        self.assertEqual(result["status"], "candidate_missing")
+        self.assertEqual(result["diagnostic"], "exact_query_linked_to_expected_name_with_period")
+
     def test_invariant_position_cannot_get_pair_credit(self):
         rows = signer.panel()
         observations = [dict(choice="A", status="correct" if r["gold"] == "A" else "wrong") for r in rows]

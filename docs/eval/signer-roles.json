@@ -1,0 +1,258 @@
+{
+  "arms": {
+    "fcoref-raw": {
+      "backend": "fcoref",
+      "by_family": {
+        "ambiguous": {
+          "query_missing": 3,
+          "unresolved_gold_commitment": 1
+        },
+        "appositive": {
+          "query_missing": 16
+        },
+        "exclusive": {
+          "candidate_missing": 7,
+          "correct": 5,
+          "wrong": 4
+        },
+        "order_word": {
+          "candidate_missing": 6,
+          "correct": 2
+        },
+        "repeated_name": {
+          "candidate_missing": 4,
+          "correct": 4
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "dd338d876b117562c57636165b11245712b5493510473b1a47b1c769c8bbaaaa",
+      "paired_unique_decisions": {
+        "appositive": {
+          "incomplete_unique_choices": 8
+        },
+        "exclusive": {
+          "incomplete_unique_choices": 5,
+          "same_unique_choice": 3
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "incomplete_unique_choices": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "000": 3,
+          "110": 1
+        },
+        "appositive": {
+          "000": 8,
+          "001": 8
+        },
+        "exclusive": {
+          "100": 7,
+          "101": 9
+        },
+        "order_word": {
+          "100": 6,
+          "110": 2
+        },
+        "repeated_name": {
+          "100": 4,
+          "110": 4
+        }
+      },
+      "source_span_diagnostics": {
+        "appositive": {
+          "enclosing_query_names_correct_candidate": 6,
+          "enclosing_query_names_wrong_candidate": 2
+        },
+        "exclusive": {
+          "exact_query_linked_to_cue_phrase_without_named_answer": 7
+        },
+        "order_word": {
+          "exact_query_linked_to_cue_phrase_without_named_answer": 6
+        },
+        "repeated_name": {
+          "exact_query_linked_to_expected_name_with_period": 4
+        }
+      }
+    },
+    "fcoref-supplied": {
+      "backend": "fcoref",
+      "mode": "supplied",
+      "reason": "Feature not available: fcoref cannot cluster supplied mentions",
+      "rejected_document": "appositive-0-0-0-A",
+      "status": "unsupported_operation"
+    },
+    "native-copula-raw": {
+      "backend": "mention-ranking-copula",
+      "by_family": {
+        "ambiguous": {
+          "query_missing": 4
+        },
+        "appositive": {
+          "query_missing": 16
+        },
+        "exclusive": {
+          "query_missing": 16
+        },
+        "order_word": {
+          "query_missing": 8
+        },
+        "repeated_name": {
+          "correct": 4,
+          "query_missing": 4
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "05ec300200a6e1c14f5843482645c99748b581fb89c05448ce8904318ac38daa",
+      "paired_unique_decisions": {
+        "appositive": {
+          "incomplete_unique_choices": 8
+        },
+        "exclusive": {
+          "incomplete_unique_choices": 8
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "incomplete_unique_choices": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "000": 4
+        },
+        "appositive": {
+          "000": 16
+        },
+        "exclusive": {
+          "000": 16
+        },
+        "order_word": {
+          "000": 8
+        },
+        "repeated_name": {
+          "000": 4,
+          "101": 4
+        }
+      },
+      "source_span_diagnostics": {}
+    },
+    "native-entities": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "ambiguous": {
+          "abstained": 4
+        },
+        "appositive": {
+          "abstained": 16
+        },
+        "exclusive": {
+          "abstained": 16
+        },
+        "order_word": {
+          "abstained": 8
+        },
+        "repeated_name": {
+          "correct": 8
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "31fe249b071510672c2ad07e4ac90d32fe7b23f45698c3f5f36bacfba9011e27",
+      "paired_unique_decisions": {
+        "appositive": {
+          "incomplete_unique_choices": 8
+        },
+        "exclusive": {
+          "incomplete_unique_choices": 8
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "both_correct": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "111": 4
+        },
+        "appositive": {
+          "111": 16
+        },
+        "exclusive": {
+          "111": 16
+        },
+        "order_word": {
+          "111": 8
+        },
+        "repeated_name": {
+          "111": 8
+        }
+      },
+      "source_span_diagnostics": {}
+    },
+    "native-raw": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "ambiguous": {
+          "query_missing": 4
+        },
+        "appositive": {
+          "query_missing": 16
+        },
+        "exclusive": {
+          "query_missing": 16
+        },
+        "order_word": {
+          "query_missing": 8
+        },
+        "repeated_name": {
+          "correct": 4,
+          "query_missing": 4
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "05ec300200a6e1c14f5843482645c99748b581fb89c05448ce8904318ac38daa",
+      "paired_unique_decisions": {
+        "appositive": {
+          "incomplete_unique_choices": 8
+        },
+        "exclusive": {
+          "incomplete_unique_choices": 8
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "incomplete_unique_choices": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "000": 4
+        },
+        "appositive": {
+          "000": 16
+        },
+        "exclusive": {
+          "000": 16
+        },
+        "order_word": {
+          "000": 8
+        },
+        "repeated_name": {
+          "000": 4,
+          "101": 4
+        }
+      },
+      "source_span_diagnostics": {}
+    }
+  },
+  "documents": 52,
+  "panel_sha256": "486ffe3a6876b2ed70cb70593c2e15b749d8f116640151e11cfcdd71a0a83f57"
+}
