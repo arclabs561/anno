@@ -37,6 +37,12 @@ Maverick receives text and predefined complete-token mentions in its supplied mo
 
 The scorer records a unique link even when the other offered name is absent. A component containing both names records a merge. The scorer counts it separately from a unique choice, a missing query, a missing candidate and all three endpoints returned without a linked name. Here “missing” always refers to a final returned exact character span. At this interface an absent span could have been proposed and dropped later. Exact offsets count Unicode scalar values and are half-open. Gold identifies an occurrence within a single passage. The four names, one pronoun form and shared English templates limit what these counts say about other constructions.
 
+## Reading the result downstream
+
+A downstream caller can retain the emitted component for inspection and defer the named-person decision. When there is independent evidence for alternative antecedents, Anno's `UncertainReference` can carry those candidates. A component containing both people supplies no relative weights for them. [Uncertain references and candidates](../../crates/anno/src/discourse/uncertain_reference.rs)
+
+The opt-in native copula feature also has a separate regression at the public resolver boundary. It links “Zoë is Iva” and withholds that cue for “Zoë is not Iva”. More complex predicates such as “Zoë is coaching Iva” can still earn the bonus. Across 4,454 previously studied GAP passages the denial fix changed three complete partitions with the feature enabled. All 8,908 labeled name–pronoun decisions stayed the same. [Public-path regression](../../crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs) · [Pinned GAP inputs](native-gap-endpoint-stages.md)
+
 ## Reproduce
 
 Build the repository's stock example with ONNX enabled. For FCoref, follow the pinned CPU export in CI, then set `FCOREF_MODEL_PATH` to the export directory and `ORT_DYLIB_PATH` to your ONNX Runtime 1.24.2 shared library when using dynamic loading. The runner verifies all four FCoref file digests. For Maverick, prepare the OntoNotes tensors and encoder cache using the repository's pinned workflow, set `MAVERICK_PYTHON` and `MAVERICK_MODEL_PATH`, and point the Hugging Face cache at that prepared snapshot. The runner checks the prepared OntoNotes digest and invokes both backends offline. [Maverick preparation and runtime](../../.github/workflows/maverick-coref.yml) · [Model and encoder hashes](../../crates/anno/src/backends/coref/maverick_models.json)
