@@ -21,7 +21,9 @@ ARM             ORG   27..30
 Try the example from a checkout with Rust 1.91 or later:
 
 ```sh
-cargo run -p anno --no-default-features --example quickstart
+cargo run -p anno \
+  --no-default-features \
+  --example quickstart
 ```
 
 In your own Rust project, install the library with `cargo add anno`.
