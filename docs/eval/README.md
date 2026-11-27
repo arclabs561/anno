@@ -7,6 +7,7 @@ Start with the study closest to the decision you are making. Each study names wh
 | Entity recognition across languages and text lengths | [NER panels and replay](ner-language-length.md) | [Counts by model and panel](ner-language-length.json) |
 | Where a coreference link disappears | [Native mention and link losses](native-gap-loss.md) | [Stage counts](native-gap-loss.json) · [FCoref proposal budget](fcoref-proposal-budget.json) |
 | Whether FCoref generated the right name before pruning | [Trace the 69 missing-endpoint cases](fcoref-endpoint-stages.md) · [Reserve exact spans at the same budget](fcoref-marked-rescue.md) | [Counts by first loss and endpoint](fcoref-endpoint-stages.json) |
+| Whether a wider coreference mention identifies the right person | [Blinded referent and exact-highlight review](fcoref-identity-review.md) | [Agreement and character overhang](fcoref-identity-review.json) · [Native scores against null](fcoref-rival-pair-scores.md) |
 | Whether changing a returned mention boundary recovers a link | [Repeated names in FCoref clusters](fcoref-emitted-boundaries.md) | [Before and after on 256 articles](fcoref-emitted-boundaries.json) |
 | Whether a relation was missing from the reference | [JEREX original and revised annotations](jerex-controls.md) | [Reannotation counts](../../scripts/qa/joint_baseline/receipts/jerex_controls/revised_reference.json) |
 | Which cells Muxer sampled | [Replay and export the sampler summary](../EVALUATION_SAMPLING.md#checked-in-public-evidence) | [Pinned offline replay](muxer-public-summary.json) |
