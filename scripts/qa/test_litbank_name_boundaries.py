@@ -2,7 +2,7 @@
 
 import unittest
 
-from litbank_name_boundaries import Document, classify, compare, inventory
+from litbank_name_boundaries import Document, classify, compare, diagnose, inventory
 
 
 class NameBoundaryTests(unittest.TestCase):
@@ -21,6 +21,9 @@ class NameBoundaryTests(unittest.TestCase):
         self.assertEqual(raw["removed"], {})
         self.assertEqual(raw["added"]["contains_proper_person_without_matching_annotated_boundary"], 1)
         self.assertEqual(result["retained"]["counts"]["lost_exact_one_word"], 1)
+        followup = diagnose([self.doc], [stock], [trial])
+        self.assertEqual(followup["retained_enclosure_loss_pairs"], {"left": 1})
+        self.assertEqual(followup["raw_multiword_targets"]["two_words_gained"], 1)
 
     def test_valid_nested_boundary_precedes_enclosure_and_overlap_is_distinct(self):
         self.assertEqual(classify((0, 12), self.doc), "exact_other_annotated")

@@ -124,6 +124,26 @@ def compare(documents, stock, candidate):
     return results
 
 
+def diagnose(documents, stock, candidate):
+    """Describe the frozen outcomes by name length and direction of harmful enclosures."""
+    words, directions = Counter(), Counter()
+    for doc, baseline, trial in zip(documents, stock, candidate, strict=True):
+        proposed = inventory(doc, trial, "proposed") - inventory(doc, baseline, "proposed")
+        for a, b in doc.names:
+            size = len(doc.text[a:b].split())
+            if size >= 2:
+                group = "two_words" if size == 2 else "three_or_more_words"
+                words[group] += 1
+                words[f"{group}_gained"] += (a, b) in proposed
+        old, new = inventory(doc, baseline, "retained"), inventory(doc, trial, "retained")
+        for a, b in new - old - doc.annotated:
+            for x, y in (old - new) & doc.names:
+                if a <= x < y <= b:
+                    side = "both" if a < x and y < b else "left" if a < x else "right"
+                    directions[side] += 1
+    return {"raw_multiword_targets": dict(words), "retained_enclosure_loss_pairs": dict(directions)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
@@ -137,9 +157,12 @@ def main():
     if args.stock:
         if frozen != json.loads(FROZEN.read_text()):
             raise ValueError("selection differs from the frozen full-work panel")
+        stock = traced(docs, args.stock)
+        candidate = traced(docs, args.candidate)
         result = {"selection": frozen, "stock_binary_sha256": file_hash(args.stock),
                   "candidate_binary_sha256": file_hash(args.candidate),
-                  "stages": compare(docs, traced(docs, args.stock), traced(docs, args.candidate))}
+                  "stages": compare(docs, stock, candidate),
+                  "descriptive_followup": diagnose(docs, stock, candidate)}
     else:
         result = frozen
     print(json.dumps(result, sort_keys=True, indent=2))
