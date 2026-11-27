@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import audit_gap_decisions as gap
+from gap_receipts import digest
 from native_gap_margin import paired, read_panel, summaries
 from native_gap_neutral_type import ROOT, file_hash, read_sources
 
@@ -66,6 +67,10 @@ def measure(rows, binary):
     works = [r["URL"] for r in rows]
     return {
         "rows": len(rows),
+        "ordered_decisions_sha256": digest([
+            [row["ID"], case.stock, case.typed, sorted(case.supported)]
+            for row, case in zip(rows, cases, strict=True)
+        ]),
         "sources": len(set(works)),
         "supported_names": dict(Counter(str(len(c.supported)) for c in cases)),
         "arms": {arm: summaries(cases, choices) for arm, choices in answers.items()},

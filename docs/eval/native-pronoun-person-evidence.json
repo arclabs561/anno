@@ -30,6 +30,7 @@
           "wrong_when_neither": 15
         }
       },
+      "ordered_decisions_sha256": "e325b44dbb0cacd964777a66b84d56e4c20f8e314a9f867418ba343c170a360f",
       "paired_with_stock": {
         "typed": {
           "changed_issued_target": 666,
@@ -108,6 +109,7 @@
           "wrong_when_neither": 37
         }
       },
+      "ordered_decisions_sha256": "8479190d7f881c02bfd0035f9505515283ad9c2f8d05e4952c399911dfaf6ee1",
       "paired_with_stock": {
         "typed": {
           "changed_issued_target": 447,
@@ -185,6 +187,7 @@
           "wrong_when_neither": 25
         }
       },
+      "ordered_decisions_sha256": "b90d2ce355b2773b70148bd56dacbf15c524fe3c3929f3b7f69663a1afe2e340",
       "paired_with_stock": {
         "typed": {
           "changed_issued_target": 649,
@@ -266,6 +269,7 @@
           "wrong_when_neither": 4
         }
       },
+      "ordered_decisions_sha256": "20f5a5999d58da5e156f08c75c1fe54ebf0ab1e333c6fd76bdfa8401dd10c7df",
       "paired_with_stock": {
         "typed": {
           "changed_issued_target": 163,
