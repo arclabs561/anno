@@ -4,6 +4,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 import json
 from types import MappingProxyType
 
@@ -23,6 +24,8 @@ def person_id(value):
 
 
 def day(value):
+    if not isinstance(value, str):
+        raise ValueError("expected a full ISO calendar day")
     parsed = date.fromisoformat(value)
     if parsed.isoformat() != value:
         raise ValueError("expected a full ISO calendar day")
@@ -47,22 +50,36 @@ class Credit:
     binding_source: str
 
 
+class EndBoundary(Enum):
+    UNKNOWN = None
+    UNBOUNDED = "unbounded"
+
+    @classmethod
+    def parse(cls, value):
+        if value is None or value == cls.UNBOUNDED.value:
+            return cls(value)
+        return day(value)
+
+
 @dataclass(frozen=True)
 class Claim:
     person: tuple
     kind: str
     value: str
     start: date | None
-    end: date | None
+    end: date | EndBoundary
     source: str
 
     def at(self, when):
-        if (self.start is not None and when < self.start) or (self.end is not None and self.end <= when):
+        if self.start is not None and when < self.start:
             return "outside"
-        if self.start is not None and self.end is not None:
-            return "confirmed"
-        # Every assertion in this fixture describes a nonempty interval of whole days.
-        if when == self.start or (self.end is not None and (self.end - when).days == 1):
+        if isinstance(self.end, date):
+            if self.end <= when:
+                return "outside"
+            # A nonempty term of whole days occupies the day before its exclusive end.
+            if self.start is not None or (self.end - when).days == 1:
+                return "confirmed"
+        if when == self.start or (self.end is EndBoundary.UNBOUNDED and self.start is not None):
             return "confirmed"
         return "undetermined"
 
@@ -114,8 +131,8 @@ class View:
             if item["kind"] not in ("affiliation", "name"):
                 raise ValueError("unknown dated assertion kind")
             start = day(item["start"]) if item["start"] is not None else None
-            end = day(item["end"]) if item["end"] is not None else None
-            if start is not None and end is not None and end <= start:
+            end = EndBoundary.parse(item.get("end"))
+            if start is not None and isinstance(end, date) and end <= start:
                 raise ValueError("empty or reversed assertion period")
             claims.append(Claim(person_id(item["person"]), item["kind"], text(item["value"]),
                                 start, end, text(item["source"])))

@@ -14,6 +14,9 @@ import xml.etree.ElementTree as ET
 from attribution_history import DatedEvidence, History, View
 from check_cases import build_cli, publish
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from temporal_identity import check_replay as alias_catalog
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reader_cases" / "bibliography"))
 import reader as bibliography
 from sources.capture import names
@@ -124,6 +127,34 @@ def check_view(view, cut, papers):
     later = (supported("Rowan Vale", "later-name"),) if cut == 3 else ()
     check_answer(view.names(A, "2021-01-01").confirmed, later, "later name at reader edition")
     check_answer(view.names(B, "2021-01-01").confirmed, (supported("Rowan Mire", "archive-name"),), "namesake did not rename")
+    check_alias_register(view, cut)
+
+
+def check_alias_register(view, cut):
+    # The authority describes an alias in whole years. The bibliography also has an
+    # independent byline register with the same value and a missing end.
+    name = "Lake Reed"
+    register = supported(name, "byline-register")
+    first = supported(name, "alias-register-1")
+    corrected = supported(name, "alias-register-2")
+    revisions = (alias_catalog.Receipt(2023, alias_catalog.Claim("pen", 1, name, 2020)),
+                 alias_catalog.Receipt(2024, alias_catalog.Claim("pen", 2, name, 2020, 2022)))
+    aliases = alias_catalog.catalog_at(revisions, recorded_through=2021 + cut)
+    # At each cut, which authority citation supports the alias? The two registers
+    # agree on its first day. Only one asserts persistence beyond that day.
+    for when, confirmed, undetermined, authority_by_cut in (
+        ("2019-12-31", (), (), (None, None, None)),
+        ("2020-01-01", (register,), (), (None, first, corrected)),
+        ("2020-02-29", (), (register,), (None, first, corrected)),
+        ("2022-01-01", (), (register,), (None, first, None)),
+    ):
+        authority = authority_by_cut[cut - 1]
+        check_answer(alias_catalog.aliases(aliases, date.fromisoformat(when).year),
+                     {name} if authority else set(), f"year alias at cut {cut} on {when}")
+        if authority:
+            confirmed = tuple(sorted((*confirmed, authority)))
+        check_answer(view.names(COAUTHOR, when), DatedEvidence(confirmed, undetermined),
+                     f"cited day alias at cut {cut} on {when}")
 
 
 def deliver(index, pub, evidence):
@@ -144,14 +175,14 @@ def dated_evidence_answers(pub, evidence, reader):
     # A missing boundary can lie beyond any query. Reserve a completion day on either side.
     days = [(date(2020, 2, 26) + timedelta(days=i)).isoformat() for i in range(8)]
     bounds = [None, *days[2:-2]]
-    completions = list(combinations(days, 2))
+    completions = list(combinations(days, 2)) + [(a, "unbounded") for a in days]
     queries = days[1:-1]
     claims = []
     expected = {}
     for kind, value in (("name", "Rowan Mire"), ("affiliation", "Reed Observatory")):
         for when in queries:
             expected[kind, when] = {"confirmed": [], "undetermined": []}
-        for start, end in product(bounds, repeat=2):
+        for start, end in product(bounds, [*bounds, "unbounded"]):
             compatible = [(a, b) for a, b in completions
                           if (start is None or a == start) and (end is None or b == end)]
             if not compatible:  # No nonempty term has these bounds.
@@ -160,7 +191,7 @@ def dated_evidence_answers(pub, evidence, reader):
             source = f"fixture:{kind}/{start or '?'}/{end or '?'}"
             claims.append(dict(person=list(A), kind=kind, value=value, source=source, start=start, end=end))
             for when in queries:
-                occupied = [a <= when < b for a, b in compatible]
+                occupied = [a <= when and (b == "unbounded" or when < b) for a, b in compatible]
                 if any(occupied):
                     status = "confirmed" if all(occupied) else "undetermined"
                     expected[kind, when][status].append((value, source))
@@ -187,6 +218,16 @@ def check_dated_evidence(pub, evidence):
                 in dated_evidence_answers(pub, evidence, ConfirmedNamesOnly) if actual != expected}
     check_answer(failures, {("name", "undetermined")}, "confirmed-only name reader detected")
 
+    def lose_open_end(pub, evidence):
+        claims = [dict(claim, end=None) if claim["end"] == "unbounded" else claim
+                  for claim in evidence["claims"]]
+        return View(pub, dict(evidence, claims=claims))
+
+    failures = {(kind, status) for (kind, status, _), actual, expected
+                in dated_evidence_answers(pub, evidence, lose_open_end) if actual != expected}
+    check_answer(failures, set(product(("name", "affiliation"), ("confirmed", "undetermined"))),
+                 "loss of asserted open end detected")
+
 
 def rejected_corrections(editions):
     # All invalid deliveries use the same valid predecessor. A failure must be retryable.
@@ -201,6 +242,9 @@ def rejected_corrections(editions):
     bad_credit = deepcopy(evidence)
     bad_credit["credits"][f"{TIDE}#by1"]["person"] = list(B)
     reject_delivery(lambda: deliver(index, pub, bad_credit), "correction evidence contradicts native binding")
+    bad_period = deepcopy(evidence)
+    bad_period["claims"][-1]["end"] = ".."
+    reject_delivery(lambda: deliver(index, pub, bad_period), "undeclared end convention")
     foreign = deepcopy(pub.checkpoint)
     scope = json.loads(foreign["stream"])
     scope[2] = 0.75  # same application source but a different resolver threshold
