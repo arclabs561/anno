@@ -1,0 +1,111 @@
+{
+  "panels": {
+    "development": {
+      "candidate": {
+        "correct": 83,
+        "wrong": 75
+      },
+      "documents": 2000,
+      "gold_pairs": 1799,
+      "paired_changes": {
+        "correct_links_gained": 9,
+        "correct_links_lost": 0,
+        "gained_proposals_linked": 7,
+        "gold_proposals_gained": 113,
+        "gold_proposals_lost": 0,
+        "wrong_links_gained": 6,
+        "wrong_links_lost": 0
+      },
+      "stock": {
+        "correct": 74,
+        "wrong": 69
+      },
+      "stock_possessive_pairs": {
+        "candidate_direct_pair_when_retained": {
+          "at_or_below_threshold": 91,
+          "beyond_distance": 17,
+          "selected": 5
+        },
+        "candidate_outcome": {
+          "cluster_emission": 96,
+          "linked": 7,
+          "returned_separately": 10
+        }
+      },
+      "within_stock_wrong_link_budget": false
+    },
+    "test": {
+      "candidate": {
+        "correct": 91,
+        "wrong": 67
+      },
+      "documents": 2000,
+      "gold_pairs": 1773,
+      "paired_changes": {
+        "correct_links_gained": 6,
+        "correct_links_lost": 0,
+        "gained_proposals_linked": 6,
+        "gold_proposals_gained": 110,
+        "gold_proposals_lost": 0,
+        "wrong_links_gained": 3,
+        "wrong_links_lost": 0
+      },
+      "stock": {
+        "correct": 85,
+        "wrong": 64
+      },
+      "stock_possessive_pairs": {
+        "candidate_direct_pair_when_retained": {
+          "at_or_below_threshold": 78,
+          "beyond_distance": 28,
+          "selected": 4
+        },
+        "candidate_outcome": {
+          "cluster_emission": 90,
+          "linked": 6,
+          "returned_separately": 14
+        }
+      },
+      "within_stock_wrong_link_budget": false
+    },
+    "validation": {
+      "candidate": {
+        "correct": 27,
+        "wrong": 41
+      },
+      "documents": 454,
+      "gold_pairs": 392,
+      "paired_changes": {
+        "correct_links_gained": 1,
+        "correct_links_lost": 1,
+        "gained_proposals_linked": 1,
+        "gold_proposals_gained": 27,
+        "gold_proposals_lost": 0,
+        "wrong_links_gained": 1,
+        "wrong_links_lost": 0
+      },
+      "stock": {
+        "correct": 27,
+        "wrong": 40
+      },
+      "stock_possessive_pairs": {
+        "candidate_direct_pair_when_retained": {
+          "another_antecedent_selected": 1,
+          "at_or_below_threshold": 22,
+          "beyond_distance": 3,
+          "selected": 1
+        },
+        "candidate_outcome": {
+          "cluster_emission": 26,
+          "linked": 1
+        }
+      },
+      "within_stock_wrong_link_budget": false
+    }
+  },
+  "source_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  }
+}
