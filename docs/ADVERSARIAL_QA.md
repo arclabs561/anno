@@ -8,6 +8,8 @@ For an unchanged byline reassigned between namesakes, run `ANNO_BIN=target/debug
 
 Use the [coreference corpus guide](eval/coref-corpus-qa.md) to replay a pinned nested-mention, pronoun or abstention case with the local model and feed a confirmed outcome to the replay ledger.
 
+For a role-sensitive pronoun, give the same resolver both versions of a [signer pair](eval/signer-roles.md) and check which named person it returns on each. For a proposed boundary repair, carry the [new spans through ranking and clustering](eval/native-gap-multiword.md) and count newly introduced wrong links alongside recovered names.
+
 ## Coordinator prompt
 
 To challenge a corrected byline, attribution, catalog redirect, or visibility decision, propose a short event history and run the [credit reader replay](../verification/index_consumers/reader_cases/README.md#propose-and-judge-another-history). It checks the Rust and SQLite readers against a separate answer key and accepts local proposals without contacting a model provider.

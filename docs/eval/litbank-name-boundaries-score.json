@@ -1,0 +1,90 @@
+{
+  "candidate_binary_sha256": "dc3954f8948f00e01f862336d1689c1e1a3f00d3392bf40ace80dd6886eb24a5",
+  "descriptive_followup": {
+    "raw_multiword_targets": {
+      "three_or_more_words": 37,
+      "three_or_more_words_gained": 0,
+      "two_words": 159,
+      "two_words_gained": 90
+    },
+    "retained_enclosure_loss_pairs": {
+      "left": 1,
+      "right": 1
+    }
+  },
+  "selection": {
+    "complete_works": 27,
+    "exact_proper_person_by_words": {
+      "multiword": 196,
+      "one_word": 241
+    },
+    "gold_annotated_boundaries": 7377,
+    "litbank_brat_manifest_sha256": "3ea0274466d12f3731f2007134575282ca2a47aafc4d6ce855a1f239946e3288",
+    "revision": "3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "source_scalars": 297234,
+    "work_and_gold_sha256": "69fef0fe12308cc20eba781c9c074b8ab9611d2dc5b0e27e5b75b4eb6bbe3c87"
+  },
+  "stages": {
+    "proposed": {
+      "added": {
+        "contains_proper_person_without_matching_annotated_boundary": 2,
+        "exact_other_annotated": 50,
+        "exact_proper_person": 90,
+        "other_overlap_with_proper_person": 15,
+        "unassessed": 70
+      },
+      "counts": {
+        "candidate_exact_multiword": 90,
+        "candidate_exact_one_word": 199,
+        "candidate_spans": 7737,
+        "gained_exact_multiword": 90,
+        "gained_exact_one_word": 0,
+        "lost_exact_multiword": 0,
+        "lost_exact_one_word": 0,
+        "stock_exact_multiword": 0,
+        "stock_exact_one_word": 199,
+        "stock_spans": 7510
+      },
+      "paired_works": {
+        "multiword_equal": 12,
+        "multiword_more": 15,
+        "one_word_equal": 27
+      },
+      "removed": {}
+    },
+    "retained": {
+      "added": {
+        "contains_proper_person_without_matching_annotated_boundary": 2,
+        "exact_other_annotated": 50,
+        "exact_proper_person": 90,
+        "other_overlap_with_proper_person": 15,
+        "unassessed": 70
+      },
+      "counts": {
+        "candidate_exact_multiword": 90,
+        "candidate_exact_one_word": 197,
+        "candidate_spans": 7270,
+        "gained_exact_multiword": 90,
+        "gained_exact_one_word": 0,
+        "lost_exact_multiword": 0,
+        "lost_exact_one_word": 2,
+        "stock_exact_multiword": 0,
+        "stock_exact_one_word": 199,
+        "stock_spans": 7497
+      },
+      "paired_works": {
+        "multiword_equal": 12,
+        "multiword_more": 15,
+        "one_word_equal": 25,
+        "one_word_fewer": 2
+      },
+      "removed": {
+        "exact_other_annotated": 64,
+        "exact_proper_person": 2,
+        "other_overlap_with_proper_person": 157,
+        "unassessed": 231
+      }
+    }
+  },
+  "stock_binary_sha256": "d4841e0dd5159f5234025a9e2d63dfa178bcd976304732063f09c81a95fda0a6"
+}
