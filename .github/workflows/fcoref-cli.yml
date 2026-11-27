@@ -16,6 +16,9 @@ on:
       - 'Cargo.toml'
       - 'crates/anno/Cargo.toml'
       - 'crates/anno-cli/Cargo.toml'
+      - 'crates/anno/src/lib.rs'
+      - 'crates/anno/src/backends/mod.rs'
+      - 'crates/anno/src/backends/coref/mod.rs'
       - 'crates/anno/src/backends/coref/fcoref/**'
       - 'crates/anno/tests/fcoref_word_budget.rs'
       - 'crates/anno/tests/fixtures/fcoref_word_budget.json'
@@ -25,6 +28,7 @@ on:
       - 'crates/anno-cli/tests/pipeline_coref_backend.rs'
       - 'scripts/export_fcoref.py'
       - 'scripts/qa/fcoref_cgroup/**'
+      - 'scripts/qa/aurelius/**'
       - 'crates/anno/examples/fcoref_resource_profile.rs'
       - 'crates/anno/examples/fcoref_word_spans.rs'
       - 'crates/anno/examples/caption_links/**'
@@ -131,3 +135,8 @@ jobs:
         with:
           name: fcoref-cgroup
           path: ${{ steps.replay.outputs.receipt }}
+      - name: Test the pinned Aurelius caller and document budget migration
+        env:
+          ORT_DYLIB_PATH: ${{ steps.ort.outputs.library }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash scripts/qa/aurelius/check.sh
