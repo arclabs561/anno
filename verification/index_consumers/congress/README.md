@@ -78,6 +78,31 @@ For each of the 598 occurrences in the latest cut, the simulated reader returns 
 
 At 0.7 the two-date rule removed 114 correct hits. The four wrong hits survived on the same namesake page because the mistaken association appeared across both earlier dates. The dates come from one directory project. Repetition alone provides little protection against its recurring namesake error. This is a retrospective read of one partition built from all three cuts on a panel selected to include that collision. It does not estimate performance on unseen people or an online resolver with only earlier observations.
 
+## Look up an earlier House member on held-out people
+
+We used the first House roll call of 2003 as the prior directory and the first of 2005 as the query. We fixed those rolls, the unique-answer rule, and the native default threshold (0.7) before scoring. Every recorded member with a printed label and Clerk `name-id` was eligible, including members marked “Not Voting”. To hold out people, we removed every Bioguide ID ever present in either complete 2021–25 pilot stream from both rolls before resolving. That excluded 89 of 435 earlier rows and 101 of 434 later rows. The remaining 346 prior and 333 query rows represented 376 people, with zero ID overlap with the 724-person exclusion set. The same spelling can occur on both sides of this identity split. [2003 source roll](https://clerk.house.gov/evs/2003/roll001.xml) · [2005 source roll](https://clerk.house.gov/evs/2005/roll001.xml) · [Pilot editions and source rights](committee-findings.md)
+
+The native resolver received a singleton PER track for each printed member label and grouped both complete documents together. For each 2005 track the reader returned a prior track only when its component contained exactly one 2003 occurrence. The scorer compared that occurrence’s Clerk ID with the query’s ID. Case-sensitive literal grouping produced the same partition. [Native caller](../../../crates/anno/examples/cross_doc_track_partition.rs) · [Aggregate receipt and source hashes](transfer-rollcalls.json)
+
+| 2005 queries | Total | Correct unique | Wrong unique | Deferred, no prior occurrence | Deferred, multiple prior occurrences |
+|---|---:|---:|---:|---:|---:|
+| Target appeared in 2003 | 303 | 296 | 0 | 7 | 0 |
+| Target absent from 2003 | 30 | 0 | 1 | 29 | 0 |
+
+The wrong link joined identical printed labels attached to different IDs. All seven missed returning members had changed printed labels. For six, removing a final state abbreviation in parentheses made the two forms equal. This last comparison describes the misses after scoring. Across all 115,218 cross-roll pairs, native grouped 296 true pairs and one false pair, missed seven true pairs, and separated 114,914 other pairs. These numbers measure component membership on supplied member tracks.
+
+We then held the 346-member gallery fixed and ran each 2005 query in its own native process. All 333 queries returned the same prior occurrence sets as the joint run, including the wrong link and the 36 deferrals. The comparison uses positions in the fixed prior document because each process assigns its own component IDs. This paired replay uses the same people and rule. The gallery stays fixed between queries.
+
+A separate authored control shows how a later query can change another query’s answer during bulk resolution. Two four-word names share three of five distinct words, below the default 0.7 threshold. A second query containing just their three shared words scores 3/4 against each. Its presence connects the first query to the gallery member. Resolving the first query on its own yields no prior occurrence. The study checks these answers whenever it runs.
+
+To reproduce the aggregate measurement, start with the two pilot JSONL files and the native example built above. The evaluator verifies the hashes of all four files and checks the membership outcomes. Only aggregate results are stored in the repository. The authored collision, ambiguity and leakage controls run in the ordinary index suite. [Evaluator](transfer_rollcalls.py) · [Offline controls](test_cross_doc_partition.py)
+
+```sh
+curl --fail --location https://clerk.house.gov/evs/2003/roll001.xml --output "$scratch/roll001-2003.xml"
+curl --fail --location https://clerk.house.gov/evs/2005/roll001.xml --output "$scratch/roll001-2005.xml"
+python3 "$pilot/transfer_rollcalls.py" "$scratch" target/release/examples/cross_doc_track_partition --check
+```
+
 ## Check predecessor suggestions across roster corrections
 
 With the locally reconstructed `roster.jsonl` and CLI from the replay above, run the read-only lookup against each immediately preceding edition.
