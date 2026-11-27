@@ -14,6 +14,7 @@ from fcoref_emitted_boundaries import MODEL_FILES, check_file, panel
 from fcoref_endpoint_stages import REFERENCE, marked, span_ranks, strictly_contains
 from gap_receipts import digest
 
+CASE_SHA = "3e3759db4dff7da8e6cb3d71ba17b5b5e56f8fa47dcaee7a21468b75535b7e5e"
 PACKET_SHA = "2ce4977caf0e5b9378ffa2bb78c1cea9c04fe0f2dfe0d27d8e2494fdc5ba8fa3"
 VERDICTS = ("same", "different", "uncertain")
 
@@ -42,7 +43,8 @@ def select_cases(rows, records, tokenizer):
             if rivals:
                 # Compare a single occurrence per marked pair even in nested clusters.
                 cases.append((row, field, min(rivals, key=lambda s: (s[1]-s[0], *s))))
-    if digest(partitions) != reference["stock_partitions_sha256"] or len(cases) != 43:
+    selected = [{"id": row["ID"], "field": field, "rival": rival} for row, field, rival in cases]
+    if digest(partitions) != reference["stock_partitions_sha256"] or digest(selected) != CASE_SHA:
         raise ValueError("Expected the 43 enclosing rivals from the frozen stock partitions")
     return cases
 
@@ -62,9 +64,11 @@ CONTROLS = [
 
 def packet(cases):
     entries = []
+
     def add(key, text, name, phrase, control=None):
         code = hashlib.sha256(("anno-gap-identity-v1/" + key).encode()).hexdigest()[:16]
         entries.append((dict(code=code, context=text, name=list(name), phrase=list(phrase)), control))
+
     for row, field, rival in cases:
         add(row["ID"] + "/" + field, row["Text"], marked(row, field), rival)
     for i, (text, name, phrase, label) in enumerate(CONTROLS):
@@ -93,9 +97,9 @@ def compare(entries, first, second):
         if label is None:
             start, end = entry["phrase"]
             a, b = entry["name"]
-            if not strictly_contains((start,end), (a,b)):
+            if not strictly_contains((start, end), (a, b)):
                 raise ValueError("Expected strict enclosure")
-            left, right = a-start, end-b
+            left, right = a - start, end - b
             edges["both" if left and right else "left" if left else "right"] += 1
             overhang.append(left + right)
             a, b = first[entry["code"]], second[entry["code"]]
