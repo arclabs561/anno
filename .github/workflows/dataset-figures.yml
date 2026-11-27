@@ -9,7 +9,18 @@ on:
       - scripts/figure_coverage_report.py
       - scripts/plot_*.py
       - scripts/qa/joint_baseline/**
+      - Cargo.lock
+      - Cargo.toml
+      - crates/*/Cargo.toml
+      - crates/anno/src/lib.rs
+      - crates/anno/src/viz/**
+      - crates/anno-cli/src/main.rs
+      - crates/anno-cli/src/cli/commands/mod.rs
+      - crates/anno-cli/src/cli/commands/viz/**
+      - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
+      - docs/figures/*-tradeoff.svg
+      - docs/eval/*-tradeoff.json
       - docs/eval/dataset-*.csv
       - docs/eval/dataset-coverage.md
       - docs/eval/crossre-prompt-scope.csv
@@ -28,7 +39,18 @@ on:
       - scripts/refresh_dataset_figures.py
       - scripts/figure_coverage_report.py
       - scripts/plot_*.py
+      - Cargo.lock
+      - Cargo.toml
+      - crates/*/Cargo.toml
+      - crates/anno/src/lib.rs
+      - crates/anno/src/viz/**
+      - crates/anno-cli/src/main.rs
+      - crates/anno-cli/src/cli/commands/mod.rs
+      - crates/anno-cli/src/cli/commands/viz/**
+      - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
+      - docs/figures/*-tradeoff.svg
+      - docs/eval/*-tradeoff.json
       - docs/eval/dataset-*.csv
       - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/crossre-prompt-scope.csv
@@ -48,11 +70,18 @@ jobs:
   reproduce:
     name: Reproduce published dataset figures
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
+    env:
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        with:
+          toolchain: 'stable'
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
       - name: Check paired CrossRE inputs and outcomes
         run: python3 -m unittest discover -s scripts/qa -p 'test_crossre_prompt*.py'

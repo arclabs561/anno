@@ -23,21 +23,27 @@ the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.s
 
 ### Reproduce the dataset figures
 
-Every published dataset figure is in **`docs/figures/`** as a regular Git-tracked PNG. The figure index links each image to its guide and Python generator. The checked-in CSV and JSON measurements live in `docs/eval/`. [Figure index](../docs/figures/README.md) · [Coverage and exclusions](../docs/eval/dataset-coverage.md)
+The guide figures are tracked in `docs/figures/`. Each has a PNG, and native Anno charts also have an SVG for vector export. `docs/eval/` holds the CSV and JSON measurements. The figure index links each plot to its investigation and input or generator. [Figure index](../docs/figures/README.md) · [Coverage and exclusions](../docs/eval/dataset-coverage.md)
 
-Run these commands from the repository root with `just` and `uv` installed. On first use, `uv` installs the plotting dependencies. The render reads only files in the checkout.
+Run these commands from the repository root with `just`, `uv` and Cargo installed. On first use `uv` installs the pinned plotting dependencies. Cargo builds the checkout's CLI with the minimal HTML extractor. Rendering uses the checked-in measurements and runs offline once dependencies are cached.
 
 ```sh
-just dataset-figures           # Preview all PNGs, SVGs and five derived CSVs in .generated/dataset-figures/
-just dataset-figures --update  # Refresh the published PNGs and derived CSVs after a change
-just dataset-figures --check   # Verify the published pixels and CSV contents
+just dataset-figures           # Preview images, native chart inputs and CSVs in .generated/dataset-figures/
+just dataset-figures --update  # Refresh the published images and derived summaries
+just dataset-figures --check   # Check the published images and counts
 ```
 
-With `uv` alone, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Pass `--output PATH` for a separate preview directory. Each figure generator also runs independently with Python and Matplotlib. [Single entry point and renderer dependencies](refresh_dataset_figures.py)
+To call the entry point directly, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Use `--output DIR` for another preview directory or `--anno PATH` to render with an existing Anno binary. [Build entry point and dependencies](refresh_dataset_figures.py)
 
-**When the figures change.** For new source data or model results, first refresh the relevant pinned measurements using the source commands below. For a change to the chart design, edit its generator. Run `--update`, review the figures and captions, then commit the changed inputs, code and outputs together. CI renders the figures on Linux for pull requests and merges to `main` that touch figure inputs, generators or published PNGs. It compares image dimensions and pixels, checks five derived CSVs and the numerical sections of the coverage guide, and names any stale result. Maintainers can also run the check on demand. [CI workflow](../.github/workflows/dataset-figures.yml)
+For an operating-point comparison, have the analysis write `docs/eval/<study>-tradeoff.json` in the `anno.tradeoff/v1` format. The build discovers these files, calls `anno viz tradeoff` for each and rasterizes that same SVG using resvg and the bundled DejaVu Sans fonts. Use the file stem when embedding the figure. For example, the following standalone command reproduces the WikiGold chart with an installed CLI.
 
-Each figure build saves its PNGs, SVGs and five derived CSVs as the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. The `s3-dataset-cache-figures` artifact contains the live inventory figure and WikiGold verification. The `cache-source-evidence` artifact contains the broader publisher-file matches, with their figure and counts. That comparison also refreshes after changes to the measured-file ledgers on `main`. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
+```sh
+anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json --output wikigold.svg
+```
+
+For new data or model runs, regenerate the relevant measurements, run `--update`, review the figure and its caption, then commit the inputs, code and changed outputs together. CI compares PNG pixels, native SVG contents, five derived CSVs and the numerical sections of the coverage guide. [CI workflow](../.github/workflows/dataset-figures.yml)
+
+Each build saves PNGs, SVGs, portable chart JSON and five derived CSVs in the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. The `s3-dataset-cache-figures` artifact contains the live inventory figure and WikiGold verification. The `cache-source-evidence` artifact contains the broader publisher-file matches, with their figure and counts. That comparison also refreshes after changes to the measured-file ledgers on `main`. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)
 
 To publish a new dated S3 figure in the guide, download `cache-source-evidence` from the trusted run, copy `cache-source-coverage.json` to `docs/eval/s3-source-coverage.json` and `publisher-file-matches.csv` to `docs/eval/s3-publisher-file-matches.csv`, then run `just dataset-figures --update`. The generator updates the run link and counts in the coverage guide. The checked-in receipt and image remain available after the corresponding CI artifact expires.
 
