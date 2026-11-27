@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 from collections import defaultdict
+from pathlib import Path
+from subprocess import CompletedProcess
 import unittest
+from unittest.mock import patch
 
 import signer_roles as signer
 
@@ -49,12 +52,25 @@ class SignerRolesTests(unittest.TestCase):
         result = signer.observe(row, out, "fcoref", "predicted")
         self.assertEqual(result["status"], "candidate_missing")
         self.assertEqual(result["diagnostic"], "exact_query_linked_to_cue_phrase_without_named_answer")
+        with self.assertRaisesRegex(ValueError, "unrequested span"):
+            signer.observe(row, out, "fcoref", "supplied")
         row = next(r for r in rows if r["family"] == "repeated_name" and r["gold"] == "B")
         p, _, (start, end) = signer.gap.spans(row)
         out.update(id=row["ID"], clusters=[[list(p), [start, end + 1]]])
         result = signer.observe(row, out, "fcoref", "predicted")
         self.assertEqual(result["status"], "candidate_missing")
         self.assertEqual(result["diagnostic"], "exact_query_linked_to_expected_name_with_period")
+
+    def test_unsupported_feature_and_worker_failure_are_distinct(self):
+        row = signer.panel()[0]
+        reason = f"fcoref on {row['ID']}: Feature not available: fcoref cannot cluster supplied mentions"
+        with patch.object(signer, "FC_FILES", {}), patch.object(signer.subprocess, "run") as call:
+            call.return_value = CompletedProcess([], 1, "", reason)
+            receipt, details = signer.replay([row], Path("worker"), "fcoref-supplied")
+            self.assertEqual((receipt["status"], details), ("unsupported_operation", []))
+            call.return_value = CompletedProcess([], 1, "", "model initialization failed")
+            with self.assertRaisesRegex(ValueError, "initialization failed"):
+                signer.replay([row], Path("worker"), "fcoref-supplied")
 
     def test_invariant_position_cannot_get_pair_credit(self):
         rows = signer.panel()

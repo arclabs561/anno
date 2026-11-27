@@ -86,6 +86,136 @@
       "rejected_document": "appositive-0-0-0-A",
       "status": "unsupported_operation"
     },
+    "maverick-raw": {
+      "backend": "maverick",
+      "by_family": {
+        "ambiguous": {
+          "query_missing": 3,
+          "unresolved_gold_commitment": 1
+        },
+        "appositive": {
+          "query_missing": 16
+        },
+        "exclusive": {
+          "correct": 16
+        },
+        "order_word": {
+          "candidate_missing": 4,
+          "correct": 4
+        },
+        "repeated_name": {
+          "correct": 8
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "65ce6b3bbfb0efe9d12428e3c9405d0ef1f742eca7e043a41d78c5ea2e3ed963",
+      "paired_unique_decisions": {
+        "appositive": {
+          "incomplete_unique_choices": 8
+        },
+        "exclusive": {
+          "both_correct": 8
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "both_correct": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "000": 3,
+          "110": 1
+        },
+        "appositive": {
+          "001": 8,
+          "010": 8
+        },
+        "exclusive": {
+          "101": 8,
+          "110": 8
+        },
+        "order_word": {
+          "100": 4,
+          "101": 4
+        },
+        "repeated_name": {
+          "101": 4,
+          "110": 4
+        }
+      },
+      "source_span_diagnostics": {
+        "appositive": {
+          "enclosing_query_names_correct_candidate": 16
+        },
+        "order_word": {
+          "exact_query_linked_to_cue_phrase_without_named_answer": 4
+        }
+      }
+    },
+    "maverick-supplied": {
+      "backend": "maverick",
+      "by_family": {
+        "ambiguous": {
+          "both_linked": 4
+        },
+        "appositive": {
+          "both_linked": 1,
+          "correct": 15
+        },
+        "exclusive": {
+          "correct": 16
+        },
+        "order_word": {
+          "both_linked": 4,
+          "correct": 4
+        },
+        "repeated_name": {
+          "correct": 8
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "4d6cb85e1fcc8505ce1286c2c34f492db384f59376e7c90a26cb7c90a3474f59",
+      "paired_unique_decisions": {
+        "appositive": {
+          "both_correct": 7,
+          "incomplete_unique_choices": 1
+        },
+        "exclusive": {
+          "both_correct": 8
+        },
+        "order_word": {
+          "incomplete_unique_choices": 4
+        },
+        "repeated_name": {
+          "both_correct": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "ambiguous": {
+          "111": 4
+        },
+        "appositive": {
+          "101": 7,
+          "110": 8,
+          "111": 1
+        },
+        "exclusive": {
+          "101": 8,
+          "110": 8
+        },
+        "order_word": {
+          "101": 4,
+          "111": 4
+        },
+        "repeated_name": {
+          "101": 4,
+          "110": 4
+        }
+      },
+      "source_span_diagnostics": {}
+    },
     "native-copula-raw": {
       "backend": "mention-ranking-copula",
       "by_family": {
