@@ -34,6 +34,8 @@ CASES = {
         "anno-cli", "crossdoc_candidates", "explain_one_pair_reports_actual_candidate_and_threshold_decisions"),
     "grounded-pair-explanation": Contract(
         "anno-cli", "membership_queries", "explain_submitted_pair_from_cli"),
+    "retained-pair-explanation": Contract(
+        "anno-cli", "membership_queries", "retained_pair_explanation_verifies_only_for_its_edition_and_answer"),
     "raw-dense-pell": Contract(
         "anno-cli", "crossdoc_candidates", "dense_documents_preserve_the_pell_link_across_100_mentions"),
     "raw-nonempty-boundary": Contract(
