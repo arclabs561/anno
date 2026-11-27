@@ -34,6 +34,28 @@ class NativeMarginTests(unittest.TestCase):
         both = trial.lookup(row(), trace([(1, .5, .225), (0, .25, .225)], 1, [0, 0, 0]))
         self.assertEqual((both.group_arity, both.direct, both.issued, both.gated(0)), (2, 1, None, None))
 
+    def test_development_selection_rejects_correct_gains_over_the_wrong_link_budget(self):
+        abstain = trial.lookup(row(), trace([(1, .1, .25), (0, .2, .25)], None, [0, 1, 2]))
+        correct = trial.lookup(row(), trace([(1, .1, .25), (0, .5, .25)], 0, [0, 1, 0]))
+        wrong = trial.lookup(row(), trace([(1, .75, .25), (0, .1, .25)], 1, [0, 1, 1]))
+        rule, grid = trial.choose([abstain, abstain], [correct, wrong])
+        self.assertEqual((grid[0]["correct"], grid[0]["wrong"]), (1, 1))
+        self.assertEqual(rule, {"arm": "stock"})
+        # The same gain is admissible when the competing wrong link is absent.
+        rule, _ = trial.choose([abstain, abstain], [correct, abstain])
+        self.assertEqual(rule, {"arm": "neutral_direct_unique", "margin": .25})
+
+    def test_nested_name_can_be_eligible_after_an_out_of_range_inner_span(self):
+        example = dict(ID="nested", Text="Lady Ada of Dale. She", Pronoun="She",
+                       A="Lady Ada of Dale", B="Ada", **{"Pronoun-offset": "18",
+                       "A-offset": "0", "B-offset": "5", "A-coref": "TRUE", "B-coref": "FALSE"})
+        native = {"id": "nested", "max_distance": 2, "members": [[0, 16, 0], [5, 8, 1], [18, 21, 0]],
+                  "decisions": [{}, {}, {"candidates": [(0, .5, .25)], "selected": 0}]}
+        self.assertEqual(trial.lookup(example, native).direct, 0)
+        native["decisions"][2] = {"candidates": [], "selected": None}
+        with self.assertRaisesRegex(ValueError, "eligibility"):
+            trial.lookup(example, native)
+
     def test_policy_uses_unchanged_development_comparison(self):
         root = trial.COMPARISON.parent
         receipt = json.loads((root / "native-gap-margin-development.json").read_bytes())
