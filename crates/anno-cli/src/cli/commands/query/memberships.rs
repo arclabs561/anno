@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use anno::coalesce::memberships::MembershipEdition;
+use anno::coalesce::memberships::{MembershipEdition, MembershipPair};
 use anno::publication::IndexSnapshot;
 use anno::TrackRef;
 use clap::{ArgAction, Args};
-use serde_json::json;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs::File;
-use std::io::{self, BufReader};
+use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Args, Debug)]
@@ -22,16 +24,112 @@ pub struct MembershipArgs {
     /// Explain one native direct comparison between submitted tracks in this edition.
     #[arg(long, num_args = 4, action = ArgAction::Set, allow_hyphen_values = true, value_names = ["LEFT_DOC", "LEFT_TRACK", "RIGHT_DOC", "RIGHT_TRACK"], conflicts_with_all = ["neighbors", "since"])]
     explain_pair: Option<Vec<String>>,
+    /// Verify a saved explanation for this pair against the exact edition bytes and current resolver.
+    #[arg(long, value_name = "RECEIPT", requires = "explain_pair")]
+    verify_explanation: Option<PathBuf>,
+}
+
+fn input(path: &Path) -> Result<Box<dyn Read>, String> {
+    if path == Path::new("-") {
+        Ok(Box::new(io::stdin().lock()))
+    } else {
+        let f = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(Box::new(f))
+    }
+}
+
+fn read_json<T: DeserializeOwned>(path: &Path, source: impl Read) -> Result<T, String> {
+    serde_json::from_reader(BufReader::new(source)).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 pub(super) fn read_edition(path: &Path) -> Result<MembershipEdition, String> {
-    if path == Path::new("-") {
-        serde_json::from_reader(io::stdin().lock())
-    } else {
-        let f = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        serde_json::from_reader(BufReader::new(f))
+    read_json(path, input(path)?)
+}
+
+struct EditionInput {
+    source: Box<dyn Read>,
+    digest: Sha256,
+}
+
+impl Read for EditionInput {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.source.read(buf)?;
+        self.digest.update(&buf[..n]);
+        Ok(n)
     }
-    .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+const EXPLANATION_FORMAT: &str = "anno.memberships.pair-explanation.v1";
+
+#[derive(Deserialize, Serialize)]
+struct RecordedExplanation {
+    format: String,
+    edition_sha256: String,
+    #[serde(flatten)]
+    answer: MembershipPair,
+}
+
+fn read_explanation(path: &Path) -> Result<Value, String> {
+    let mut bytes = Vec::new();
+    input(path)?
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let saved: Value = read_json(path, bytes.as_slice())?;
+    if saved["format"] != EXPLANATION_FORMAT {
+        return Err("saved explanation lacks a supported recording format".into());
+    }
+    // Typed decoding rejects repeated answer fields. Keep the JSON value to compare
+    // every field, including any unrecognized additions, with the current wire answer.
+    let _: RecordedExplanation = read_json(path, bytes.as_slice())?;
+    Ok(saved)
+}
+
+fn explain(
+    path: &Path,
+    left: &TrackRef,
+    right: &TrackRef,
+    receipt: Option<&Path>,
+) -> Result<(), String> {
+    if path == Path::new("-") && receipt == Some(Path::new("-")) {
+        return Err("only one of the edition and explanation may read stdin".into());
+    }
+    let saved = receipt.map(read_explanation).transpose()?;
+    // Hash and decode one byte stream. Reopening the path could pick up a replacement edition.
+    let mut source = EditionInput {
+        source: input(path)?,
+        digest: Sha256::new(),
+    };
+    let edition: MembershipEdition = read_json(path, &mut source)?;
+    let edition_sha256: String = source
+        .digest
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    if saved
+        .as_ref()
+        .is_some_and(|r| r["edition_sha256"].as_str() != Some(&edition_sha256))
+    {
+        return Err("saved explanation does not match the SHA-256 of these edition bytes".into());
+    }
+    let recorded = RecordedExplanation {
+        format: EXPLANATION_FORMAT.to_owned(),
+        edition_sha256,
+        answer: edition
+            .explain_pair(left, right)
+            .map_err(|e| e.to_string())?,
+    };
+    let bytes = serde_json::to_vec(&recorded).map_err(|e| e.to_string())?;
+    if let Some(saved) = saved {
+        let observed: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        if saved != observed {
+            return Err("saved explanation differs from the replayed pair answer".into());
+        }
+    }
+    io::stdout()
+        .lock()
+        .write_all(&bytes)
+        .map_err(|e| e.to_string())
 }
 
 fn read(path: &Path) -> Result<IndexSnapshot, String> {
@@ -55,13 +153,12 @@ pub(super) fn run(args: MembershipArgs) -> Result<(), String> {
                     .into(),
             })
         };
-        let answer = read_edition(&args.current)?
-            .explain_pair(
-                &track(left_doc, left_track)?,
-                &track(right_doc, right_track)?,
-            )
-            .map_err(|e| e.to_string())?;
-        return serde_json::to_writer(io::stdout().lock(), &answer).map_err(|e| e.to_string());
+        return explain(
+            &args.current,
+            &track(left_doc, left_track)?,
+            &track(right_doc, right_track)?,
+            args.verify_explanation.as_deref(),
+        );
     }
     let current = read(&args.current)?;
     let output = if let Some(values) = args.neighbors {

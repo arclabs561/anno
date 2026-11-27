@@ -69,3 +69,16 @@ Run `anno query memberships edition.json --explain-pair doc-a 0 doc-b 3` with th
 | `below_threshold` or `accepted` | Evaluated the pair. `similarity` gives the observed score and `basis` names the measure. |
 
 The `same_component` flag describes the final published group. A pair can score below threshold and still share a component through a third track. A checkpoint fingerprints published rows. Distinct grounded inputs can yield identical rows, so retain the original editions to reproduce their direct decisions. This query rebuilds the ordinary complete publication and replays one direct comparison with the same admission rule. Rust callers can use `MembershipEdition::explain_pair`.
+
+### Keep an explanation across editions
+
+Save the JSON response for a pair whose historical answer the application promises to show. For example, an archive can keep the reason two tracks were left apart, even if a later edition corrects a type or changes an embedding.
+
+```sh
+anno query memberships edition-3.json --explain-pair doc-a 0 doc-b 3 > decision.json
+anno query memberships edition-3.json --explain-pair doc-a 0 doc-b 3 --verify-explanation decision.json
+```
+
+The saved answer identifies this ordered pair, the publisher's stream and sequence, effective type policy, threshold, direct outcome and shared-component flag. It can be displayed on its own. CLI consumers enforcing an exact field set should allow two additional fields, `format` and `edition_sha256`. The latter covers the complete input bytes, including whitespace. Keep the original edition file to verify the answer or ask about another pair. Verification checks the digest, replays the requested pair under the edition's policy, compares the complete JSON answer and prints it on success. An unsupported recording format, mismatched edition or changed answer exits with an error before printing a result. Earlier CLI answers remain readable and lack the full-edition pin required by this check.
+
+The format version describes the saved response. Verification runs the installed resolver. For a reproducible historical execution across releases, retain the producing executable and its environment alongside the input. A successful check confirms agreement for this pair and these bytes. Publisher authenticity depends on how the application obtained the recording. The SQLite corpus journal records deliveries and catalog reviews. A journal head alone does not identify which resolver policy an application ran.
