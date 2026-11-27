@@ -10,6 +10,10 @@ GAP identifies which marked name refers to the pronoun and supplies its characte
 
 For a reader following *who* the pronoun refers to, the wider mention appears useful in 42 cases. For a tool highlighting *exactly the name*, all 43 boundaries are wrong. A rule that always credits a name inside a linked phrase would have credited the writing-class case too. The existing [compact display comparison](../QA.md#compare-compact-name-displays) includes a separate attribution control for the same risk. Keep the linked referring expression and any proposed display-name span separately identifiable.
 
+## How the model made the link
+
+The [native pair-score replay](fcoref-rival-pair-scores.md) evaluated the same 43 cases at the original candidate budget, giving the exact name a slot. Every direct edge between the pronoun and exact name scored below the zero threshold for linking. The enclosing mention had the higher mention score in all 43, and the higher pair-specific term in 41. It linked directly with the pronoun in 38 cases and through other cluster members in five. Those are properties of model inference. The referent judgments and the character-overhang counts measure two separate consequences for the reader.
+
 ## Replay and review
 
 Use the GAP files and model pins from the [stage replay](fcoref-endpoint-stages.md#replay-the-stage-counts). In a disposable checkout apply the rank-readout patch and build the native runner as described there. Create a private output directory outside Git. The script verifies the stock cluster fingerprint, all model and corpus pins, and the final packet fingerprint. Preparing the packet requires Python `tokenizers`. Scoring the reviews uses the standard library.

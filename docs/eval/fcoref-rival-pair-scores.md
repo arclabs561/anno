@@ -13,7 +13,7 @@ For each candidate pair, FCoref scores the later token mention against the earli
 
 All 43 exact edges scored below null. The best of the 43 reached −1.62. With the exact name present, the later mention chose another antecedent on 35 cases and null on eight. Every enclosing mention had a higher mention logit, and its learned pair term was higher on 41 cases. The median *paired* differences (enclosing minus exact) were 11.94 for the mention logit, 3.60 for the pair term and 15.34 for the total. The paired medians are computed separately.
 
-The enclosing edge was the native direct choice in 38 cases. In the other five, the two spans met through the cluster, including two whose direct score was below null. Reserving the marked names preserved all 43 enclosing-edge totals from stock. A low exact-name score explains why guaranteed admission alone failed on this slice. The model scores cannot establish the intended referent of a longer expression. [Aggregate values and extrema](fcoref-rival-pair-scores.json)
+The enclosing edge was the native direct choice in 38 cases. In the other five, the two spans met through the cluster, including two whose direct score was below null. Reserving the marked names preserved all 43 enclosing-edge totals from stock. A low exact-name score explains why guaranteed admission alone failed on this slice. The [separate blinded review](fcoref-identity-review.md) assesses whether the enclosing expression denotes the person and measures exact highlighting independently. [Aggregate values and extrema](fcoref-rival-pair-scores.json)
 
 ## Replay
 
