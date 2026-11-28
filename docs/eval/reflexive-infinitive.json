@@ -1,0 +1,80 @@
+{
+  "arms": {
+    "fcoref-raw": {
+      "backend": "fcoref",
+      "by_family": {
+        "reflexive_infinitive": {
+          "candidate_missing": 1,
+          "correct": 20,
+          "query_missing": 3
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "4eec171e94a6018468ac0e1f376236ea5cfabcb9f6b50e13c8b2203a8096df2b",
+      "paired_unique_decisions": {
+        "reflexive_infinitive": {
+          "both_correct": 8,
+          "incomplete_unique_choices": 4
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_infinitive": {
+          "000": 3,
+          "100": 1,
+          "101": 12,
+          "110": 8
+        }
+      },
+      "source_span_diagnostics": {
+        "reflexive_infinitive": {
+          "exact_query_linked_to_outer_phrase_headed_by_A": 1
+        }
+      }
+    },
+    "native-entities": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "reflexive_infinitive": {
+          "abstained": 24
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "7d5d7f879c8a63dd02de2ccd9d3ececa6984173e8b89fb76acaa69db839f4303",
+      "paired_unique_decisions": {
+        "reflexive_infinitive": {
+          "incomplete_unique_choices": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_infinitive": {
+          "111": 24
+        }
+      },
+      "source_span_diagnostics": {}
+    },
+    "native-raw": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "reflexive_infinitive": {
+          "correct": 12,
+          "wrong": 12
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "44cd3fa2ce120128067527ae40bfbb127a4d3b2c74372b2c84959ca647cbfd96",
+      "paired_unique_decisions": {
+        "reflexive_infinitive": {
+          "same_unique_choice": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_infinitive": {
+          "101": 24
+        }
+      },
+      "source_span_diagnostics": {}
+    }
+  },
+  "documents": 24,
+  "panel_sha256": "68bfd07f9f539e38bbcdcd73a736d4bf11c1bca25c4fde1a5e54d896a495333e"
+}

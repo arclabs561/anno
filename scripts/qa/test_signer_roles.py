@@ -41,6 +41,20 @@ class SignerRolesTests(unittest.TestCase):
         self.assertEqual(summary["by_family"]["reflexive_clause"], {"correct": 12, "wrong": 12})
         self.assertEqual(summary["paired_unique_decisions"]["reflexive_clause"], {"same_unique_choice": 12})
 
+    def test_authored_outer_phrase_is_distinct_from_a_named_link(self):
+        rows = signer.reflexive_panel(infinitive=True)
+        self.assertEqual(signer.digest(rows), "68bfd07f9f539e38bbcdcd73a736d4bf11c1bca25c4fde1a5e54d896a495333e")
+        for row in rows:
+            p, a, b = signer.gap.spans(row)
+            group = [[a[0], b[1]], list(p)]
+            result = signer.observe(row, {"id": row["ID"], "producer": "fcoref", "clusters": [group]},
+                                    "fcoref", "predicted")
+            self.assertEqual(result["status"], "candidate_missing")
+            if row["gold"] == "A":
+                self.assertEqual(result["diagnostic"], "exact_query_linked_to_outer_phrase_headed_by_A")
+            else:
+                self.assertNotIn("diagnostic", result)
+
     def test_exact_bounds_and_competing_answers_have_separate_verdicts(self):
         row = signer.panel()[0]
         p, a, b = map(list, signer.gap.spans(row))

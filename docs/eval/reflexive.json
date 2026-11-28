@@ -1,0 +1,76 @@
+{
+  "arms": {
+    "fcoref-raw": {
+      "backend": "fcoref",
+      "by_family": {
+        "reflexive_clause": {
+          "candidate_missing": 12,
+          "correct": 12
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "e12af0176a5def530311153020c60b8a33d6dc1c3c9a05e5d214f9c68e2ebdd7",
+      "paired_unique_decisions": {
+        "reflexive_clause": {
+          "incomplete_unique_choices": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_clause": {
+          "100": 12,
+          "101": 12
+        }
+      },
+      "source_span_diagnostics": {
+        "reflexive_clause": {
+          "exact_query_linked_to_outer_phrase_headed_by_A": 12
+        }
+      }
+    },
+    "native-entities": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "reflexive_clause": {
+          "abstained": 24
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "1bed22ae38d18ccfed5e120cf87216f558a579d819c2d389a22c63ea37a4a199",
+      "paired_unique_decisions": {
+        "reflexive_clause": {
+          "incomplete_unique_choices": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_clause": {
+          "111": 24
+        }
+      },
+      "source_span_diagnostics": {}
+    },
+    "native-raw": {
+      "backend": "mention-ranking",
+      "by_family": {
+        "reflexive_clause": {
+          "query_missing": 24
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "27790e51a95e395257cb1cb727254b71174b036ef3dc26cbef8c77af2e225434",
+      "paired_unique_decisions": {
+        "reflexive_clause": {
+          "incomplete_unique_choices": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_clause": {
+          "000": 12,
+          "010": 12
+        }
+      },
+      "source_span_diagnostics": {}
+    }
+  },
+  "documents": 24,
+  "panel_sha256": "9ed58ba2b32c83a10c9554a8acf5594fe89054f76b12844a3a3c2537437a7b36"
+}

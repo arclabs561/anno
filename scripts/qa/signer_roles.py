@@ -214,6 +214,8 @@ def main():
     parser.add_argument("--panel", choices=("signer", "reflexive", "reflexive-infinitive"), default="signer")
     parser.add_argument("--check", type=Path, help="compare the selected arms with a saved receipt")
     args = parser.parse_args()
+    if args.check and args.check.resolve() in {args.output.resolve(), args.details.resolve() if args.details else None}:
+        parser.error("use a separate output path for the checked receipt")
     if len(set(args.arm)) != len(args.arm):
         parser.error("each arm can be requested once")
     rows = panel() if args.panel == "signer" else reflexive_panel(args.panel == "reflexive-infinitive")

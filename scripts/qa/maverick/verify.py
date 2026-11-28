@@ -40,6 +40,14 @@ def main():
         env=env, cwd=Path(__file__).resolve().parents[3], check=True,
     )
 
+    subprocess.run(["cargo", "build", "--locked", "-p", "anno", "--no-default-features",
+                    "--example", "coref_gap_panel"], env=env, check=True)
+    binary = Path(env.get("CARGO_TARGET_DIR", "target")) / "debug/examples/coref_gap_panel"
+    for panel in ("reflexive", "reflexive-infinitive"):
+        subprocess.run([sys.executable, "scripts/qa/signer_roles.py", binary, root / f"{panel}.json",
+                        "--panel", panel, "--arm", "maverick-raw", "--arm", "maverick-supplied",
+                        "--check", f"docs/eval/{panel}.json"], env=env, check=True)
+
 
 if __name__ == "__main__":
     main()
