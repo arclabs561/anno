@@ -798,8 +798,15 @@ fn write_outputs(
 
     // A source tree can contain both a.txt and a.json/b.txt. Their output
     // paths would require a.json to be both a file and a directory.
-    let destinations: std::collections::HashSet<&Path> =
-        paths.iter().map(PathBuf::as_path).collect();
+    let mut destinations = std::collections::HashSet::with_capacity(paths.len());
+    for path in &paths {
+        if !destinations.insert(path.as_path()) {
+            return Err(format!(
+                "Multiple documents would write '{}'",
+                path.display()
+            ));
+        }
+    }
     for path in &paths {
         if path.is_symlink() || (path.exists() && !path.is_file()) {
             return Err(format!("Expected an output file at '{}'", path.display()));

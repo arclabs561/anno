@@ -443,7 +443,7 @@ pub fn resolved_relations<'a>(
 
 /// Minimal CSV field escaping.
 fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
+    if s.contains(',') || s.contains('"') || s.contains(['\r', '\n']) {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
@@ -658,6 +658,8 @@ fn graph_csv(
         })
         .collect();
 
+    let source = csv_escape(source_label);
+
     // Nodes CSV
     let mut nodes = String::from("id,entity_type,text,start,end,source");
     if include_confidence {
@@ -672,7 +674,7 @@ fn graph_csv(
             csv_escape(&e.text),
             e.start(),
             e.end(),
-            csv_escape(source_label),
+            source,
         ));
         if include_confidence {
             nodes.push_str(&format!(",{:.4}", e.confidence));
@@ -681,12 +683,12 @@ fn graph_csv(
     }
 
     // Edges CSV
-    let mut edges = String::from("from,to,rel_type,confidence\n");
+    let mut edges = String::from("from,to,rel_type,confidence,source\n");
 
     if !relations.is_empty() {
         for (rel, h, t) in resolved_relations(entities, relations) {
             edges.push_str(&format!(
-                "{},{},{},{:.4}\n",
+                "{},{},{},{:.4},{source}\n",
                 csv_escape(&entity_ids[h]),
                 csv_escape(&entity_ids[t]),
                 csv_escape(&rel.relation_type),
@@ -706,7 +708,7 @@ fn graph_csv(
                 };
                 if distance <= COOCCUR_WINDOW {
                     edges.push_str(&format!(
-                        "{},{},CO_OCCURS,1.0000\n",
+                        "{},{},CO_OCCURS,1.0000,{source}\n",
                         csv_escape(&entity_ids[i]),
                         csv_escape(&entity_ids[j]),
                     ));
@@ -855,10 +857,10 @@ mod tests {
             Entity::new("Apple", EntityType::Organization, 0, 5, 0.9),
             Entity::new("Tim Cook", EntityType::Person, 10, 18, 0.95),
         ];
-        let (nodes, edges) = to_graph_csv(&entities, &[], "test.txt", false);
+        let (nodes, edges) = to_graph_csv(&entities, &[], "test,edition.txt", false);
         assert!(nodes.contains("Apple"));
         assert!(nodes.contains("Tim Cook"));
-        assert!(edges.contains("CO_OCCURS"));
+        assert!(edges.contains("CO_OCCURS,1.0000,\"test,edition.txt\""));
     }
 
     #[test]
@@ -1009,7 +1011,7 @@ mod tests {
         assert!(!jsonld.contains("anno:relations"));
 
         let (_, csv) = to_graph_csv(&entities, &[relation], "test.txt", false);
-        assert_eq!(csv, "from,to,rel_type,confidence\n");
+        assert_eq!(csv, "from,to,rel_type,confidence,source\n");
     }
 
     #[test]
