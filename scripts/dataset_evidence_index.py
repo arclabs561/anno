@@ -72,6 +72,61 @@ def study_outcomes(evidence):
             **extra,
         )
 
+    source = "english-ner-source-replay.json"
+    study = receipt(evidence, source)
+    for ident, panel in study["datasets"].items():
+        for backend, arm in panel["backends"].items():
+            if arm["all_labels"]["gold"] != panel["gold"]:
+                raise ValueError(
+                    f"NER score disagrees with the {ident} source inventory"
+                )
+            for field, labels in (
+                ("all_labels", "all source and output types"),
+                ("shared_labels", "PER, ORG and LOC only"),
+            ):
+                counts = arm[field]
+                yield score(
+                    ident,
+                    "ner",
+                    backend,
+                    panel["split"],
+                    f"{panel['scope']} · {labels}",
+                    panel["cases"],
+                    "source records",
+                    source,
+                    panel["source"]["sha256"],
+                    reported_backend=backend,
+                    panel_digest=panel["ordered_cases_sha256"],
+                    read_source="pinned publisher file in local cache",
+                    metric="typed exact micro F1",
+                    metric_value=counts["f1"],
+                    detail=f"{counts['correct']} exact, {counts['predicted']} predicted, {counts['gold']} gold",
+                )
+
+    source = "vira-speech-act.json"
+    study = receipt(evidence, source)
+    for split, panel in study["splits"].items():
+        counts = panel["by_label"].values()
+        if sum(row["gold"] for row in counts) != panel["examples"]:
+            raise ValueError(f"ViRA {split} label counts disagree with its full split")
+        yield score(
+            study["dataset"],
+            study["task"],
+            study["backend"],
+            split,
+            study["split_roles"][split] + " · IBM seven-way labels",
+            panel["examples"],
+            study["unit"],
+            source,
+            panel["input_sha256"],
+            reported_backend=study["backend"],
+            read_source="verified IBM turns staged in local cache",
+            seed=study["seed"],
+            metric="macro F1 (seven classes)",
+            metric_value=panel["macro_f1"],
+            detail=f"{panel['correct']} correct, {panel['abstained']} abstentions; accuracy {panel['accuracy']:.2%}",
+        )
+
     crossre = "crossre-full-prompt-comparison.json"
     domain_ids = {}
     for domain, panel in receipt(evidence, crossre)["domains"].items():

@@ -358,6 +358,13 @@ impl ClassificationMetrics {
         }
     }
 
+    /// Count an unanswered example as a false negative for its gold class.
+    pub fn abstain(&mut self, actual: &str) {
+        self.total += 1;
+        *self.class_support.entry(actual.to_owned()).or_default() += 1;
+        *self.class_fn.entry(actual.to_owned()).or_default() += 1;
+    }
+
     /// Overall accuracy.
     #[must_use]
     pub fn accuracy(&self) -> f64 {
@@ -404,15 +411,22 @@ impl ClassificationMetrics {
         sum / self.class_support.len() as f64
     }
 
-    /// Macro-averaged F1 score.
+    /// Mean per-class F1 over classes present in gold or predictions.
     #[must_use]
     pub fn macro_f1(&self) -> f64 {
-        let p = self.macro_precision();
-        let r = self.macro_recall();
-        if p + r == 0.0 {
+        let classes: std::collections::BTreeSet<_> = self
+            .class_support
+            .keys()
+            .chain(self.class_fp.keys())
+            .collect();
+        if classes.is_empty() {
             return 0.0;
         }
-        2.0 * p * r / (p + r)
+        classes
+            .iter()
+            .map(|class| self.class_f1(class))
+            .sum::<f64>()
+            / classes.len() as f64
     }
 
     /// Micro-averaged precision (aggregate TP/FP across classes).
@@ -1036,6 +1050,19 @@ mod tests {
     }
 
     #[test]
+    fn classification_abstention_counts_gold_without_inventing_a_prediction() {
+        let mut metrics = ClassificationMetrics::new();
+        metrics.add("other", "other");
+        metrics.abstain("query");
+        assert_eq!(
+            (metrics.total, metrics.correct, metrics.class_fn["query"]),
+            (2, 1, 1)
+        );
+        assert!(metrics.class_fp.is_empty());
+        assert_eq!((metrics.accuracy(), metrics.macro_f1()), (0.5, 0.5));
+    }
+
+    #[test]
     fn test_classification_metrics() {
         let mut metrics = ClassificationMetrics::new();
 
@@ -1048,6 +1075,16 @@ mod tests {
         assert_eq!(metrics.total, 4);
         assert_eq!(metrics.correct, 3);
         assert!((metrics.accuracy() - 0.75).abs() < 0.001);
+    }
+
+    #[test]
+    fn classification_macro_f1_means_class_scores_including_predicted_only_classes() {
+        let mut metrics = ClassificationMetrics::new();
+        metrics.add("A", "A");
+        metrics.add("A", "B");
+        metrics.add("C", "B");
+        // A has one TP and one FP. B has only FN, C has only FP.
+        assert!((metrics.macro_f1() - 2.0 / 9.0).abs() < 1e-12);
     }
 
     #[test]

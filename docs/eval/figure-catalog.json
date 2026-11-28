@@ -2553,7 +2553,80 @@
         "train",
         "test"
       ],
-      "records": []
+      "records": [
+        {
+          "task": "ner",
+          "backend": "bert-onnx",
+          "reported_backend": "bert-onnx",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "288-case joint extraction test · entity layer · PER, ORG and LOC only",
+          "status": "Scored",
+          "examples": 288,
+          "unit": "source records",
+          "detail": "754 exact, 1014 predicted, 946 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.76938776,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "d172819deff771c059c9c6688d67c3ff2bdaa25cf71ec56b1f7e8c6705f96700",
+          "panel_digest": "233d08fc870a702cf2e6e6aeca49b7885f641919dccab3b742422f5d874d04a6",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "bert-onnx",
+          "reported_backend": "bert-onnx",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "288-case joint extraction test · entity layer · all source and output types",
+          "status": "Scored",
+          "examples": 288,
+          "unit": "source records",
+          "detail": "754 exact, 1132 predicted, 1079 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.68204432,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "d172819deff771c059c9c6688d67c3ff2bdaa25cf71ec56b1f7e8c6705f96700",
+          "panel_digest": "233d08fc870a702cf2e6e6aeca49b7885f641919dccab3b742422f5d874d04a6",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "288-case joint extraction test · entity layer · PER, ORG and LOC only",
+          "status": "Scored",
+          "examples": 288,
+          "unit": "source records",
+          "detail": "395 exact, 1126 predicted, 946 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.38127413,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "d172819deff771c059c9c6688d67c3ff2bdaa25cf71ec56b1f7e8c6705f96700",
+          "panel_digest": "233d08fc870a702cf2e6e6aeca49b7885f641919dccab3b742422f5d874d04a6",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "288-case joint extraction test · entity layer · all source and output types",
+          "status": "Scored",
+          "examples": 288,
+          "unit": "source records",
+          "detail": "395 exact, 1126 predicted, 1079 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.35827664,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "d172819deff771c059c9c6688d67c3ff2bdaa25cf71ec56b1f7e8c6705f96700",
+          "panel_digest": "233d08fc870a702cf2e6e6aeca49b7885f641919dccab3b742422f5d874d04a6",
+          "source": "english-ner-source-replay.json"
+        }
+      ]
     },
     {
       "id": "CoNLL2002",
@@ -11556,7 +11629,80 @@
       "coverage_action": "Inspect measured scope",
       "declared_tasks": [],
       "declared_splits": [],
-      "records": []
+      "records": [
+        {
+          "task": "ner",
+          "backend": "bert-onnx",
+          "reported_backend": "bert-onnx",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "SEC FIN3 · complete mirrored test file · PER, ORG and LOC only",
+          "status": "Scored",
+          "examples": 303,
+          "unit": "source records",
+          "detail": "62 exact, 439 predicted, 311 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.16533333,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+          "panel_digest": "d222b31c9b6a4ba03b40c7fa2ffe33ea7708be7a878d7978d11ce1f0a4aef02a",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "bert-onnx",
+          "reported_backend": "bert-onnx",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "SEC FIN3 · complete mirrored test file · all source and output types",
+          "status": "Scored",
+          "examples": 303,
+          "unit": "source records",
+          "detail": "65 exact, 713 predicted, 318 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.12609117,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+          "panel_digest": "d222b31c9b6a4ba03b40c7fa2ffe33ea7708be7a878d7978d11ce1f0a4aef02a",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "SEC FIN3 · complete mirrored test file · PER, ORG and LOC only",
+          "status": "Scored",
+          "examples": 303,
+          "unit": "source records",
+          "detail": "218 exact, 1166 predicted, 311 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.29519296,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+          "panel_digest": "d222b31c9b6a4ba03b40c7fa2ffe33ea7708be7a878d7978d11ce1f0a4aef02a",
+          "source": "english-ner-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "SEC FIN3 · complete mirrored test file · all source and output types",
+          "status": "Scored",
+          "examples": 303,
+          "unit": "source records",
+          "detail": "218 exact, 1166 predicted, 318 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.29380054,
+          "read_source": "pinned publisher file in local cache",
+          "source_digest": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+          "panel_digest": "d222b31c9b6a4ba03b40c7fa2ffe33ea7708be7a878d7978d11ce1f0a4aef02a",
+          "source": "english-ner-source-replay.json"
+        }
+      ]
     },
     {
       "id": "SLUE",
@@ -12425,6 +12571,60 @@
         "test"
       ],
       "records": [
+        {
+          "task": "speech-act-classification",
+          "backend": "gliner2_fastino",
+          "reported_backend": "gliner2_fastino",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "official held-out test · IBM seven-way labels",
+          "status": "Scored",
+          "examples": 72,
+          "unit": "user turns",
+          "detail": "29 correct, 8 abstentions; accuracy 40.28%",
+          "seed": "45929075593",
+          "metric": "macro F1 (seven classes)",
+          "metric_value": 0.3227891156462585,
+          "read_source": "verified IBM turns staged in local cache",
+          "source_digest": "20c381f3e71fc06c78d81719a304c4e75dec44f7b32cdc96893defdb3a75092b",
+          "source": "vira-speech-act.json"
+        },
+        {
+          "task": "speech-act-classification",
+          "backend": "gliner2_fastino",
+          "reported_backend": "gliner2_fastino",
+          "split": "train",
+          "split_evidence": "study or execution receipt",
+          "scope": "training-set diagnostic and source of the majority baseline · IBM seven-way labels",
+          "status": "Scored",
+          "examples": 571,
+          "unit": "user turns",
+          "detail": "302 correct, 58 abstentions; accuracy 52.89%",
+          "seed": "45929075593",
+          "metric": "macro F1 (seven classes)",
+          "metric_value": 0.49100153900613003,
+          "read_source": "verified IBM turns staged in local cache",
+          "source_digest": "3ba3ac4f2f28ec326a763bbff6496bb38fa410386b4234a570c8f407e3687dff",
+          "source": "vira-speech-act.json"
+        },
+        {
+          "task": "speech-act-classification",
+          "backend": "gliner2_fastino",
+          "reported_backend": "gliner2_fastino",
+          "split": "validation",
+          "split_evidence": "study or execution receipt",
+          "scope": "development · IBM seven-way labels",
+          "status": "Scored",
+          "examples": 71,
+          "unit": "user turns",
+          "detail": "31 correct, 15 abstentions; accuracy 43.66%",
+          "seed": "45929075593",
+          "metric": "macro F1 (seven classes)",
+          "metric_value": 0.4454765806833675,
+          "read_source": "verified IBM turns staged in local cache",
+          "source_digest": "04c4f9ea53c2f454efcc97d07442ee2186384d7cab9ac95a021e43082cd57d49",
+          "source": "vira-speech-act.json"
+        },
         {
           "task": "speech-act-classification",
           "backend": "gliner_multitask",
@@ -14805,6 +15005,53 @@
       }
     },
     {
+      "id": "english-ner-source-paired",
+      "datasets": [
+        "CoNLL04RE",
+        "SECFilingsNER"
+      ],
+      "guide": "docs/eval/english-ner-source-replay.md",
+      "report": {
+        "baseline": "HeuristicNER",
+        "candidate": "FP32 BERT NER",
+        "rows": [
+          {
+            "baseline": {
+              "correct": 395,
+              "unmatched": 731
+            },
+            "candidate": {
+              "correct": 754,
+              "unmatched": 378
+            },
+            "gained": 376,
+            "label": "CoNLL04RE",
+            "lost": 17,
+            "observations": 288,
+            "role": "288-case joint extraction test · entity layer"
+          },
+          {
+            "baseline": {
+              "correct": 218,
+              "unmatched": 948
+            },
+            "candidate": {
+              "correct": 65,
+              "unmatched": 648
+            },
+            "gained": 22,
+            "label": "SECFilingsNER",
+            "lost": 175,
+            "observations": 303,
+            "role": "SEC FIN3 · complete mirrored test file"
+          }
+        ],
+        "schema": "anno.paired/v1",
+        "title": "What does BERT recover on news and filing text?",
+        "unit": "source records"
+      }
+    },
+    {
       "id": "genia-span-overlap",
       "datasets": [
         "GENIA",
@@ -15136,6 +15383,52 @@
         "schema": "anno.paired/v1",
         "title": "What did a fourth NuNER prompt change?",
         "unit": "sentences"
+      }
+    },
+    {
+      "id": "vira-majority-paired",
+      "datasets": [
+        "ViraDialogActsLive"
+      ],
+      "guide": "docs/EVALUATION_SAMPLING.md#classify-vira-dialog-acts",
+      "report": {
+        "schema": "anno.paired/v1",
+        "title": "Which ViRA turns does Fastino gain or lose?",
+        "unit": "dialogue turns",
+        "baseline": "Always predict negative reaction",
+        "candidate": "Fastino classifier",
+        "rows": [
+          {
+            "label": "Held-out test",
+            "role": "8 Fastino abstentions",
+            "observations": 72,
+            "baseline": {
+              "correct": 16,
+              "unmatched": 56
+            },
+            "candidate": {
+              "correct": 29,
+              "unmatched": 35
+            },
+            "gained": 16,
+            "lost": 3
+          },
+          {
+            "label": "Validation",
+            "role": "15 Fastino abstentions",
+            "observations": 71,
+            "baseline": {
+              "correct": 20,
+              "unmatched": 51
+            },
+            "candidate": {
+              "correct": 31,
+              "unmatched": 25
+            },
+            "gained": 18,
+            "lost": 7
+          }
+        ]
       }
     },
     {

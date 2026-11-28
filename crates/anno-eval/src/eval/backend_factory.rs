@@ -146,6 +146,17 @@ fn model_load_error(cause: &anno::Error, message: String) -> anno::Error {
 }
 
 impl BackendFactory {
+    /// The default Fastino constructor pins the same public revision for both
+    /// entity extraction and sequence classification.
+    #[cfg(feature = "gliner2-fastino")]
+    pub(crate) fn load_gliner2_fastino() -> Result<anno::backends::gliner2_fastino::GLiNER2Fastino>
+    {
+        use anno::backends::gliner2_fastino::{GLiNER2Fastino, SUPPORTED_GLINER2_FASTINO_MODEL};
+        GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).map_err(|e| {
+            model_load_error(&e, format!("Failed to create GLiNER2 Fastino (ONNX): {e}"))
+        })
+    }
+
     /// Construct a backend and retain only the assets it actually selected.
     ///
     /// [`Self::create`] remains the compatibility API. This additive path is
@@ -221,18 +232,7 @@ impl BackendFactory {
             }
             #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
-                use anno::backends::gliner2_fastino::{
-                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
-                    SUPPORTED_GLINER2_FASTINO_REVISION,
-                };
-                let model = GLiNER2Fastino::from_pretrained_with_config(
-                    SUPPORTED_GLINER2_FASTINO_MODEL,
-                    GLiNER2FastinoConfig::default()
-                        .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
-                )
-                .map_err(|e| {
-                    model_load_error(&e, format!("Failed to create GLiNER2 Fastino (ONNX): {e}"))
-                })?;
+                let model = Self::load_gliner2_fastino()?;
                 let paths = model.artifact_paths();
                 let mut files = vec![("tokenizer".to_string(), paths.tokenizer)];
                 if let Some(config) = paths.config {
@@ -497,21 +497,7 @@ impl BackendFactory {
 
             #[cfg(feature = "gliner2-fastino")]
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
-                use anno::backends::gliner2_fastino::{
-                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
-                    SUPPORTED_GLINER2_FASTINO_REVISION,
-                };
-                GLiNER2Fastino::from_pretrained_with_config(
-                    SUPPORTED_GLINER2_FASTINO_MODEL,
-                    GLiNER2FastinoConfig::default()
-                        .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
-                )
-                .map(|m| Box::new(m) as Box<dyn Model>)
-                .map_err(|e| {
-                    model_load_error(&e, format!(
-                        "Failed to create GLiNER2 Fastino (ONNX): {e}"
-                    ))
-                })
+                Self::load_gliner2_fastino().map(|m| Box::new(m) as Box<dyn Model>)
             }
             #[cfg(not(feature = "gliner2-fastino"))]
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => Err(

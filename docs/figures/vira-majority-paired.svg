@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="462" viewBox="0 0 520 462" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">Which ViRA turns does Fastino gain or lose?</title><desc id="paired-desc">Baseline Always predict negative reaction compared with candidate Fastino classifier on the same inputs. Total suggestions include exact and unmatched predictions. Held-out test. 8 Fastino abstentions · 72 dialogue turns. +13 net exact matches · 16 → 29. Gained 16 · lost 3. Retained 13 of 16 baseline matches (81.2%). Change in total suggestions is −8 (72 to 64). Change in unmatched is −21 (56 to 35). Validation. 15 Fastino abstentions · 71 dialogue turns. +11 net exact matches · 20 → 31. Gained 18 · lost 7. Retained 13 of 20 baseline matches (65.0%). Change in total suggestions is −15 (71 to 56). Change in unmatched is −26 (51 to 25).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">Which ViRA turns does Fastino</text>
+<text x="18" y="61" class="heading">gain or lose?</text>
+<text x="18" y="90" class="scope">Baseline · Always predict negative reaction →</text>
+<text x="18" y="110" class="scope">Candidate · Fastino classifier</text>
+<text x="18" y="130" class="scope">Net exact matches · −13 to +13 · center is zero</text>
+<path d="M18 150H502" stroke="#bdcec9"/>
+<text x="18" y="175" class="cohort">Held-out test</text>
+<text x="18" y="199" class="scope">8 Fastino abstentions · 72 dialogue turns</text>
+<path d="M390 216H494" stroke="#d2deda"/><path d="M442 206v20" stroke="#688079"/>
+<circle cx="494.00" cy="216" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="221" class="score">+13 net exact matches · 16 → 29</text>
+<text x="18" y="243" class="scope">Gained 16 · lost 3 · retained 13/16 (81.2%)</text>
+<text x="18" y="263" class="measure">Total suggestions</text>
+<text x="18" y="282" class="scope">72 → 64 (change −8)</text>
+<text x="267" y="263" class="measure">Unmatched</text>
+<text x="267" y="282" class="scope">56 → 35 (change −21)</text>
+<path d="M18 306H502" stroke="#bdcec9"/>
+<text x="18" y="331" class="cohort">Validation</text>
+<text x="18" y="355" class="scope">15 Fastino abstentions · 71 dialogue turns</text>
+<path d="M390 372H494" stroke="#d2deda"/><path d="M442 362v20" stroke="#688079"/>
+<circle cx="486.00" cy="372" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="377" class="score">+11 net exact matches · 20 → 31</text>
+<text x="18" y="399" class="scope">Gained 18 · lost 7 · retained 13/20 (65.0%)</text>
+<text x="18" y="419" class="measure">Total suggestions</text>
+<text x="18" y="438" class="scope">71 → 56 (change −15)</text>
+<text x="267" y="419" class="measure">Unmatched</text>
+<text x="267" y="438" class="scope">51 → 25 (change −26)</text>
+</svg>

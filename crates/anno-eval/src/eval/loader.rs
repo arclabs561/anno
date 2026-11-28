@@ -618,7 +618,7 @@ impl LoadableDatasetId {
                 // Added 2025-01-27: CoNLL NER datasets with public URLs but missing hints
                 | DatasetId::OntoNotes50
                 | DatasetId::GUM
-                // CoNLL04RE is CoNLL format (works with CoNLL parser even though it's for RE)
+                // The indexed CoNLL04 release includes both entity tags and relation columns.
                 | DatasetId::CoNLL04RE
         ) {
             return Some(DatasetParsePlan::Conll);
@@ -3700,12 +3700,43 @@ impl DatasetLoader {
         // GermEval 2014 is TSV: index, token, outer NE, embedded NE, with `#`
         // source-comment lines. Its columns do not follow CoNLL-2003.
         let is_germeval_format = matches!(id, DatasetId::GermEval2014);
+        // Preserve support for plain word/BIO files already cached for this ID.
+        // The joint release delimits passages with #doc and has no blank lines.
+        let indexed_conll04 = id == DatasetId::CoNLL04RE
+            && content
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .is_some_and(|line| {
+                    line.split_whitespace().next() == Some("#doc") || {
+                        let fields: Vec<_> = line.split('\t').collect();
+                        matches!(fields.len(), 3 | 5)
+                            && fields[0] == "0"
+                            && (fields[2] == "O"
+                                || fields[2].starts_with("B-")
+                                || fields[2].starts_with("I-"))
+                    }
+                });
 
-        for line in content.lines() {
+        for (line_index, line) in content.lines().enumerate() {
             let line = line.trim();
 
-            // Empty line = sentence boundary
-            if line.is_empty() {
+            let conll04_marker = indexed_conll04 && line.split_whitespace().next() == Some("#doc");
+            if conll04_marker {
+                let mut fields = line.split_whitespace().skip(1);
+                if fields
+                    .next()
+                    .and_then(|id| id.parse::<u64>().ok())
+                    .is_none()
+                    || fields.next().is_some()
+                {
+                    return Err(Error::InvalidInput(format!(
+                        "Invalid CoNLL04 document marker at line {}",
+                        line_index + 1
+                    )));
+                }
+            }
+            if line.is_empty() || conll04_marker {
                 if !current_tokens.is_empty() {
                     sentences.push(AnnotatedSentence {
                         tokens: std::mem::take(&mut current_tokens),
@@ -3721,7 +3752,40 @@ impl DatasetLoader {
             }
 
             // Parse based on format
-            let (text, ner_tag) = if is_germeval_format {
+            let (text, ner_tag) = if indexed_conll04 {
+                let fields: Vec<_> = line.split('\t').collect();
+                let invalid = || {
+                    Error::InvalidInput(format!(
+                        "Invalid indexed CoNLL04 entity row at line {}",
+                        line_index + 1
+                    ))
+                };
+                // The release appends relation labels and head indices. A three-column
+                // entity-only export carries the identical token and entity fields.
+                if !matches!(fields.len(), 3 | 5)
+                    || fields[0].parse::<usize>().ok() != Some(current_tokens.len())
+                    || fields[1].is_empty()
+                {
+                    return Err(invalid());
+                }
+                let tag = match fields[2] {
+                    "O" => "O".to_owned(),
+                    bio => {
+                        let (prefix, raw) = bio.split_once('-').ok_or_else(invalid)?;
+                        if !matches!(prefix, "B" | "I") || raw.is_empty() {
+                            return Err(invalid());
+                        }
+                        let label = match raw {
+                            "Peop" => "PER",
+                            "Org" => "ORG",
+                            "Loc" => "LOC",
+                            other => other,
+                        };
+                        format!("{prefix}-{label}")
+                    }
+                };
+                (fields[1].to_owned(), tag)
+            } else if is_germeval_format {
                 if line.starts_with('#') {
                     continue;
                 }
@@ -4252,6 +4316,29 @@ impl DatasetLoader {
 
             let label_value = row.get("label").or_else(|| row.get("labels"));
             let label = match label_value {
+                // This Hub release uses plain integers, without HF ClassLabel names.
+                // Its publisher decodes each integer with its ordered class dictionary.
+                _ if id == DatasetId::ViraDialogActsLive => {
+                    let labels = id.entity_types();
+                    let label = match label_value {
+                        Some(value) if value.is_string() => {
+                            value.as_str().filter(|name| labels.contains(name))
+                        }
+                        Some(value) => value
+                            .as_u64()
+                            .and_then(|i| usize::try_from(i).ok())
+                            .and_then(|i| labels.get(i).copied()),
+                        None => None,
+                    };
+                    label
+                        .ok_or_else(|| {
+                            Error::InvalidInput(format!(
+                                "ViRA dialogue-act label must be a published name or class ID in 0..{}",
+                                labels.len()
+                            ))
+                        })?
+                        .to_owned()
+                }
                 Some(v) if v.is_string() => v.as_str().unwrap_or("").to_string(),
                 Some(v) if v.is_number() => {
                     let idx = v.as_u64().unwrap_or(0) as usize;
@@ -4569,8 +4656,9 @@ impl DatasetLoader {
                 continue;
             }
 
-            // Skip metadata comments
-            if line.starts_with('#') {
+            // HIPE metadata starts with "# ". OCR tokens such as "#" and "###mann"
+            // also begin with a hash and have tab-separated gold annotation columns.
+            if line.starts_with("# ") || (line.starts_with('#') && !line.contains('\t')) {
                 // Document boundary comment can also serve as sentence boundary
                 if line.contains("document_id") && !current_tokens.is_empty() {
                     sentences.push(AnnotatedSentence {
@@ -10124,6 +10212,53 @@ g1\tJohn met Mary. He waved.\tHe\t14\tJohn\t0\tTRUE\tMary\t9\tFALSE\thttp://exam
     }
 
     #[test]
+    fn vira_integer_labels_follow_ibms_classifier_dictionary() {
+        let loader = DatasetLoader::with_cache_dir(tempfile::tempdir().unwrap().path()).unwrap();
+        let parse = |labels: Vec<serde_json::Value>| {
+            let rows: Vec<_> = labels
+                .into_iter()
+                .map(|label| serde_json::json!({"row": {"text": "Example turn", "label": label}}))
+                .collect();
+            loader.parse_hf_api_response(
+                &serde_json::json!({"features":[], "rows": rows}).to_string(),
+                DatasetId::ViraDialogActsLive,
+            )
+        };
+        let parsed = parse((0..7).map(serde_json::Value::from).collect()).unwrap();
+        let tags: Vec<_> = parsed
+            .sentences
+            .iter()
+            .map(|row| row.tokens[0].ner_tag.as_str())
+            .collect();
+        assert_eq!(
+            tags,
+            [
+                "B-greeting",
+                "B-farewell",
+                "B-negative_reaction",
+                "B-positive_reaction",
+                "B-concern",
+                "B-query",
+                "B-other"
+            ]
+        );
+        assert_eq!(
+            parse(vec![serde_json::json!("query")]).unwrap().sentences[0].tokens[0].ner_tag,
+            "B-query"
+        );
+        for value in [
+            serde_json::json!(-1),
+            serde_json::json!(7),
+            serde_json::Value::Null,
+        ] {
+            assert!(parse(vec![value])
+                .unwrap_err()
+                .to_string()
+                .contains("published name or class ID"));
+        }
+    }
+
+    #[test]
     fn test_parse_hf_api_response_pairwise_discourse_smoke() {
         let sample = r#"{
   "features":[{"name":"unit1_txt"},{"name":"unit2_txt"},{"name":"label"}],
@@ -10588,6 +10723,26 @@ CEO,O
                 id
             );
         }
+    }
+
+    #[test]
+    fn hipe_keeps_hash_prefixed_ocr_tokens_and_document_boundaries() {
+        let content = concat!(
+            "TOKEN\tNE-COARSE-LIT\n",
+            "# hipe2022:document_id = first\n",
+            "#\tO\n",
+            "###mann\tB-pers\n",
+            "# hipe2022:document_id = second\n",
+            "##\tO\n",
+        );
+        let ds = DatasetLoader::new()
+            .unwrap()
+            .parse_content_str(content, DatasetId::HIPE2022)
+            .unwrap();
+        assert_eq!(ds.sentences.len(), 2);
+        assert_eq!(ds.sentences[0].text(), "# ###mann");
+        assert_eq!(ds.sentences[0].tokens[1].ner_tag, "B-pers");
+        assert_eq!(ds.sentences[1].text(), "##");
     }
 
     #[test]
@@ -11448,6 +11603,43 @@ CEO,O
             std::fs::write(path.with_extension("txt"), text.replace("Éva", "Eve")).unwrap();
             assert!(loader.load_coref(DatasetId::LitBank).is_err());
             assert!(loader.load(id).is_err());
+        }
+
+        #[test]
+        fn conll04_uses_document_markers_tokens_and_entity_columns() {
+            let input = "#doc 45\n0\tZoë\tI-Peop\t['Live_In']\t[2]\n1\tin\tO\t['N']\t[1]\n2\tLima\tB-Loc\t['N']\t[2]\n#doc 51\n0\t🌎\tO\n#doc 55\n0\tAcme\tB-Org\n1\tGroup\tI-Org\n2\t'90\tB-Other\n";
+            let loader =
+                DatasetLoader::with_cache_dir(tempfile::tempdir().unwrap().path()).unwrap();
+            let data = loader
+                .parse_content_str(input, DatasetId::CoNLL04RE)
+                .unwrap();
+            let cases = data.to_test_cases();
+            assert_eq!(cases.len(), 3);
+            assert_eq!(cases[0].0, "Zoë in Lima");
+            let spans = |i: usize| {
+                cases[i]
+                    .1
+                    .iter()
+                    .map(|g| (g.original_label.as_str(), g.start, g.end))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(spans(0), [("PER", 0, 3), ("LOC", 7, 11)]);
+            assert_eq!(cases[1].0, "🌎");
+            assert!(spans(1).is_empty());
+            assert_eq!(spans(2), [("ORG", 0, 10), ("Other", 11, 14)]);
+            for bad in [
+                "#doc 1\n1\tx\tO",
+                "#doc 1\n0\tx\t['N']\t[0]\t[0]",
+                "#doc 1\n0\t\tO",
+                "#doc",
+                "#doc unnumbered",
+            ] {
+                assert!(loader.parse_content_str(bad, DatasetId::CoNLL04RE).is_err());
+            }
+            let standard = loader
+                .parse_content_str("London B-LOC\n", DatasetId::CoNLL04RE)
+                .unwrap();
+            assert_eq!(standard.to_test_cases()[0].0, "London");
         }
 
         /// GermEval 2014 (registry format "CoNLL") is a 4-column TSV:

@@ -1,0 +1,39 @@
+{
+  "baseline": "HeuristicNER",
+  "candidate": "FP32 BERT NER",
+  "rows": [
+    {
+      "baseline": {
+        "correct": 395,
+        "unmatched": 731
+      },
+      "candidate": {
+        "correct": 754,
+        "unmatched": 378
+      },
+      "gained": 376,
+      "label": "CoNLL04RE",
+      "lost": 17,
+      "observations": 288,
+      "role": "288-case joint extraction test · entity layer"
+    },
+    {
+      "baseline": {
+        "correct": 218,
+        "unmatched": 948
+      },
+      "candidate": {
+        "correct": 65,
+        "unmatched": 648
+      },
+      "gained": 22,
+      "label": "SECFilingsNER",
+      "lost": 175,
+      "observations": 303,
+      "role": "SEC FIN3 · complete mirrored test file"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "What does BERT recover on news and filing text?",
+  "unit": "source records"
+}

@@ -513,7 +513,6 @@ impl TaskEvaluator {
                 | Task::EventExtraction
                 | Task::SpeechActClassification
                 | Task::Temporal
-                | Task::DiscourseRelations
                 | Task::DiscourseSegmentation
         )
     }
@@ -744,8 +743,12 @@ impl TaskEvaluator {
                     }
                 });
 
-                // Compute familiarity for zero-shot backends
-                let label_shift = if config.compute_familiarity {
+                // Familiarity uses extracted entity types. Dialog acts and text classes have their own label vocabulary.
+                let label_shift = if config.compute_familiarity
+                    && !matches!(
+                        task,
+                        Task::TextClassification | Task::SpeechActClassification
+                    ) {
                     self.compute_familiarity_if_zero_shot(backend_name, sampled_data)
                 } else {
                     None
@@ -1042,6 +1045,12 @@ impl TaskEvaluator {
     }
 
     fn ner_inference_provenance(task: Task, backend_name: &str) -> NerInferenceProvenance {
+        if matches!(
+            task,
+            Task::TextClassification | Task::SpeechActClassification
+        ) {
+            return NerInferenceProvenance::default();
+        }
         let uses_evaluator_threshold = matches!(
             backend_name,
             "nuner"
@@ -1115,35 +1124,30 @@ impl TaskEvaluator {
                 if !datasets_used.contains(dataset) {
                     datasets_used.push(*dataset);
                 }
-                // Get compatible backends for this task
+                let allowed = get_task_backends(*task);
+                let supports_task =
+                    |name: &str| allowed.contains(&canonical_coref_name(*task, name));
                 let backends: Vec<String> = if config.backends.is_empty() {
-                    get_task_backends(*task)
-                        .iter()
-                        .map(|s| s.to_string())
-                        .collect()
+                    allowed.iter().map(|s| s.to_string()).collect()
                 } else {
-                    // If the caller specifies explicit backends, still filter them per-task.
-                    // Otherwise we waste time evaluating impossible combinations and inflate
-                    // "expected failures" (which reduces signal from matrix sampling).
-                    let allowed: std::collections::HashSet<&'static str> =
-                        get_task_backends(*task).into_iter().collect();
+                    // Multi-task runs select eligible pairs. A caller requesting one task
+                    // and named backends should receive a reason for each unavailable pair.
                     config
                         .backends
                         .iter()
-                        .filter(|b| allowed.contains(canonical_coref_name(*task, b)))
+                        .filter(|b| config.tasks.len() == 1 || supports_task(b))
                         .cloned()
                         .collect()
                 };
-
-                // Further filter by dataset-level compatibility (entity types, etc.).
-                // Track incompatible backends for better error reporting.
                 let span_limitation = match task {
                     Task::RelationExtraction => dataset.relation_span_limitation(),
                     _ => None,
                 };
                 let (compatible_backends, incompatible_backends): (Vec<String>, Vec<String>) =
                     backends.into_iter().partition(|b| {
-                        span_limitation.is_none() && Self::is_backend_compatible(b, *dataset)
+                        supports_task(b)
+                            && span_limitation.is_none()
+                            && Self::is_backend_compatible(b, *dataset)
                     });
 
                 // Add incompatible backends as results with clear error message
@@ -1152,6 +1156,13 @@ impl TaskEvaluator {
                         backends_tested.push(backend_name.clone());
                     }
                     let (skip_reason, detail) = match span_limitation {
+                        _ if !supports_task(backend_name) => (
+                            EvalSkipReason::CapabilityUnavailable,
+                            format!(
+                                "Backend '{backend_name}' has no evaluator for {} in this build",
+                                task.code()
+                            ),
+                        ),
                         Some(reason) => (EvalSkipReason::CapabilityUnavailable, reason.to_string()),
                         None => (
                             EvalSkipReason::IncompatibleEntityTypes,
@@ -1602,23 +1613,8 @@ impl TaskEvaluator {
                     scheduling: EvaluationScheduling::Sequential,
                 })
             }
-            Task::TextClassification | Task::SpeechActClassification | Task::DiscourseRelations => {
-                let metrics = self.evaluate_text_classification_task(
-                    backend_name,
-                    dataset,
-                    dataset_data,
-                    config,
-                )?;
-                Ok(BackendEvalOk {
-                    metrics,
-                    actual_example_count: None,
-                    evaluated_sample: None,
-                    backend_display: None,
-                    configured_labels: None,
-                    ner_label_policy: None,
-                    construction_receipt: BackendConstructionReceipt::default(),
-                    scheduling: EvaluationScheduling::Sequential,
-                })
+            Task::TextClassification | Task::SpeechActClassification => {
+                self.evaluate_text_classification_task(backend_name, dataset, dataset_data)
             }
             _ => Err(crate::Error::InvalidInput(format!(
                 "Task {} is catalogued but not yet supported by TaskEvaluator",
@@ -2366,19 +2362,9 @@ impl TaskEvaluator {
                 anno::backends::gliner25::GLiNER25::from_env()?,
             )),
             #[cfg(feature = "gliner2-fastino")]
-            "gliner2_fastino" => {
-                use anno::backends::gliner2_fastino::{
-                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
-                    SUPPORTED_GLINER2_FASTINO_REVISION,
-                };
-                Ok(CachedBackend::GLiNER2Fastino(
-                    GLiNER2Fastino::from_pretrained_with_config(
-                        SUPPORTED_GLINER2_FASTINO_MODEL,
-                        GLiNER2FastinoConfig::default()
-                            .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
-                    )?,
-                ))
-            }
+            "gliner2_fastino" => Ok(CachedBackend::GLiNER2Fastino(
+                BackendFactory::load_gliner2_fastino()?,
+            )),
             #[cfg(not(feature = "gliner2-fastino"))]
             "gliner2_fastino" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER2 Fastino requires the 'gliner2-fastino' feature".to_string(),
@@ -2485,15 +2471,7 @@ impl TaskEvaluator {
             "gliner2_fastino" => {
                 #[cfg(feature = "gliner2-fastino")]
                 {
-                    use anno::backends::gliner2_fastino::{
-                        GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
-                        SUPPORTED_GLINER2_FASTINO_REVISION,
-                    };
-                    let fastino = GLiNER2Fastino::from_pretrained_with_config(
-                        SUPPORTED_GLINER2_FASTINO_MODEL,
-                        GLiNER2FastinoConfig::default()
-                            .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
-                    )?;
+                    let fastino = BackendFactory::load_gliner2_fastino()?;
                     let construction_receipt = Self::fastino_construction_receipt(&fastino);
                     Ok(CachedBackendAny {
                         backend: Box::new(fastino),
@@ -3742,174 +3720,124 @@ impl TaskEvaluator {
         })
     }
 
-    /// Evaluate text classification task.
-    ///
-    /// Loader encodes the gold label as the `B-<LABEL>` tag on the single token for each example.
+    /// Single-label prediction against the complete, independently declared corpus vocabulary.
+    #[cfg(feature = "gliner2-fastino")]
     fn evaluate_text_classification_task(
         &self,
         backend_name: &str,
         dataset: DatasetId,
-        dataset_data: &LoadedDataset,
-        _config: &TaskEvalConfig,
-    ) -> Result<HashMap<String, f64>> {
-        // For now, only GLiNER multi-task is wired for classification in this repo.
-        let backend_name_norm = backend_name.to_lowercase();
-        if backend_name_norm != "gliner_multitask"
-            && backend_name_norm != "gliner_multitask_onnx"
-            && backend_name_norm != "gliner_multitask_candle"
-        {
-            return Err(crate::Error::InvalidInput(format!(
-                "Text classification currently only supports gliner_multitask backends (got {})",
-                backend_name
+        data: &LoadedDataset,
+    ) -> Result<BackendEvalOk> {
+        use super::metrics::ClassificationMetrics;
+        let labels = dataset.entity_types();
+        if labels.is_empty() {
+            return Err(crate::Error::FeatureNotAvailable(format!(
+                "{dataset:?} needs a published classification label vocabulary"
             )));
         }
-
-        // Prefer registry class labels when available, otherwise derive from gold labels in the data.
-        let mut labels: Vec<String> = dataset
-            .entity_types()
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        if labels.is_empty() {
-            for s in &dataset_data.sentences {
-                let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
-                let gold = tag
-                    .strip_prefix("B-")
-                    .or_else(|| tag.strip_prefix("I-"))
-                    .unwrap_or(tag)
-                    .trim();
-                if gold.is_empty() || gold == "O" {
-                    continue;
-                }
-                labels.push(gold.to_string());
+        let mut examples = Vec::with_capacity(data.sentences.len());
+        for sentence in &data.sentences {
+            let text = sentence.text();
+            let Some(token) = sentence.tokens.first() else {
+                continue;
+            };
+            let Some(gold) = token.ner_tag.strip_prefix("B-") else {
+                return Err(crate::Error::InvalidInput(format!(
+                    "{dataset:?} has an example without a gold class"
+                )));
+            };
+            if text.trim().is_empty() || !labels.contains(&gold) {
+                return Err(crate::Error::InvalidInput(format!(
+                    "{dataset:?} needs nonempty text and a gold class from its declared vocabulary"
+                )));
             }
-            labels.sort();
-            labels.dedup();
+            examples.push((text, gold));
         }
-        if labels.is_empty() {
+        if examples.is_empty() {
             return Err(crate::Error::InvalidInput(format!(
-                "Dataset {:?} has no class labels (neither registry entity_types nor gold labels in loaded data)",
-                dataset
+                "{dataset:?} has no labeled classification examples"
             )));
         }
-        // If we don't have any compiled gliner_multitask backend (neither onnx nor candle),
-        // classification is not available even if `eval` is enabled.
-        #[cfg(any(feature = "onnx", feature = "candle"))]
-        {
-            use crate::eval::metrics::ClassificationMetrics;
-
-            let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
-
-            // Create backend instance for classification.
-            #[cfg(feature = "onnx")]
-            let extractor = if backend_name_norm == "gliner_multitask"
-                || backend_name_norm == "gliner_multitask_onnx"
+        if backend_name != "gliner2_fastino" {
+            return Err(crate::Error::FeatureNotAvailable(format!(
+                "{backend_name} has no supported sequence classification graph"
+            )));
+        }
+        let model = BackendFactory::load_gliner2_fastino()?;
+        let mut scores = ClassificationMetrics::new();
+        let mut abstained = 0;
+        for (text, gold) in examples {
+            let ranked = model.classify(&text, labels, 0.0)?;
+            if ranked.len() != labels.len()
+                || ranked.iter().any(|(_, p)| !p.is_finite() || *p < 0.0)
             {
-                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
-                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
-                Some(GLiNERMultitaskOnnx::from_pretrained(
-                    DEFAULT_GLINER_MULTITASK_MODEL,
-                )?)
-            } else {
-                None
-            };
-            #[cfg(not(feature = "onnx"))]
-            let extractor: Option<()> = None;
-
-            #[cfg(all(feature = "candle", feature = "onnx"))]
-            let extractor_candle = if backend_name_norm == "gliner_multitask_candle" {
-                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
-                use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
-                Some(GLiNERMultitaskCandle::from_pretrained(
-                    DEFAULT_GLINER_MULTITASK_MODEL,
-                )?)
-            } else {
-                None
-            };
-            #[cfg(not(all(feature = "candle", feature = "onnx")))]
-            let extractor_candle: Option<()> = None;
-
-            if extractor.is_none() && extractor_candle.is_none() {
-                return Err(crate::Error::FeatureNotAvailable(
-                    "Text classification requires a gliner_multitask backend with 'onnx' (and optionally 'candle') enabled"
-                        .to_string(),
+                return Err(crate::Error::Inference(
+                    "Classifier did not return a nonnegative finite score for each requested class"
+                        .into(),
                 ));
             }
-
-            #[cfg(feature = "onnx")]
-            let schema = anno::backends::gliner_multitask::TaskSchema::new().with_classification(
-                "topic",
-                &label_refs,
-                false,
-            );
-            #[cfg(not(feature = "onnx"))]
-            let schema = ();
-            #[cfg(not(feature = "onnx"))]
-            let _ = (&label_refs, &schema);
-
-            let mut m = ClassificationMetrics::new();
-            for s in &dataset_data.sentences {
-                let text = s.text();
-                if text.trim().is_empty() {
-                    continue;
+            // A skipped Fastino classifier produces all zero probabilities. It has
+            // not selected the first class (or the publisher's `other` class).
+            match ranked.first() {
+                Some((label, score)) if *score > 0.0 => scores.add(label, gold),
+                _ => {
+                    scores.abstain(gold);
+                    abstained += 1;
                 }
-                let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
-                let gold = tag
-                    .strip_prefix("B-")
-                    .or_else(|| tag.strip_prefix("I-"))
-                    .unwrap_or(tag)
-                    .to_string();
-                if gold.is_empty() || gold == "O" {
-                    continue;
-                }
-
-                #[cfg(feature = "onnx")]
-                let pred_labels: Vec<String> = if let Some(ref gliner_multitask) = extractor {
-                    let r = gliner_multitask.extract(&text, &schema)?;
-                    r.classifications
-                        .get("topic")
-                        .map(|c| c.labels.clone())
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-                #[cfg(all(feature = "candle", feature = "onnx"))]
-                let pred_labels: Vec<String> = if let Some(ref gliner_multitask) = extractor_candle
-                {
-                    let r = gliner_multitask.extract(&text, &schema)?;
-                    r.classifications
-                        .get("topic")
-                        .map(|c| c.labels.clone())
-                        .unwrap_or_default()
-                } else {
-                    pred_labels
-                };
-                #[cfg(not(any(feature = "onnx", all(feature = "candle", feature = "onnx"))))]
-                let pred_labels: Vec<String> = Vec::new();
-
-                let pred = pred_labels
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "Unknown".to_string());
-                m.add(&pred, &gold);
             }
-
-            let mut metrics = HashMap::new();
-            metrics.insert("accuracy".to_string(), m.accuracy());
-            metrics.insert("macro_f1".to_string(), m.macro_f1());
-            metrics.insert("micro_f1".to_string(), m.micro_f1());
-            metrics.insert("weighted_f1".to_string(), m.weighted_f1());
-            metrics.insert("num_examples".to_string(), m.total as f64);
-            Ok(metrics)
         }
-
-        #[cfg(not(any(feature = "onnx", feature = "candle")))]
-        {
-            Err(crate::Error::FeatureNotAvailable(
-                "Text classification requires a gliner_multitask backend with 'onnx' or 'candle' enabled"
-                    .to_string(),
-            ))
+        let macro_f1 = scores.macro_f1();
+        let mut metrics = HashMap::from([
+            ("f1".into(), macro_f1),
+            ("precision".into(), scores.macro_precision()),
+            ("recall".into(), scores.macro_recall()),
+            ("macro_f1".into(), macro_f1),
+            ("accuracy".into(), scores.accuracy()),
+            ("micro_f1".into(), scores.micro_f1()),
+            ("weighted_f1".into(), scores.weighted_f1()),
+            ("num_examples".into(), scores.total as f64),
+            ("correct".into(), scores.correct as f64),
+            ("abstained".into(), abstained as f64),
+        ]);
+        for &label in labels {
+            let correct = scores.class_tp.get(label).copied().unwrap_or(0);
+            let extra = scores.class_fp.get(label).copied().unwrap_or(0);
+            metrics.insert(
+                format!("class/{label}/gold"),
+                scores.class_support.get(label).copied().unwrap_or(0) as f64,
+            );
+            metrics.insert(format!("class/{label}/correct"), correct as f64);
+            metrics.insert(format!("class/{label}/predicted"), (correct + extra) as f64);
         }
+        Ok(BackendEvalOk {
+            metrics,
+            actual_example_count: Some(scores.total),
+            evaluated_sample: Some(EvaluatedSampleProvenance {
+                schema_version: 1,
+                unit: EvaluatedSampleUnit::Sentence,
+                unit_count: scores.total,
+                gold_item_count: scores.total,
+                sample_sha256: None,
+                relation_producer_documents: Default::default(),
+            }),
+            backend_display: Some(model.name().into()),
+            configured_labels: Some(labels.iter().map(|s| s.to_string()).collect()),
+            ner_label_policy: None,
+            construction_receipt: Self::fastino_construction_receipt(&model),
+            scheduling: EvaluationScheduling::Sequential,
+        })
+    }
+
+    #[cfg(not(feature = "gliner2-fastino"))]
+    fn evaluate_text_classification_task(
+        &self,
+        _: &str,
+        _: DatasetId,
+        _: &LoadedDataset,
+    ) -> Result<BackendEvalOk> {
+        Err(crate::Error::FeatureNotAvailable(
+            "Single-label classification requires 'gliner2-fastino'".into(),
+        ))
     }
 }
 
@@ -4147,16 +4075,14 @@ impl ComprehensiveEvalResults {
             });
 
             // Compact table headers
-            let show_metrics = match task {
+            match task {
                 Task::NER | Task::DiscontinuousNER => {
                     md.push_str("| Dataset | Backend | F1 | P | R | N | ms |\n");
                     md.push_str("|---------|---------|----|----|----|---|----|\n");
-                    true
                 }
                 Task::IntraDocCoref | Task::InterDocCoref | Task::AbstractAnaphora => {
                     md.push_str("| Dataset | Backend | CoNLL | MUC | B³ | N | ms |\n");
                     md.push_str("|---------|---------|-------|-----|----|---|----|\n");
-                    true
                 }
                 Task::RelationExtraction => {
                     md.push_str(
@@ -4165,12 +4091,16 @@ impl ComprehensiveEvalResults {
                     md.push_str(
                         "|---------|---------|--------|----------|-------------|-------------|-------------|---|---|---|----|\n",
                     );
-                    true
+                }
+                Task::TextClassification | Task::SpeechActClassification => {
+                    md.push_str("| Dataset | Backend | Macro F1 (%) | Accuracy (%) | Abstained | N | ms |\n");
+                    md.push_str(
+                        "|---------|---------|------------:|-------------:|----------:|--:|---:|\n",
+                    );
                 }
                 _ => {
                     md.push_str("| Dataset | Backend | N | ms |\n");
                     md.push_str("|---------|---------|---|----|\n");
-                    false
                 }
             };
 
@@ -4180,16 +4110,32 @@ impl ComprehensiveEvalResults {
                     .map(|d| format!("{:.0}", d))
                     .unwrap_or_else(|| "-".to_string());
 
-                if show_metrics && result.success {
+                if result.success {
+                    let percentage = |key: &str| {
+                        result
+                            .metrics
+                            .get(key)
+                            .filter(|v| v.is_finite())
+                            .map_or_else(|| "-".into(), |v| format!("{:.1}", v * 100.0))
+                    };
                     match task {
+                        Task::TextClassification | Task::SpeechActClassification => {
+                            let abstained = result
+                                .metrics
+                                .get("abstained")
+                                .map_or_else(|| "-".into(), |v| format!("{v:.0}"));
+                            md.push_str(&format!(
+                                "| {:?} | {} | {} | {} | {} | {} | {} |\n",
+                                result.dataset,
+                                result.backend,
+                                percentage("macro_f1"),
+                                percentage("accuracy"),
+                                abstained,
+                                result.num_examples,
+                                time_str,
+                            ));
+                        }
                         Task::NER | Task::DiscontinuousNER => {
-                            let percentage = |key: &str| {
-                                result
-                                    .metrics
-                                    .get(key)
-                                    .filter(|v| v.is_finite())
-                                    .map_or_else(|| "-".into(), |v| format!("{:.1}", v * 100.0))
-                            };
                             md.push_str(&format!(
                                 "| {:?} | {} | {} | {} | {} | {} | {} |\n",
                                 result.dataset,
@@ -5632,11 +5578,46 @@ mod tests {
     }
 
     #[test]
+    fn vira_rejects_the_span_graph_before_loading_the_dataset() {
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let report = evaluator
+            .evaluate_all(TaskEvalConfig {
+                tasks: vec![Task::SpeechActClassification],
+                datasets: vec![DatasetId::ViraDialogActsLive],
+                backends: vec!["gliner_multitask".into()],
+                require_cached: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            (
+                report.summary.skipped,
+                report.summary.failed,
+                report.summary.successful
+            ),
+            (1, 0, 0)
+        );
+        let result = &report.results[0];
+        assert_eq!(
+            result.skip_reason(),
+            Some(EvalSkipReason::CapabilityUnavailable)
+        );
+        assert_eq!(result.num_examples, 0);
+        assert!(result.metrics.is_empty() && result.provenance.dataset.content_sha256.is_none());
+        assert!(result
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("no evaluator for speech-act-classification"));
+    }
+
+    #[test]
     fn test_gliner_multitask_capabilities() {
         let tasks = crate::eval::task_mapping::backend_tasks("gliner_multitask");
         assert!(tasks.contains(&Task::NER));
         assert!(tasks.contains(&Task::RelationExtraction));
-        assert!(tasks.contains(&Task::TextClassification));
+        assert!(!tasks.contains(&Task::TextClassification));
     }
 
     #[test]
@@ -5839,6 +5820,14 @@ mod tests {
         ));
         assert!(matches!(
             TaskEvaluator::ner_inference_provenance(Task::NER, "bert_onnx").threshold,
+            InferenceSettingProvenance::Unknown { .. }
+        ));
+        assert!(matches!(
+            TaskEvaluator::ner_inference_provenance(
+                Task::SpeechActClassification,
+                "gliner2_fastino"
+            )
+            .threshold,
             InferenceSettingProvenance::Unknown { .. }
         ));
     }
@@ -6415,6 +6404,38 @@ mod tests {
 
         assert_eq!(success_count, 1);
         assert_eq!(failure_count, 1);
+    }
+
+    #[test]
+    fn speech_classification_markdown_shows_successful_turns_and_metrics() {
+        let mut result = make_test_result(true, None, Some(0.25));
+        result.task = Task::SpeechActClassification;
+        result.dataset = DatasetId::ViraDialogActsLive;
+        result.backend = "gliner2_fastino".into();
+        result.num_examples = 4;
+        result.duration_ms = Some(10.0);
+        result.metrics.extend([
+            ("macro_f1".to_string(), 0.25),
+            ("accuracy".to_string(), 0.5),
+            ("abstained".to_string(), 1.0),
+        ]);
+        let report = ComprehensiveEvalResults {
+            results: vec![result],
+            summary: EvalSummary {
+                total_combinations: 1,
+                successful: 1,
+                failed: 0,
+                skipped: 0,
+                tasks: vec![Task::SpeechActClassification],
+                datasets: vec![DatasetId::ViraDialogActsLive],
+                backends: vec!["gliner2_fastino".into()],
+            },
+        }
+        .to_markdown();
+        assert!(report.contains("| Macro F1 (%) | Accuracy (%) | Abstained | N |"));
+        assert!(
+            report.contains("| ViraDialogActsLive | gliner2_fastino | 25.0 | 50.0 | 1 | 4 | 10 |")
+        );
     }
 
     #[test]
