@@ -51,7 +51,7 @@ pub fn run(args: AnalyzeArgs) -> Result<(), String> {
         ModelBackend::Heuristic,
         ModelBackend::Stacked,
     ];
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     let backends = {
         let mut backends = backends;
         backends.push(ModelBackend::BertOnnx);

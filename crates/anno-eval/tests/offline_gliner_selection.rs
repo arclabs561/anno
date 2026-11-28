@@ -1,4 +1,4 @@
-#![cfg(all(feature = "eval", feature = "onnx"))]
+#![cfg(all(feature = "eval", feature = "onnx-local"))]
 
 use serde_json::Value;
 use std::{env, fs, path::Path, process::Command};

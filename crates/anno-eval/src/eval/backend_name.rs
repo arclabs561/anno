@@ -30,19 +30,19 @@ pub enum BackendName {
 
     // ONNX backends
     /// BERT-based NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     BertOnnx,
     /// GLiNER zero-shot NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNEROnnx,
     /// NuNER zero-shot NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     NuNER,
     /// W2NER word-word relation NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     W2NER,
     /// GLiNER v2 zero-shot NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNERMultitask,
     /// Fastino GLiNER2 zero-shot NER via a pinned ONNX snapshot.
     #[cfg(feature = "gliner2-fastino")]
@@ -51,16 +51,16 @@ pub enum BackendName {
     #[cfg(feature = "gliner2-fastino")]
     GLiNER25,
     /// GLiNER with polynomial attention via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNERPoly,
     /// DeBERTa v3 NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     DeBERTaV3,
     /// ALBERT NER via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     ALBERT,
     /// TPLinker relation extraction via ONNX runtime.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     TPLinker,
 
     // Candle backends
@@ -93,27 +93,27 @@ impl BackendName {
             BackendName::Pattern => "pattern",
             BackendName::Heuristic => "heuristic",
             BackendName::Stacked => "stacked",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::BertOnnx => "bert_onnx",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::GLiNEROnnx => "gliner_onnx",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::NuNER => "nuner",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::W2NER => "w2ner",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::GLiNERMultitask => "gliner_multitask",
             #[cfg(feature = "gliner2-fastino")]
             BackendName::GLiNER2Fastino => "gliner2_fastino",
             #[cfg(feature = "gliner2-fastino")]
             BackendName::GLiNER25 => "gliner25",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::GLiNERPoly => "gliner_poly",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::DeBERTaV3 => "deberta_v3",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::ALBERT => "albert",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             BackendName::TPLinker => "tplinker",
             #[cfg(feature = "candle")]
             BackendName::CandleNER => "candle_ner",
@@ -135,17 +135,17 @@ impl BackendName {
             "pattern" | "patternner" | "regex" | "regexner" => Some(BackendName::Pattern),
             "heuristic" | "heuristicner" => Some(BackendName::Heuristic),
             "stacked" | "stackedner" => Some(BackendName::Stacked),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "bert_onnx" | "bertneronnx" => Some(BackendName::BertOnnx),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner" => Some(BackendName::GLiNEROnnx),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_onnx" | "glineronnx" => Some(BackendName::GLiNEROnnx),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "nuner" | "nunerzero" => Some(BackendName::NuNER),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "w2ner" => Some(BackendName::W2NER),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_multitask" | "gliner_multitask_onnx" => Some(BackendName::GLiNERMultitask),
             #[cfg(feature = "gliner2-fastino")]
             "gliner25" => Some(BackendName::GLiNER25),
@@ -153,13 +153,13 @@ impl BackendName {
             "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
                 Some(BackendName::GLiNER2Fastino)
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_poly" | "glinerpoly" => Some(BackendName::GLiNERPoly),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "deberta_v3" | "debertav3" => Some(BackendName::DeBERTaV3),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "albert" | "albert_ner" => Some(BackendName::ALBERT),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "tplinker" => Some(BackendName::TPLinker),
             #[cfg(feature = "candle")]
             "candle_ner" | "candlener" => Some(BackendName::CandleNER),
@@ -190,7 +190,7 @@ impl BackendName {
             BackendName::UniversalNER,
         ];
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             backends.extend(&[
                 BackendName::BertOnnx,
@@ -215,7 +215,7 @@ impl BackendName {
             backends.extend(&[BackendName::CandleNER, BackendName::GLiNERCandle]);
         }
 
-        #[cfg(all(feature = "candle", feature = "onnx"))]
+        #[cfg(all(feature = "candle", feature = "onnx-local"))]
         {
             backends.push(BackendName::GLiNERMultitaskCandle);
         }

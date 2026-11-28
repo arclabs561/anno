@@ -525,7 +525,7 @@ mod tests {
         assert!(matches!(cli.args.model_list[1], ModelBackend::Pattern));
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn model_list_accepts_onnx_backends() {
         let cli = TestCli::try_parse_from([

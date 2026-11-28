@@ -466,12 +466,20 @@ jobs:
         env:
           ANNO_BH7_ORT_LIB: "linked"
         run: |
-          cargo tree --locked -p anno --no-default-features --features onnx-local -e normal,build --prefix none > "$RUNNER_TEMP/anno-local-tree"
+          cargo tree --locked -p anno-cli --no-default-features --features onnx-local,extractor-readability -e normal,build --prefix none > "$RUNNER_TEMP/anno-local-tree"
           if grep -q '^hf-hub v' "$RUNNER_TEMP/anno-local-tree"; then
             echo "::error::onnx-local pulled in the Hub transport"
             exit 1
           fi
           cargo test --locked -p anno --no-default-features --features onnx-local --test bughunt7 -- --test-threads=1
+          cargo build --locked -p anno-cli --no-default-features --features onnx-local,extractor-readability
+          export BERT_ONNX_MODEL_PATH="$PWD/crates/anno/tests/bughunt7_data/bert_cjk"
+          target/debug/anno extract --model bert-onnx --text '我在北京工作。' --format json | jq -e '[.entities[].text] == ["北京"]'
+          export HF_HUB_CACHE="$RUNNER_TEMP/empty-model-cache" BERT_ONNX_MODEL_PATH=anno-tests/missing
+          if target/debug/anno models download bert-onnx > "$RUNNER_TEMP/missing-model.log" 2>&1; then
+            exit 1
+          fi
+          grep -F 'hf download' "$RUNNER_TEMP/missing-model.log"
       # gliner2-fastino is not in any other job's feature set; its processor
       # tests read testdata/gliner2_fastino/ fixtures and silently rot without
       # a CI run that enables the feature.

@@ -331,7 +331,7 @@ fn analyze_domain(text: &str, model: &ModelBackend) -> DomainReport {
         ModelBackend::Stacked | ModelBackend::Heuristic | ModelBackend::Pattern => {
             vec!["news".into(), "general web".into(), "wikipedia".into()]
         }
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         ModelBackend::Gliner => vec!["news".into(), "web".into(), "multi-domain".into()],
         _ => vec!["general".into()],
     };

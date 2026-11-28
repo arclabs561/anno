@@ -15,7 +15,7 @@ pub use anno::{
     DEFAULT_GLINER_POLY_MODEL, DEFAULT_NUNER_MODEL, DEFAULT_W2NER_MODEL,
 };
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[doc(hidden)]
 pub use anno::{BertNEROnnx, GLiNEROnnx};
 

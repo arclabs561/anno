@@ -11,7 +11,7 @@ fn email_entity(entities: &[serde_json::Value]) -> &serde_json::Value {
         .expect("pattern extraction should emit the email")
 }
 
-#[cfg(all(feature = "instrument", feature = "onnx"))]
+#[cfg(all(feature = "instrument", feature = "onnx-local"))]
 #[test]
 fn opted_in_model_logs_keep_json_stdout_parseable() {
     let empty_cache = tempfile::tempdir().unwrap();

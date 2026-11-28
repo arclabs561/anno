@@ -68,7 +68,8 @@ eval = ["dep:muxer", "anno/analysis", "anno-eval/eval", "deformat/encoding_rs", 
 eval-bias = ["eval", "anno-eval/eval-bias"]
 discourse = ["anno/discourse", "anno-eval/discourse"]
 instrument = []
-onnx = ["anno/onnx", "anno-eval/onnx"]
+onnx = ["onnx-local", "anno-eval/onnx"]
+onnx-local = ["anno/onnx-local", "anno-eval/onnx-local"]
 # Enable the pinned Fastino backend in evaluation commands.
 gliner2-fastino = ["onnx", "anno-eval/gliner2-fastino"]
 candle = ["anno/candle"]

@@ -13,7 +13,7 @@
 //! - **Comprehensive**: Evaluates all valid task-dataset-backend combinations
 //! - **Extensible**: Easy to add new tasks, datasets, or backends
 
-#[cfg(any(feature = "onnx", feature = "gliner2-fastino"))]
+#[cfg(any(feature = "onnx-local", feature = "gliner2-fastino"))]
 use crate::eval::backend_factory::artifact_receipt_from_paths;
 use crate::eval::backend_factory::{BackendConstructionReceipt, BackendFactory};
 use crate::eval::backend_name::BackendName;
@@ -140,11 +140,11 @@ pub struct ConfidenceIntervals {
 #[allow(clippy::large_enum_variant)]
 #[cfg(feature = "eval-parallel")]
 enum CachedBackend {
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     NuNER(anno::backends::nuner::NuNER),
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNEROnnx(anno::backends::gliner_onnx::GLiNEROnnx),
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNERMultitaskOnnx(anno::backends::gliner_multitask::GLiNERMultitaskOnnx),
     #[cfg(feature = "gliner2-fastino")]
     GLiNER2Fastino(anno::backends::gliner2_fastino::GLiNER2Fastino),
@@ -152,7 +152,7 @@ enum CachedBackend {
     GLiNER25(anno::backends::gliner25::GLiNER25),
     #[cfg(feature = "candle")]
     GLiNERCandle(anno::backends::gliner_candle::GLiNERCandle),
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GLiNERPoly(anno::backends::gliner_poly::GLiNERPoly),
     UniversalNER(anno::backends::universal_ner::UniversalNER),
 }
@@ -2250,7 +2250,7 @@ impl TaskEvaluator {
             .collect()
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn gliner_onnx_construction_receipt(
         model: &anno::backends::gliner_onnx::GLiNEROnnx,
     ) -> BackendConstructionReceipt {
@@ -2301,7 +2301,7 @@ impl TaskEvaluator {
     #[cfg(feature = "eval-parallel")]
     fn cached_backend_construction_receipt(backend: &CachedBackend) -> BackendConstructionReceipt {
         match backend {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             CachedBackend::GLiNEROnnx(model) => Self::gliner_onnx_construction_receipt(model),
             #[cfg(feature = "gliner2-fastino")]
             CachedBackend::GLiNER2Fastino(model) => Self::fastino_construction_receipt(model),
@@ -2325,27 +2325,27 @@ impl TaskEvaluator {
     #[cfg(feature = "eval-parallel")]
     fn create_zero_shot_backend(backend_name: &str) -> Result<CachedBackend> {
         match backend_name.to_lowercase().as_str() {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "nuner" => {
                 let nuner = BackendFactory::load_nuner()?;
                 Ok(CachedBackend::NuNER(nuner))
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "nuner" => Err(crate::Error::FeatureNotAvailable(
                 "NuNER requires the 'onnx' feature".to_string(),
             )),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_onnx" | "gliner" => {
                 use crate::DEFAULT_GLINER_MODEL;
                 use anno::backends::gliner_onnx::GLiNEROnnx;
                 let gliner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
                 Ok(CachedBackend::GLiNEROnnx(gliner))
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_onnx" | "gliner" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER requires the 'onnx' feature".to_string(),
             )),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_multitask" => {
                 use crate::DEFAULT_GLINER_MULTITASK_MODEL;
                 use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
@@ -2353,7 +2353,7 @@ impl TaskEvaluator {
                     GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)?;
                 Ok(CachedBackend::GLiNERMultitaskOnnx(gliner_multitask))
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_multitask" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER multi-task requires the 'onnx' feature".to_string(),
             )),
@@ -2378,14 +2378,14 @@ impl TaskEvaluator {
             "gliner_candle" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER Candle requires the 'candle' feature".to_string(),
             )),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_poly" => {
                 use anno::backends::gliner_poly::GLiNERPoly;
                 use anno::DEFAULT_GLINER_POLY_MODEL;
                 let gliner_poly = GLiNERPoly::new(DEFAULT_GLINER_POLY_MODEL)?;
                 Ok(CachedBackend::GLiNERPoly(gliner_poly))
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_poly" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER Poly requires the 'onnx' feature".to_string(),
             )),
@@ -2406,7 +2406,7 @@ impl TaskEvaluator {
     fn create_zero_shot_backend_impl(backend_name: &str) -> Result<CachedBackendAny> {
         match backend_name.to_lowercase().as_str() {
             "nuner" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     let nuner = BackendFactory::load_nuner()?;
                     Ok(CachedBackendAny {
@@ -2414,7 +2414,7 @@ impl TaskEvaluator {
                         construction_receipt: BackendConstructionReceipt::default(),
                     })
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "NuNER requires the 'onnx' feature".to_string(),
@@ -2422,7 +2422,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_onnx" | "gliner" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     use crate::DEFAULT_GLINER_MODEL;
                     use anno::backends::gliner_onnx::GLiNEROnnx;
@@ -2433,7 +2433,7 @@ impl TaskEvaluator {
                         construction_receipt,
                     })
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER requires the 'onnx' feature".to_string(),
@@ -2441,7 +2441,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_multitask" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     use crate::DEFAULT_GLINER_MULTITASK_MODEL;
                     use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
@@ -2452,7 +2452,7 @@ impl TaskEvaluator {
                         construction_receipt: BackendConstructionReceipt::default(),
                     })
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER multi-task requires the 'onnx' feature".to_string(),
@@ -2502,7 +2502,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_poly" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     use anno::backends::gliner_poly::GLiNERPoly;
                     use anno::DEFAULT_GLINER_POLY_MODEL;
@@ -2512,7 +2512,7 @@ impl TaskEvaluator {
                         construction_receipt: BackendConstructionReceipt::default(),
                     })
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER Poly requires the 'onnx' feature".to_string(),
@@ -2546,9 +2546,9 @@ impl TaskEvaluator {
         let label_strs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
 
         match cached {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             CachedBackend::NuNER(nuner) => nuner.extract(text, &label_strs, 0.5),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             CachedBackend::GLiNEROnnx(gliner) => {
                 let result = gliner.extract(text, &label_strs, 0.5);
                 if std::env::var("ANNO_DEBUG_EXTRACT").is_ok() {
@@ -2559,7 +2559,7 @@ impl TaskEvaluator {
                 }
                 result
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             CachedBackend::GLiNERMultitaskOnnx(gliner_multitask) => {
                 use anno::backends::gliner_multitask::TaskSchema;
                 let schema = TaskSchema::new().with_entities(&label_strs);
@@ -2574,7 +2574,7 @@ impl TaskEvaluator {
             }
             #[cfg(feature = "candle")]
             CachedBackend::GLiNERCandle(gliner) => gliner.extract(text, &label_strs, 0.5),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             CachedBackend::GLiNERPoly(gliner_poly) => {
                 gliner_poly.extract_with_types(text, &label_strs, 0.5)
             }
@@ -2598,7 +2598,7 @@ impl TaskEvaluator {
 
         match backend_name.to_lowercase().as_str() {
             "nuner" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     if let Some(nuner) = cached.downcast_ref::<anno::backends::nuner::NuNER>() {
                         let result = nuner.extract(text, &label_strs, 0.5);
@@ -2617,7 +2617,7 @@ impl TaskEvaluator {
                         ))
                     }
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "NuNER requires the 'onnx' feature".to_string(),
@@ -2625,7 +2625,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_onnx" | "gliner" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     if let Some(gliner) =
                         cached.downcast_ref::<anno::backends::gliner_onnx::GLiNEROnnx>()
@@ -2637,7 +2637,7 @@ impl TaskEvaluator {
                         ))
                     }
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER requires the 'onnx' feature".to_string(),
@@ -2645,7 +2645,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_multitask" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     use anno::backends::gliner_multitask::TaskSchema;
                     if let Some(gliner_multitask) =
@@ -2672,7 +2672,7 @@ impl TaskEvaluator {
                         ))
                     }
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER multi-task requires the 'onnx' feature".to_string(),
@@ -2727,7 +2727,7 @@ impl TaskEvaluator {
                 }
             }
             "gliner_poly" => {
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     if let Some(gliner_poly) =
                         cached.downcast_ref::<anno::backends::gliner_poly::GLiNERPoly>()
@@ -2739,7 +2739,7 @@ impl TaskEvaluator {
                         ))
                     }
                 }
-                #[cfg(not(feature = "onnx"))]
+                #[cfg(not(feature = "onnx-local"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER Poly requires the 'onnx' feature".to_string(),
@@ -5182,7 +5182,7 @@ mod tests {
             .unwrap()
             .contains("gold mentions were also requested"));
         assert!(run.results[0].provenance.policy_cohort_key.is_none());
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             let mut predicted_mentions = config();
             predicted_mentions.coref_use_gold_mentions = false;

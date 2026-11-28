@@ -285,42 +285,42 @@ pub enum ModelBackend {
 
     // === ONNX Feature Required ===
     /// GLiNER via ONNX (enabled by default; disable with --no-default-features)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     Gliner,
     /// GLiNER multi-task (NER + classification + structure)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     GlinerMultitask,
     /// GLiNER2.5 multilingual boundary NER (local FP32 export via GLINER25_MODEL_DIR)
     #[cfg(feature = "gliner2-fastino")]
     Gliner25,
     /// NuNER
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     Nuner,
     /// W2NER for nested entities
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     W2ner,
     /// BERT ONNX for CoNLL-style NER
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "bert")]
     BertOnnx,
     /// DeBERTa-v3 NER (export: uv run scripts/export_deberta_ner_to_onnx.py)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "deberta")]
     DebertaV3,
     /// Biomedical NER (Disease/Chemical/Drug/Gene; requires export: uv run scripts/export_biomedical_ner_to_onnx.py)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "biomedical-ner")]
     Biomedical,
     /// GLiNER PII Edge (60+ PII categories, zero-shot)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "gliner-pii", alias = "pii")]
     GlinerPii,
     /// GLiNER-RelEx: zero-shot NER and directed relations with a local joint export
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "gliner-relex", alias = "relex")]
     GlinerRelex,
     /// GLiNER Poly-Encoder
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[value(alias = "gliner-poly")]
     GlinerPoly,
 
@@ -337,11 +337,11 @@ impl ModelBackend {
     /// Explicit checkpoint selector used by the NER backend, if configured.
     pub(super) fn checkpoint_override(self) -> Option<std::ffi::OsString> {
         let key: Option<&str> = match self {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::BertOnnx => Some("BERT_ONNX_MODEL_PATH"),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::Nuner => Some("NUNER_MODEL_PATH"),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerPoly => Some("GLINER_POLY_MODEL_PATH"),
             #[cfg(feature = "gliner2-fastino")]
             Self::Gliner25 => Some("GLINER25_MODEL_DIR"),
@@ -353,7 +353,7 @@ impl ModelBackend {
 
     /// Create a model instance from this backend type.
     pub fn create_model(self) -> Result<Box<dyn anno::Model>, String> {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         if let (Self::Nuner | Self::BertOnnx, Some(checkpoint)) = (self, self.checkpoint_override())
         {
             let model = checkpoint
@@ -393,27 +393,27 @@ impl ModelBackend {
                 Self::Tplinker => "tplinker",
                 Self::UniversalNer => "universal_ner",
                 // ONNX
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Gliner => "gliner_onnx",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerMultitask => "gliner_multitask",
                 #[cfg(feature = "gliner2-fastino")]
                 Self::Gliner25 => "gliner25",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Nuner => "nuner",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::W2ner => "w2ner",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::BertOnnx => "bert_onnx",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::DebertaV3 => "deberta_v3",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Biomedical => "biomedical",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerPii => "gliner_pii",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerRelex => "gliner_relex",
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerPoly => "gliner_poly",
                 // Candle
                 #[cfg(feature = "candle")]
@@ -447,11 +447,11 @@ impl ModelBackend {
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to create UniversalNER: {}\n  Tip: Check API key with OPENROUTER_API_KEY or use --model gliner for offline NER.", e)),
                 // ONNX
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Gliner => anno::GLiNEROnnx::new(anno::DEFAULT_GLINER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER: {}\n  Tip: Use 'anno models info gliner' to check model status.", e)),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerMultitask => anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER multi-task: {}\n  Tip: Use 'anno models info gliner_multitask' to check model status.", e)),
@@ -459,11 +459,11 @@ impl ModelBackend {
                 Self::Gliner25 => anno::backends::gliner25::GLiNER25::from_env()
                     .map(|model| Box::new(model) as Box<dyn anno::Model>)
                     .map_err(|e| e.to_string()),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Nuner => anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load NuNER: {}\n  Tip: Use 'anno models info nuner' to check model status.", e)),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::W2ner => {
                     // Allow override via environment variable for custom/exported models
                     let model_path = std::env::var("W2NER_MODEL_PATH")
@@ -482,11 +482,11 @@ impl ModelBackend {
                             e
                         ))
                 }
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::BertOnnx => anno::backends::onnx::BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load BERT ONNX: {}\n  Tip: Use 'anno models info bert-onnx' to check model status.", e)),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::DebertaV3 => {
                     // Check env var first, then default cache locations
                     let candidates: Vec<String> = std::iter::once(std::env::var("DEBERTA_MODEL_PATH").ok())
@@ -517,7 +517,7 @@ impl ModelBackend {
                          Or set: DEBERTA_MODEL_PATH=/path/to/model\n\n\
                          Ready alternatives: --model bert-onnx, --model gliner".to_string())
                 }
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::Biomedical => {
                     let model_path = std::env::var("BIOMEDICAL_MODEL_PATH")
                         .unwrap_or_else(|_| {
@@ -536,15 +536,15 @@ impl ModelBackend {
                              Alternative: --model gliner (zero-shot, can detect biomedical entities)".to_string())
                     }
                 }
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerPii => anno::GLiNEROnnx::new(anno::models::GLINER_PII)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("GLiNER PII failed: {e}\n  Tip: Use --model gliner for general NER.")),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerRelex => anno::GLiNEROnnx::new(anno::models::GLINER_RELEX)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Export trained relations with scripts/export_gliner_relex_onnx.py --joint.")),
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 Self::GlinerPoly => anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
                     .map(|model| Box::new(model) as Box<dyn anno::Model>)
                     .map_err(|err| format!("GLiNER Poly failed: {err}")),
@@ -588,7 +588,7 @@ impl ModelBackend {
                     .map(|m| Box::new(m) as Box<dyn anno::RelationExtractor>)
                     .map_err(|e| format!("Failed to create TPLinker: {}", e)),
             ),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerMultitask => Some(
                 anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
                     anno::DEFAULT_GLINER_MULTITASK_MODEL,
@@ -624,27 +624,27 @@ impl ModelBackend {
             Self::Tplinker => "tplinker",
             Self::UniversalNer => "universal-ner",
             // ONNX
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::Gliner => "gliner",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerMultitask => "gliner_multitask",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::Nuner => "nuner",
             #[cfg(feature = "gliner2-fastino")]
             Self::Gliner25 => "gliner25",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::W2ner => "w2ner",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::BertOnnx => "bert-onnx",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::DebertaV3 => "deberta-v3",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::Biomedical => "biomedical",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerPii => "gliner-pii",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerRelex => "gliner-relex",
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             Self::GlinerPoly => "gliner-poly",
             // Candle
             #[cfg(feature = "candle")]
@@ -754,7 +754,7 @@ mod tests {
     }
 
     /// Verify stacked default uses ML backends when available, not just naive pattern/heuristic.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_stacked_default_has_ml_backend_when_available() {
         use anno::StackedNER;
@@ -782,7 +782,7 @@ mod tests {
         assert!(matches!(OutputFormat::default(), OutputFormat::Human));
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_zero_shot_models_exist() {
         // Verify zero-shot capable models are available when onnx feature is enabled

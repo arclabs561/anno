@@ -40,6 +40,12 @@ Use `default-features = false, features = ["onnx-local"]` on the `anno` dependen
 
 The default `onnx` feature includes model downloads. Cargo combines features across dependencies, so enabling `onnx`, `candle`, or `hub-downloads` elsewhere brings the Hub client back into the build. ONNX Runtime still needs its native library at build and run time.
 
+### First run and cache misses in the CLI
+
+The default CLI downloads missing ONNX weights on the first extraction. To fetch BERT ahead of time, run `anno models download bert-onnx` on a connected machine. Set `HF_HOME` to choose the cache location. To require cached weights at inference time, set `ANNO_NO_DOWNLOADS=1`.
+
+For a smaller CLI build from this checkout, run `cargo install --locked --path crates/anno-cli --no-default-features --features onnx-local,extractor-readability,heuristic-fr`. Provision its cache with the default CLI or with `hf download protectai/bert-base-NER-onnx`. Use the same `HF_HOME` when running `anno extract --model bert-onnx --text "Ada worked in London."`. To select a different Hub repository or a prepared local directory, set `BERT_ONNX_MODEL_PATH`. An explicit missing directory reports a path error.
+
 ### Which mentions should coreference use?
 
 | Resolver | Input → output | Calling and interpreting it |

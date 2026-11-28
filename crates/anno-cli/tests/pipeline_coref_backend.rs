@@ -56,7 +56,7 @@ fn pipeline_reports_the_successful_offline_resolver_even_for_zero_tracks() {
             report["tracks_added"],
             doc["tracks"].as_object().unwrap().len()
         );
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         assert_eq!(
             report["prior_failures"].as_array().unwrap().last().unwrap(),
             &serde_json::json!({"stage": "load", "backend": "fcoref"})

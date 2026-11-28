@@ -51,6 +51,8 @@ pub fn run() -> Result<(), String> {
         let mut v = Vec::with_capacity(4);
         #[cfg(feature = "onnx")]
         v.push("onnx");
+        #[cfg(all(feature = "onnx-local", not(feature = "onnx")))]
+        v.push("onnx-local");
         #[cfg(feature = "candle")]
         v.push("candle");
         #[cfg(feature = "eval")]
