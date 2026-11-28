@@ -18,7 +18,7 @@ The readers measured 26 of 63 news entries, 26 of 35 biomedical entries and 19 o
 
 <!-- coverage-evaluations -->
 
-**21 of 462 registry IDs have a completed score in these sources**. 14 of those IDs also have tagged-token counts. 430 IDs have no outcome in the indexed sources. The remaining IDs have a loader rejection, backend failure or exporter replay only. [Search by domain, backend and split](dataset-explorer.html) · [All outcomes with source receipts](dataset-evaluation-coverage.csv)
+**23 of 462 registry IDs have a completed score in these sources**. 16 of those IDs also have tagged-token counts. 428 IDs have no outcome in the indexed sources. The remaining IDs have a loader rejection, backend failure or exporter replay only. [Search by domain, backend and split](dataset-explorer.html) · [All outcomes with source receipts](dataset-evaluation-coverage.csv)
 
 On **2026-11-27 UTC**, `ci.yml` recorded 18 push runs on `main`. 16 succeeded and 2 were cancelled. The 32 sanity and matrix archives contain 240 scored attempts, 16 failed evaluations, 80 named loader selections and 62 named pre-scoring load rejections. The scored attempts reported 32 from S3 cache, 208 from local cache. A local read can follow an S3 staging step. A same-ID publisher-file digest identifies the input split or release for 92 scored attempts. 48 used named checkout fixtures and 100 had no established split. The same examples can recur across pushes. [Run and artifact digests](dataset-ci-survey.json) · [Normalized CI records](dataset-ci-outcomes.csv)
 
@@ -27,6 +27,8 @@ On **2026-11-27 UTC**, `ci.yml` recorded 18 push runs on `main`. 16 succeeded an
 Download `dataset-explorer.html` and open it locally. Start with a domain, a measured annotation unit and the **Scored** outcome. Expand an ID to see its declared tasks, the actual scoring task, backend, split, input count and receipt. An independent corpus count describes the annotations available for inspection. A completed run uses the specific population in its receipt. Source-defined labels can be manual, silver, mixed or scoped to one annotation layer. [Download the standalone explorer](https://raw.githubusercontent.com/arclabs561/anno/main/docs/eval/dataset-explorer.html) · [Plain CSV](dataset-evaluation-coverage.csv)
 
 The news and filings comparison adds full-file NER scores for CoNLL04RE and SECFilingsNER. Every sentence counts, including the 203 FIN3 sentences with no gold mentions. On the 288 CoNLL04 test records, the earlier generic reader returned one example. The corrected reader recovers 1,079 gold mentions with independently checked character offsets. [Paired comparison and source hashes](english-ner-source-replay.md)
+
+The AgCNER reader now recovers all 206,992 labelled offsets across the three official Chinese splits. On the held-out test, the heuristic emitted 155 predictions and matched none of the 20,524 gold entities. The HistNERo comparison holds Romanian predictions fixed and shows how the publisher label policy affects scoring. Both protocols and their denominators appear in the explorer. [AgCNER source-coordinate replay](agcner-source-coordinates.md) · [HistNERo scoring policies](histnero-ner-scoring.md)
 
 OntoNotesSample illustrates why the ID and input both matter. Its six scored CI attempts and ten CoNLL2003Sample attempts used five examples apiece from the same cached bytes, SHA-256 prefix `0632f32c090e`. Their registry names alone cannot establish independent test corpora. WikiGold supplies a positive control. Its 32 S3-backed sanity scores each used 20 sentences from the publisher-matched release, and ten local-cache matrix trials each used five examples from those same bytes. [Sample sizes, read routes and input hashes](dataset-ci-outcomes.csv) · [Publisher-file matches](s3-publisher-file-matches.csv)
 
@@ -130,16 +132,24 @@ The following actions partition all **241** IDs without an independent content m
 
 ## Restore datasets for local investigations
 
-The offline collection has two entry points. Open `datasets.csv` to find a registry ID, its exact source archives, omitted inputs and any alias supplied elsewhere. Open `archives.json` for the compressed sizes, SHA-256 digests and transfer parts. The publisher, direct and Hub manifests identify individual source files, splits, units and terms. The native archives include ready-to-use cache profiles. Keep each native archive in its own directory. The complete SEC test needs the general native archive and an eval-enabled Anno executable.
+From a fresh checkout, build an eval-enabled CLI and fetch the SEC FIN3 test filing into your own cache outside the checkout. The three public files at the pinned revision contain the test data, the authors’ README and the source note. The builder checks all three hashes and caches the original bytes locally. Omit `--fetch` on subsequent builds to use those bytes offline. [Source and attribution recipe](../../scripts/data/offline-native-sources.json) · [Publisher’s README](https://github.com/juand-r/entity-recognition-datasets/blob/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/README.txt)
 
 ```sh
-python3 offline_dataset_archives.py --archive native/anno-native-cache-general.zip --restore
-unzip -q native/anno-native-cache-general.zip -d native-general
-ANNO_CACHE_DIR="$PWD/native-general/cache" ANNO_NO_DOWNLOADS=1 \
-  anno dataset eval --dataset SECFilingsNER --task ner --model heuristic --cached-only --reports sec.jsonl
+study_dir="${XDG_CACHE_HOME:-$HOME/.cache}/anno/fin3-study"
+cargo build --locked -p anno-cli --no-default-features --features eval,extractor-readability
+python3 scripts/build_offline_native_cache.py "$study_dir/collection/native" \
+  --anno ./target/debug/anno --dataset SECFilingsNER --variant test --fetch
+archive="$study_dir/collection/native/anno-native-cache-dataset-SECFilingsNER-test.zip"
+python3 scripts/build_offline_native_cache.py "$archive" --anno ./target/debug/anno --verify-only
+python3 -m zipfile -e "$archive" "$study_dir/sec-run"
+ANNO_CACHE_DIR="$study_dir/sec-run/cache" ANNO_NO_DOWNLOADS=1 \
+  ./target/debug/anno dataset eval --dataset SECFilingsNER --task ner \
+  --model heuristic --cached-only --reports "$study_dir/sec-run/reports.jsonl"
 ```
 
-This command produces one report for each of the 303 SEC FIN3 sentences, including the empty-gold sentences. The heuristic found 218 of the 318 gold mentions and emitted 1,166 suggestions. The cache flag also works with the relation and coreference readers. A neural model needs its own local checkpoint.
+FIN3 is one loan agreement. The heuristic recovered **218 of 318 gold mentions** and made **1,166 suggestions** across all **303 sentences**, including those with no gold mentions. The training filing FIN5 is a separate input. Each case report contains source text and belongs with the authorized corpus. The publisher specifies CC BY 3.0 and names the authors to credit. Other releases can have different rights for their text and annotations. Inviting another person to download a copy from a private folder or bucket can constitute redistribution under those terms. [Publisher’s source note](https://github.com/juand-r/entity-recognition-datasets/blob/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/NOTE.txt) · [Source-specific restrictions](../QA.md#score-a-litbank-book-or-cohort)
+
+To see exactly what your collection contains, run `python3 scripts/index_offline_datasets.py "$study_dir/collection"`. Its `datasets.csv` gives a row for every registry ID, including missing inputs and known aliases. Its `archives.json` records sizes, digests and transfer parts. Check or rejoin archives with `python3 scripts/offline_dataset_archives.py --root "$study_dir/collection" --restore`. The S3 comparison stays unmeasured unless you supply a dated workflow ZIP with `--s3-evidence` or include one in the collection’s `evidence/` directory.
 
 | Material | Script that builds it | Where to read the scope |
 |---|---|---|
@@ -147,7 +157,7 @@ This command produces one report for each of the 303 SEC FIN3 sentences, includi
 | Pinned Git releases | [Publisher packager](../../scripts/pack_publisher_datasets.py) | `publisher/publisher-coverage.csv` includes every checked and withheld file |
 | Direct publisher downloads | [Direct packager](../../scripts/pack_direct_datasets.py) | `direct/*.files.tsv` records files and task-specific denominators |
 | Hosted corpora | [Hub packager](../../scripts/pack_hub_datasets.py) | `hub/splits.csv` and `hub/exclusions.csv` record selected partitions and omissions |
-| Corpus and evidence archive index | [Collection indexer](../../scripts/index_offline_datasets.py) · [Integrity and restore tool](../../scripts/offline_dataset_archives.py) | `datasets.csv` covers the complete registry snapshot and `s3-file-matches.csv` compares exact file bytes |
+| Corpus and evidence archive index | [Collection indexer](../../scripts/index_offline_datasets.py) · [Integrity and restore tool](../../scripts/offline_dataset_archives.py) | `datasets.csv` covers the complete registry snapshot and an optional S3 receipt identifies exact file matches |
 
 ## What the S3 cache establishes
 

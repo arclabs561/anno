@@ -67,6 +67,7 @@ def main():
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--models", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--aggregate", action="store_true", help="Write counts for a shared receipt")
     parser.add_argument("--fetch", action="store_true")
     args = parser.parse_args()
     verify_runtime(args.worker)
@@ -106,8 +107,17 @@ def main():
             if sorted(spans) != sorted(case["spans"]):
                 raise ValueError(f"Default CLI spans differ for {name}: {spans}")
 
-        report["runs"][name] = {"layers": rows, "fallback_layers": fallback_rows,
-                               "cli_runtime": runtime, "cli_spans": spans}
+        if args.aggregate:
+            report["runs"][name] = {
+                "cases_completed": len(rows), "stock_nuner_calls": sum(row["ran"] for row in rows),
+                "fallback_nuner_calls": sum(row["ran"] for row in fallback_rows),
+                "stock_predicted_entities": sum(len(row["spans"]) for row in rows),
+                "fallback_predicted_entities": sum(len(row["spans"]) for row in fallback_rows),
+                "cli_predicted_entities": len(spans),
+            }
+        else:
+            report["runs"][name] = {"layers": rows, "fallback_layers": fallback_rows,
+                                   "cli_runtime": runtime, "cli_spans": spans}
     args.receipt.write_text(json.dumps(report, indent=2) + "\n")
 
 

@@ -39,6 +39,43 @@ fn reports(dir: &Path, file: &str) -> Vec<Value> {
 }
 
 #[test]
+fn agcner_cli_uses_the_publisher_string_for_reports() {
+    use anno::core::grounded::html_source::source_sha256;
+
+    let dir = tempfile::tempdir().unwrap();
+    let cache = dir.path().join("cache/datasets");
+    fs::create_dir_all(&cache).unwrap();
+    fs::write(
+        cache.join("AgCNER.cache"),
+        "𠀀 O\n  O\n稻 B-CRO\n田 I-CRO\n",
+    )
+    .unwrap();
+    success(anno(
+        dir.path(),
+        &[
+            "dataset",
+            "eval",
+            "--dataset",
+            "AgCNER",
+            "--model",
+            "heuristic",
+            "--cached-only",
+            "--reports",
+            "cases.jsonl",
+        ],
+    ));
+    let rows = reports(dir.path(), "cases.jsonl");
+    assert_eq!(rows.len(), 1);
+    let pair = &rows[0]["pairing"];
+    assert_eq!(pair["document_id"], "AgCNER:1");
+    assert_eq!(pair["source_sha256"], source_sha256("𠀀 稻田"));
+    assert_eq!(
+        pair["gold_keys"]["0"],
+        source_sha256(r#"["CRO",[{"start":2,"end":4}]]"#)
+    );
+}
+
+#[test]
 fn cached_only_uses_each_task_reader_and_identifies_the_file_on_a_miss() {
     let temp = tempfile::tempdir().unwrap();
     let dir = temp.path();
@@ -363,4 +400,77 @@ fn aliased_html_outputs_cannot_overwrite_the_stream_or_an_existing_case() {
     .contains("an HTML case page"));
     assert_eq!(fs::read_to_string(dir.join("keep")).unwrap(), "existing");
     assert!(!dir.join("detail.html").exists());
+}
+
+#[test]
+fn histnero_scoring_reports_the_authored_denominator_and_literal_labels() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = dir.path().join("cache/datasets");
+    fs::create_dir_all(&cache).unwrap();
+    let data = serde_json::json!({
+        "features": [{"name":"ner_tags", "type":{"feature":{"names":["O", "B-PERS", "I-PERS", "B-PROD"]}}}],
+        "num_rows_total":2,
+        "rows":[
+            {"row_idx":0, "row":{"tokens":["John", "Smith", "", "visited", "Paris", ".", ""], "ner_tags":[1,2,2,0,0,0,3]}},
+            {"row_idx":1, "row":{"tokens":["John", "Smith", "spoke", "."], "ner_tags":[1,2,0,0]}}
+        ]
+    });
+    fs::write(cache.join("HistNERo.cache"), data.to_string()).unwrap();
+    for (mode, scored, exact) in [("dataset", 2, 2), ("source", 3, 0)] {
+        let summary = success(anno(
+            dir.path(),
+            &[
+                "dataset",
+                "eval",
+                "--dataset",
+                "HistNERo",
+                "--cached-only",
+                "--model",
+                "heuristic",
+                "--ner-scoring",
+                mode,
+                "--reports",
+                "cases.jsonl",
+                "--html",
+                "--output",
+                "index.html",
+                "--min-case-errors",
+                "0",
+            ],
+        ));
+        let cases: Vec<Value> = fs::read_to_string(dir.path().join("cases.jsonl"))
+            .unwrap()
+            .lines()
+            .map(|v| serde_json::from_str(v).unwrap())
+            .collect();
+        let reference = &cases[0]["ner_scoring"]["reference"];
+        assert_eq!(reference["source_gold"], 2);
+        assert_eq!(
+            reference["excluded_empty_gold"],
+            u64::from(mode == "dataset")
+        );
+        assert_eq!(reference["trimmed_gold"], u64::from(mode == "dataset"));
+        assert_eq!(
+            cases
+                .iter()
+                .map(|c| c["correct"].as_u64().unwrap())
+                .sum::<u64>(),
+            exact
+        );
+        assert_eq!(
+            cases
+                .iter()
+                .map(|c| c["gold_count"].as_u64().unwrap())
+                .sum::<u64>(),
+            scored
+        );
+        let scope = format!("NER scoring {mode}: 3 authored gold, {scored} scored");
+        assert!(summary.contains(&scope));
+        assert!(summary.contains(&format!("Correct: {exact}")));
+        let html = fs::read_to_string(dir.path().join("index.html")).unwrap();
+        assert!(html.contains(&scope));
+        assert!(cases[0]["label_outcomes"]["by_gold_label"]
+            .get(if mode == "dataset" { "PER" } else { "PERS" })
+            .is_some());
+    }
 }

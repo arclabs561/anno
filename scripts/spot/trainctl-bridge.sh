@@ -17,17 +17,26 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/config.env" 2>/dev/null || true
+source "$SCRIPT_DIR/../s3_bucket.sh"
+anno_spot_config "$SCRIPT_DIR/config.env"
 
 # trainctl's recursive sync cannot apply the shared dataset exclusions.
 case "${1:-}" in
+    cache-upload|cache-download|cache-status)
+        ANNO_S3_BUCKET="${ANNO_SPOT_BUCKET:-}" exec "$SCRIPT_DIR/../sync_datasets_s3.sh" "${1#cache-}"
+        ;;
     sync-datasets|sync-ds)
-        ANNO_S3_BUCKET="s3://${ANNO_SPOT_BUCKET:-arc-anno-data}" \
+        ANNO_S3_BUCKET="${ANNO_SPOT_BUCKET:-}" \
         ANNO_CACHE_DIR="${ANNO_CACHE_DIR:-$HOME/.cache/anno}" \
             exec "$SCRIPT_DIR/../sync_datasets_s3.sh" download-datasets
         ;;
 esac
 
+case "${1:-help}" in
+    sync-results|sync-res|upload-src)
+        BUCKET=$(anno_bucket_name "${ANNO_SPOT_BUCKET:-}" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+        ;;
+esac
 # Find trainctl binary
 find_trainctl() {
     if command -v trainctl &>/dev/null; then
@@ -43,14 +52,14 @@ find_trainctl() {
 
 TRAINCTL=$(find_trainctl)
 
-if [ -z "$TRAINCTL" ]; then
+if [[ -z "$TRAINCTL" && ${1:-help} != help && ${1:-} != --help && ${1:-} != -h ]]; then
     echo "trainctl not found. Build it:"
     echo "  cd ../trainctl && cargo build --release"
     exit 1
 fi
 
 REGION="${ANNO_SPOT_REGION:-us-east-1}"
-BUCKET="${ANNO_SPOT_BUCKET:-arc-anno-data}"
+
 
 case "${1:-help}" in
     dashboard|dash)
@@ -69,12 +78,7 @@ case "${1:-help}" in
         ;;
         
     upload-src)
-        # Upload source code using trainctl's fast S3
-        echo "Archiving source..."
-        git archive --format=tar.gz HEAD -o /tmp/anno-src.tar.gz
-        echo "Uploading to s3://$BUCKET/src/anno-src.tar.gz..."
-        $TRAINCTL s3 upload /tmp/anno-src.tar.gz "s3://$BUCKET/src/anno-src.tar.gz"
-        echo "Source uploaded."
+        TRAINCTL="$TRAINCTL" exec "$SCRIPT_DIR/upload-source.sh" trainctl
         ;;
         
     processes|ps)

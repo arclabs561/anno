@@ -5,9 +5,9 @@
       "id": "AgCNER",
       "usage": "agcner",
       "registry_url": "https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873",
-      "attribution": "Hao et al., AgCNER. Three figshare deposit records list the contributing authors.",
+      "attribution": "Xuchao Guo, Xiaochuang Yao, Xia Hao, Ruilin Liu and Lin Li. The three Figshare v1 records credit each author.",
       "license": "CC0 1.0 for each of the three publisher split files. Retain the original versioned release notices.",
-      "interpretation": "Chinese named-entity BIO tags for agricultural diseases and pests. Each original character-token and string tag is retained in the native JSONL importer, with the original sentence blocks. Anno constructs the model text by joining these tokens with spaces. This differs from customary Chinese orthography and limits interpretation of heuristic extraction scores.",
+      "interpretation": "Chinese named-entity BIO tags for agricultural diseases and pests. Each original character-token and string tag is retained in the native JSONL importer, with the original sentence blocks. The native reader concatenates these characters as supplied and measures half-open entity offsets in Unicode scalar values. Earlier readers inserted a space between character tokens.",
       "notices": [
         {
           "name": "figshare-release-24056208-v1.json",
@@ -970,7 +970,7 @@
       "registry_url": "https://github.com/avramandrei/histnero",
       "attribution": "Andrei-Marius Avram, Andreea Iuga, George-Vlad Manolache and coauthors of HistNERo (2024), as listed in the retained source README.",
       "license": "MIT release of the HistNERo dataset. Keep the license, named authors, citation and document identifiers of the historical source texts.",
-      "interpretation": "Named entities in historical Romanian. The adapter preserves the original JSON arrays and maps every class ID according to the published class-label notice. It retains all original source rows and fields, including the original empty token strings and their class IDs. The original PERS tag is compared literally with the heuristic model’s PER tag. Among 66 original empty token strings, 15 have a non-O tag. Two single-token B-PROD spans in validation have start equal to end. Anno counts them as supplied gold and reports two validation warnings.",
+      "interpretation": "Named entities in historical Romanian. The adapter preserves the original JSON arrays and maps every class ID according to the published class-label notice. It retains all original source rows and fields, including the original empty token strings and their class IDs. Use --ner-scoring source for the literal PERS versus PER audit. Dataset scoring aligns PERS with PER and PROD with PRODUCT. Among 66 original empty token strings, 15 have a non-O tag. Two single-token B-PROD spans in validation have start equal to end. Source scoring includes both in authored gold. Dataset scoring reports both explicitly as unscorable and removes only separator padding from nonempty mention boundaries.",
       "notices": [
         {
           "name": "README.md",

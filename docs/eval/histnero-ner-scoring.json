@@ -1,0 +1,546 @@
+{
+  "anno_version": "anno 0.16.0",
+  "backend": "heuristic",
+  "class_order": [
+    "O",
+    "B-PERS",
+    "I-PERS",
+    "B-ORG",
+    "I-ORG",
+    "B-LOC",
+    "I-LOC",
+    "B-PROD",
+    "I-PROD",
+    "B-DATE",
+    "I-DATE"
+  ],
+  "dataset": "HistNERo",
+  "label_alignment": {
+    "PERS": "PER",
+    "PROD": "PRODUCT"
+  },
+  "schema": "anno.histnero-ner-scoring/v1",
+  "source_protocol_reference_revision": "1b6fcc97df321e1614bdc94f00c9b18ab36bb49a",
+  "source_semantics": {
+    "README.md": {
+      "name": "README.md",
+      "sha256": "08ce0f1bf16e3091d1e7473d19558e638390b159fbaf0a0f746b28ec3d7f7215",
+      "url": "https://raw.githubusercontent.com/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/README.md"
+    },
+    "publisher-class-labels.md": {
+      "name": "publisher-class-labels.md",
+      "sha256": "95d05467e9189455532167ec98fb2abb69d66aa6342e2e7eeaf3d191ac1196da",
+      "url": "https://huggingface.co/datasets/avramandrei/histnero/raw/433ca166efac28c952813c0e78bf301643cf5af3/README.md"
+    }
+  },
+  "splits": {
+    "dev": {
+      "cases": 1003,
+      "dataset_labels": {
+        "DATE": 49,
+        "LOC": 238,
+        "ORG": 184,
+        "PER": 162,
+        "PRODUCT": 40
+      },
+      "distinct_texts": 1001,
+      "documents_also_in_training": 110,
+      "effects": {
+        "extents_gained": 0,
+        "extents_lost": 0,
+        "labels_gained": 66,
+        "labels_lost": 0
+      },
+      "empty_gold_cases": 675,
+      "empty_tokens": 8,
+      "excluded_source_labels": {
+        "PROD": 2
+      },
+      "ordered_predictions_sha256": "b16dfa3be27a0c51c37a5afa2b0aef4b5b9ea1441325e948c3d81dc6c75da817",
+      "per_type": {
+        "dataset": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 49,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 15,
+            "f1": 0.09375,
+            "gold": 238,
+            "precision": 0.18292683,
+            "predicted": 82,
+            "recall": 0.06302521
+          },
+          "ORG": {
+            "correct": 2,
+            "f1": 0.01423488,
+            "gold": 184,
+            "precision": 0.02061856,
+            "predicted": 97,
+            "recall": 0.01086957
+          },
+          "PER": {
+            "correct": 66,
+            "f1": 0.10954357,
+            "gold": 162,
+            "precision": 0.063279,
+            "predicted": 1043,
+            "recall": 0.40740741
+          },
+          "PRODUCT": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 40,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        },
+        "source": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 49,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 15,
+            "f1": 0.09375,
+            "gold": 238,
+            "precision": 0.18292683,
+            "predicted": 82,
+            "recall": 0.06302521
+          },
+          "ORG": {
+            "correct": 2,
+            "f1": 0.01423488,
+            "gold": 184,
+            "precision": 0.02061856,
+            "predicted": 97,
+            "recall": 0.01086957
+          },
+          "PER": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 0,
+            "precision": 0.0,
+            "predicted": 1043,
+            "recall": null
+          },
+          "PERS": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 162,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "PROD": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 42,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        }
+      },
+      "person_same_boundary_gold_types": {
+        "LOC": 172,
+        "ORG": 86,
+        "PRODUCT": 7
+      },
+      "person_suggestions": {
+        "duplicate_exact_person": 0,
+        "exact_person": 66,
+        "no_overlap": 563,
+        "overlap_only": 149,
+        "same_boundary_other_type": 265
+      },
+      "records_from_training_documents": 1002,
+      "records_with_identical_training_text": 21,
+      "scoring": {
+        "dataset": {
+          "correct": 83,
+          "f1": 0.08759894,
+          "gold": 673,
+          "precision": 0.06792144,
+          "predicted": 1222,
+          "recall": 0.12332838
+        },
+        "source": {
+          "correct": 17,
+          "f1": 0.01792304,
+          "gold": 675,
+          "precision": 0.01391162,
+          "predicted": 1222,
+          "recall": 0.02518519
+        }
+      },
+      "source": {
+        "bytes": 460533,
+        "sha256": "32b793fad0837018948cdd9ae0c71bcb589881c6b4a2acb235f32207478a1aba",
+        "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/valid.json"
+      },
+      "source_documents": 111,
+      "source_gold": 675,
+      "source_labels": {
+        "DATE": 49,
+        "LOC": 238,
+        "ORG": 184,
+        "PERS": 162,
+        "PROD": 42
+      },
+      "tagged_empty_tokens": 4,
+      "tagged_tokens": 1214,
+      "tokens": 29187,
+      "trimmed_gold": 1,
+      "trimmed_source_labels": {
+        "PROD": 1
+      },
+      "zero_length_gold_spans": 2
+    },
+    "test": {
+      "cases": 1003,
+      "dataset_labels": {
+        "DATE": 57,
+        "LOC": 230,
+        "ORG": 184,
+        "PER": 174,
+        "PRODUCT": 45
+      },
+      "distinct_texts": 1003,
+      "documents_also_in_training": 114,
+      "effects": {
+        "extents_gained": 0,
+        "extents_lost": 0,
+        "labels_gained": 66,
+        "labels_lost": 0
+      },
+      "empty_gold_cases": 671,
+      "empty_tokens": 6,
+      "excluded_source_labels": {},
+      "ordered_predictions_sha256": "7b7f5feb0f0b1a92b6978a948d196dd1366c02b491401d18801a39f920f8d61d",
+      "per_type": {
+        "dataset": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 57,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 26,
+            "f1": 0.16774194,
+            "gold": 230,
+            "precision": 0.325,
+            "predicted": 80,
+            "recall": 0.11304348
+          },
+          "ORG": {
+            "correct": 9,
+            "f1": 0.06206897,
+            "gold": 184,
+            "precision": 0.08490566,
+            "predicted": 106,
+            "recall": 0.04891304
+          },
+          "PER": {
+            "correct": 66,
+            "f1": 0.11311054,
+            "gold": 174,
+            "precision": 0.06646526,
+            "predicted": 993,
+            "recall": 0.37931034
+          },
+          "PRODUCT": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 45,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        },
+        "source": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 57,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 26,
+            "f1": 0.16774194,
+            "gold": 230,
+            "precision": 0.325,
+            "predicted": 80,
+            "recall": 0.11304348
+          },
+          "ORG": {
+            "correct": 9,
+            "f1": 0.06206897,
+            "gold": 184,
+            "precision": 0.08490566,
+            "predicted": 106,
+            "recall": 0.04891304
+          },
+          "PER": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 0,
+            "precision": 0.0,
+            "predicted": 993,
+            "recall": null
+          },
+          "PERS": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 174,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "PROD": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 45,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        }
+      },
+      "person_same_boundary_gold_types": {
+        "LOC": 142,
+        "ORG": 81,
+        "PRODUCT": 9
+      },
+      "person_suggestions": {
+        "duplicate_exact_person": 0,
+        "exact_person": 66,
+        "no_overlap": 512,
+        "overlap_only": 183,
+        "same_boundary_other_type": 232
+      },
+      "records_from_training_documents": 1003,
+      "records_with_identical_training_text": 23,
+      "scoring": {
+        "dataset": {
+          "correct": 101,
+          "f1": 0.10807919,
+          "gold": 690,
+          "precision": 0.08566582,
+          "predicted": 1179,
+          "recall": 0.14637681
+        },
+        "source": {
+          "correct": 35,
+          "f1": 0.03745318,
+          "gold": 690,
+          "precision": 0.02968617,
+          "predicted": 1179,
+          "recall": 0.05072464
+        }
+      },
+      "source": {
+        "bytes": 457042,
+        "sha256": "778c16f495a927892505a208f54a109f66d2d66fa56db444391b73e88a7722b7",
+        "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/test.json"
+      },
+      "source_documents": 114,
+      "source_gold": 690,
+      "source_labels": {
+        "DATE": 57,
+        "LOC": 230,
+        "ORG": 184,
+        "PERS": 174,
+        "PROD": 45
+      },
+      "tagged_empty_tokens": 0,
+      "tagged_tokens": 1256,
+      "tokens": 29021,
+      "trimmed_gold": 0,
+      "trimmed_source_labels": {},
+      "zero_length_gold_spans": 0
+    },
+    "train": {
+      "cases": 8020,
+      "dataset_labels": {
+        "DATE": 478,
+        "LOC": 1876,
+        "ORG": 1512,
+        "PER": 1571,
+        "PRODUCT": 249
+      },
+      "distinct_texts": 7931,
+      "effects": {
+        "extents_gained": 0,
+        "extents_lost": 0,
+        "labels_gained": 675,
+        "labels_lost": 0
+      },
+      "empty_gold_cases": 5347,
+      "empty_tokens": 52,
+      "excluded_source_labels": {},
+      "ordered_predictions_sha256": "4b5ee7df3f7f8605e066b6bedd2141c70e9b861b563afcc7a3e93a3b28f016ca",
+      "per_type": {
+        "dataset": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 478,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 163,
+            "f1": 0.13327882,
+            "gold": 1876,
+            "precision": 0.28596491,
+            "predicted": 570,
+            "recall": 0.08688699
+          },
+          "ORG": {
+            "correct": 29,
+            "f1": 0.02520643,
+            "gold": 1512,
+            "precision": 0.03675539,
+            "predicted": 789,
+            "recall": 0.01917989
+          },
+          "PER": {
+            "correct": 675,
+            "f1": 0.14323607,
+            "gold": 1571,
+            "precision": 0.08594347,
+            "predicted": 7854,
+            "recall": 0.42966264
+          },
+          "PRODUCT": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 249,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        },
+        "source": {
+          "DATE": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 478,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "LOC": {
+            "correct": 163,
+            "f1": 0.13327882,
+            "gold": 1876,
+            "precision": 0.28596491,
+            "predicted": 570,
+            "recall": 0.08688699
+          },
+          "ORG": {
+            "correct": 29,
+            "f1": 0.02520643,
+            "gold": 1512,
+            "precision": 0.03675539,
+            "predicted": 789,
+            "recall": 0.01917989
+          },
+          "PER": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 0,
+            "precision": 0.0,
+            "predicted": 7854,
+            "recall": null
+          },
+          "PERS": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 1571,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          },
+          "PROD": {
+            "correct": 0,
+            "f1": 0.0,
+            "gold": 249,
+            "precision": null,
+            "predicted": 0,
+            "recall": 0.0
+          }
+        }
+      },
+      "person_same_boundary_gold_types": {
+        "DATE": 6,
+        "LOC": 1244,
+        "ORG": 641,
+        "PRODUCT": 43
+      },
+      "person_suggestions": {
+        "duplicate_exact_person": 0,
+        "exact_person": 675,
+        "no_overlap": 3884,
+        "overlap_only": 1361,
+        "same_boundary_other_type": 1934
+      },
+      "scoring": {
+        "dataset": {
+          "correct": 867,
+          "f1": 0.11638365,
+          "gold": 5686,
+          "precision": 0.09410615,
+          "predicted": 9213,
+          "recall": 0.15247977
+        },
+        "source": {
+          "correct": 192,
+          "f1": 0.02577354,
+          "gold": 5686,
+          "precision": 0.02084012,
+          "predicted": 9213,
+          "recall": 0.03376715
+        }
+      },
+      "source": {
+        "bytes": 3655721,
+        "sha256": "bb9e088bf352b93f38dffbd2a37d27ed301a3c03658092118e8a5ca0563d385a",
+        "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/train.json"
+      },
+      "source_documents": 129,
+      "source_gold": 5686,
+      "source_labels": {
+        "DATE": 478,
+        "LOC": 1876,
+        "ORG": 1512,
+        "PERS": 1571,
+        "PROD": 249
+      },
+      "tagged_empty_tokens": 11,
+      "tagged_tokens": 10230,
+      "tokens": 231651,
+      "trimmed_gold": 6,
+      "trimmed_source_labels": {
+        "ORG": 6
+      },
+      "zero_length_gold_spans": 0
+    }
+  }
+}
