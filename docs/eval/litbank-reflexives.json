@@ -20,6 +20,9 @@
       "one_name_enclosed_correct": 8,
       "one_name_enclosed_wrong_distractor": 1
     },
+    "enclosing_span_gold_chain_vs_only_covered_name": {
+      "unannotated": 9
+    },
     "exact_query_A_B_returned": {
       "001": 1,
       "010": 1,
@@ -40,6 +43,75 @@
   "forms": {
     "herself": 25,
     "himself": 27
+  },
+  "maverick_raw": {
+    "answers_by_gold": {
+      "A": {
+        "A": 5,
+        "no_named_link": 1
+      },
+      "B": {
+        "B": 22,
+        "no_named_link": 12
+      },
+      "neither": {
+        "no_named_link": 12
+      }
+    },
+    "enclosing_names_without_exact_link": {
+      "both_names_enclosed": 2,
+      "neither_name_enclosed": 14,
+      "one_name_enclosed_correct": 9
+    },
+    "enclosing_span_gold_chain_vs_only_covered_name": {
+      "different": 1,
+      "unannotated": 8
+    },
+    "exact_query_A_B_returned": {
+      "100": 6,
+      "101": 14,
+      "110": 11,
+      "111": 21
+    },
+    "id_and_decision_sha256": "b039e536179e3060731823b277cca51bde58b45f1a94e5cf777f4725482d1a69",
+    "outcomes": {
+      "both": 0,
+      "correct": 27,
+      "no_named_link": 25,
+      "wrong_distractor": 0,
+      "wrong_neither": 0
+    }
+  },
+  "maverick_supplied": {
+    "answers_by_gold": {
+      "A": {
+        "A": 5,
+        "no_named_link": 1
+      },
+      "B": {
+        "B": 33,
+        "both": 1
+      },
+      "neither": {
+        "B": 1,
+        "no_named_link": 11
+      }
+    },
+    "enclosing_names_without_exact_link": {},
+    "exact_query_A_B_returned": {
+      "000": 12,
+      "101": 34,
+      "110": 5,
+      "111": 1
+    },
+    "id_and_decision_sha256": "3078e6506043828d8c22825b8162a108a6bf360cb3db0d80f0f2001ab68f4e2f",
+    "outcomes": {
+      "both": 1,
+      "correct": 38,
+      "no_named_link": 12,
+      "wrong_distractor": 0,
+      "wrong_neither": 1
+    }
   },
   "native_raw": {
     "answers_by_gold": {

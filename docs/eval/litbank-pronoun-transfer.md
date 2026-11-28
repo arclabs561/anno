@@ -92,8 +92,14 @@ On the same 63 LitBank works, the aligned person mentions include 176 occurrence
 | Native, three supplied spans | 5 | 0 | 0 | 0 | 47 |
 | Native, raw text | 3 | 0 | 0 | 0 | 49 |
 | FCoref FP32, raw text | 18 | 1 | 0 | 0 | 33 |
+| Maverick MES, raw text | 27 | 0 | 0 | 0 | 25 |
+| Maverick MES, three supplied spans | 38 | 0 | 1 | 1 | 12 |
 
 FCoref chose the correct earlier name on one of six such cases and the correct nearer name on 17 of 34. Its one incorrect choice picked the earlier name. Native raw output included the exact target span in 19 queries, compared with 50 for FCoref. On 12 of the latter 50, FCoref returned the exact reflexive but neither exact offered name in its public clusters. These counts combine the model's mention and linking behavior. A missing span can have been proposed internally and subsequently omitted from its public output. The nearer-name baseline receives the annotated candidate positions, an advantage over either raw model. Every unique choice is evaluated at exact character coordinates. None of the 52 cases were used to tune a model or a threshold. Among the 31 FCoref cases with an exact reflexive and no exact linked candidate, a longer span in the reflexive's own cluster strictly enclosed exactly one marked name nine times. Eight of those enclosed names matched the annotated chain and one was the wrong competing name. Both names were enclosed in one other case and neither in 21. Checking an enclosing span therefore recovers some correct candidates but can also assign the wrong person. The diagnostic leaves the exact answer counts above unchanged. [Scorer](../../scripts/qa/litbank_reflexives.py)
+
+Maverick's raw output returned all 52 exact reflexives. It made the same 18 correct choices as FCoref, linked eight more correctly and corrected FCoref's one wrong choice. On the remaining 25 cases neither model linked an exact candidate. In Maverick's output, checking larger mentions in the reflexive's cluster enclosed just one name in nine cases, both names in two and neither in 14. All nine single enclosed names were the right candidate. For eight of those nine, the enclosing mention itself had no exact, unambiguous LitBank chain annotation. The ninth belonged to a different annotated chain than its enclosed name. All nine FCoref enclosing mentions for its single-name cases likewise lacked an exact, unambiguous chain annotation. Correctly identifying the name therefore does not establish that the larger model span denotes the same person. [Endpoint and boundary counts](litbank-reflexives.json)
+
+With the three annotated positions supplied, Maverick chose five of the six correct earlier names and 33 of the 34 correct nearer names. It linked both candidates on the remaining nearer-name case and wrongly selected the nearer name once when neither name was correct. The worker accepted every row.
 
 With the same local corpus directories as above and a freshly built `coref_gap_panel` example, run:
 
@@ -101,4 +107,4 @@ With the same local corpus directories as above and a freshly built `coref_gap_p
 python3 scripts/qa/litbank_reflexives.py "$litbank" "$gap" "$worker" --check
 ```
 
-For FCoref, build the example with Anno's `onnx` feature, set `FCOREF_MODEL_PATH` to the pinned FP32 export, and add `--fcoref`. The replay checks the source manifest, reference offsets, weights and ordered decision digests. Only aggregates are stored in the repository. [Pinned model and runtime](../../.github/workflows/fcoref-cli.yml)
+For FCoref, build the example with Anno's `onnx` feature, set `FCOREF_MODEL_PATH` to the pinned FP32 export, and add `--fcoref`. For Maverick, set `MAVERICK_PYTHON`, `MAVERICK_MODEL_PATH` and `HF_HUB_CACHE` to the pinned CPU environment, prepared OntoNotes checkpoint and encoder cache, then add `--maverick`. Both switches can run together. The replay checks the source manifest, reference offsets, model assets and ordered decision digests. Only aggregates are stored in the repository. [FCoref setup](../../.github/workflows/fcoref-cli.yml) · [Maverick setup](../../.github/workflows/maverick-coref.yml)
