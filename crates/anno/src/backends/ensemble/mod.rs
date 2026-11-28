@@ -155,7 +155,7 @@ impl EnsembleNER {
         backend_ids.push("regex");
 
         // Add GLiNER if available
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             use super::GLiNEROnnx;
             use crate::DEFAULT_GLINER_MODEL;

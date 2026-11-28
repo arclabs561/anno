@@ -26,7 +26,6 @@
 //! ```
 
 use crate::eval::{history_clock, task_evaluator::TaskEvalResult};
-use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -285,7 +284,7 @@ impl EvalHistory {
             .write(true)
             .truncate(false)
             .open(lock_path)?;
-        lock.lock_exclusive()?;
+        lock.lock()?;
         Ok(lock)
     }
 
@@ -2174,7 +2173,7 @@ mod tests {
                 .write(true)
                 .open(lock_path)
                 .expect("failed to open second lock handle");
-            fs2::FileExt::try_lock_exclusive(&second).is_err()
+            second.try_lock().is_err()
         })
         .join()
         .expect("second lock thread panicked");

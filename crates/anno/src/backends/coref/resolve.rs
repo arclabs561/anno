@@ -92,7 +92,7 @@ pub trait CorefBackend: Send + Sync {
 // =============================================================================
 
 // FCoref: returns Vec<CorefCluster> directly (same type via re-export).
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl CorefBackend for super::fcoref::FCoref {
     fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
         self.resolve(text)
@@ -108,7 +108,7 @@ impl CorefBackend for super::fcoref::FCoref {
 }
 
 // T5Coref: returns Vec<CorefCluster> directly (same type via re-export).
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl CorefBackend for super::t5::T5Coref {
     fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
         self.resolve(text)

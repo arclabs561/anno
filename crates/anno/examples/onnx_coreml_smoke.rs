@@ -55,7 +55,7 @@ fn main() {
 #[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use anno::{create_onnx_session_with_provider, OnnxExecutionProvider, OnnxSessionConfig};
-    use hf_hub::api::sync::Api;
+    use hf_hub::HFClientSync;
 
     if !cfg!(target_os = "macos") {
         eprintln!("onnx_coreml_smoke must run on macOS (CoreML.framework dependency). Skipping.");
@@ -90,9 +90,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         (None, _) => {
             eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
-            let api = Api::new()?;
-            let repo = api.model(MODEL_REPO.to_string());
-            repo.get(MODEL_FILE)?
+            let api = HFClientSync::new()?;
+            let (owner, name) = hf_hub::split_id(MODEL_REPO);
+            let repo = api.model(owner, name);
+            anno::download_model_file(&repo, &[MODEL_FILE])?
         }
     };
     eprintln!("[smoke] model at {}", model_path.display());

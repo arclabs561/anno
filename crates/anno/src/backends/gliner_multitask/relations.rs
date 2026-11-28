@@ -6,7 +6,7 @@
 use crate::Entity;
 
 /// Extract relations using the shared heuristic pipeline (triggers + type fallback + dedup).
-#[cfg(any(feature = "onnx", feature = "candle"))]
+#[cfg(any(feature = "onnx-local", feature = "candle"))]
 pub(crate) fn extract_relations_heuristic(
     entities: &[Entity],
     text: &str,
@@ -27,7 +27,7 @@ pub(crate) fn extract_relations_heuristic(
 }
 
 #[cfg(test)]
-#[cfg(any(feature = "onnx", feature = "candle"))]
+#[cfg(any(feature = "onnx-local", feature = "candle"))]
 mod tests {
     use super::*;
 

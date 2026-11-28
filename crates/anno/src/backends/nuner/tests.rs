@@ -78,7 +78,7 @@ fn test_not_available_without_model() {
 }
 
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_converts_byte_offsets_to_char_offsets() {
     let ner = NuNER::new();
     let text = "北京 Beijing";
@@ -183,7 +183,7 @@ fn test_nuner_model_metadata() {
 fn test_nuner_capabilities() {
     let ner = NuNER::new();
     let caps = ner.capabilities();
-    assert_eq!(caps.zero_shot, cfg!(feature = "onnx"));
+    assert_eq!(caps.zero_shot, cfg!(feature = "onnx-local"));
     assert_eq!(caps.zero_shot, ner.as_zero_shot().is_some());
 }
 
@@ -194,7 +194,7 @@ fn test_nuner_4k_auto_detection_case_insensitive() {
 }
 
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_first_word() {
     let ner = NuNER::new();
     let text = "Apple Inc is a company";
@@ -230,7 +230,7 @@ fn test_create_entity_first_word() {
 /// This mirrors what the tokenizer/word-boundary path hands to
 /// `NuNER::create_entity` and keeps the byte offsets honest for non-ASCII
 /// input.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn create_entity_for_whole_span(text: &str) -> Entity {
     let ner = NuNER::new();
     let words: Vec<&str> = text.split_whitespace().collect();
@@ -260,7 +260,7 @@ fn create_entity_for_whole_span(text: &str) -> Entity {
 /// sentence period into the span, so `create_entity` must trim it and adjust
 /// the char end offset to match.
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_strips_trailing_period() {
     let e = create_entity_for_whole_span("thrive capital.");
     assert_eq!(e.text, "thrive capital");
@@ -270,7 +270,7 @@ fn test_create_entity_strips_trailing_period() {
 
 /// "Google," -> "Google".
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_strips_trailing_comma() {
     let e = create_entity_for_whole_span("Google,");
     assert_eq!(e.text, "Google");
@@ -279,7 +279,7 @@ fn test_create_entity_strips_trailing_comma() {
 
 /// "marie curie's" -> "marie curie".
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_strips_possessive() {
     let e = create_entity_for_whole_span("marie curie's");
     assert_eq!(e.text, "marie curie");
@@ -288,7 +288,7 @@ fn test_create_entity_strips_possessive() {
 
 /// "musk’s" -> "musk" (Unicode right single quote possessive).
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_strips_smart_quote_possessive() {
     let e = create_entity_for_whole_span("musk\u{2019}s");
     assert_eq!(e.text, "musk");
@@ -296,7 +296,7 @@ fn test_create_entity_strips_smart_quote_possessive() {
 }
 
 #[test]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn test_create_entity_out_of_bounds() {
     let ner = NuNER::new();
     let text = "hello";
@@ -318,7 +318,7 @@ fn test_create_entity_out_of_bounds() {
     assert!(e.is_none());
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn span_checkpoint_uses_its_trained_width_and_unicode_offsets() {
     let export = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -332,7 +332,7 @@ fn span_checkpoint_uses_its_trained_width_and_unicode_offsets() {
     );
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn encode_prompt_uses_the_exported_tokenizer_marker_ids() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

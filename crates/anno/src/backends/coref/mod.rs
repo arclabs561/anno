@@ -20,11 +20,11 @@ pub mod maverick;
 pub use maverick::MaverickCoref;
 
 // T5-based coreference resolution
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod t5;
 
 // F-coref: fast neural coreference (ONNX encoder + safetensors scorer heads)
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod fcoref;
 
 // Simple rule-based coreference resolvers.
@@ -36,10 +36,10 @@ pub use resolve::CorefBackend;
 // CorefCluster is always available from resolve (not feature-gated).
 pub use resolve::CorefCluster;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use t5::{T5Coref, T5CorefConfig};
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use fcoref::{FCoref, FCorefConfig};
 
 pub use simple::{CorefConfig, SimpleCorefResolver};

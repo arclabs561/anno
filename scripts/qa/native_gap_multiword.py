@@ -10,7 +10,7 @@ import audit_gap_decisions as gap
 import gap_receipts
 from coref_gap import REVISION
 from native_gap_endpoint_stages import checked_partition
-from native_gap_loss import trace_documents
+from native_gap_loss import selected_path, trace_documents
 from native_gap_neutral_type import ROOT, evaluate, file_hash, read_sources
 
 BASE = "01370e52ba97d5a094c3a3a0e9d3b038ef7063f9"
@@ -54,7 +54,24 @@ def unlinked_stage(spans, pronoun, name):
     return "separate_clusters"
 
 
-def compare(rows, stock, candidate, frozen):
+def linking_edges(trace, pronoun, name):
+    """Return selected edges in path order, preserving the resolver's edge direction."""
+    retained = list(map(tuple, trace["retained"]))
+    decisions = trace["decisions"]
+    path = selected_path(retained.index(pronoun), retained.index(name), decisions)
+    edges = []
+    for left, right in zip(path, path[1:]):
+        child, parent = max(left, right), min(left, right)
+        decision = decisions[child]
+        if decision["selected"] != parent:
+            raise ValueError("path edge differs from the selected antecedent")
+        _, score, threshold = next(c for c in decision["candidates"] if c[0] == parent)
+        edges.append({"mention": retained[child], "antecedent": retained[parent],
+                      "score": score, "threshold": threshold})
+    return edges
+
+
+def compare(rows, stock, candidate, frozen, *, changes=None):
     correct, wrong = transition(), transition()
     coverage = {stage: transition() for stage in STAGES}
     unmarked = {stage: transition() for stage in STAGES}
@@ -85,6 +102,25 @@ def compare(rows, stock, candidate, frozen):
         ]
         count_sets(correct, linked[0] & positives, linked[1] & positives)
         count_sets(wrong, linked[0] - positives, linked[1] - positives)
+        if changes is not None:
+            for i in sorted(linked[0] ^ linked[1]):
+                name = names[i]
+                stages = [
+                    "linked" if i in links else unlinked_stage(spans, pronoun, name)
+                    for links, spans in zip(linked, (before, after), strict=True)
+                ]
+                changes.append({
+                    "id": row["ID"],
+                    "article": row["URL"],
+                    "text_sha256": gap.sha(row["Text"].encode()),
+                    "candidate": "AB"[i],
+                    "pronoun": {"text": row["Text"][slice(*pronoun)], "chars": pronoun},
+                    "name": {"text": row["Text"][slice(*name)], "chars": name},
+                    "gold_link": i in positives,
+                    "linking_edges": linking_edges(old if i in linked[0] else new, pronoun, name),
+                    "stock": stages[0],
+                    "candidate_outcome": stages[1],
+                })
         for i in linked[1] - linked[0] - positives:
             newly_wrong[unlinked_stage(before, pronoun, names[i])] += 1
             if not positives:
@@ -144,7 +180,13 @@ def main():
     for name in ("data", "stock", "candidate", "output"):
         parser.add_argument(name, type=Path)
     parser.add_argument("--public-candidate", type=Path, help="verify the public coref_gap_panel example")
+    parser.add_argument("--local-details", type=Path,
+                        help="write changed A/B decisions and source occurrences for local review")
+    parser.add_argument("--require-gate", action="store_true",
+                        help="exit unsuccessfully after writing results if any split fails the frozen rule")
     args = parser.parse_args()
+    if args.local_details and args.local_details.resolve() == args.output.resolve():
+        parser.error("--local-details requires a separate output file")
     rows, hashes = read_sources(args.data)
     binaries = (args.stock, args.candidate)
     sample = "we met Léonie Márquez today"
@@ -158,10 +200,14 @@ def main():
         raise ValueError("stock and candidate do not reproduce the project-authored control")
     frozen = json.loads((ROOT / "docs/eval/native-gap-endpoint-stages.json").read_text())
     panels = {}
+    details = {}
     for split in ("development", "test", "validation"):
         docs = [(r["ID"], r["Text"]) for r in rows[split]]
         both = [trace_documents(docs, test_binary=binary) for binary in binaries]
-        panels[split] = compare(rows[split], *both, frozen["panels"][split])
+        changes = [] if args.local_details else None
+        panels[split] = compare(rows[split], *both, frozen["panels"][split], changes=changes)
+        if changes is not None:
+            details[split] = changes
         if args.public_candidate:
             _, groups = evaluate(rows[split], "predicted", args.public_candidate)
             if gap_receipts.digest(groups) != panels[split]["partition_sha256"]["candidate"]:
@@ -173,7 +219,23 @@ def main():
         "source_sha256": hashes,
         "panels": panels,
     }
+    if args.local_details:
+        review = {
+            "source_sha256": hashes,
+            "worker_sha256": {arm: file_hash(binary) for arm, binary in
+                              zip(("stock", "candidate"), binaries, strict=True)},
+            "changes": details,
+        }
+        args.local_details.write_text(json.dumps(review, indent=2, ensure_ascii=False) + "\n")
     args.output.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
+    for split, panel in panels.items():
+        correct, wrong = panel["correct_links"], panel["wrong_links"]
+        result = "PASS" if panel["passes_gate"] else "FAIL"
+        print(f"{split} {result} | correct links +{correct['gained']} -{correct['lost']}"
+              f" | wrong links +{wrong['gained']} -{wrong['lost']}")
+    if args.require_gate and not all(panel["passes_gate"] for panel in panels.values()):
+        raise SystemExit("Candidate failed the frozen GAP rule: every split needs a net gain "
+                         "in correct links and zero newly wrong links.")
 
 
 if __name__ == "__main__":

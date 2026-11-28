@@ -80,7 +80,7 @@
 //! - OntoNotes 5.0 (coreference benchmark)
 //! - GAP (gendered pronoun resolution benchmark)
 
-// Note: This module is feature-gated via `#[cfg(feature = "onnx")]` in mod.rs
+// Note: This module is feature-gated via `#[cfg(feature = "onnx-local")]` in mod.rs
 
 use crate::{Entity, Error, Result};
 
@@ -207,8 +207,8 @@ impl T5Coref {
     pub fn from_pretrained_with_config(model_id: &str, config: T5CorefConfig) -> Result<Self> {
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let api = hf_loader::model_source()?;
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let encoder_path = hf_loader::download_model_file(
             &repo,

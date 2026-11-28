@@ -16,12 +16,14 @@ export HOME="${HOME:-/root}"
 
 # Load config
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/config.env" ]]; then
-    source "$SCRIPT_DIR/config.env"
-fi
+source "$SCRIPT_DIR/../s3_bucket.sh"
+anno_spot_config "$SCRIPT_DIR/config.env"
 
+if [[ ${1:-} == --help || ${1:-} == -h || ${1:-} == help ]]; then
+    sed -n '2,/^$/s/^# *//p' "${BASH_SOURCE[0]}"
+    exit 0
+fi
 REGION="${ANNO_SPOT_REGION:-us-east-1}"
-BUCKET="${ANNO_SPOT_BUCKET:-arc-anno-data}"
 QUEUE_URL="${ANNO_SPOT_QUEUE_URL:-}"
 # Use /opt/cache on root volume (100 GiB) instead of separate EBS
 CACHE_MOUNT="${ANNO_CACHE_MOUNT:-/opt/cache}"
@@ -30,13 +32,14 @@ ANNO_DIR="${ANNO_SOURCE_DIR:-/root/anno}"
 
 # Logging
 LOG_GROUP="/aws/anno-eval/workers"
-# Use IMDSv2 (token required)
-IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300" 2>/dev/null || true)
-if [[ -n "$IMDS_TOKEN" ]]; then
-    INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo "local")
-else
-    INSTANCE_ID="local"
-fi
+INSTANCE_ID="local"
+load_instance_id() {
+    local token
+    token=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300" 2>/dev/null || true)
+    if [[ -n "$token" ]]; then
+        INSTANCE_ID=$(curl -fsS -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo local)
+    fi
+}
 
 log() {
     local level="$1"
@@ -107,14 +110,15 @@ clone_and_build() {
     export HF_HOME="${CACHE_MOUNT}/models"
     
     # Check if already built
-    if [[ -x "$CARGO_TARGET_DIR/release/anno" ]]; then
+    if [[ -x "$CARGO_TARGET_DIR/release/anno" && -x "$CARGO_TARGET_DIR/release/examples/public_benchmark_report" ]]; then
         log_info "Using cached build at $CARGO_TARGET_DIR/release/anno"
         return 0
     fi
     
     # Build release with ONNX support for ML backends
     log_info "Building anno with ONNX (this may take a while on fresh instances)..."
-    cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
+    cargo build --locked --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
+    cargo build --locked --release -p anno-eval --example public_benchmark_report --features "eval onnx" 2>&1 | tail -5
     
     log_info "Build complete: $($CARGO_TARGET_DIR/release/anno --version 2>/dev/null || echo 'built')"
 }
@@ -139,6 +143,43 @@ receive_task() {
     fi
     
     echo "$response"
+}
+
+# Only the typed aggregate projection may enter a remote result file or key.
+publish_task_result() {
+    local result_dir="$1" exit_code="$2" duration="$3"
+    local private="$result_dir/report.json" markdown="$result_dir/public.md" json="$result_dir/public.json"
+    local projector="$CARGO_TARGET_DIR/release/examples/public_benchmark_report"
+    local failure=evaluation_failed identity backend dataset seed prefix timestamp
+    timestamp=$(date -u +%Y%m%d_%H%M%S)
+    if [[ -s "$private" ]]; then
+        failure=projection_failed
+        if "$projector" "$private" "$markdown" "$json" && \
+            identity=$(jq -er '.results[0] | select(. != null) | [.backend, .dataset, .seed] | @tsv' "$json"); then
+            IFS=$'\t' read -r backend dataset seed <<< "$identity"
+            prefix="s3://$BUCKET/results/$backend/$dataset/seed_${seed}_$timestamp"
+            {
+                printf '<!-- _meta: backend=%s dataset=%s seed=%s duration=%ss exit_code=%s -->\n' "$backend" "$dataset" "$seed" "$duration" "$exit_code"
+                cat "$markdown"
+            } > "$result_dir/aggregate.md"
+            aws s3 cp "$result_dir/aggregate.md" "$prefix.md" --region "$REGION"
+            aws s3 cp "$json" "$prefix.json" --region "$REGION"
+            log_info "Published aggregate results for $backend/$dataset"
+            failure=""
+        fi
+    fi
+    if [[ -n "$failure" ]]; then
+        # No validated identity was available. Keep task-supplied text out of
+        # both the object key and the error marker.
+        prefix="s3://$BUCKET/results/failures/${timestamp}-$RANDOM$RANDOM"
+        printf '{"error":"%s","exit_code":%d}\n' "$failure" "$exit_code" | aws s3 cp - "$prefix.error" --region "$REGION"
+        log_error "Result classification: $failure"
+    fi
+    if [[ ( -n "$failure" || "$exit_code" != 0 ) && ${ANNO_SPOT_RETAIN_FAILURE_ARTIFACTS:-0} == 1 ]]; then
+        log_info "Retained private failure files locally in $result_dir"
+    else
+        rm -rf -- "$result_dir"
+    fi
 }
 
 process_task() {
@@ -185,15 +226,17 @@ process_task() {
     log_info "Available memory: ${mem_available}MB before evaluation"
     
     # Run with timeout and memory monitoring
-    if ! timeout 1800 "$anno_bin" benchmark \
+    if timeout 1800 "$anno_bin" benchmark \
         --datasets "$dataset" \
         --backends "$backend" \
         --tasks "$task_type" \
         --max-examples "$max_examples" \
         --seed "$seed" \
         --output "$markdown_file" \
-        --output-json "$json_file" 2>&1 | tee /tmp/eval_output.log; then
-        exit_code=${PIPESTATUS[0]}
+        --output-json "$json_file" > "$result_dir/benchmark.log" 2>&1; then
+        exit_code=0
+    else
+        exit_code=$?
     fi
     
     # Check if OOM occurred (exit code 137 = 128 + 9 SIGKILL)
@@ -215,34 +258,8 @@ process_task() {
     mem_after=$(free -m | awk '/^Mem:/{print $7}')
     log_info "Available memory: ${mem_after}MB after evaluation (used: $((mem_available - mem_after))MB)"
     
-    # Upload result with metadata in filename
-    local timestamp
-    timestamp=$(date +%Y%m%d_%H%M%S)
-    local result_prefix="results/${backend}/${dataset}/seed_${seed}_${timestamp}"
-    
-    if [[ -s "$markdown_file" && -s "$json_file" ]]; then
-        # Preserve the human-readable report alongside the machine artifact.
-        {
-            echo "<!-- _meta: backend=$backend dataset=$dataset seed=$seed instance=$INSTANCE_ID duration=${duration}s exit_code=$exit_code -->"
-            cat "$markdown_file"
-        } > "${markdown_file}.wrapped"
-        
-        aws s3 cp "${markdown_file}.wrapped" "s3://$BUCKET/${result_prefix}.md" --region "$REGION"
-        aws s3 cp "$json_file" "s3://$BUCKET/${result_prefix}.json" --region "$REGION"
-        log_info "Results uploaded: s3://$BUCKET/${result_prefix}.{md,json}"
-        rm -rf -- "$result_dir"
-    else
-        # Upload error marker
-        echo "{\"error\": \"evaluation failed\", \"exit_code\": $exit_code, \"backend\": \"$backend\", \"dataset\": \"$dataset\"}" | \
-            aws s3 cp - "s3://$BUCKET/${result_prefix}.error" --region "$REGION"
-        log_error "Evaluation failed for $backend/$dataset (exit $exit_code)"
-        if [[ "${ANNO_SPOT_RETAIN_FAILURE_ARTIFACTS:-0}" == "1" ]]; then
-            log_info "Retained failure artifacts: $result_dir"
-        else
-            rm -rf -- "$result_dir"
-        fi
-    fi
-    
+    publish_task_result "$result_dir" "$exit_code" "$duration"
+
     # Delete message from queue (task complete)
     aws sqs delete-message \
         --queue-url "$QUEUE_URL" \
@@ -280,13 +297,17 @@ cleanup() {
     log_info "Cleanup complete"
 }
 
-trap cleanup EXIT
-
 # ============================================================================
 # Main Loop
 # ============================================================================
 
 main() {
+    BUCKET=$(anno_bucket_name "${ANNO_SPOT_BUCKET:-}" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+    if [[ -z "$QUEUE_URL" ]]; then
+        QUEUE_URL=$(aws sqs get-queue-url --queue-name "${ANNO_SPOT_QUEUE:-anno-eval-${BUCKET//./_}}" --region "$REGION" --query QueueUrl --output text)
+    fi
+    load_instance_id
+    trap cleanup EXIT
     log_info "Starting anno evaluation worker..."
     
     # Setup

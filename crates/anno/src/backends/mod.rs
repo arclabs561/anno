@@ -101,7 +101,7 @@
 //! **StackedNER is fully composable** - you can combine ML backends with pattern/heuristic layers:
 //!
 //! ```rust,no_run
-//! #[cfg(feature = "onnx")]
+//! #[cfg(feature = "onnx-local")]
 //! {
 //! use anno::{Model, StackedNER, GLiNEROnnx, RegexNER, HeuristicNER};
 //! use anno::backends::stacked::ConflictStrategy;
@@ -131,7 +131,10 @@
 pub(crate) mod macros;
 
 /// Shared HuggingFace model loading and ONNX session construction utilities.
-#[cfg(all(any(feature = "onnx", feature = "candle"), not(target_arch = "wasm32")))]
+#[cfg(all(
+    any(feature = "onnx-local", feature = "candle"),
+    not(target_arch = "wasm32")
+))]
 pub(crate) mod hf_loader;
 
 /// Coreference resolution backends (trait, neural, heuristic).
@@ -340,10 +343,10 @@ pub(crate) mod llm_prompt;
 // GLiNER via ONNX (uses same feature as other ONNX models)
 
 // ONNX implementations
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod gliner_onnx;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod onnx;
 
 // Pure Rust via Candle
@@ -357,7 +360,10 @@ pub mod encoder_candle;
 pub mod gliner_candle;
 
 // GLiNER multi-task extraction (ONNX or Candle)
-#[cfg(any(feature = "onnx", all(feature = "candle", not(target_arch = "wasm32"))))]
+#[cfg(any(
+    feature = "onnx-local",
+    all(feature = "candle", not(target_arch = "wasm32"))
+))]
 pub mod gliner_multitask;
 
 // GLiNER2 fastino-ai backend
@@ -394,10 +400,10 @@ pub use glirel::GLiREL;
 pub use universal_ner::UniversalNER;
 
 // Re-exports (feature-gated)
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use gliner_onnx::GLiNEROnnx;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use onnx::{
     BertNEROnnx, BertNerArtifactPaths, BertNerTrace, BertNerTraceArtifact, BertNerTraceArtifacts,
     BertNerTraceEntity,
@@ -413,13 +419,16 @@ pub use encoder_candle::{EncoderArchitecture, EncoderConfig};
 pub use gliner_candle::GLiNERCandle;
 
 // GLiNER multi-task model
-#[cfg(any(feature = "onnx", all(feature = "candle", not(target_arch = "wasm32"))))]
+#[cfg(any(
+    feature = "onnx-local",
+    all(feature = "candle", not(target_arch = "wasm32"))
+))]
 pub use gliner_multitask::{
     ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
     FieldType, GLiNERMultitask, StructureTask, StructureValue, TaskSchema,
 };
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use gliner_multitask::GLiNERMultitaskOnnx;
 
 #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
@@ -429,18 +438,18 @@ pub use gliner_multitask::GLiNERMultitaskCandle;
 pub use coref::CorefCluster;
 
 // T5 coreference
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use coref::t5::{T5Coref, T5CorefConfig};
 
 // F-coref neural coreference
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use coref::fcoref::{FCoref, FCorefConfig};
 
 // Config re-exports (for quantization control)
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use gliner_onnx::GLiNERConfig;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use onnx::BertNERConfig;
 
 // Coreference resolution trait (from `crate::core`, always available)

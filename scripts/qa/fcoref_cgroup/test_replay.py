@@ -145,16 +145,54 @@ class CgroupReplayTests(unittest.TestCase):
                     target[key] = [value] * 5 if key == "warm_ms" else value
                     replay.verify(row, 3)
 
-    def run_fixture(self, output, callback):
+    def run_fixture(self, output, callback, *, aggregate=False):
         argv = ["replay", "--output", str(output), "--binary", "/unused/bin",
                 "--image", "fixture", "--model", "/unused/model", "--ort", "/unused/ort",
                 "--cpu", "3", "--repeats", "1"]
+        if aggregate:
+            argv.append("--aggregate")
         def digest(path):
             return replay.MODEL_SHA.get(path.name, "2d518e11c7767f9fdc4413bdbeb45acf30db504ff76a82fc19d9238a3f9f6c24")
         with patch.object(sys, "argv", argv), patch.object(replay, "sha", side_effect=digest), \
-                patch.object(replay, "docker", side_effect=[json.dumps(self.daemon), "image-id"]), \
+                patch.object(replay, "docker", side_effect=[json.dumps(self.daemon), "sha256:" + "a" * 64]), \
                 patch.object(replay, "CASES", [(522, 521)]), patch.object(replay, "run_case", side_effect=callback):
             replay.main()
+
+    def test_shared_receipt_retains_resource_controls_and_safe_failure_details(self):
+        marker = "PRIVATE_RESOURCE_PATH"
+        self.daemon["Warnings"] = [marker]
+
+        def measured(args, image, threads, tokens, budget):
+            row = copy.deepcopy(self.row)
+            row.update(threads=threads, stdout=marker, stderr=marker)
+            row["state"]["Error"] = marker
+            m = row["measurement"]
+            m.update(threads_configured=threads, proc_cgroup=marker, proc_status="VmHWM:   646 kB\n" + marker)
+            m["cgroup"].update({"memory.peak": "8000\n", "cpu.stat": f"nr_throttled 15\n{marker} 100"})
+            if threads == 2:
+                row["state"]["ExitCode"] = 78
+            return row
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "shared.json"
+            with self.assertRaisesRegex(RuntimeError, "container did not complete"):
+                self.run_fixture(path, measured, aggregate=True)
+            serialized = path.read_text()
+            for sensitive in (marker, SUFFIX, "stdout", "stderr", "proc_cgroup", "/unused/model"):
+                self.assertNotIn(sensitive, serialized)
+            receipt = json.loads(serialized)
+            self.assertEqual((receipt["status"], receipt["active_case"]["threads"]), ("failed", 2))
+            self.assertEqual(receipt["failed_run"]["state"]["ExitCode"], 78)
+            measured = receipt["runs"][0]["measurement"]
+            self.assertEqual(measured["predictions"], {"outcome": "budget_exceeded", "mention_count": 0, "cluster_count": 0})
+            self.assertEqual(measured["cgroup"]["cpu.stat"], "nr_throttled 15")
+            self.assertEqual(measured["cgroup"]["memory.peak"], "8000")
+            self.assertEqual(measured["proc_status"], "VmHWM:   646 kB")
+            self.assertEqual(measured["warm_ms"], [1] * 5)
+            path = Path(directory) / "early-failure.json"
+            with self.assertRaisesRegex(RuntimeError, "^failed during container execution$"):
+                self.run_fixture(path, FileNotFoundError(marker), aggregate=True)
+            self.assertNotIn(marker, path.read_text())
 
     def test_receipt_lifecycle_and_exclusive_creation(self):
         with tempfile.TemporaryDirectory() as directory:

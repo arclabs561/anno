@@ -34,7 +34,7 @@ def write_csv(path, fields, data):
         writer.writerows(data)
 
 
-def build(root, evidence, split_receipts):
+def build(root, evidence, split_receipts, s3_evidence=None):
     coverage = {r["id"]: r for r in rows(evidence / "dataset-coverage.csv")}
     sources, notes, omitted = (defaultdict(set) for _ in range(3))
     hashes = defaultdict(set)
@@ -137,19 +137,20 @@ def build(root, evidence, split_receipts):
             "IBM train, validation and test utterances and ordered label dictionary",
         )
 
-    # Prefer the dated CI evidence shipped with this collection. A public checkout
-    # also carries a reproducible baseline for collections made without CI artifacts.
-    snapshots = list((root / "evidence").glob("cache-source-evidence-*.zip"))
-    if len(snapshots) > 1:
-        raise ValueError("Supply one S3 comparison snapshot per collection")
-    if snapshots:
-        with ZipFile(snapshots[0]) as snapshot:
+    if s3_evidence is None:
+        snapshots = sorted((root / "evidence").glob("cache-source-evidence-*.zip"))
+        if len(snapshots) > 1:
+            raise ValueError(
+                "Multiple S3 snapshots in this collection. Select one with --s3-evidence."
+            )
+        s3_evidence = next(iter(snapshots), None)
+    info = None
+    matched = []
+    if s3_evidence is not None:
+        with ZipFile(s3_evidence) as snapshot:
             info = json.loads(snapshot.read("cache-source-coverage.json"))
             with snapshot.open("publisher-file-matches.csv") as stream:
                 matched = list(csv.DictReader(TextIOWrapper(stream, encoding="utf-8")))
-    else:
-        info = load(evidence / "s3-source-coverage.json")
-        matched = rows(evidence / "s3-publisher-file-matches.csv")
     matches = {}
     for row in matched:
         if (
@@ -164,7 +165,11 @@ def build(root, evidence, split_receipts):
                 "sha256": key[2],
                 "archives": " | ".join(sorted(hashes[key[0], key[2]])),
             }
-    if len(matches) != info["payload_objects_by_outcome"]["matches_own_publisher_file"]:
+    if (
+        info is not None
+        and len(matches)
+        != info["payload_objects_by_outcome"]["matches_own_publisher_file"]
+    ):
         raise ValueError("Distinct matched objects disagree with the S3 evidence")
     matched_ids = {k[0] for k, r in matches.items() if r["archives"]}
     fields = [
@@ -254,13 +259,27 @@ def build(root, evidence, split_receipts):
         "corpus_archive_bytes": sum(
             r["bytes"] for r in archives if r["kind"] == "corpus"
         ),
-        "matched_s3_objects": sum(bool(r["archives"]) for r in matches.values()),
-        "publisher_matched_s3_objects_in_snapshot": len(matches),
-        "matched_s3_ids": len(matched_ids),
-        "s3_snapshot": {
-            key: info[key]
-            for key in ("listing_started_utc", "workflow_run_id", "repository_commit")
-        },
+        "matched_s3_objects": (
+            sum(bool(r["archives"]) for r in matches.values())
+            if info is not None
+            else None
+        ),
+        "publisher_matched_s3_objects_in_snapshot": (
+            len(matches) if info is not None else None
+        ),
+        "matched_s3_ids": len(matched_ids) if info is not None else None,
+        "s3_snapshot": (
+            {
+                key: info[key]
+                for key in (
+                    "listing_started_utc",
+                    "workflow_run_id",
+                    "repository_commit",
+                )
+            }
+            if info is not None
+            else None
+        ),
         "archives": archives,
     }
     with tempfile.TemporaryDirectory(dir=root) as tmp:
@@ -283,9 +302,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("--evidence", type=Path, default=EVIDENCE)
+    parser.add_argument(
+        "--s3-evidence",
+        type=Path,
+        help="Compare local releases with this dated cache-source-evidence workflow ZIP. "
+        "By default only a snapshot bundled in the collection's evidence directory is used.",
+    )
     parser.add_argument("--part-manifest", type=Path, action="append", default=[])
     args = parser.parse_args()
-    build(args.root, args.evidence, args.part_manifest)
+    build(args.root, args.evidence, args.part_manifest, args.s3_evidence)
 
 
 if __name__ == "__main__":

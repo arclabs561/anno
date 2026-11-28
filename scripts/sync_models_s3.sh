@@ -8,7 +8,7 @@
 #   ./scripts/sync_models_s3.sh ls        # List S3 model contents
 #
 # Environment Variables:
-#   ANNO_S3_BUCKET       S3 bucket name (default: arc-anno-data)
+#   ANNO_S3_BUCKET       Operator-selected bucket name or s3://bucket/
 #   HF_HOME              HuggingFace cache root (default: ~/.cache/huggingface)
 #
 # After ONNX auto-export (GLiNER bi-encoder etc.), run `upload` to persist
@@ -16,7 +16,8 @@
 
 set -euo pipefail
 
-S3_BUCKET="${ANNO_S3_BUCKET:-arc-anno-data}"
+source "$(dirname "${BASH_SOURCE[0]}")/s3_bucket.sh"
+S3_BUCKET=""
 HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}/hub"
 ACTION="${1:-status}"
 
@@ -66,16 +67,23 @@ declare -A MODELS=(
 
 # Detect S3 CLI
 S3CMD=""
-if command -v s5cmd &>/dev/null; then
-    S3CMD="s5cmd"
-elif command -v aws &>/dev/null; then
-    S3CMD="aws"
-else
-    echo "ERROR: Neither s5cmd nor aws CLI found."
-    echo "  Install s5cmd: brew install peak/tap/s5cmd"
-    echo "  Or AWS CLI:    brew install awscli"
-    exit 1
-fi
+case "$ACTION" in
+    help|-h|--help) printf 'Usage: %s {upload|download|status|ls}\nSet ANNO_S3_BUCKET for remote operations.\n' "$0"; exit 0 ;;
+    status) ;;
+    upload|download|ls)
+        S3_BUCKET=$(anno_bucket_name "${ANNO_S3_BUCKET:-}" ANNO_S3_BUCKET)
+        if command -v s5cmd &>/dev/null; then
+            S3CMD="s5cmd"
+        elif command -v aws &>/dev/null; then
+            S3CMD="aws"
+        else
+            echo "ERROR: Neither s5cmd nor aws CLI found."
+            echo "  Install s5cmd: brew install peak/tap/s5cmd"
+            echo "  Or AWS CLI:    brew install awscli"
+            exit 1
+        fi
+        ;;
+esac
 
 s3_sync_up() {
     local src="$1" dst="$2"

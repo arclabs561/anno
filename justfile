@@ -488,9 +488,9 @@ download-datasets:
 clean:
     cargo clean
 
-# Check MSRV 1.91 (matches workspace and CI) against the locked dependency graph.
+# Check MSRV 1.95 (matches workspace and CI) against the locked dependency graph.
 msrv:
-    cargo +1.91.0 check --workspace --locked
+    cargo +1.95.0 check --workspace --locked
 
 # Run property tests with more cases
 proptest:
@@ -502,8 +502,13 @@ proptest:
 cache-warm:
     cargo run -p anno-eval --example cache_warm --features "eval discourse"
 
-# Warm cache and upload to S3.
+# Warm the local cache from the selected S3 bucket and sync model/script artifacts.
 cache-warm-s3:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/s3_bucket.sh
+    ANNO_S3_BUCKET=$(anno_bucket_name "${ANNO_S3_BUCKET:-}" ANNO_S3_BUCKET)
+    export ANNO_S3_BUCKET
     ANNO_S3_CACHE=1 cargo run -p anno-eval --example cache_warm --features "eval discourse"
     ./scripts/sync_datasets_s3.sh upload
 
@@ -955,7 +960,7 @@ spot-generate-custom BACKENDS="" DATASETS="" SEEDS="42,123,456":
 
 # Preview tasks without enqueueing
 spot-generate-dry:
-    @uv run scripts/spot/orchestrate.py generate --dry-run
+    @python3 scripts/spot/orchestrate.py generate --dry-run
 
 # Launch spot fleet (requires tasks in queue)
 spot-launch FLEET_SIZE="4":
@@ -987,15 +992,15 @@ spot-results OUTPUT="reports/spot-eval-results.json":
 
 # Download results from S3 and aggregate
 spot-aggregate:
-    @uv run scripts/spot/aggregate.py --download
+    @python3 scripts/spot/aggregate.py --download
 
 # Regenerate summary and open in browser
 spot-summary:
-    @uv run scripts/spot/aggregate.py --open
+    @python3 scripts/spot/aggregate.py --open
 
 # Show LLM-generated summary of results
 spot-summarize:
-    @uv run scripts/spot/aggregate.py --llm
+    @python3 scripts/spot/aggregate.py --llm
 
 # Cancel fleet and clean up
 spot-teardown:
@@ -1021,7 +1026,7 @@ spot-eval-quick:
 # Local evaluation (no AWS, runs on this machine)
 eval-local BACKENDS="heuristic,stacked" DATASETS="WikiGold" MAX="50":
     @cargo build --release -p anno-cli --features "eval onnx" > /dev/null
-    @uv run scripts/spot/orchestrate.py local \
+    @python3 scripts/spot/orchestrate.py local \
         --backends "{{BACKENDS}}" \
         --datasets "{{DATASETS}}" \
         --max-examples "{{MAX}}"
@@ -1029,7 +1034,7 @@ eval-local BACKENDS="heuristic,stacked" DATASETS="WikiGold" MAX="50":
 # Local quick eval (zero-dep backends only, fast)
 eval-local-quick:
     @cargo build --release -p anno-cli --features "eval onnx" > /dev/null
-    @uv run scripts/spot/orchestrate.py local \
+    @python3 scripts/spot/orchestrate.py local \
         --profile quick \
         --datasets "WikiGold,CoNLL2003Sample" \
         --max-examples 30
@@ -1040,29 +1045,21 @@ spot-eval-ml:
         --backends "gliner,nuner,w2ner,gliner_multitask,bert_onnx,gliner_candle" \
         --fleet-size 4
 
-# Sync local dataset/model cache to S3 (for spot instances)
+# Sync model and script artifacts to the Spot bucket
 spot-cache-upload:
-    @./scripts/sync_datasets_s3.sh upload
+    @./scripts/spot/trainctl-bridge.sh cache-upload
 
 # Download cached datasets/models from S3
 spot-cache-download:
-    @./scripts/sync_datasets_s3.sh download
+    @./scripts/spot/trainctl-bridge.sh cache-download
 
 # Show S3 cache status
 spot-cache-status:
-    @./scripts/sync_datasets_s3.sh status
+    @./scripts/spot/trainctl-bridge.sh cache-status
 
 # Upload current source code to S3 (required before launching spot instances)
 spot-upload-src:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    bucket="${ANNO_S3_BUCKET:?Set ANNO_S3_BUCKET to your source upload bucket}"
-    bucket="${bucket#s3://}"
-    bucket="${bucket%/}"
-    test -n "$bucket"
-    git archive --format=tar.gz HEAD -o /tmp/anno-src.tar.gz
-    aws s3 cp /tmp/anno-src.tar.gz "s3://$bucket/src/anno-src.tar.gz"
-    echo "Source uploaded to s3://$bucket/src/anno-src.tar.gz"
+    @./scripts/spot/upload-source.sh
 
 # Run the exploratory worst-first sampler locally with a soft task perspective.
 # Uses ~/.anno_cache to match the CI actions/cache path for both muxer state and eval history.

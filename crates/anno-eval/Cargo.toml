@@ -49,6 +49,10 @@ name = "journey_pick"
 required-features = ["eval"]
 
 [[example]]
+name = "public_benchmark_report"
+required-features = ["eval"]
+
+[[example]]
 name = "cache_inventory"
 required-features = ["eval"]
 
@@ -93,11 +97,10 @@ time = { version = "0.3.49", default-features = false, features = ["parsing"] }
 log = { workspace = true }
 regex = { workspace = true }
 dirs = { workspace = true }
-ureq = { workspace = true, features = ["json"] }
+ureq = { workspace = true, optional = true }
 rusqlite = { workspace = true }
-fs2 = "0.4.3"
 sha2 = { workspace = true }
-zip = { version = "9", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 quick-xml = "0.41"
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
@@ -123,7 +126,7 @@ default = []
 parallel = ["dep:rayon"]
 # Muxer-backed evaluation harnesses + sampling tooling.
 # Pulls in bundled trained weights so classical backends use real parameters, not heuristics.
-eval = ["dep:muxer", "bundled-crf-weights", "bundled-hmm-params"]
+eval = ["dep:ureq", "dep:muxer", "bundled-crf-weights", "bundled-hmm-params"]
 discourse = ["anno/discourse"]
 eval-profiling = []
 eval-bias = []

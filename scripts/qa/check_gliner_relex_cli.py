@@ -75,7 +75,7 @@ def stock_decision_digest(cases):
 def check_producer(producer, generation):
     if (producer["source"], producer["method"], producer["model_version"]) != (
             "knowledgator/gliner-relex-large-v1.0", "Neural", "sha256:" + generation):
-        raise ValueError(f"Incorrect relation producer: {producer}")
+        raise ValueError("Incorrect relation producer identity")
 
 
 def native_runtime(binary, explicit):
@@ -94,7 +94,7 @@ def native_runtime(binary, explicit):
         path = Path(selected).resolve(strict=True)
         os.environ["ORT_DYLIB_PATH"] = str(path)
     if explicit and explicit.resolve() != path:
-        raise ValueError(f"Selected ORT {path} differs from requested {explicit}")
+        raise ValueError("Selected ORT library differs from the requested runtime")
     # OrtApiBase is stable across API versions.
     class ApiBase(ctypes.Structure):
         _fields_ = [("get_api", ctypes.c_void_p), ("version", ctypes.CFUNCTYPE(ctypes.c_char_p))]
@@ -108,17 +108,17 @@ def score_map(rows, key):
     for row in rows:
         item = key(row)
         if item in scores:
-            raise ValueError(f"Duplicate prediction {item!r}")
+            raise ValueError("Duplicate prediction identity")
         scores[item] = row["confidence"]
     return scores
 
 
 def parity(observed, expected):
     if observed.keys() != expected.keys():
-        raise ValueError(f"Different prediction keys: got {observed.keys()}, expected {expected.keys()}")
+        raise ValueError(f"Prediction identities differ: {len(expected.keys() - observed.keys())} missing, {len(observed.keys() - expected.keys())} extra")
     errors = [abs(observed[k] - expected[k]) for k in expected]
     if any(not math.isfinite(e) or e > 2e-4 for e in errors):
-        raise ValueError(f"Prediction score drift: {errors}")
+        raise ValueError(f"Prediction score drift across {len(errors)} aligned predictions")
     return max(errors, default=0.0)
 
 
@@ -127,10 +127,13 @@ def check_case(binary, case, generation, export):
                "--text", case["text"], "--extract-types", ",".join(case["entity_labels"]),
                "--relation-types", ",".join(case["relation_labels"]), "--relation-threshold",
                str(case["threshold"]), "--format", "json", "--export", str(export), "--quiet"]
-    output = json.loads(subprocess.check_output(command))
+    process = subprocess.run(command, capture_output=True)
+    if process.returncode:
+        raise ValueError(f"Native extraction exited {process.returncode}")
+    output = json.loads(process.stdout)
     provenance = output["provenance"]
     if (provenance["model"], provenance["runtime_model"]) != ("gliner-relex", "GLiNER-ONNX"):
-        raise ValueError(f"Unexpected Relex runtime: {provenance}")
+        raise ValueError("Unexpected Relex runtime")
     check_producer(provenance["relation_producer"], generation)
     for edge in output["relations"]:
         check_producer(edge["provenance"], generation)
@@ -144,7 +147,10 @@ def check_case(binary, case, generation, export):
     target = score_map(case["relations"], ref_edge)
     edge_delta = parity(score_map(output["relations"], flat_edge), target)
     saved = json.loads(export.read_text())
-    loaded = json.loads(subprocess.check_output([str(binary), "enhance", str(export), "--quiet", "--format", "grounded"]))
+    reloaded = subprocess.run([str(binary), "enhance", str(export), "--quiet", "--format", "grounded"], capture_output=True)
+    if reloaded.returncode:
+        raise ValueError(f"Native grounded reload exited {reloaded.returncode}")
+    loaded = json.loads(reloaded.stdout)
     if saved != loaded:
         raise ValueError(f'{case["name"]}: grounded document changed on reload')
     signals = {s["id"]: s for s in loaded["signals"]}
@@ -162,7 +168,7 @@ def check_case(binary, case, generation, export):
             return loc["start"], loc["end"]
         key = (span("head"), item["relation"]["relation_type"], span("tail"))
         if key in scored:
-            raise ValueError(f"Duplicate grounded relation {key}")
+            raise ValueError("Duplicate grounded relation identity")
         scored[key] = item["relation"]["confidence"]
         check_producer(item["provenance"], generation)
     parity(scored, target)
@@ -209,8 +215,12 @@ def main():
         for index, case in enumerate(cases):
             try:
                 result = check_case(binary, case, generation, Path(directory) / f"{index}.json")
-            except (ValueError, KeyError, subprocess.CalledProcessError) as error:
-                raise ValueError(f'{case["name"]}: {error}') from error
+            except subprocess.CalledProcessError as error:
+                raise ValueError(f'{case["name"]}: native command exited {error.returncode}') from None
+            except KeyError:
+                raise ValueError(f'{case["name"]}: required response field missing') from None
+            except ValueError as error:
+                raise ValueError(f'{case["name"]}: {error}') from None
             receipt["cases"].append(result)
             print(f'{result["name"]}: {result["mentions"]} mentions, {result["directed_edges"]} directed edges',
                   file=sys.stderr, flush=True)

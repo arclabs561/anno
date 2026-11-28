@@ -5,10 +5,10 @@
 //! `Tensor::from_array(Array)` impls and instead route through the “(shape, data)”
 //! constructor, which is stable and does not depend on matching `ndarray` crate versions.
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use ort::value::Tensor;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 /// Create an `ort::value::Tensor` from an owned ndarray array by extracting `(shape, data)`.
 pub fn tensor_from_ndarray<T, D>(
     arr: ndarray::ArrayBase<ndarray::OwnedRepr<T>, D>,

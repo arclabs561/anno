@@ -153,13 +153,12 @@ fn snapshot_assets_available(snapshot: &Path) -> bool {
 }
 
 fn cached_snapshot(model_id: &str, revision: &str) -> std::path::PathBuf {
-    let repo = hf_hub::Repo::with_revision(
-        model_id.to_owned(),
-        hf_hub::RepoType::Model,
-        revision.to_owned(),
-    );
-    let cache = hf_hub::Cache::from_env().repo(repo);
-    cache.pointer_path(revision)
+    crate::backends::hf_loader::model_cache_dir(
+        &crate::backends::hf_loader::hub_cache_dir(),
+        model_id,
+    )
+    .join("snapshots")
+    .join(revision)
 }
 
 fn cached_assets_available(model_id: &str, revision: &str) -> bool {
@@ -545,7 +544,7 @@ impl GLiNER2Fastino {
         model_id: &str,
         mut cfg: GLiNER2FastinoConfig,
     ) -> crate::Result<Self> {
-        let api = crate::backends::hf_loader::hf_api()
+        let api = crate::backends::hf_loader::model_source()
             .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: hf_api: {e}")))?;
         if cfg.model_revision.is_none() {
             cfg.model_revision = match model_id {
@@ -555,37 +554,29 @@ impl GLiNER2Fastino {
             };
         }
         let revision = cfg.model_revision.as_deref();
-        let repo = match revision {
-            Some(revision) => api.repo(hf_hub::Repo::with_revision(
-                model_id.to_string(),
-                hf_hub::RepoType::Model,
-                revision.to_string(),
-            )),
-            None => api.model(model_id.to_string()),
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
+        let download = |files: &[&str]| {
+            crate::backends::hf_loader::download_model_file_at_revision(&repo, revision, files)
         };
 
         // Tokenizer + config are co-located with the ONNX files in dtype subdirs.
         // Try fp32_v2/ first, fall back to fp16_v2/, then root for backward compat.
-        let tokenizer_path =
-            crate::backends::hf_loader::download_model_file(&repo, &HUB_TOKENIZERS).map_err(
-                |e| crate::Error::Backend(format!("gliner2_fastino: download tokenizer: {e}")),
-            )?;
+        let tokenizer_path = download(&HUB_TOKENIZERS).map_err(|e| {
+            crate::Error::Backend(format!("gliner2_fastino: download tokenizer: {e}"))
+        })?;
         // config.json is optional — the supported export doesn't include it.
         // Try to download if present, but ignore 404s and fall back to defaults
         // in from_local.
-        let _ = crate::backends::hf_loader::download_model_file(
-            &repo,
-            &["fp32_v2/config.json", "fp16_v2/config.json", "config.json"],
-        );
+        let _ = download(&["fp32_v2/config.json", "fp16_v2/config.json", "config.json"]);
 
         // Download the 8 v2 ONNX files. Try fp32_v2 first (clearer dtype
         // semantics for debugging), then fp16_v2 as fallback.
         for base in sessions::GRAPH_ROLES {
             let candidates = hub_graph_candidates(base);
             let candidate_refs: Vec<&str> = candidates.iter().map(String::as_str).collect();
-            crate::backends::hf_loader::download_model_file(&repo, &candidate_refs).map_err(
-                |e| crate::Error::Backend(format!("gliner2_fastino: download {base}: {e}")),
-            )?;
+            download(&candidate_refs).map_err(|e| {
+                crate::Error::Backend(format!("gliner2_fastino: download {base}: {e}"))
+            })?;
         }
 
         // Resolve to the snapshot dir and dispatch.

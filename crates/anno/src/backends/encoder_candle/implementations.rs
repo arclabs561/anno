@@ -532,9 +532,9 @@ pub mod candle_impl {
         /// Load encoder from HuggingFace model (safetensors).
         #[cfg(not(target_arch = "wasm32"))]
         pub fn from_pretrained(model_id: &str) -> Result<Self> {
-            let api = crate::backends::hf_loader::hf_api()?;
+            let api = crate::backends::hf_loader::model_source()?;
 
-            let repo = api.model(model_id.to_string());
+            let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
             // Download config, weights, tokenizer
             // Try config.json first, fall back to gliner_config.json for GLiNER models

@@ -75,7 +75,7 @@
       "name": "AgCNER",
       "edition": "Figshare constituent datasets version 1",
       "source": "https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873",
-      "citation": "Hao et al., AgCNER dataset, Figshare. Files 42188205, 42188211 and 42188208.",
+      "citation": "Guo, Yao, Hao, Liu and Li (2024), AgCNER datasets, Figshare v1. Files 42188205, 42188211 and 42188208.",
       "terms_label": "CC0 1.0",
       "terms_source": "https://doi.org/10.6084/m9.figshare.c.6807873",
       "terms_scope": "The Figshare records for the three individual files identify CC0. This is the file-level grant.",

@@ -75,6 +75,12 @@ pattern and heuristic layers, including in ONNX builds. Python callers select
 `Extractor(backend="bert")` or `Extractor(backend="gliner")` to run a neural
 NER backend in an ONNX-enabled wheel. [Python bindings](../crates/anno-py/README.md)
 
+### Build the Rust library for local ONNX weights
+
+Use `default-features = false, features = ["onnx-local"]` on the `anno` dependency when your deployment supplies the model files. For example, `BertNEROnnx::new("/models/bert-ner")` loads a prepared directory. Backends that accept Hub model IDs can also read an installed snapshot through its `refs/main` entry. A cache miss returns an error.
+
+The default `onnx` feature includes model downloads. Cargo combines features across dependencies, so enabling `onnx`, `candle`, or `hub-downloads` elsewhere brings the Hub client back into the build. ONNX Runtime still needs its native library at build and run time.
+
 ### Which mentions should coreference use?
 
 | Resolver | Input → output | Calling and interpreting it |

@@ -167,6 +167,32 @@ class EvidenceIndexTest(unittest.TestCase):
             [r["status"] for r in index if r["id"] == "Y"], ["No indexed evaluation"]
         )
 
+    def test_chinese_original_coordinates_and_romanian_label_policies_are_distinct(
+        self,
+    ):
+        from dataset_evidence_index import study_outcomes
+
+        outcomes = list(study_outcomes(EVAL))
+        chinese = [
+            row for row in outcomes if row["source"] == "agcner-source-coordinates.json"
+        ]
+        self.assertEqual({row["split"] for row in chinese}, {"train", "dev", "test"})
+        self.assertEqual(sum(row["examples"] for row in chinese), 59776)
+        self.assertTrue(all(row["metric_value"] == 0 for row in chinese))
+        romanian = [
+            row
+            for row in outcomes
+            if row["source"] == "histnero-ner-scoring.json" and row["split"] == "dev"
+        ]
+        self.assertEqual(len({row["scope"] for row in romanian}), 2)
+        self.assertEqual(
+            {row["detail"] for row in romanian},
+            {
+                "17 exact, 1222 predicted, 675 gold",
+                "83 exact, 1222 predicted, 673 gold",
+            },
+        )
+
     def test_all_registry_ids_and_deduplicated_annotation_units_remain_available(self):
         coverage = {r["id"] for r in read("dataset-coverage.csv")}
         outcomes = read("dataset-evaluation-coverage.csv")

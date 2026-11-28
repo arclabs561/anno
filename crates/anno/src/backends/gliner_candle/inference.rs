@@ -158,8 +158,8 @@ impl GLiNERCandle {
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         let device = best_device()?;
 
-        let api = crate::backends::hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let api = crate::backends::hf_loader::model_source()?;
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Download files
         // Try knowledgator models first (they have safetensors + tokenizer.json)

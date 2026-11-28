@@ -18,7 +18,7 @@ const TOKEN_SEP: u32 = 128003;
 /// Default max span width from GLiNER config.
 pub(super) const MAX_SPAN_WIDTH: usize = 12;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl GLiNERPoly {
     /// Is a self-contained bi-encoder export ready for offline sampling?
     #[must_use]
@@ -34,7 +34,7 @@ impl GLiNERPoly {
         super::local_model_cache_candidates()
             .into_iter()
             .find(|dir| Export::ready(dir))
-            .or_else(|| Export::hub_dir(&hf_hub::Cache::from_env(), model_name))
+            .or_else(|| Export::hub_dir(&crate::backends::hf_loader::hub_cache_dir(), model_name))
     }
 
     fn uses_label_encoder(session: &ort::session::Session) -> Result<bool> {
@@ -77,11 +77,14 @@ impl GLiNERPoly {
         // Hub caches and custom Hub models without probing six absent files on a cold run.
         if model_name == crate::models::GLINER_POLY {
             use crate::backends::hf_loader::{FP32_ONNX_PATHS, QUANTIZED_ONNX_PATHS};
-            let repo = hf_hub::Cache::from_env().model(model_name.to_owned());
+            let repo = crate::backends::hf_loader::model_cache_dir(
+                &crate::backends::hf_loader::hub_cache_dir(),
+                model_name,
+            );
             if !QUANTIZED_ONNX_PATHS
                 .iter()
                 .chain(FP32_ONNX_PATHS)
-                .any(|name| repo.get(name).is_some())
+                .any(|name| crate::backends::hf_loader::cached_main_file(&repo, name).is_some())
             {
                 return Err(Error::Retrieval(
                     "GLiNER Poly requires a prepared ONNX export. Run uv run scripts/export_gliner_poly_onnx.py --strategy manual and set GLINER_POLY_MODEL_PATH to its output directory.".into()
@@ -204,8 +207,8 @@ impl GLiNERPoly {
             labels_encoder_name
         );
 
-        let api = crate::backends::hf_loader::hf_api()?;
-        let repo = api.model(labels_encoder_name.to_owned());
+        let api = crate::backends::hf_loader::model_source()?;
+        let repo = crate::backends::hf_loader::hub_model(&api, labels_encoder_name);
         let tok_path = crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
         crate::backends::hf_loader::load_tokenizer(&tok_path)
     }
@@ -226,11 +229,12 @@ impl GLiNERPoly {
     ) -> Result<Self> {
         use crate::backends::hf_loader;
 
-        if let Some(dir) = Export::hub_dir(&hf_hub::Cache::from_env(), model_name) {
+        if let Some(dir) = Export::hub_dir(&crate::backends::hf_loader::hub_cache_dir(), model_name)
+        {
             return Self::from_dir_with_options(&dir, optimization_level, num_threads);
         }
-        let api = hf_loader::hf_api()?;
-        let repo = api.model(model_name.to_string());
+        let api = hf_loader::model_source()?;
+        let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         // Download model -- try quantized variants first if preferred.
         let (model_path, is_quantized) = hf_loader::download_onnx_model(&repo, prefer_quantized)?;
@@ -278,7 +282,7 @@ impl GLiNERPoly {
             .as_deref()
             .unwrap_or("BAAI/bge-base-en-v1.5");
 
-        let label_repo = api.model(labels_encoder_name.to_owned());
+        let label_repo = crate::backends::hf_loader::hub_model(&api, labels_encoder_name);
         let label_tok_path = hf_loader::download_model_file(&label_repo, &["tokenizer.json"])?;
         let label_tokenizer = hf_loader::load_tokenizer(&label_tok_path)?;
 

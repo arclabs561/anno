@@ -32,9 +32,9 @@
 
 use crate::{Entity, Error, Language, Result};
 use crate::{EntityCategory, EntityType};
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use std::collections::HashMap;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use std::sync::Mutex;
 
 /// Special token IDs for GLiNER models (defaults, overridden from gliner_config.json).
@@ -50,7 +50,7 @@ const DEFAULT_TOKEN_SEP: u32 = 128003;
 const MAX_SPAN_WIDTH: usize = 12;
 
 /// Configuration for GLiNER model loading.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod config;
 pub use config::*;
 
@@ -118,17 +118,17 @@ pub struct GLiNEROnnxArtifactPaths {
     pub label_tokenizer: Option<std::path::PathBuf>,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod inference;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod relex;
 pub(crate) use inference::expand_ner_label;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) use inference::looks_like_company_name;
 use inference::DEFAULT_GLINER_LABELS;
 /// Approximate max input chars for GLiNER before chunking kicks in.
 /// 512 tokens ~ 2000 chars for typical English text.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 const MAX_INPUT_CHARS: usize = 2000;
 
 impl crate::Model for GLiNEROnnx {
@@ -139,7 +139,7 @@ impl crate::Model for GLiNEROnnx {
     ) -> crate::Result<Vec<Entity>> {
         // Use default labels for the Model trait interface
         // For custom labels, use the extract(text, labels, threshold) method directly
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             if text.chars().count() > MAX_INPUT_CHARS {
                 use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
@@ -207,7 +207,7 @@ impl crate::Model for GLiNEROnnx {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
     fn extract_with_types(
         &self,
@@ -239,7 +239,7 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
 
 crate::backends::macros::define_feature_stub! {
     struct GLiNEROnnx;
-    feature = "onnx";
+    feature = "onnx-local";
     name = "GLiNER-ONNX (unavailable)";
     description = "GLiNER with ONNX Runtime backend - requires 'onnx' feature";
     error_msg = "GLiNER-ONNX requires the 'onnx' feature";

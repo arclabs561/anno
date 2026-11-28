@@ -12,24 +12,14 @@ readme = "../../README.md"
 keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
-  "/src/**/*.rs",
-  "/src/viz/report.css",
-  "/src/backends/coref/maverick_worker.py",
-  "/src/backends/kniv_worker.py",
-  "/src/backends/glinerel/worker.py",
-  "/src/backends/otter/worker.py",
-  "/src/backends/otter/models.json",
-  "/src/backends/coref/maverick_models.json",
+  # Ship the source tree with its compile-time assets, including feature-gated models.
+  "/src/",
   "/tests/fixtures/maverick-worker.sh",
   "/tests/fixtures/tplinker_plus_tags.json",
   "/examples/fcoref_word_spans.rs",
   "/examples/coref_gap_panel.rs",
   "/examples/maverick_export.rs",
   "/examples/import_dwie_relations.rs",
-  # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
-  # whitelist shipped 0.10.0 without them, breaking those features on crates.io
-  "/src/backends/hmm_params.json",
-  "/src/backends/crf_weights.json",
   "/Cargo.toml",
   "/Cargo.lock",
   "/LICENSE",
@@ -99,6 +89,7 @@ criterion = { workspace = true }
 
 [features]
 default = ["onnx", "heuristic-fr"]
+hub-downloads = ["dep:hf-hub"]
 heuristic-fr = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
@@ -108,11 +99,12 @@ schema = ["dep:schemars"]
 # Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed
 # adapters from extraction output to KnowledgeGraph and N-Triples).
 graph = ["dep:lattix"]
-onnx = [
+onnx = ["onnx-local", "hub-downloads"]
+# Native ONNX inference with local files and pre-populated Hub snapshots.
+onnx-local = [
   "dep:ort",
   "dep:ndarray",
   "dep:tokenizers",
-  "dep:hf-hub",
   "dep:lru",
   "dep:safetensors",
 ]
@@ -146,7 +138,7 @@ candle = [
   "dep:candle-nn",
   "dep:safetensors",
   "dep:tokenizers",
-  "dep:hf-hub",
+  "hub-downloads",
 ]
 metal = ["candle", "candle-core/metal"]
 cuda = ["candle", "candle-core/cuda"]
@@ -220,19 +212,19 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[example]]
 name = "fcoref_word_spans"
 test = true
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "fcoref_resource_profile"
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "coref_gap_panel"
 
 [[example]]
 name = "nuner_panel"
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "stacked_nuner_routing"
-required-features = ["onnx"]
+required-features = ["onnx-local"]

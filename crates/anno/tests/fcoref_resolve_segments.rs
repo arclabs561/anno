@@ -1,4 +1,4 @@
-#![cfg(feature = "onnx")]
+#![cfg(feature = "onnx-local")]
 
 use anno::{FCoref, FCorefConfig};
 

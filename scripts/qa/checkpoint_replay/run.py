@@ -101,6 +101,7 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--models", type=Path, required=True, help="Model cache directory")
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--aggregate", action="store_true", help="Write counts and runtime measurements for a shared receipt")
     parser.add_argument("--fetch", action="store_true", help="Download missing or incorrect pinned artifacts")
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
@@ -116,7 +117,11 @@ def main():
     try:
         for name, spec in json.loads(manifest.read_text()).items():
             directory = (args.models / name).absolute()
-            record = {"repo": spec["repo"], "revision": spec["revision"], "cases": []}
+            record = {"repo": spec["repo"], "revision": spec["revision"]}
+            if args.aggregate:
+                record.update(cases_completed=0, predicted_entities=0, elapsed_seconds_including_load=0.0)
+            else:
+                record["cases"] = []
             report["models"][name] = record
             verify_assets(directory, spec, args.fetch)
             record["verified_sha256"] = {k: v["sha256"] for k, v in spec["files"].items()}
@@ -127,7 +132,13 @@ def main():
                 for filename in spec["files"]:
                     (verified / filename).symlink_to(directory / filename)
                 for case in spec["cases"]:
-                    record["cases"].append(check_case(binary, verified, spec, case))
+                    observed = check_case(binary, verified, spec, case)
+                    if args.aggregate:
+                        record["cases_completed"] += 1
+                        record["predicted_entities"] += len(observed["entities"])
+                        record["elapsed_seconds_including_load"] += observed["elapsed_seconds_including_load"]
+                    else:
+                        record["cases"].append(observed)
         report["complete"] = True
     finally:
         report["maximum_child_peak_rss_kib"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss

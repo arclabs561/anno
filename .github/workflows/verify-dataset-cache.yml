@@ -1,7 +1,17 @@
 name: Verify S3 dataset cache
 on:
   workflow_dispatch:
+    inputs:
+      bucket:
+        description: Authorized S3 bucket (defaults to the ANNO_S3_BUCKET repository variable)
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      bucket:
+        description: Authorized S3 bucket
+        required: false
+        type: string
 
 permissions: {}
 
@@ -14,18 +24,22 @@ jobs:
       contents: read
       id-token: write
     env:
-      BUCKET: ${{ vars.ANNO_S3_BUCKET || 'arc-anno-data' }}
+      BUCKET: ${{ inputs.bucket || vars.ANNO_S3_BUCKET }}
+      CACHE_ROLE: ${{ vars.ANNO_AWS_ROLE_ARN }}
       # Same release as scripts/qa/prepare_matrix_wikigold.sh.
       WIKIGOLD_SHA256: c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check the authorized role and bucket
+        run: python3 .github/scripts/check_dataset_cache.py
       - name: Build the dataset verification tools
         run: cargo build --locked -p anno-eval --features eval --example wikigold_cache_probe --example cache_inventory
       - name: Assume the cache role with read-only access to the verification inputs
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
         with:
+          mask-aws-account-id: true
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION || 'us-east-1' }}
           inline-session-policy: >-
@@ -48,7 +62,10 @@ jobs:
           trap 'rm -rf -- "$work"' EXIT
           # JSON output lets the AWS CLI combine all pages before applying the query.
           aws s3api list-objects-v2 --bucket "$BUCKET" --prefix datasets/ \
-            --output json --query 'Contents[].Key' > "$work/keys.json"
+            --output json --query 'Contents[].Key' > "$work/keys.json" 2> "$work/aws.stderr" || {
+            echo "::error::Unable to list the configured dataset prefix. Check the role's ListBucket permission."
+            exit 1
+          }
           count=$(jq 'length' "$work/keys.json")
           echo "Current objects under datasets/: $count" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -60,12 +77,15 @@ jobs:
             if jq -e --arg key "$key" '(. // []) | index($key) != null' "$work/keys.json" >/dev/null; then
               # One extra byte makes a longer object fail even if its prefix matches.
               aws s3api get-object --bucket "$BUCKET" --key "$key" --range bytes=0-318530 \
-                "$work/sample" >/dev/null
+                "$work/sample" >/dev/null 2> "$work/aws.stderr" || {
+                echo "::error::Unable to read the pinned WikiGold object. Check the role's GetObject permission."
+                exit 1
+              }
               echo "$WIKIGOLD_SHA256  $work/sample" | sha256sum --check --status || {
                 echo 'WikiGold checksum mismatch.' | tee -a "$GITHUB_STEP_SUMMARY"
                 exit 1
               }
-              echo "Verified $key (SHA-256 $WIKIGOLD_SHA256)." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "Verified pinned WikiGold bytes (SHA-256 $WIKIGOLD_SHA256)." | tee -a "$GITHUB_STEP_SUMMARY"
               target/debug/examples/cache_inventory "$work/keys.json" "$key" "$work/sample" > "$figures/s3-cache-inventory.json"
               tee -a "$GITHUB_STEP_SUMMARY" < "$figures/s3-cache-inventory.json"
               exit 0
@@ -77,7 +97,11 @@ jobs:
         env:
           ANNO_S3_CACHE: "0"
           ANNO_CACHE_DIR: ${{ runner.temp }}/wikigold-upstream
-        run: target/debug/examples/wikigold_cache_probe > "$RUNNER_TEMP/s3-dataset-cache-figures/wikigold-upstream.json"
+        run: |
+          target/debug/examples/wikigold_cache_probe > "$RUNNER_TEMP/s3-dataset-cache-figures/wikigold-upstream.json" 2> "$RUNNER_TEMP/upstream.err" || {
+            echo "::error::Could not score the registered WikiGold source. Check upstream availability and parser compatibility."
+            exit 1
+          }
       - name: Compare cold S3 and warm local loader results with upstream
         env:
           ANNO_S3_CACHE: "1"
@@ -88,8 +112,12 @@ jobs:
           set -euo pipefail
           probe=target/debug/examples/wikigold_cache_probe
           figures="$RUNNER_TEMP/s3-dataset-cache-figures"
-          "$probe" > "$figures/wikigold-cold.json"
-          "$probe" > "$figures/wikigold-warm.json"
+          for stage in cold warm; do
+            "$probe" > "$figures/wikigold-$stage.json" 2> "$RUNNER_TEMP/probe.err" || {
+              echo "::error::WikiGold $stage load failed. Check the configured cache and pinned input."
+              exit 1
+            }
+          done
           results=("$figures"/wikigold-{upstream,cold,warm}.json)
           jq -cs '.' "${results[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
           jq -es --arg sha "$WIKIGOLD_SHA256" '
@@ -98,7 +126,7 @@ jobs:
             and (map(.dataset) | unique | length == 1)
             and (map(.heuristic_score) | unique | length == 1)
           ' "${results[@]}" >/dev/null
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: false
       - name: Plot the verified cache inventory
