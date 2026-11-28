@@ -131,6 +131,89 @@ def study_outcomes(evidence):
                 detail=f'{counts["gold"]} gold, {counts["predicted"]} predicted',
             )
 
+    source = "crossre-endpoint-budget.json"
+    data = receipt(evidence, source)
+    selection = data["selection"]
+    fraction = selection["primary_budget_percent_of_eligible"]
+    cohort_roles = {
+        "calibration": (
+            "development",
+            "calibration used to select the endpoint weight",
+        ),
+        "confirmation": (
+            "development",
+            "independent confirmation on unused development texts",
+        ),
+        "additional_test": (
+            "test",
+            "additional official test texts previously examined for other rules",
+        ),
+        "balanced_test": ("test", "original balanced official test panel"),
+        "outside_content_holdout": (
+            "test",
+            "official occurrences outside the unique-text holdout",
+        ),
+        "full_official_test": (
+            "test",
+            "complete official test including these three subsets",
+        ),
+    }
+    if set(data["panels"]) != set(cohort_roles):
+        raise ValueError("Incomplete CrossRE queue cohorts")
+    panels = data["panels"]
+    official_subsets = ("balanced_test", "additional_test", "outside_content_holdout")
+    if (
+        sum(panels[k]["scope"]["sentences"] for k in official_subsets)
+        != panels["full_official_test"]["scope"]["sentences"]
+    ):
+        raise ValueError(
+            "CrossRE official release must account for its three test subsets"
+        )
+    for cohort_name, (split, role) in cohort_roles.items():
+        panel = data["panels"][cohort_name]
+        scope, budget = panel["scope"], panel["budgets"][str(fraction)]
+        for key, policy in (
+            ("confidence", "predicate confidence"),
+            ("endpoint", "endpoint-weighted confidence"),
+        ):
+            weight = selection["selected_endpoint_weight"] if key == "endpoint" else 0
+            yield score(
+                "CrossRE",
+                "relation review",
+                "GLiNER-Relex",
+                split,
+                f"{role} · {policy} queue",
+                scope["sentences"],
+                "sentences",
+                source,
+                panel_digest=scope["input_sha256"],
+                detail=f'{budget["review_slots"]} review slots at {fraction}% of eligible sentences · endpoint weight {weight}',
+                metric="correct additions in review queue",
+                metric_value=budget["counts"].get(key + "_correct", 0),
+            )
+
+    source = "crossre-cli-predicate-gates.json"
+    data = receipt(evidence, source)
+    for split, panel in data["panels"].items():
+        if set(panel["index_text_sha256_by_domain"]) != set(domain_ids):
+            raise ValueError(
+                "The pooled predicate-gate controls require every CrossRE domain"
+            )
+        for gate, counts in panel["predicate_gates"].items():
+            yield score(
+                "CrossRE",
+                "re",
+                "GLiNER-Relex",
+                split,
+                f"six-domain pooled replay on the existing balanced panel · predicate gate {gate}",
+                panel["sentences"],
+                "sentences",
+                source,
+                metric="exact directed relations",
+                metric_value=counts["matched"],
+                detail=f'{panel["gold"]} gold, {counts["predicted"]} predicted',
+            )
+
     for source in ("wnut-native-comparison.json", "wnut-stacked-comparison.json"):
         data = receipt(evidence, source)
         for setting, arm in data["arms"].items():
@@ -192,22 +275,45 @@ def study_outcomes(evidence):
 
     source = "nuner-misc-prompt.json"
     data = receipt(evidence, source)
-    for group, ident, split in (("wikigold", "WikiGold", "unsplit release"), ("wnut_test", "Wnut17", "test")):
+    for group, ident, split in (
+        ("wikigold", "WikiGold", "unsplit release"),
+        ("wnut_test", "Wnut17", "test"),
+    ):
         panel = data[group]
         digest = panel["source"]["sha256"]
         if group == "wnut_test":
             digest = digest["emerging.test.annotated"]
-            n, panel_digest = panel["source"]["test_sentences"], panel["source"]["test_reconstructed_texts_sha256"]
+            n, panel_digest = (
+                panel["source"]["test_sentences"],
+                panel["source"]["test_reconstructed_texts_sha256"],
+            )
         else:
-            n, panel_digest = panel["source"]["sentence_occurrences"], panel["source"]["native_gold_cases_sha256"]
+            n, panel_digest = (
+                panel["source"]["sentence_occurrences"],
+                panel["source"]["native_gold_cases_sha256"],
+            )
         if n != panel["sentences"] or panel["nuner_calls"] > n:
-            raise ValueError(f"MISC prompt scoring population differs from {ident} source")
+            raise ValueError(
+                f"MISC prompt scoring population differs from {ident} source"
+            )
         for arm in ("stock", "candidate"):
             prompts = data[arm + "_prompts"]
-            yield score(ident, "ner", "stacked", split, f"{arm} · {len(prompts)} NuNER prompts, BERT {data['bert']}",
-                        panel["sentences"], "sentences", source, digest, panel_digest=panel_digest, reported_backend="nuner",
-                        detail=f'{panel["nuner_calls"]} sentences called NuNER via stock routing',
-                        metric="exact typed matches", metric_value=panel[arm + "_exact"])
+            yield score(
+                ident,
+                "ner",
+                "stacked",
+                split,
+                f"{arm} · {len(prompts)} NuNER prompts, BERT {data['bert']}",
+                panel["sentences"],
+                "sentences",
+                source,
+                digest,
+                panel_digest=panel_digest,
+                reported_backend="nuner",
+                detail=f'{panel["nuner_calls"]} sentences called NuNER via stock routing',
+                metric="exact typed matches",
+                metric_value=panel[arm + "_exact"],
+            )
 
     source = "coref-panels.json"
     data = receipt(evidence, source)
@@ -379,18 +485,27 @@ def matched_splits(matches):
         "test.tsv": "test",
         "test.txt": "test",
         "gap-test.tsv": "test",
-        "complete linked release": "unsplit release",
         "unsplit": "unsplit release",
     }
     for row in matches:
         if row["cache_id"] == row["publisher_id"] and not is_archive(row["source"]):
             label = row["split_or_subset"]
+            if row["cache_id"] == "WikiGold" and label == "complete linked release":
+                label = "unsplit release"  # This particular publisher release has no official split.
             if label:
                 result[(row["cache_id"], row["sha256"])].add(aliases.get(label, label))
     return result
 
 
 def assemble(coverage, declarations, outcomes, matches):
+    inventory_ids = {row["id"] for row in coverage}
+    registered = set(declarations)
+    if len(inventory_ids) != len(coverage) or inventory_ids != registered:
+        raise ValueError(
+            "The coverage inventory must include each registry ID once. "
+            f"Missing from the survey: {sorted(registered - inventory_ids)}. "
+            f"Missing from the registry: {sorted(inventory_ids - registered)}."
+        )
     by_id = defaultdict(list)
     for row in outcomes:
         if row["id"] not in declarations:
@@ -441,8 +556,6 @@ def assemble(coverage, declarations, outcomes, matches):
             ),
         ):
             results.append({**base, **record})
-    if not set(by_id).issubset({r["id"] for r in results}):
-        raise ValueError("An outcome is missing from the coverage snapshot")
     return results
 
 

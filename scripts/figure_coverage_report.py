@@ -76,7 +76,8 @@ def coverage_text(evidence, rendered, report):
     sections["routes"] += (
         f"\n\nThe direct reader measured files for **{len(direct_ids)} of {len(coverage)} registry IDs**. "
         f"It obtained tagged-token counts for **{direct_tagged} IDs**. Combining all four routes gives **{tagged} IDs** "
-        "with a tagged-token denominator. The format and language panels describe selection by the direct reader."
+        "with a tagged-token denominator. The format and language panels describe selection by the direct reader. "
+        "[Declared format, language and direct-reader result for each ID](dataset-figure-inventory.csv)"
     )
     evaluation = rows(rendered / "dataset-evaluation-coverage.csv")
     survey = json.loads(

@@ -120,6 +120,12 @@ class MatrixReceiptsTest(unittest.TestCase):
     importlib.util.find_spec("matplotlib"), "explorer uses the figure generator"
 )
 class EvidenceIndexTest(unittest.TestCase):
+    def test_registry_addition_cannot_disappear_from_a_frozen_inventory(self):
+        from dataset_evidence_index import assemble
+
+        with self.assertRaisesRegex(ValueError, "NewDataset"):
+            assemble([{"id": "Old"}], {"Old": {}, "NewDataset": {}}, [], {})
+
     def test_only_unambiguous_own_file_bytes_supply_an_unreported_split(self):
         from dataset_evidence_index import assemble, matched_splits
 

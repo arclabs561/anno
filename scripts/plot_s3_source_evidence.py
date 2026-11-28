@@ -79,7 +79,12 @@ def summary_counts(summary):
         or sum(kinds.values()) != summary["objects_listed"]
     ):
         raise ValueError("Every registered payload needs one known outcome")
-    if not (matched <= ids <= n and matched <= own and bool(own) == bool(matched) and bool(ids) == bool(n)):
+    if not (
+        matched <= ids <= n
+        and matched <= own
+        and bool(own) == bool(matched)
+        and bool(ids) == bool(n)
+    ):
         raise ValueError("Inconsistent distinct dataset and payload match counts")
     totals = {"payload": n, "own": own, "read": 0, "skipped": 0, "failed": 0}
     grouped = {}
