@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
       - name: Check the authorized role and bucket
         run: python3 .github/scripts/check_dataset_cache.py
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           enable-cache: false
       - name: Install the pinned comparison dependencies
@@ -40,7 +40,7 @@ jobs:
           uv sync --python 3.12 --script scripts/qa/cache_source_evidence.py
           uv sync --python 3.12 --script scripts/plot_s3_source_evidence.py
       - name: Assume the cache role for the dataset prefix listing
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5
         with:
           mask-aws-account-id: true
           role-to-assume: ${{ env.CACHE_ROLE }}

@@ -4,7 +4,8 @@ use anno::backends::hmm::HmmNER;
 use anno::backends::regex::RegexNER;
 use anno::backends::stacked::StackedNER;
 use anno::Model;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 // ---------------------------------------------------------------------------
 // Test inputs (increasing complexity)

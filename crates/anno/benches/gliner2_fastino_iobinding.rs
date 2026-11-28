@@ -25,7 +25,8 @@ use anno::backends::gliner2_fastino::{
     ExecutionMode, GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
 };
 use anno::backends::inference::ZeroShotNER;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 const MODEL_ID: &str = SUPPORTED_GLINER2_FASTINO_MODEL;
 
