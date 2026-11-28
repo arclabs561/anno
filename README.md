@@ -3,8 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Anno finds mentions in text and links them to the words they refer to.
-Each mention carries its range in the original text.
+Anno finds names in text and records where each one appears. It can also
+link mentions of the same person, place, or thing across sentences.
 
 [Rust](#find-mentions-in-rust) · [Command line](docs/QUICKSTART.md#install) · [Python](#compare-two-notices-in-python)
 
@@ -19,32 +19,26 @@ use anno::extract;
 fn main() -> anno::Result<()> {
     let text =
         "Lynn Conway worked at IBM.";
-    for e in extract(text)? {
-        println!("{} [{}]",
-            e.text, e.entity_type);
+    for mention in extract(text)? {
+        println!(
+            "{} [{}] {}..{}",
+            mention.text,
+            mention.entity_type,
+            mention.start(),
+            mention.end()
+        );
     }
     Ok(())
 }
 ```
 
 ```text
-Lynn Conway [PER]
-IBM [ORG]
+Lynn Conway [PER] 0..11
+IBM [ORG] 22..25
 ```
 
-## Compare two notices in Python
-
-A harbor office issued a revised bulletin. Which date changed?
-Install the Python bindings with `python -m pip install anno-py`.
-The [bulletin example](crates/anno-py/README.md#compare-dates-in-two-bulletins)
-uses `anno_py.Extractor()` on both editions and returns the source line for
-each changed date.
-
-> Applications for a winter berth close on **2026-12-04**.\
-> Applications for a winter berth now close on **2026-12-07**.
-
-The lines tell you what moved: applications stay open three days longer.
-Both notices still schedule the public drawing for December 9.
+Ranges count Unicode scalar values from zero. The end is exclusive.
+[Using these ranges in Rust](docs/CONTRACT.md#source-text-and-offsets)
 
 ## Follow a pronoun across captions
 
@@ -56,16 +50,37 @@ Durand* in the cue at **12.3 seconds**. The caption adapter returns both cue
 ranges so an editor can jump to the earlier line.
 [Reproduce with FCoref](crates/anno/examples/caption_links/README.md)
 
-## Can a missing mention be rescued?
+## Compare two notices in Python
 
-In one FCoref replay, many missed pronoun links lacked an exact name or
-pronoun span in the output. Would giving those spans a place among the
-candidates recover the links?
+A harbor office extended its application deadline. Install the bindings with
+`python -m pip install anno-py`. From the repository root, run:
 
-On a separate panel of 256 GAP development passages, Anno reserved slots for
-the annotated names and pronouns while keeping the candidate budget fixed.
-**186 marked spans entered the candidate set. None of the 512 labeled link
-decisions changed.** The project kept the existing selection policy.
+```sh
+cd crates/anno-py/examples
+python bulletin_diff.py \
+  bulletins/bulletin-edition-1.txt \
+  bulletins/bulletin-edition-2.txt
+```
+
+The script compares the dates in the two notices and returns the source lines
+for the dates whose counts changed:
+
+> Issued 2026-11-18. Applications for a winter berth close on **2026-12-04**.\
+> Issued 2026-11-18. Applications for a winter berth now close on **2026-12-07**.
+
+Applications stay open three days longer. The drawing is still on December 9.
+[Compare your own notices](crates/anno-py/README.md#compare-dates-in-two-bulletins)
+
+## Would supplying the missing names recover a pronoun link?
+
+In an earlier test, FCoref missed 44 true pronoun links. In 41 of those cases,
+at least one of the two mentions was absent at its exact range in the output.
+
+On a separate set of 256 GAP development passages, the researchers gave FCoref
+the locations of the pronouns and candidate names. They reserved space for
+those spans without increasing the total number of candidates the model could
+consider. **186 additional annotated spans made the cut. None of the 512
+labeled link decisions changed.**
 [Original observation](docs/eval/coref-panels.md#gap-pronoun-decisions) ·
 [Experiment and replay](docs/eval/fcoref-marked-rescue.md)
 
