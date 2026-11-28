@@ -3,6 +3,7 @@
 use super::super::eval::{comparison_report, MetricKind, PredictionSource};
 use crate::cli::parser::ModelBackend;
 use anno::core::grounded::EvalComparison;
+use anno_eval::eval::ner_scoring::{NerScoring, ReferenceCounts};
 use std::fs;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -77,14 +78,18 @@ impl Reports {
         id: &str,
         model: ModelBackend,
         elapsed: Duration,
+        scoring: Option<(NerScoring, ReferenceCounts)>,
     ) -> Result<(), String> {
-        let result = comparison_report(
+        let mut result = comparison_report(
             comparison,
             MetricKind::Entity,
             Some(id),
             &PredictionSource::Live { model, elapsed },
             None,
         )?;
+        if let Some((mode, reference)) = scoring {
+            result["ner_scoring"] = serde_json::json!({"mode": mode, "reference": reference});
+        }
         serde_json::to_writer(&mut self.staged, &result)
             .map_err(|e| format!("Failed to write --reports case {id}: {e}"))?;
         self.staged

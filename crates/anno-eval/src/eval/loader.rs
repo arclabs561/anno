@@ -130,6 +130,8 @@ use std::path::PathBuf;
 ///
 pub use super::dataset_registry::DatasetId;
 
+const AGCNER_TEST_URL: &str = "https://ndownloader.figshare.com/files/42188208";
+
 /// Dataset identifier guaranteed to be loadable by [`DatasetLoader`].
 ///
 /// This is a thin wrapper over [`DatasetId`] that enforces loader support via
@@ -140,6 +142,7 @@ pub struct LoadableDatasetId(DatasetId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum DatasetParsePlan {
     Conll,
+    Agcner,
     JsonlNer,
     WikiannJson,
     TweetNer7,
@@ -504,6 +507,9 @@ impl LoadableDatasetId {
     #[must_use]
     fn registry_hint_plan(id: DatasetId) -> Option<DatasetParsePlan> {
         // Hybrids / special cases first.
+        if id == DatasetId::AgCNER {
+            return Some(DatasetParsePlan::Agcner);
+        }
         if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
             return Some(DatasetParsePlan::Tacred);
         }
@@ -642,7 +648,6 @@ impl LoadableDatasetId {
                 | DatasetId::MultiWOZNER
                 | DatasetId::HinglishNER
                 | DatasetId::ChineseNestedNER
-                | DatasetId::AgCNER
                 | DatasetId::LongDocNER
                 | DatasetId::MultiBioNERLong
                 | DatasetId::ReasoningNER
@@ -1062,6 +1067,16 @@ pub struct AnnotatedSentence {
 }
 
 impl AnnotatedSentence {
+    // AgCNER rows are successive characters of the original string. Explicit
+    // whitespace is already part of a token and must survive reconstruction.
+    fn token_separator(&self) -> &'static str {
+        if self.source_dataset == DatasetId::AgCNER {
+            ""
+        } else {
+            " "
+        }
+    }
+
     /// Get text of the sentence.
     #[must_use]
     pub fn text(&self) -> String {
@@ -1069,21 +1084,22 @@ impl AnnotatedSentence {
             .iter()
             .map(|t| t.text.as_str())
             .collect::<Vec<_>>()
-            .join(" ")
+            .join(self.token_separator())
     }
 
     /// Get entities from this sentence.
     #[must_use]
     pub fn entities(&self) -> Vec<super::datasets::GoldEntity> {
-        // Precompute character offsets for each token in `self.text()` (tokens joined by a
-        // single ASCII space). Offsets are in *character* units, not bytes.
+        // Use the same separator as the model input. All offsets count Unicode scalars.
+        let separator = self.token_separator();
+        let separator_chars = separator.chars().count();
         let mut token_starts: Vec<usize> = Vec::with_capacity(self.tokens.len());
         let mut pos: usize = 0;
         for (i, tok) in self.tokens.iter().enumerate() {
             token_starts.push(pos);
             pos += tok.text.chars().count();
             if i + 1 < self.tokens.len() {
-                pos += 1; // the space inserted by `text()`
+                pos += separator_chars;
             }
         }
 
@@ -1107,7 +1123,7 @@ impl AnnotatedSentence {
                     .iter()
                     .map(|t| t.text.as_str())
                     .collect::<Vec<_>>()
-                    .join(" ");
+                    .join(separator);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -1140,7 +1156,7 @@ impl AnnotatedSentence {
                     .iter()
                     .map(|t| t.text.as_str())
                     .collect::<Vec<_>>()
-                    .join(" ");
+                    .join(separator);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -2120,7 +2136,13 @@ impl DatasetLoader {
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
-        self.download_from_url(id, id.download_url().to_owned())
+        // The AgCNER registry identifies its Figshare collection. The actual
+        // evaluation asset is the authors' immutable v1 test file.
+        let url = match id {
+            DatasetId::AgCNER => AGCNER_TEST_URL,
+            _ => id.download_url(),
+        };
+        self.download_from_url(id, url.to_owned())
     }
 
     #[cfg(feature = "eval")]
@@ -2520,10 +2542,19 @@ impl DatasetLoader {
         let source = entry.resolved_url.as_ref().unwrap_or(&entry.source_url);
         dataset.source_url = source.clone();
         dataset.metadata.original_source = Some(source.clone());
-        dataset.metadata.split = entry
-            .resolved_url
-            .as_deref()
-            .and_then(Self::evaluation_split_from_url);
+        dataset.metadata.split = entry.resolved_url.as_deref().and_then(|url| {
+            // Figshare asset IDs identify splits even though their URLs omit filenames.
+            match (dataset.id, url) {
+                (DatasetId::AgCNER, AGCNER_TEST_URL) => Some("test".into()),
+                (DatasetId::AgCNER, "https://ndownloader.figshare.com/files/42188211") => {
+                    Some("dev".into())
+                }
+                (DatasetId::AgCNER, "https://ndownloader.figshare.com/files/42188205") => {
+                    Some("train".into())
+                }
+                _ => Self::evaluation_split_from_url(url),
+            }
+        });
         if dataset.metadata.observed_language.is_none() {
             dataset.metadata.observed_language = entry
                 .resolved_url
@@ -3386,6 +3417,7 @@ impl DatasetLoader {
 
         let mut result = match plan {
             DatasetParsePlan::Conll => self.parse_conll(content, id),
+            DatasetParsePlan::Agcner => self.parse_agcner(content),
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
@@ -3705,6 +3737,65 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
+    /// Read the released character/BIO pairs or an existing token-array JSONL cache.
+    fn parse_agcner(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::AgCNER;
+        let first = content
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("");
+        // The literal "{" is also a valid publisher character, e.g. "{ O".
+        if first.trim_start().starts_with('{')
+            && serde_json::from_str::<serde_json::Value>(first).is_ok_and(|row| row.is_object())
+        {
+            return self.parse_jsonl_ner(content, id);
+        }
+        let mut sentences = Vec::new();
+        let mut tokens = Vec::new();
+        for (index, line) in content.lines().chain(std::iter::once("")).enumerate() {
+            if line.trim().is_empty() {
+                if !tokens.is_empty() {
+                    sentences.push(AnnotatedSentence {
+                        source_dataset: id,
+                        tokens: std::mem::take(&mut tokens),
+                    });
+                }
+                continue;
+            }
+            // Split from the right so an explicit ASCII space or tab token survives.
+            let invalid = || {
+                Error::InvalidInput(format!(
+                    "Invalid AgCNER character/BIO pair on line {}",
+                    index + 1
+                ))
+            };
+            let (token, label) = line.rsplit_once([' ', '\t']).ok_or_else(invalid)?;
+            let typed = label
+                .strip_prefix("B-")
+                .or_else(|| label.strip_prefix("I-"));
+            if token.chars().count() != 1
+                || !(label == "O"
+                    || typed
+                        .is_some_and(|ty| !ty.is_empty() && !ty.chars().any(char::is_whitespace)))
+            {
+                return Err(invalid());
+            }
+            tokens.push(AnnotatedToken {
+                text: token.to_owned(),
+                ner_tag: label.to_owned(),
+            });
+        }
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
             metadata: id.default_metadata(),
@@ -8376,6 +8467,102 @@ mod tests {
         };
 
         assert_eq!(sentence.text(), "John lives in New York");
+    }
+
+    #[test]
+    fn agcner_source_and_legacy_caches_preserve_text_and_unicode_gold_offsets() {
+        let loader = DatasetLoader::new().unwrap();
+        let chars = ["{", "𠀀", " ", "虫", "Ａ", "\t", "药"];
+        let tags = ["O", "B-PET", "I-PET", "I-PET", "O", "O", "B-DRUG"];
+        let row = serde_json::json!({"tokens":chars, "ner_tags":tags});
+        let envelope = serde_json::json!({
+            "features": [], "num_rows_total": 1, "rows": [{"row_idx": 0, "row": row}]
+        });
+        for input in [
+            "{ O\r\n𠀀 B-PET\r\n  I-PET\r\n虫 I-PET\r\nＡ O\r\n\t O\r\n药 B-DRUG".to_string(),
+            row.to_string(),
+            envelope.to_string(),
+        ] {
+            let data = loader.parse_content_str(&input, DatasetId::AgCNER).unwrap();
+            let (text, gold) = &data.to_test_cases()[0];
+            assert_eq!(text, "{𠀀 虫Ａ\t药");
+            let spans: Vec<_> = gold
+                .iter()
+                .map(|g| (g.text.as_str(), g.original_label.as_str(), g.start, g.end))
+                .collect();
+            assert_eq!(spans, [("𠀀 虫", "PET", 1, 4), ("药", "DRUG", 6, 7)]);
+            assert!(gold.iter().all(|g| text
+                .chars()
+                .skip(g.start)
+                .take(g.end - g.start)
+                .collect::<String>()
+                == g.text));
+        }
+        let ordinary = loader
+            .parse_content_str(
+                r#"{"tokens":["New","York"],"ner_tags":["B-LOC","I-LOC"]}"#,
+                DatasetId::MultiNERD,
+            )
+            .unwrap();
+        let (text, gold) = &ordinary.to_test_cases()[0];
+        assert_eq!(text, "New York");
+        assert_eq!(
+            (gold[0].text.as_str(), gold[0].start, gold[0].end),
+            ("New York", 0, 8)
+        );
+    }
+
+    #[test]
+    fn agcner_manifest_keeps_numeric_figshare_split_provenance() {
+        let loader = DatasetLoader::new().unwrap();
+        let mut data = loader.parse_content_str("甲 O", DatasetId::AgCNER).unwrap();
+        for (url, split) in [
+            (AGCNER_TEST_URL, Some("test")),
+            (
+                "https://ndownloader.figshare.com/files/42188211",
+                Some("dev"),
+            ),
+            (
+                "https://ndownloader.figshare.com/files/42188205",
+                Some("train"),
+            ),
+            ("https://example.org/files/42188208", None),
+        ] {
+            let entry = CacheManifestEntry {
+                dataset_id: "AgCNER.cache".into(),
+                source_url: DatasetId::AgCNER.download_url().into(),
+                resolved_url: Some(url.into()),
+                sha256: "hash".into(),
+                file_size: 0,
+                downloaded_at: String::new(),
+                sentence_count: 1,
+                entity_count: 0,
+                anno_version: String::new(),
+            };
+            DatasetLoader::apply_manifest_provenance(&mut data, &entry);
+            assert_eq!(data.metadata.split.as_deref(), split);
+        }
+    }
+
+    #[test]
+    fn agcner_bio_respects_sentence_breaks_and_rejects_malformed_rows() {
+        let loader = DatasetLoader::new().unwrap();
+        let input = "甲 B-CRO\r\n乙 I-CRO\r\n\r\n丙 O\r\n";
+        let data = loader.parse_content_str(input, DatasetId::AgCNER).unwrap();
+        assert_eq!(data.sentences.len(), 2);
+        assert_eq!(data.sentences[0].text(), "甲乙");
+        assert_eq!(data.sentences[1].text(), "丙");
+        for invalid in [
+            "甲 O\n乙 B-",
+            "甲 O\n乙 BAD",
+            "甲 O\n乙",
+            "甲 O\n乙丙 B-DIS",
+        ] {
+            let err = loader
+                .parse_content_str(invalid, DatasetId::AgCNER)
+                .unwrap_err();
+            assert!(err.to_string().contains("line 2"));
+        }
     }
 
     #[test]

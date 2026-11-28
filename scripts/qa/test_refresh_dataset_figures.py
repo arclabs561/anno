@@ -14,6 +14,29 @@ import refresh_dataset_figures as figures
 
 
 class PublishedFigureChecks(unittest.TestCase):
+    def test_export_contains_only_figure_catalog_products(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "dataset-coverage.md").write_text("aggregate")
+            output = root / "public"
+            allowed = {"panel.png", "panel.svg", figures.DATASET_REFERENCE, figures.CATALOG_NAME}
+
+            def render(directory, config, anno):
+                directory.mkdir()
+                for name in allowed | {"source.cache", "debug-predictions.json", "model.onnx"}:
+                    (directory / name).write_bytes(b"fixture")
+                return []
+
+            with (
+                patch.object(figures, "EVAL", root),
+                patch.object(figures, "SUMMARIES", ()),
+                patch.object(figures, "render", render),
+                patch.object(figures, "coverage_text", return_value="aggregate"),
+                patch.object(sys, "argv", ["render", "--output", str(output)]),
+            ):
+                figures.main()
+            self.assertEqual({p.name for p in output.iterdir()}, allowed)
+
     def test_catalog_reports_a_named_study_whose_input_was_removed(self):
         with TemporaryDirectory() as temp:
             root = Path(temp)

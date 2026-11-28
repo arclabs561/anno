@@ -298,6 +298,7 @@ mod matching;
 pub mod metrics;
 pub mod modes;
 pub mod ner_metrics;
+pub mod ner_scoring;
 pub mod neural_cluster_encoder;
 pub mod prelude;
 pub mod provenance;
