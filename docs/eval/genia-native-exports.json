@@ -5,7 +5,7 @@
     "anno_eval_version": "0.16.0",
     "example_rs_sha256": "7e32dfe9c49a1e185ff51a232270f58485b5b0eba03bb718803e2b3117487863",
     "export_rs_sha256": "f924fe657666ca11fab377a31a91498f18213de5f989ee11638c892ffa257f16",
-    "loader_rs_sha256": "b1d73cbd8a2b0720d4a15b9c844eb5ebe903f834cd8bce2e228c3b0b306d53e0"
+    "loader_rs_sha256": "42a10b541307f7a34697e34e3d1a8bec03f980b981bd105b5ef53925c4034132"
   },
   "checks_per_sentence": [
     "Decoded anno::export::to_html markup recovers the entire input text.",

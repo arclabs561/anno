@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="569" viewBox="0 0 520 569" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">How does source spacing change NorNE heuristic matches?</title><desc id="paired-desc">Baseline Space-joined tokens compared with candidate Original Norwegian text on the same inputs. Total suggestions include exact and unmatched predictions. Bokmål test. 1,383 gold mentions · 476 with corrected offsets · 1,939 publisher sentences. −18 net exact matches · 400 → 382. Gained 0 · lost 18. Retained 382 of 400 baseline matches (95.5%). Change in total suggestions is −67 (1,505 to 1,438). Change in unmatched is −49 (1,105 to 1,056). Nynorsk test. 1,010 gold mentions · 381 with corrected offsets · 1,511 publisher sentences. −18 net exact matches · 305 → 287. Gained 0 · lost 18. Retained 287 of 305 baseline matches (94.1%). Change in total suggestions is −58 (1,160 to 1,102). Change in unmatched is −40 (855 to 815).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">How does source spacing</text>
+<text x="18" y="61" class="heading">change NorNE heuristic</text>
+<text x="18" y="90" class="heading">matches?</text>
+<text x="18" y="119" class="scope">Baseline · Space-joined tokens → Candidate ·</text>
+<text x="18" y="139" class="scope">Original Norwegian text</text>
+<text x="18" y="159" class="scope">Net exact matches · −18 to +18 · center is zero</text>
+<path d="M18 179H502" stroke="#bdcec9"/>
+<text x="18" y="204" class="cohort">Bokmål test</text>
+<text x="18" y="228" class="scope">1,383 gold mentions · 476 with corrected offsets ·</text>
+<text x="18" y="248" class="scope">1,939 publisher sentences</text>
+<path d="M390 265H494" stroke="#d2deda"/><path d="M442 255v20" stroke="#688079"/>
+<circle cx="390.00" cy="265" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="270" class="score">−18 net exact matches · 400 → 382</text>
+<text x="18" y="292" class="scope">Gained 0 · lost 18 · retained 382/400 (95.5%)</text>
+<text x="18" y="312" class="measure">Total suggestions</text>
+<text x="18" y="331" class="scope">1,505 → 1,438 (change</text>
+<text x="18" y="350" class="scope">−67)</text>
+<text x="267" y="312" class="measure">Unmatched</text>
+<text x="267" y="331" class="scope">1,105 → 1,056 (change</text>
+<text x="267" y="350" class="scope">−49)</text>
+<path d="M18 374H502" stroke="#bdcec9"/>
+<text x="18" y="399" class="cohort">Nynorsk test</text>
+<text x="18" y="423" class="scope">1,010 gold mentions · 381 with corrected offsets ·</text>
+<text x="18" y="443" class="scope">1,511 publisher sentences</text>
+<path d="M390 460H494" stroke="#d2deda"/><path d="M442 450v20" stroke="#688079"/>
+<circle cx="390.00" cy="460" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="465" class="score">−18 net exact matches · 305 → 287</text>
+<text x="18" y="487" class="scope">Gained 0 · lost 18 · retained 287/305 (94.1%)</text>
+<text x="18" y="507" class="measure">Total suggestions</text>
+<text x="18" y="526" class="scope">1,160 → 1,102 (change</text>
+<text x="18" y="545" class="scope">−58)</text>
+<text x="267" y="507" class="measure">Unmatched</text>
+<text x="267" y="526" class="scope">855 → 815 (change −40)</text>
+</svg>

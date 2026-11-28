@@ -133,6 +133,36 @@ def study_outcomes(evidence):
             detail=f"{observed['correct']} exact, {predicted} predicted, {gold} gold",
         )
 
+    source = "norne-source-replay.json"
+    study = receipt(evidence, source)
+    for code, standard in (("nob", "Bokmål"), ("nno", "Nynorsk")):
+        for split in ("train", "dev", "test"):
+            panel = study["splits"][f"{code}-{split}"]
+            arm = panel["after"]
+            if (
+                panel["source_text_exact_after"] != panel["cases"]
+                or panel["source_gold_exact_after"] != panel["gold"]
+                or arm["gold"] != panel["gold"]
+            ):
+                raise ValueError(f"NorNE {code}-{split} differs from the publisher text or gold")
+            yield score(
+                study["dataset"],
+                "ner",
+                study["backend"],
+                split,
+                f"{standard} · complete publisher split · original character offsets",
+                panel["cases"],
+                "sentences",
+                source,
+                panel["source_sha256"],
+                reported_backend=study["backend"],
+                panel_digest=panel["ordered_source_sha256"],
+                read_source="pinned NorNE CoNLL-U file",
+                metric="typed exact micro F1",
+                metric_value=arm["f1"],
+                detail=f"{arm['correct']} exact, {arm['predicted']} predicted, {arm['gold']} gold",
+            )
+
     source = "histnero-ner-scoring.json"
     study = receipt(evidence, source)
     for split, panel in study["splits"].items():

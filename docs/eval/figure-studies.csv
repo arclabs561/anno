@@ -8,6 +8,9 @@ english-ner-source-paired,CoNLL04RE|SECFilingsNER,docs/eval/english-ner-source-r
 genia-span-overlap,GENIA|GENIANested,docs/EXTRACTION_WORKFLOWS.md#review-overlapping-highlights,
 native-gap-margin-tradeoff,GAP|Winogender,docs/eval/native-gap-link-retention.md,
 native-gap-retention-paired,GAP|Winogender,docs/eval/native-gap-link-retention.md,
+norne-place-tradeoff,NorNE,docs/eval/norne-source-replay.md#which-person-suggestions-should-a-reviewer-inspect-first,
+norne-source-paired,NorNE,docs/eval/norne-source-replay.md,
+norne-test-errors,NorNE,docs/eval/norne-source-replay.md,
 nuner-misc-prompt-paired,WikiGold|Wnut17,docs/eval/wikigold-nuner-routing.md#does-a-fourth-prompt-recover-misc,
 vira-majority-paired,ViraDialogActsLive,docs/EVALUATION_SAMPLING.md#classify-vira-dialog-acts,
 wikigold-entity-errors,WikiGold,docs/eval/wikigold-nuner-routing.md#which-types-benefit,f099f63943359674cef9a42a86d28ebe21506747da47622212a1f317e7b608a3

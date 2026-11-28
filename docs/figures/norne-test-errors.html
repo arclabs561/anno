@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Which Norwegian place names does the heuristic mistype?</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 2202" width="500" height="2202" role="img" aria-labelledby="eval-title eval-desc">
+<title id="eval-title">Which Norwegian place names does the heuristic mistype?</title>
+<desc id="eval-desc">669 exact matches, 1046 same-span label errors, 369 partial overlaps, 309 missed gold entities and 456 extra predictions. There are 2393 gold entities and 2540 predictions. Of 369 partial span overlaps, 284 also had a different label and 85 kept the gold label. Of 521 gold ORG mentions, 66 were exact, 280 had the right span and wrong type, 104 overlapped partially and 71 were missed. Most frequent same-span label change: GPE_LOC to PER (319).</desc>
+<rect width="500" height="2202" fill="white"/>
+<g font-family="DejaVu Sans, sans-serif" fill="#183541">
+<text x="20" y="33" font-size="24" font-weight="700">Which Norwegian place</text>
+<text x="20" y="62" font-size="24" font-weight="700">names does the heuristic</text>
+<text x="20" y="91" font-size="24" font-weight="700">mistype?</text>
+<text x="20" y="122" font-size="17" font-weight="400">3,450 evaluation reports · Model ·</text>
+<text x="20" y="144" font-size="17" font-weight="400">heuristic</text>
+<text x="20" y="186" font-size="21" font-weight="700">Entity matches</text>
+<text x="20" y="215" font-size="17" font-weight="700">Gold entities</text>
+<text x="20" y="237" font-size="17" font-weight="400">2,393 total</text>
+<text x="258" y="215" font-size="17" font-weight="700">Predicted</text>
+<text x="258" y="237" font-size="17" font-weight="700">entities</text>
+<text x="258" y="259" font-size="17" font-weight="400">2,540 total</text>
+<path d="M20 273 H480" stroke="#d5e0e2"/>
+<text x="20" y="295" font-size="18" font-weight="700">Exact span and label</text>
+<text x="20" y="318" font-size="17" font-weight="400">669 (28.0%)</text>
+<text x="258" y="318" font-size="17" font-weight="400">669 (26.3%)</text>
+<rect x="20" y="329" width="207" height="6" fill="#e6eeef"/><rect x="20" y="329" width="57.870" height="6" fill="#17735f"/>
+<rect x="258" y="329" width="207" height="6" fill="#e6eeef"/><rect x="258" y="329" width="54.521" height="6" fill="#17735f"/>
+<path d="M20 344 H480" stroke="#d5e0e2"/>
+<text x="20" y="366" font-size="18" font-weight="700">Same span, wrong label</text>
+<text x="20" y="389" font-size="17" font-weight="400">1,046 (43.7%)</text>
+<text x="258" y="389" font-size="17" font-weight="400">1,046 (41.2%)</text>
+<rect x="20" y="400" width="207" height="6" fill="#e6eeef"/><rect x="20" y="400" width="90.481" height="6" fill="#a66315"/>
+<rect x="258" y="400" width="207" height="6" fill="#e6eeef"/><rect x="258" y="400" width="85.245" height="6" fill="#a66315"/>
+<path d="M20 415 H480" stroke="#d5e0e2"/>
+<text x="20" y="437" font-size="18" font-weight="700">Partial span overlap</text>
+<text x="20" y="460" font-size="17" font-weight="400">369 (15.4%)</text>
+<text x="258" y="460" font-size="17" font-weight="400">369 (14.5%)</text>
+<rect x="20" y="471" width="207" height="6" fill="#e6eeef"/><rect x="20" y="471" width="31.919" height="6" fill="#56699b"/>
+<rect x="258" y="471" width="207" height="6" fill="#e6eeef"/><rect x="258" y="471" width="30.072" height="6" fill="#56699b"/>
+<path d="M20 486 H480" stroke="#d5e0e2"/>
+<text x="20" y="508" font-size="18" font-weight="700">Missed gold / extra prediction</text>
+<text x="20" y="531" font-size="17" font-weight="400">309 (12.9%)</text>
+<text x="258" y="531" font-size="17" font-weight="400">456 (18.0%)</text>
+<rect x="20" y="542" width="207" height="6" fill="#e6eeef"/><rect x="20" y="542" width="26.729" height="6" fill="#a34646"/>
+<rect x="258" y="542" width="207" height="6" fill="#e6eeef"/><rect x="258" y="542" width="37.162" height="6" fill="#a34646"/>
+<text x="20" y="571" font-size="17" font-weight="400">Of 369 partial span overlaps, 284 also</text>
+<text x="20" y="593" font-size="17" font-weight="400">had a different label and 85 kept the</text>
+<text x="20" y="615" font-size="17" font-weight="400">gold label.</text>
+<text x="20" y="657" font-size="21" font-weight="700">Outcomes by gold label</text>
+<text x="20" y="683" font-size="17" font-weight="400">Ranked by non-exact mentions. Shares</text>
+<text x="20" y="705" font-size="17" font-weight="400">use each label’s gold total.</text>
+<text x="20" y="734" font-size="19" font-weight="700">ORG · 521 gold</text>
+<rect x="20.000" y="745" width="58.273" height="6" fill="#17735f"/>
+<rect x="78.273" y="745" width="247.217" height="6" fill="#a66315"/>
+<rect x="325.489" y="745" width="91.823" height="6" fill="#56699b"/>
+<rect x="417.313" y="745" width="62.687" height="6" fill="#a34646"/>
+<rect x="20" y="759" width="4" height="13" fill="#17735f"/>
+<text x="30" y="771" font-size="17" font-weight="400">Exact 66 (12.7%)</text>
+<rect x="258" y="759" width="4" height="13" fill="#a66315"/>
+<text x="268" y="771" font-size="17" font-weight="400">Wrong type 280</text>
+<text x="268" y="793" font-size="17" font-weight="400">(53.7%)</text>
+<rect x="20" y="803" width="4" height="13" fill="#56699b"/>
+<text x="30" y="815" font-size="17" font-weight="400">Partial 104</text>
+<text x="30" y="837" font-size="17" font-weight="400">(20.0%)</text>
+<rect x="258" y="803" width="4" height="13" fill="#a34646"/>
+<text x="268" y="815" font-size="17" font-weight="400">Missed 71</text>
+<text x="268" y="837" font-size="17" font-weight="400">(13.6%)</text>
+<text x="20" y="871" font-size="19" font-weight="700">GPE_LOC · 428 gold</text>
+<rect x="20.000" y="882" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="882" width="370.794" height="6" fill="#a66315"/>
+<rect x="390.794" y="882" width="53.738" height="6" fill="#56699b"/>
+<rect x="444.533" y="882" width="35.467" height="6" fill="#a34646"/>
+<rect x="20" y="896" width="4" height="13" fill="#17735f"/>
+<text x="30" y="908" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="896" width="4" height="13" fill="#a66315"/>
+<text x="268" y="908" font-size="17" font-weight="400">Wrong type 345</text>
+<text x="268" y="930" font-size="17" font-weight="400">(80.6%)</text>
+<rect x="20" y="940" width="4" height="13" fill="#56699b"/>
+<text x="30" y="952" font-size="17" font-weight="400">Partial 50</text>
+<text x="30" y="974" font-size="17" font-weight="400">(11.7%)</text>
+<rect x="258" y="940" width="4" height="13" fill="#a34646"/>
+<text x="268" y="952" font-size="17" font-weight="400">Missed 33 (7.7%)</text>
+<text x="20" y="1008" font-size="19" font-weight="700">PER · 961 gold</text>
+<rect x="20.000" y="1019" width="288.158" height="6" fill="#17735f"/>
+<rect x="308.158" y="1019" width="40.208" height="6" fill="#a66315"/>
+<rect x="348.366" y="1019" width="51.696" height="6" fill="#56699b"/>
+<rect x="400.062" y="1019" width="79.938" height="6" fill="#a34646"/>
+<rect x="20" y="1033" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1045" font-size="17" font-weight="400">Exact 602</text>
+<text x="30" y="1067" font-size="17" font-weight="400">(62.6%)</text>
+<rect x="258" y="1033" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1045" font-size="17" font-weight="400">Wrong type 84</text>
+<text x="268" y="1067" font-size="17" font-weight="400">(8.7%)</text>
+<rect x="20" y="1077" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1089" font-size="17" font-weight="400">Partial 108</text>
+<text x="30" y="1111" font-size="17" font-weight="400">(11.2%)</text>
+<rect x="258" y="1077" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1089" font-size="17" font-weight="400">Missed 167</text>
+<text x="268" y="1111" font-size="17" font-weight="400">(17.4%)</text>
+<text x="20" y="1145" font-size="19" font-weight="700">LOC · 185 gold</text>
+<rect x="20.000" y="1156" width="2.486" height="6" fill="#17735f"/>
+<rect x="22.486" y="1156" width="323.243" height="6" fill="#a66315"/>
+<rect x="345.730" y="1156" width="111.892" height="6" fill="#56699b"/>
+<rect x="457.622" y="1156" width="22.378" height="6" fill="#a34646"/>
+<rect x="20" y="1170" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1182" font-size="17" font-weight="400">Exact 1 (0.5%)</text>
+<rect x="258" y="1170" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1182" font-size="17" font-weight="400">Wrong type 130</text>
+<text x="268" y="1204" font-size="17" font-weight="400">(70.3%)</text>
+<rect x="20" y="1214" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1226" font-size="17" font-weight="400">Partial 45</text>
+<text x="30" y="1248" font-size="17" font-weight="400">(24.3%)</text>
+<rect x="258" y="1214" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1226" font-size="17" font-weight="400">Missed 9 (4.9%)</text>
+<text x="20" y="1282" font-size="19" font-weight="700">PROD · 131 gold</text>
+<rect x="20.000" y="1293" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="1293" width="298.473" height="6" fill="#a66315"/>
+<rect x="318.473" y="1293" width="115.878" height="6" fill="#56699b"/>
+<rect x="434.351" y="1293" width="45.649" height="6" fill="#a34646"/>
+<rect x="20" y="1307" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1319" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="1307" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1319" font-size="17" font-weight="400">Wrong type 85</text>
+<text x="268" y="1341" font-size="17" font-weight="400">(64.9%)</text>
+<rect x="20" y="1351" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1363" font-size="17" font-weight="400">Partial 33</text>
+<text x="30" y="1385" font-size="17" font-weight="400">(25.2%)</text>
+<rect x="258" y="1351" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1363" font-size="17" font-weight="400">Missed 13 (9.9%)</text>
+<text x="20" y="1419" font-size="19" font-weight="700">DRV · 78 gold</text>
+<rect x="20.000" y="1430" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="1430" width="324.359" height="6" fill="#a66315"/>
+<rect x="344.359" y="1430" width="94.359" height="6" fill="#56699b"/>
+<rect x="438.718" y="1430" width="41.282" height="6" fill="#a34646"/>
+<rect x="20" y="1444" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1456" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="1444" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1456" font-size="17" font-weight="400">Wrong type 55</text>
+<text x="268" y="1478" font-size="17" font-weight="400">(70.5%)</text>
+<rect x="20" y="1488" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1500" font-size="17" font-weight="400">Partial 16</text>
+<text x="30" y="1522" font-size="17" font-weight="400">(20.5%)</text>
+<rect x="258" y="1488" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1500" font-size="17" font-weight="400">Missed 7 (9.0%)</text>
+<text x="20" y="1556" font-size="19" font-weight="700">GPE_ORG · 61 gold</text>
+<rect x="20.000" y="1567" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="1567" width="346.885" height="6" fill="#a66315"/>
+<rect x="366.885" y="1567" width="60.328" height="6" fill="#56699b"/>
+<rect x="427.213" y="1567" width="52.787" height="6" fill="#a34646"/>
+<rect x="20" y="1581" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1593" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="1581" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1593" font-size="17" font-weight="400">Wrong type 46</text>
+<text x="268" y="1615" font-size="17" font-weight="400">(75.4%)</text>
+<rect x="20" y="1625" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1637" font-size="17" font-weight="400">Partial 8</text>
+<text x="30" y="1659" font-size="17" font-weight="400">(13.1%)</text>
+<rect x="258" y="1625" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1637" font-size="17" font-weight="400">Missed 7 (11.5%)</text>
+<text x="20" y="1693" font-size="19" font-weight="700">EVT · 14 gold</text>
+<rect x="20.000" y="1704" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="1704" width="361.429" height="6" fill="#a66315"/>
+<rect x="381.429" y="1704" width="65.714" height="6" fill="#56699b"/>
+<rect x="447.143" y="1704" width="32.857" height="6" fill="#a34646"/>
+<rect x="20" y="1718" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1730" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="1718" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1730" font-size="17" font-weight="400">Wrong type 11</text>
+<text x="268" y="1752" font-size="17" font-weight="400">(78.6%)</text>
+<rect x="20" y="1762" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1774" font-size="17" font-weight="400">Partial 2</text>
+<text x="30" y="1796" font-size="17" font-weight="400">(14.3%)</text>
+<rect x="258" y="1762" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1774" font-size="17" font-weight="400">Missed 1 (7.1%)</text>
+<text x="20" y="1830" font-size="19" font-weight="700">MISC · 14 gold</text>
+<rect x="20.000" y="1841" width="0.000" height="6" fill="#17735f"/>
+<rect x="20.000" y="1841" width="328.571" height="6" fill="#a66315"/>
+<rect x="348.571" y="1841" width="98.571" height="6" fill="#56699b"/>
+<rect x="447.143" y="1841" width="32.857" height="6" fill="#a34646"/>
+<rect x="20" y="1855" width="4" height="13" fill="#17735f"/>
+<text x="30" y="1867" font-size="17" font-weight="400">Exact 0 (0.0%)</text>
+<rect x="258" y="1855" width="4" height="13" fill="#a66315"/>
+<text x="268" y="1867" font-size="17" font-weight="400">Wrong type 10</text>
+<text x="268" y="1889" font-size="17" font-weight="400">(71.4%)</text>
+<rect x="20" y="1899" width="4" height="13" fill="#56699b"/>
+<text x="30" y="1911" font-size="17" font-weight="400">Partial 3</text>
+<text x="30" y="1933" font-size="17" font-weight="400">(21.4%)</text>
+<rect x="258" y="1899" width="4" height="13" fill="#a34646"/>
+<text x="268" y="1911" font-size="17" font-weight="400">Missed 1 (7.1%)</text>
+<text x="20" y="1987" font-size="21" font-weight="700">Same-span label confusions</text>
+<text x="20" y="2013" font-size="17" font-weight="400">Top 5 of 21 pairs by frequency</text>
+<text x="20" y="2039" font-size="17" font-weight="700">Gold label</text>
+<text x="196" y="2039" font-size="17" font-weight="700">Predicted label</text>
+<text x="397" y="2039" font-size="17" font-weight="700">Pairs</text>
+<text x="20" y="2065" font-size="17" font-weight="400">GPE_LOC</text>
+<text x="196" y="2065" font-size="17" font-weight="400">PER</text>
+<text x="397" y="2065" font-size="17" font-weight="400">319</text>
+<text x="20" y="2090" font-size="17" font-weight="400">ORG</text>
+<text x="196" y="2090" font-size="17" font-weight="400">PER</text>
+<text x="397" y="2090" font-size="17" font-weight="400">266</text>
+<text x="20" y="2115" font-size="17" font-weight="400">LOC</text>
+<text x="196" y="2115" font-size="17" font-weight="400">PER</text>
+<text x="397" y="2115" font-size="17" font-weight="400">128</text>
+<text x="20" y="2140" font-size="17" font-weight="400">PROD</text>
+<text x="196" y="2140" font-size="17" font-weight="400">PER</text>
+<text x="397" y="2140" font-size="17" font-weight="400">72</text>
+<text x="20" y="2165" font-size="17" font-weight="400">PER</text>
+<text x="196" y="2165" font-size="17" font-weight="400">ORG</text>
+<text x="397" y="2165" font-size="17" font-weight="400">58</text>
+</g>
+</svg>
+<div class="scroll"><section class="errors-report"><h1 class="mobile-intro">Which Norwegian place names does the heuristic mistype?</h1><p>3,450 evaluation reports · Model · heuristic</p>
+<table><caption>Entity matches</caption><thead><tr><th scope="col">Outcome</th><th scope="col">Gold entities (2,393)</th><th scope="col">Predicted entities (2,540)</th></tr></thead><tbody>
+<tr><th scope="row">Exact span and label</th><td>669 (28.0%)</td><td>669 (26.3%)</td></tr>
+<tr><th scope="row">Same span, wrong label</th><td>1,046 (43.7%)</td><td>1,046 (41.2%)</td></tr>
+<tr><th scope="row">Partial span overlap</th><td>369 (15.4%)</td><td>369 (14.5%)</td></tr>
+<tr><th scope="row">Missed gold / extra prediction</th><td>309 (12.9%)</td><td>456 (18.0%)</td></tr>
+</tbody></table><p>Of 369 partial span overlaps, 284 also had a different label and 85 kept the gold label.</p>
+<table class="gold-labels"><caption>Outcomes by gold label, with shares within each label</caption><thead><tr><th scope="col">Gold label</th><th scope="col">Gold mentions</th><th scope="col">Exact</th><th scope="col">Same span, wrong type</th><th scope="col">Partial span</th><th scope="col">Missed</th></tr></thead><tbody><tr><th scope="row">ORG</th><td data-label="Gold mentions">521</td><td data-label="Exact">66 (12.7%)</td><td data-label="Same span, wrong type">280 (53.7%)</td><td data-label="Partial span">104 (20.0%)</td><td data-label="Missed">71 (13.6%)</td></tr><tr><th scope="row">GPE_LOC</th><td data-label="Gold mentions">428</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">345 (80.6%)</td><td data-label="Partial span">50 (11.7%)</td><td data-label="Missed">33 (7.7%)</td></tr><tr><th scope="row">PER</th><td data-label="Gold mentions">961</td><td data-label="Exact">602 (62.6%)</td><td data-label="Same span, wrong type">84 (8.7%)</td><td data-label="Partial span">108 (11.2%)</td><td data-label="Missed">167 (17.4%)</td></tr><tr><th scope="row">LOC</th><td data-label="Gold mentions">185</td><td data-label="Exact">1 (0.5%)</td><td data-label="Same span, wrong type">130 (70.3%)</td><td data-label="Partial span">45 (24.3%)</td><td data-label="Missed">9 (4.9%)</td></tr><tr><th scope="row">PROD</th><td data-label="Gold mentions">131</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">85 (64.9%)</td><td data-label="Partial span">33 (25.2%)</td><td data-label="Missed">13 (9.9%)</td></tr><tr><th scope="row">DRV</th><td data-label="Gold mentions">78</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">55 (70.5%)</td><td data-label="Partial span">16 (20.5%)</td><td data-label="Missed">7 (9.0%)</td></tr><tr><th scope="row">GPE_ORG</th><td data-label="Gold mentions">61</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">46 (75.4%)</td><td data-label="Partial span">8 (13.1%)</td><td data-label="Missed">7 (11.5%)</td></tr><tr><th scope="row">EVT</th><td data-label="Gold mentions">14</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">11 (78.6%)</td><td data-label="Partial span">2 (14.3%)</td><td data-label="Missed">1 (7.1%)</td></tr><tr><th scope="row">MISC</th><td data-label="Gold mentions">14</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">10 (71.4%)</td><td data-label="Partial span">3 (21.4%)</td><td data-label="Missed">1 (7.1%)</td></tr></tbody></table>
+<table><caption>All same-span label confusions</caption><thead><tr><th scope="col">Gold label</th><th scope="col">Predicted label</th><th scope="col">Pairs</th></tr></thead><tbody>
+<tr><th scope="row">GPE_LOC</th><td>PER</td><td>319</td></tr>
+<tr><th scope="row">ORG</th><td>PER</td><td>266</td></tr>
+<tr><th scope="row">LOC</th><td>PER</td><td>128</td></tr>
+<tr><th scope="row">PROD</th><td>PER</td><td>72</td></tr>
+<tr><th scope="row">PER</th><td>ORG</td><td>58</td></tr>
+<tr><th scope="row">DRV</th><td>PER</td><td>54</td></tr>
+<tr><th scope="row">GPE_ORG</th><td>PER</td><td>26</td></tr>
+<tr><th scope="row">PER</th><td>LOC</td><td>26</td></tr>
+<tr><th scope="row">GPE_LOC</th><td>LOC</td><td>24</td></tr>
+<tr><th scope="row">GPE_ORG</th><td>ORG</td><td>15</td></tr>
+<tr><th scope="row">ORG</th><td>LOC</td><td>14</td></tr>
+<tr><th scope="row">EVT</th><td>PER</td><td>10</td></tr>
+<tr><th scope="row">MISC</th><td>PER</td><td>8</td></tr>
+<tr><th scope="row">PROD</th><td>ORG</td><td>8</td></tr>
+<tr><th scope="row">GPE_ORG</th><td>LOC</td><td>5</td></tr>
+<tr><th scope="row">PROD</th><td>LOC</td><td>5</td></tr>
+<tr><th scope="row">GPE_LOC</th><td>ORG</td><td>2</td></tr>
+<tr><th scope="row">LOC</th><td>ORG</td><td>2</td></tr>
+<tr><th scope="row">MISC</th><td>ORG</td><td>2</td></tr>
+<tr><th scope="row">DRV</th><td>LOC</td><td>1</td></tr>
+<tr><th scope="row">EVT</th><td>ORG</td><td>1</td></tr>
+</tbody></table>
+</section></div></main></body></html>
