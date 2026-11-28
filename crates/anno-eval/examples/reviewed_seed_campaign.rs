@@ -3,7 +3,6 @@
 #[path = "../../anno/tests/support/reviewed_kb_fuzz.rs"]
 mod harness;
 
-use fs2::FileExt;
 use muxer::{Extract, MabConfig, Objective, Summary};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -203,7 +202,7 @@ fn run(path: &Path, requested: u32) -> Result<(), Box<dyn Error>> {
         .read(true)
         .write(true)
         .open(lock)?;
-    lock.lock_exclusive()?;
+    lock.lock()?;
     let mut state = match File::open(path) {
         Ok(file) => {
             if file.metadata()?.len() > 16384 {

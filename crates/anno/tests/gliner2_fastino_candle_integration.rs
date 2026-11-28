@@ -37,9 +37,9 @@ fn from_pretrained_smoke() {
 fn extraction_matches_python_spans_and_scores() {
     // Recorded with gliner2 2.2.0, CPU float32, at this checkpoint.
     let revision = "ce747d79a8e362d3dee0b0b26d1201f7f1a8615a";
-    let snapshot = hf_hub::Cache::from_env()
-        .model("fastino/gliner2-multi-v1".into())
-        .pointer_path(revision);
+    let snapshot = hf_hub::resolve_cache_dir()
+        .join("models--fastino--gliner2-multi-v1/snapshots")
+        .join(revision);
     let check = |model: &dyn ZeroShotNER| {
         let mut entities = model
             .extract_with_types(

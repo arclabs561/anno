@@ -270,7 +270,7 @@ impl BertNEROnnx {
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_name.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         // Download model - try quantized first if preferred
         let (model_path, is_quantized) =

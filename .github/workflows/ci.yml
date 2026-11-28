@@ -1092,12 +1092,19 @@ jobs:
         run: cargo install --locked cargo-deny --version 0.19.0
       - name: Check dependencies
         run: cargo deny check
-      - name: Check default CLI and evaluator timestamp dependencies
+      - name: Check direct timestamp dependencies and keep PDF optional
         run: |
-          graph=(cargo tree --locked --target all --edges normal,build -p anno-cli -p anno-eval)
-          "${graph[@]}" --prefix none > "$RUNNER_TEMP/anno-default-dependencies"
-          if grep -q '^chrono v' "$RUNNER_TEMP/anno-default-dependencies"; then
-            "${graph[@]}" --invert chrono
+          graph=(cargo tree --locked --target all --edges normal,build --prefix none)
+          for package in anno anno-cli anno-eval anno-py; do
+            "${graph[@]}" -p "$package" --depth 1 > "$RUNNER_TEMP/anno-direct-dependencies"
+            if grep -Eq '^(chrono|humantime) v' "$RUNNER_TEMP/anno-direct-dependencies"; then
+              cat "$RUNNER_TEMP/anno-direct-dependencies"
+              exit 1
+            fi
+          done
+          "${graph[@]}" -p anno-cli > "$RUNNER_TEMP/anno-cli-dependencies"
+          if grep -q '^pdf_oxide v' "$RUNNER_TEMP/anno-cli-dependencies"; then
+            cargo tree --locked --target all --edges normal,build -p anno-cli --invert pdf_oxide
             exit 1
           fi
   # Fast unused dependency detection

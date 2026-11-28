@@ -12,8 +12,6 @@ mod reports;
 
 use clap::{Parser, Subcommand};
 #[cfg(feature = "eval")]
-use itertools::Itertools;
-#[cfg(feature = "eval")]
 use std::fs;
 #[cfg(feature = "eval")]
 use std::path::{Path, PathBuf};
@@ -948,15 +946,15 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             }
 
                             let entity_types_vec: Vec<&str> =
-                                entity_types.iter().map(|s| s.as_str()).collect_vec();
+                                entity_types.iter().map(|s| s.as_str()).collect();
                             let relation_types_vec: Vec<&str> =
-                                relation_types.iter().map(|s| s.as_str()).collect_vec();
+                                relation_types.iter().map(|s| s.as_str()).collect();
 
                             println!("  Entity types: {}", entity_types_vec.join(", "));
                             println!(
                                 "  Relation types: {} (sample: {})",
                                 relation_types_vec.len(),
-                                relation_types_vec.iter().take(5).join(", ")
+                                relation_types_vec[..relation_types_vec.len().min(5)].join(", ")
                             );
                             println!();
 

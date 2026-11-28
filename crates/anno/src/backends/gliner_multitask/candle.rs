@@ -240,7 +240,7 @@ impl GLiNERMultitaskCandle {
         super::check_model_id_is_supported(model_id)?;
 
         let api = crate::backends::hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Load config -- try config.json first, fall back to gliner_config.json
         // (GLiNER models like urchade/gliner_multi-v2.1 only have gliner_config.json)
