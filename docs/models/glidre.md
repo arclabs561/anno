@@ -91,3 +91,13 @@ DocRED's `pos` uses sentence-local, zero-based token indices with an exclusive e
 For the invoice note above, the raw-text path and the equivalent supplied token spans yielded identical scores on all nine directed predictions at threshold 0.1. The model scored Zoë calling Ana at 0.7185 and Ana billing Café Bleu at 0.5470. It also incorrectly predicted that Ana called herself (0.3906).
 
 On a two-sentence concert example with three English predicate prompts, the multilingual v2 model emitted three directed relations at threshold 0.3. All three labels, endpoints and floating-point scores matched the authors' inference code exactly. The supplied-vertex run on six hash-selected Re-DocRED development documents used all 96 predicate prompts at the same threshold. Of 28 predicted relations, 10 matched the 227 annotated relations, giving 35.71% precision, 4.41% recall and 7.84% micro F1. The three-prompt example checks runtime parity. The six-document result measures this checkpoint on a small labeled sample with a much broader vocabulary.
+
+To replay the labeled result, use the prepared checkpoint above and fetch the two pinned inputs into your work directory. The runner verifies the file digests, ranks all 500 titles, and passes only text and gold vertices to the CLI. It scores every enrolled document with the supplied-endpoint scorer. All six were representable. [Enrollment and aggregate results](../eval/glidre-redocred-panel.json) · [Replay script](../../scripts/qa/glidre_redocred_replay.py)
+
+```bash
+curl -fLsS https://raw.githubusercontent.com/tonytan48/Re-DocRED/ccfb54f5ddf5836027c87badda10f6dfc56efaac/data/dev_revised.json -o "$work/dev_revised.json"
+curl -fLsS https://huggingface.co/datasets/thunlp/docred/resolve/7985b4e0371e6c61a756feb41b7b27becf71c666/data/rel_info.json.gz -o "$work/rel_info.json.gz"
+python3 scripts/qa/glidre_redocred_replay.py --split "$work/dev_revised.json" \
+  --schema "$work/rel_info.json.gz" --upstream "$work/glidre" --model-dir "$work/model" \
+  --python "$work/venv/bin/python"
+```

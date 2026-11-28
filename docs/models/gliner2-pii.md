@@ -95,3 +95,33 @@ the previous default masked remained covered on this sample. Selection used
 two documents per locale, excluded the earlier 75-record panel, and limited
 source texts to 900 Unicode characters. These measurements concern email and
 phone only. [REDACT sample and license](https://github.com/guneeshvats/REDACT-PII-Benchmark/tree/252232ac29669beeb99cb6474eeb2736761be508)
+
+### Reproduce the CONTACT comparison
+
+The replay driver runs the actual `privacy --types CONTACT` command for each
+of the three routes. It verifies
+the dataset, the two-stage selection of the 50 documents and the nine pinned
+FP32 model files. It reports aggregate exact matches and masked character
+counts. It also compares actual redaction output with the reported spans on
+every tenth document and on documents with a partially masked contact under
+the prepared route. [Replay driver](../../scripts/qa/contact_privacy.py) · [Aggregate receipt](../eval/contact-privacy.json)
+
+From the Anno checkout, build a baseline CLI at the revision preceding the
+CONTACT change and the current CLI using the same ONNX Runtime. The commands
+use Python 3.11 or newer, the published FP32 snapshot from the download section
+above at `models/gliner2-pii`, and a temporary directory for the baseline build
+and the REDACT sample. `--jobs 2` can load two copies of the checkpoint at once.
+
+```sh
+study_dir=$(mktemp -d)
+git worktree add --detach "$study_dir/before" 437a37d864c06704123e8700bdc3565dd3e5448d
+cargo build --locked --manifest-path "$study_dir/before/Cargo.toml" --target-dir "$study_dir/before-target" \
+  -p anno-cli --no-default-features --features gliner2-fastino,extractor-readability --bin anno
+cargo build --locked -p anno-cli --no-default-features --features gliner2-fastino,extractor-readability --bin anno
+curl -fL https://media.githubusercontent.com/media/guneeshvats/REDACT-PII-Benchmark/252232ac29669beeb99cb6474eeb2736761be508/data/pii_benchmark_sample1000.json \
+  -o "$study_dir/sample.json"
+python3 scripts/qa/contact_privacy.py --data "$study_dir/sample.json" --model-dir models/gliner2-pii \
+  --before-cli "$study_dir/before-target/debug/anno" --cli target/debug/anno --jobs 2 > "$study_dir/result.json"
+diff -u docs/eval/contact-privacy.json "$study_dir/result.json"
+git worktree remove "$study_dir/before"
+```
