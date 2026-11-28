@@ -5,7 +5,6 @@ scripts/qa/fixtures/timex-contrast/rows.jsonl text eol=lf
 # The frozen unified diff uses one context-marker space for an empty source line.
 scripts/qa/fixtures/native-gap-multiword.patch text eol=lf whitespace=-blank-at-eol
 crates/anno-py/examples/bulletins/bulletin-edition-*.txt text eol=lf
-
 # Raw SHA-256 identities for the bibliography frame and sealed study.
 verification/index_consumers/reader_cases/bibliography/reader.py text eol=lf
 verification/index_consumers/reader_cases/bibliography/scoring/common.py text eol=lf
@@ -17,3 +16,5 @@ verification/index_consumers/reader_cases/bibliography/scoring/receipts/lock.jso
 verification/index_consumers/reader_cases/bibliography/scoring/receipts/reference.json text eol=lf
 verification/index_consumers/reader_cases/bibliography/sources/frame.json text eol=lf
 verification/index_consumers/reader_cases/publisher/sample.json text eol=lf
+site/saltglass/assets/*.webp filter=lfs diff=lfs merge=lfs -text
+site/saltglass/engine/pkg/*.wasm filter=lfs diff=lfs merge=lfs -text

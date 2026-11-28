@@ -4,7 +4,7 @@ Anno finds named entities in text, links mentions, and extracts relations.
 Use the Rust library in an application or the `anno` command on a directory
 of documents. Each mention points back to the words in its source.
 
-[Rust](#find-mentions-in-rust) · [CLI](#extract-a-directory) · [Python](#compare-two-notices-in-python) · [Models](#choose-what-to-extract) · [API](https://docs.rs/anno)
+[Rust](#find-mentions-in-rust) · [CLI](#extract-a-directory) · [Python](#compare-two-notices-in-python) · [Models](#choose-what-to-extract) · [API](https://docs.rs/anno) · <a href="https://arclabs561.github.io/anno/" aria-label="Dock at Saltglass Reach" title="Dock at Saltglass Reach">☾</a>
 
 ## Find mentions in Rust
 
