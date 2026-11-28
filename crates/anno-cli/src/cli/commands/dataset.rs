@@ -103,6 +103,11 @@ pub enum DatasetAction {
         #[arg(short, long, default_value = "stacked")]
         model: ModelBackend,
 
+        /// Use only local dataset files or checkout fixtures. Set ANNO_NO_DOWNLOADS=1
+        /// to also require cached model weights.
+        #[arg(long)]
+        cached_only: bool,
+
         /// Task type: ner, coref, or relation
         #[arg(short, long, default_value = "ner")]
         task: EvalTask,
@@ -306,6 +311,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             html,
             output,
             reports,
+            cached_only,
             max_cases,
             min_errors,
             min_case_errors,
@@ -340,71 +346,57 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 #[cfg(not(feature = "eval"))]
                 let _ = (min_gold_mentions, min_gold_relations, coref_oracle_mentions);
 
-                let (name, test_cases) = if matches!(task, EvalTask::Coref) {
-                    // Coreference uses document-level chains from its own loader below.
-                    (dataset.clone(), Vec::new())
-                } else if dataset == "synthetic" {
-                    ("synthetic".to_string(), synthetic_ner_test_cases())
+                let dataset_id = if dataset == "synthetic" {
+                    None
                 } else {
-                    // Parse dataset ID
-                    let dataset_id: DatasetId = dataset
-                        .parse::<DatasetId>()
-                        .map_err(|e| format!("Invalid dataset '{}': {}", dataset, e))?;
-
-                    #[cfg(not(feature = "eval"))]
-                    {
-                        let _ = dataset_id; // Suppress unused warning
-                        return Err("Loading real datasets requires --features eval".to_string());
-                    }
-
-                    #[cfg(feature = "eval")]
-                    {
+                    Some(
+                        dataset
+                            .parse::<DatasetId>()
+                            .map_err(|e| format!("Invalid dataset '{dataset}': {e}"))?,
+                    )
+                };
+                let load_mode = if cached_only {
+                    "local dataset files only"
+                } else {
+                    "may download if not cached"
+                };
+                // Relation and coreference evaluations open their own document-level
+                // annotations below. A generic NER pass can discard that structure.
+                let (name, test_cases) = match (dataset_id, &task) {
+                    (Some(id), EvalTask::Ner) => {
                         use anno_eval::eval::loader::DatasetLoader;
 
-                        if matches!(task, EvalTask::Relation) {
-                            if let Some(reason) = dataset_id.relation_span_limitation() {
-                                return Err(reason.into());
-                            }
-                        }
                         let loader = DatasetLoader::new()
-                            .map_err(|e| format!("Failed to init dataset loader: {}", e))?;
-
-                        println!(
-                            "Loading {} (may download if not cached)...",
-                            dataset_id.name()
-                        );
-                        let loadable = LoadableDatasetId::try_from(dataset_id)
-                            .map_err(|e| format!("Dataset is not loadable: {}", e))?;
+                            .map_err(|e| format!("Failed to init dataset loader: {e}"))?;
+                        let loadable = LoadableDatasetId::try_from(id)
+                            .map_err(|e| format!("Dataset is not loadable: {e}"))?;
                         if let Some(writer) = &reports {
                             writer.distinct_from(
                                 &loader.cache_path(loadable),
                                 "the cached dataset",
                             )?;
                         }
-                        let ds = loader
-                            .load_or_download(loadable)
-                            .map_err(|e| format!("Failed to load dataset: {}", e))?;
-
-                        // Only warn if evaluating NER on non-NER dataset (not for coref/relation tasks)
-                        if matches!(task, EvalTask::Ner)
-                            && (dataset_id.is_coreference() || dataset_id.is_relation_extraction())
-                        {
-                            println!("{} Warning: Evaluating NER on non-NER dataset. Results may be empty.", color("33", "!"));
+                        println!("Loading {} ({load_mode})...", id.name());
+                        let ds = if cached_only {
+                            loader.load(loadable)
+                        } else {
+                            loader.load_or_download(loadable)
                         }
-
+                        .map_err(|e| format!("Failed to load dataset: {e}"))?;
+                        if !id.is_ner() && (id.is_coreference() || id.is_relation_extraction()) {
+                            println!(
+                                "{} Evaluating the entity annotations supplied by the {} reader.",
+                                color("33", "!"),
+                                id.name()
+                            );
+                        }
                         (ds.stats().name, ds.to_test_cases())
                     }
-                };
-
-                // Parse dataset ID once for reuse (avoid duplicate parsing)
-                // Store Result to preserve error message if parsing fails
-                #[cfg(feature = "eval")]
-                let parsed_dataset_result: Result<DatasetId, String> = if dataset != "synthetic" {
-                    dataset
-                        .parse::<DatasetId>()
-                        .map_err(|e| format!("Invalid dataset '{}': {}", dataset, e))
-                } else {
-                    Err("synthetic dataset".to_string()) // Not a real error, just indicates synthetic
+                    (None, EvalTask::Ner) => (dataset.clone(), synthetic_ner_test_cases()),
+                    (id, _) => (
+                        id.map_or(dataset.as_str(), |id| id.name()).to_owned(),
+                        Vec::new(),
+                    ),
                 };
 
                 // Route to appropriate evaluation based on task
@@ -466,9 +458,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         }
 
                         // Repeated sentences stay separate. The shared report also fingerprints source and gold.
-                        let dataset_key = parsed_dataset_result
-                            .as_ref()
-                            .map_or_else(|_| "synthetic".to_owned(), |id| format!("{id:?}"));
+                        let dataset_key = dataset_id
+                            .map_or_else(|| "synthetic".to_owned(), |id| format!("{id:?}"));
                         for (case_idx, (text, gold)) in test_cases.iter().enumerate() {
                             let case_start = reports.as_ref().map(|_| Instant::now());
                             let entities = m
@@ -727,12 +718,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 );
                             }
 
-                            if dataset == "synthetic" {
-                                return Err("Coreference evaluation requires a real dataset (e.g., gap, preco, litbank)".to_string());
-                            }
-
-                            // Reuse parsed result (preserves original error message)
-                            let dataset_id: DatasetId = parsed_dataset_result.clone()?;
+                            let dataset_id = dataset_id.ok_or(
+                                "Coreference evaluation requires a real dataset (e.g., gap, preco, litbank)"
+                            )?;
 
                             if !dataset_id.is_coreference() {
                                 return Err(format!("Dataset '{}' is not a coreference dataset. Use: gap, preco, or litbank", dataset));
@@ -746,12 +734,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 "Evaluating coreference resolution on {} dataset...",
                                 dataset_id.name()
                             );
-                            println!("Loading dataset (may download if not cached)...");
+                            println!("Loading dataset ({load_mode})...");
 
-                            let gold_docs =
-                                loader.load_or_download_coref(dataset_id).map_err(|e| {
-                                    format!("Failed to load coreference dataset: {}", e)
-                                })?;
+                            let gold_docs = if cached_only {
+                                loader.load_coref(dataset_id)
+                            } else {
+                                loader.load_or_download_coref(dataset_id)
+                            }
+                            .map_err(|e| format!("Failed to load coreference dataset: {e}"))?;
 
                             println!("  Documents: {}", gold_docs.len());
                             println!();
@@ -925,13 +915,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 );
                             }
 
-                            if dataset == "synthetic" {
-                                return Err("Relation extraction evaluation requires a real dataset (e.g., crossreai, retacred)".to_string());
+                            let dataset_id = dataset_id.ok_or(
+                                "Relation extraction evaluation requires a real dataset (e.g., crossreai, retacred)"
+                            )?;
+
+                            if let Some(reason) = dataset_id.relation_span_limitation() {
+                                return Err(reason.into());
                             }
-
-                            // Reuse parsed result (preserves original error message)
-                            let dataset_id: DatasetId = parsed_dataset_result.clone()?;
-
                             if !dataset_id.is_relation_extraction() {
                                 return Err(format!("Dataset '{}' is not a relation extraction dataset. Use: crossreai or retacred", dataset));
                             }
@@ -944,11 +934,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 "Evaluating relation extraction on {} dataset...",
                                 dataset_id.name()
                             );
-                            println!("Loading dataset (may download if not cached)...");
+                            println!("Loading dataset ({load_mode})...");
 
-                            let gold_docs = loader
-                                .load_or_download_relation(dataset_id)
-                                .map_err(|e| format!("Failed to load relation dataset: {}", e))?;
+                            let gold_docs = if cached_only {
+                                loader.load_relation(dataset_id)
+                            } else {
+                                loader.load_or_download_relation(dataset_id)
+                            }
+                            .map_err(|e| format!("Failed to load relation dataset: {e}"))?;
 
                             println!("  Documents: {}", gold_docs.len());
                             match dataset_id {
@@ -1324,6 +1317,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                     html,
                     output,
                     reports,
+                    cached_only,
                     max_cases,
                     min_errors,
                     min_case_errors,

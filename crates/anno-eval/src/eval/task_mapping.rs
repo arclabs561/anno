@@ -431,7 +431,19 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // Zero-shot NER backends (implement Model + ZeroShotNER)
         "gliner_onnx" | "GLiNEROnnx" => &[Task::NER],
         "gliner_candle" | "GLiNERCandle" => &[Task::NER],
-        "gliner25" | "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
+        // The Fastino export has a dedicated single-label classification graph.
+        "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => {
+            if cfg!(feature = "gliner2-fastino") {
+                &[
+                    Task::NER,
+                    Task::TextClassification,
+                    Task::SpeechActClassification,
+                ]
+            } else {
+                &[Task::NER]
+            }
+        }
+        "gliner25" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
         #[cfg(feature = "onnx")]
@@ -441,17 +453,14 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner_relex" | "relex" => &[Task::NER],
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
-        // Multi-task backends (GLiNER multi-task implements multiple traits)
+        // The default GLiNER multitask export scores spans. Its graph has no sequence classifier.
         "gliner_multitask"
         | "GLiNERMultitask"
         | "GLiNERMultitaskOnnx"
         | "GLiNERMultitaskCandle" => &[
             Task::NER,
-            Task::TextClassification,
-            Task::SpeechActClassification,
             Task::Temporal,
             Task::HierarchicalExtraction,
-            Task::DiscourseRelations,
             Task::DiscourseSegmentation,
             // Treat event trigger extraction as “entities” with event-type labels.
             // This makes event datasets runnable even before a dedicated event pipeline exists.
@@ -717,14 +726,21 @@ mod tests {
     fn test_gliner_multitask_capabilities() {
         let tasks = backend_tasks("gliner_multitask");
         assert!(tasks.contains(&Task::NER));
-        assert!(tasks.contains(&Task::TextClassification));
+        assert!(!tasks.contains(&Task::TextClassification));
         assert!(tasks.contains(&Task::HierarchicalExtraction));
         assert!(tasks.contains(&Task::RelationExtraction));
     }
 
     #[test]
     fn fastino_is_a_zero_shot_ner_scorecard_candidate() {
-        assert_eq!(backend_tasks("gliner2_fastino"), &[Task::NER]);
+        assert!(backend_tasks("gliner2_fastino").contains(&Task::NER));
+        for task in [Task::TextClassification, Task::SpeechActClassification] {
+            assert!(!get_task_backends(task).contains(&"gliner_multitask"));
+            assert_eq!(
+                get_task_backends(task).contains(&"gliner2_fastino"),
+                cfg!(feature = "gliner2-fastino")
+            );
+        }
         assert!(get_task_backends(Task::NER).contains(&"gliner2_fastino"));
     }
 

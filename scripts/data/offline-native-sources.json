@@ -1,0 +1,3892 @@
+{
+  "snapshot_date": "2026-11-28T00:00:00Z",
+  "datasets": [
+    {
+      "id": "AgCNER",
+      "usage": "agcner",
+      "registry_url": "https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873",
+      "attribution": "Hao et al., AgCNER. Three figshare deposit records list the contributing authors.",
+      "license": "CC0 1.0 for each of the three publisher split files. Retain the original versioned release notices.",
+      "interpretation": "Chinese named-entity BIO tags for agricultural diseases and pests. Each original character-token and string tag is retained in the native JSONL importer, with the original sentence blocks. Anno constructs the model text by joining these tokens with spaces. This differs from customary Chinese orthography and limits interpretation of heuristic extraction scores.",
+      "notices": [
+        {
+          "name": "figshare-release-24056208-v1.json",
+          "url": "https://api.figshare.com/v2/articles/24056208/versions/1",
+          "sha256": "47dd6acf3dadb487a3a2289d07d958132b503f7805d362000fe311f1fb05a3f3"
+        },
+        {
+          "name": "figshare-release-24056211-v1.json",
+          "url": "https://api.figshare.com/v2/articles/24056211/versions/1",
+          "sha256": "32b2cf62e88387375d98ed432fcd564c4d0f8c67a789ef6f0dbef581ef1b5f1b"
+        },
+        {
+          "name": "figshare-release-24056205-v1.json",
+          "url": "https://api.figshare.com/v2/articles/24056205/versions/1",
+          "sha256": "4e47cae053e3726c3750e044d504825bc0881d10089e219dcbf759c1d4e99151"
+        },
+        {
+          "name": "CC0-1.0.txt",
+          "url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt",
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "train",
+          "split": "train",
+          "default": false,
+          "url": "https://ndownloader.figshare.com/files/42188205",
+          "sha256": "08b41babefc61ed26560cd6d922e98e0b6a32ea65acd50760737bb6d98db811f",
+          "original_filename": "train.bio",
+          "projection": "agcner-jsonl",
+          "cache_sha256": "a11ad5a63bb5706d51b176676a508bb73de43be91ab81f64b92e3f89bf2fddda",
+          "counts": {
+            "sentences": 47839,
+            "tokens": 3127977,
+            "native_labels": 165686
+          },
+          "source_tagged_tokens": 604274
+        },
+        {
+          "variant": "dev",
+          "split": "dev",
+          "default": false,
+          "url": "https://ndownloader.figshare.com/files/42188211",
+          "sha256": "5096006714dc84e9f5131c8abae65ed3130c8db3eae416cf6ef9e7723101b2c0",
+          "original_filename": "dev.bio",
+          "projection": "agcner-jsonl",
+          "cache_sha256": "7008cfdc614aaad647c2fcd8f514602a127127441aedbd9a6570ebdd4b564e96",
+          "counts": {
+            "sentences": 5963,
+            "tokens": 394843,
+            "native_labels": 20782
+          },
+          "source_tagged_tokens": 75744
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "default": true,
+          "url": "https://ndownloader.figshare.com/files/42188208",
+          "sha256": "f520109a9bc89cda1d6a2928fbf06157908358909ea3a7b73de46ad23eefb7b4",
+          "original_filename": "test.bio",
+          "projection": "agcner-jsonl",
+          "cache_sha256": "f1add9b1d1140624e484e2af7298a727272fc178fc7719040245dd42f22530a3",
+          "counts": {
+            "sentences": 5974,
+            "tokens": 386473,
+            "native_labels": 20524
+          },
+          "source_tagged_tokens": 75974
+        }
+      ]
+    },
+    {
+      "id": "AkkadianUD",
+      "usage": "general",
+      "registry_url": "https://universaldependencies.org/treebanks/akk_pisandub/index.html",
+      "attribution": "UniversalDependencies/UD_Akkadian-PISANDUB; Kopacewicz, Kamil",
+      "license": "CC BY-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Akkadian-PISANDUB/316522e1c1f2ec551df613111a82e00d3eeae3e0/README.md",
+          "sha256": "94a6499fddfa4430593bcda6e7fddebf3304afca29343bbf3d54f065274af883"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Akkadian-PISANDUB/316522e1c1f2ec551df613111a82e00d3eeae3e0/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Akkadian-PISANDUB",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Akkadian-PISANDUB/316522e1c1f2ec551df613111a82e00d3eeae3e0/akk_pisandub-ud-test.conllu",
+          "sha256": "06338fb66f72020239899a96926badc68ba6a7707a17e46a3c056cbe6163db4d",
+          "counts": {
+            "sentences": 101,
+            "tokens": 1852,
+            "native_labels": 1852
+          }
+        }
+      ]
+    },
+    {
+      "id": "AncientGreekUD",
+      "usage": "noncommercial",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/master/grc_perseus-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Ancient_Greek-Perseus; Celano, Giuseppe G. A.; Zeman, Daniel",
+      "license": "CC BY-NC-SA 2.5, as stated by the pinned treebank.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/b4bac91d2e3ab80cf7ba8c117d35c1656b345086/README.md",
+          "sha256": "dfa8f9389227246e0d367d427d900b7a7d7eaf9f7f3e39de6d6a285bd4dc1238"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/b4bac91d2e3ab80cf7ba8c117d35c1656b345086/LICENSE.txt",
+          "sha256": "1e610c18edecad65470980c2990acef370ee51d6b962515282e698735c46d0af"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Ancient_Greek-Perseus",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/b4bac91d2e3ab80cf7ba8c117d35c1656b345086/grc_perseus-ud-dev.conllu",
+          "sha256": "cc55827d3c693c3cfd1dc57e17a43fa642eb2a084e2e4762d4087acee9061dfd",
+          "counts": {
+            "sentences": 1137,
+            "tokens": 22135,
+            "native_labels": 22135
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Ancient_Greek-Perseus",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/b4bac91d2e3ab80cf7ba8c117d35c1656b345086/grc_perseus-ud-test.conllu",
+          "sha256": "c87a5b138555d429d702d8358f7d5832562b1009d10b8c2f1e63035247914ee1",
+          "counts": {
+            "sentences": 1306,
+            "tokens": 20959,
+            "native_labels": 20959
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Ancient_Greek-Perseus",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Greek-Perseus/b4bac91d2e3ab80cf7ba8c117d35c1656b345086/grc_perseus-ud-train.conllu",
+          "sha256": "1358c5b76007063d83b25ebf871ee41bfd07feb32ad62985f892ba368ad71221",
+          "counts": {
+            "sentences": 11476,
+            "tokens": 159895,
+            "native_labels": 159895
+          }
+        }
+      ]
+    },
+    {
+      "id": "AncientHebrewUD",
+      "usage": "noncommercial",
+      "registry_url": "https://universaldependencies.org/treebanks/hbo_ptnk/index.html",
+      "attribution": "UniversalDependencies/UD_Ancient_Hebrew-PTNK; Swanson, Daniel",
+      "license": "Treebank LICENSE specifies CC BY-SA 4.0. The README credits underlying ETCBC annotations under CC BY-NC 4.0 and MACULA under CC BY 4.0. Keep all three notices.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Hebrew-PTNK/300439891ec631f34683e074e8af2a78568654c1/README.md",
+          "sha256": "30e703321706395b5afbcafc89cf7bf6f7c74ad7dab3ae04d0ee5ed4f1a1f8b8"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Hebrew-PTNK/300439891ec631f34683e074e8af2a78568654c1/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Ancient_Hebrew-PTNK",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Hebrew-PTNK/300439891ec631f34683e074e8af2a78568654c1/hbo_ptnk-ud-dev.conllu",
+          "sha256": "b6ab760cccad9456c43e06bb112c2c94b7b00c53afe832b0bf73127486f1754b",
+          "counts": {
+            "sentences": 639,
+            "tokens": 16460,
+            "native_labels": 16460
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Ancient_Hebrew-PTNK",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Hebrew-PTNK/300439891ec631f34683e074e8af2a78568654c1/hbo_ptnk-ud-test.conllu",
+          "sha256": "836592b67175d3c62347a54def059657448b587317ccc04b7df6ea21dba4f833",
+          "counts": {
+            "sentences": 552,
+            "tokens": 14972,
+            "native_labels": 14972
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Ancient_Hebrew-PTNK",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Ancient_Hebrew-PTNK/300439891ec631f34683e074e8af2a78568654c1/hbo_ptnk-ud-train.conllu",
+          "sha256": "d7d4c2d8f30f2a35d78c79aad8946601611b5e29c51602ce6969447b67463396",
+          "counts": {
+            "sentences": 4417,
+            "tokens": 114434,
+            "native_labels": 114434
+          }
+        }
+      ]
+    },
+    {
+      "id": "ClassicalChineseUD",
+      "usage": "general",
+      "registry_url": "https://universaldependencies.org/treebanks/lzh_kyoto/index.html",
+      "attribution": "UniversalDependencies/UD_Classical_Chinese-Kyoto; Yasuoka, Koichi; Wittern, Christian; Morioka, Tomohiko; Ikeda, Takumi; Yamazaki, Naoki; Nikaido, Yoshihiro; Suzuki, Shingo; Moro, Shigeki; Li, Yuan; Shirasu, Hiroyuki; Fujita, Kazunori",
+      "license": "Treebank LICENSE specifies CC BY-SA 4.0. The README metadata labels its source PD.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Classical_Chinese-Kyoto/b7db15b8b254f94343138966066c77203658c372/README.md",
+          "sha256": "b07d2ff16490c465096a8ad6223fb2744ecaee499ba05e90b37343bc4cc29753"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Classical_Chinese-Kyoto/b7db15b8b254f94343138966066c77203658c372/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Classical_Chinese-Kyoto",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Classical_Chinese-Kyoto/b7db15b8b254f94343138966066c77203658c372/lzh_kyoto-ud-dev.conllu",
+          "sha256": "8a8593b8356cee62e9451a7b2048764c2971db726c64f3f336b07f602917282d",
+          "counts": {
+            "sentences": 6102,
+            "tokens": 31043,
+            "native_labels": 31043
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Classical_Chinese-Kyoto",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Classical_Chinese-Kyoto/b7db15b8b254f94343138966066c77203658c372/lzh_kyoto-ud-test.conllu",
+          "sha256": "e492ba5f5054ee560c33197e1681a5c18c3f21adff7dca82be3ed4af09cbf1e5",
+          "counts": {
+            "sentences": 5528,
+            "tokens": 27566,
+            "native_labels": 27566
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Classical_Chinese-Kyoto",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Classical_Chinese-Kyoto/b7db15b8b254f94343138966066c77203658c372/lzh_kyoto-ud-train.conllu",
+          "sha256": "1f9b1933c7dea46c720bd4f94ec61188e2c5c2551660e439ed3fd3cc74b52749",
+          "counts": {
+            "sentences": 74609,
+            "tokens": 374560,
+            "native_labels": 374560
+          }
+        }
+      ]
+    },
+    {
+      "id": "GAP",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv",
+      "attribution": "Kellie Webster, Marta Recasens, Vera Axelrod and Jason Baldridge (2018), Google AI Language, and the Wikipedia contributors credited in each article history. The source article URL accompanies every case.",
+      "license": "The annotations ship under Apache 2.0. Wikipedia excerpts carry their applicable Wikimedia CC BY-SA terms. Article URLs lead to the contributor histories. Wikimedia licensing and author attribution instructions: https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use#7._Licensing_of_Content",
+      "interpretation": "The native token view splits each passage on whitespace with zero NER labels. Coreference evaluation loads the supplied pronoun, two candidate names and their judgments. Each original row is one pronoun decision with two judgments.",
+      "notices": [
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/README.md",
+          "sha256": "09ac093e90eb221e762bdc34f558aeadd4378564222c80c401026ea52881cebe"
+        },
+        {
+          "name": "CC-BY-SA-3.0.txt",
+          "url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode.txt",
+          "sha256": "3f941b3b89cf7b8370ceb83cc76d2120d471b58735d8ca60238a751a48d7f72f"
+        },
+        {
+          "name": "CC-BY-SA-4.0.txt",
+          "url": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt",
+          "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "development",
+          "split": "development",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/gap-development.tsv",
+          "sha256": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+          "counts": {
+            "sentences": 2000,
+            "tokens": 142407,
+            "native_labels": 0
+          },
+          "article_url_column": "URL"
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/gap-test.tsv",
+          "sha256": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+          "counts": {
+            "sentences": 2000,
+            "tokens": 143155,
+            "native_labels": 0
+          },
+          "article_url_column": "URL"
+        },
+        {
+          "variant": "validation",
+          "split": "validation",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/83135f26025cdd705c04f77e940d0c9201116b80/gap-validation.tsv",
+          "sha256": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98",
+          "counts": {
+            "sentences": 454,
+            "tokens": 32213,
+            "native_labels": 0
+          },
+          "article_url_column": "URL"
+        }
+      ]
+    },
+    {
+      "id": "GothicUD",
+      "usage": "noncommercial",
+      "registry_url": "https://universaldependencies.org/treebanks/got_proiel/index.html",
+      "attribution": "UniversalDependencies/UD_Gothic-PROIEL; Haug, Dag",
+      "license": "Treebank README and LICENSE text specify CC BY-NC-SA 3.0. The URL in LICENSE points to 4.0. The unmodified source carries both forms of notice.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Gothic-PROIEL/c51bc78b73ecea95bd4569a904544ce660636446/README.md",
+          "sha256": "ef5f69f2b4c09ccc90d4f130f6f7483ebdb3dc2550879cf2acafff1ebfba7de5"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Gothic-PROIEL/c51bc78b73ecea95bd4569a904544ce660636446/LICENSE.txt",
+          "sha256": "18854c055dfc4f1897f8047e884402ab069a7950cf2f028eef54c6191505999c"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Gothic-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Gothic-PROIEL/c51bc78b73ecea95bd4569a904544ce660636446/got_proiel-ud-dev.conllu",
+          "sha256": "009bf653b793c32d101bd9521adb7d52d2b73e26c32bd34b04e0d7a29958d650",
+          "counts": {
+            "sentences": 985,
+            "tokens": 10114,
+            "native_labels": 10114
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Gothic-PROIEL",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Gothic-PROIEL/c51bc78b73ecea95bd4569a904544ce660636446/got_proiel-ud-test.conllu",
+          "sha256": "f0d4cd1720ffc2b9262fbaa1ad85f3b4d71f3e5060e2832159b672ef25258d54",
+          "counts": {
+            "sentences": 1029,
+            "tokens": 10198,
+            "native_labels": 10198
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Gothic-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Gothic-PROIEL/c51bc78b73ecea95bd4569a904544ce660636446/got_proiel-ud-train.conllu",
+          "sha256": "9ea47fa4ede4d16b3540ef39d610f0eecdd01ba0211456de6d02f08e2548b571",
+          "counts": {
+            "sentences": 3387,
+            "tokens": 35024,
+            "native_labels": 35024
+          }
+        }
+      ]
+    },
+    {
+      "id": "HIPE2022",
+      "usage": "noncommercial",
+      "registry_url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-test-de.tsv",
+      "attribution": "hipe-eval/HIPE-2022-data",
+      "license": "HIPE-2022 compilation CC BY-NC-SA 4.0. The ajmc component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers. HIPE-2022 compilation CC BY-NC-SA 4.0. The hipe2020 component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers. HIPE-2022 compilation CC BY-NC-SA 4.0. The letemps component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers. HIPE-2022 compilation CC BY-NC-SA 4.0. The newseye component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers. HIPE-2022 compilation CC BY-NC-SA 4.0. The sonar component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers. HIPE-2022 compilation CC BY-NC-SA 4.0. The topres19th component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers.",
+      "interpretation": "Named entities in historical newspapers and commentaries. Anno reads the NE-COARSE-LIT column and uses explicit empty lines and document markers for segment boundaries. The original TSV preserves metonymic, fine, nested, linking and MISC fields.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/README.md",
+          "sha256": "199c11b712d6b6a10f02025adfb634579888906d0848228e35ddec0d702e07b0"
+        },
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/LICENSE",
+          "sha256": "1349a4b6148492b44f629e64eed676612e234fe9a839e4f3b277c1482c8849f1"
+        },
+        {
+          "name": "documentation/README-ajmc.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-ajmc.md",
+          "sha256": "d9f030ea5d7b5e55fa72b980f960a96ac4ab559fdcb8c9822a79b3dccde2b18f"
+        },
+        {
+          "name": "documentation/README-hipe2020.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-hipe2020.md",
+          "sha256": "51a0962eda05b32fc4918be915d658ace5e90cbf56979b43277c13d4072b4d6b"
+        },
+        {
+          "name": "documentation/README-letemps.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-letemps.md",
+          "sha256": "6fb8c022f545058c682a7e317b15802eb44c0366c5495f8d6ded94ec59a9e421"
+        },
+        {
+          "name": "documentation/README-newseye.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-newseye.md",
+          "sha256": "80d65f4f4af04ab30b9b9cd6dd5afa318d6461a5394e52d3f4f057a677ef0100"
+        },
+        {
+          "name": "documentation/README-sonar.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-sonar.md",
+          "sha256": "fcdfbff7c7abb260e9a1b8f45fa1f7c3a3e8c1f5c236e1d02566db676c4a7b79"
+        },
+        {
+          "name": "documentation/README-topres19th.md",
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/documentation/README-topres19th.md",
+          "sha256": "27e520986ec604c3a04c3cb99b9474029727da6c4ae6767eed08ec93a64ebf65"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "ajmc-de-dev",
+          "split": "dev",
+          "subset": "ajmc/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/de/HIPE-2022-v2.1-ajmc-dev-de.tsv",
+          "sha256": "2140f7110e61f412e18f28353ba201998c8050e1de996f642b42388ab2656a66",
+          "counts": {
+            "sentences": 14,
+            "tokens": 4702,
+            "native_labels": 403
+          }
+        },
+        {
+          "variant": "ajmc-de-test",
+          "split": "test",
+          "subset": "ajmc/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/de/HIPE-2022-v2.1-ajmc-test-de.tsv",
+          "sha256": "0b0be2705327ae71d43816487bd4903ba912f44add22845ca34198333fec189f",
+          "counts": {
+            "sentences": 16,
+            "tokens": 4845,
+            "native_labels": 382
+          }
+        },
+        {
+          "variant": "ajmc-de-train",
+          "split": "train",
+          "subset": "ajmc/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/de/HIPE-2022-v2.1-ajmc-train-de.tsv",
+          "sha256": "e4a033497679f8a9f4bf461bae951b39541e0934555b655bf371e86926b7709e",
+          "counts": {
+            "sentences": 76,
+            "tokens": 22695,
+            "native_labels": 1738
+          }
+        },
+        {
+          "variant": "ajmc-en-dev",
+          "split": "dev",
+          "subset": "ajmc/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/en/HIPE-2022-v2.1-ajmc-dev-en.tsv",
+          "sha256": "069bd587ebe707558c18bb532d663d9895523f82018c20c1df4fce4a26f5eaf9",
+          "counts": {
+            "sentences": 14,
+            "tokens": 6506,
+            "native_labels": 416
+          }
+        },
+        {
+          "variant": "ajmc-en-test",
+          "split": "test",
+          "subset": "ajmc/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/en/HIPE-2022-v2.1-ajmc-test-en.tsv",
+          "sha256": "33d8165ab7f35c92e1ec7a0b2c21e6a45cafa03e8fb83b3e00368e2c09db6f7d",
+          "counts": {
+            "sentences": 13,
+            "tokens": 6052,
+            "native_labels": 348
+          }
+        },
+        {
+          "variant": "ajmc-en-train",
+          "split": "train",
+          "subset": "ajmc/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/en/HIPE-2022-v2.1-ajmc-train-en.tsv",
+          "sha256": "b18971bb0102c34b7e845dcc364be9624cbebedb7a7314a63059c79e3cd2466a",
+          "counts": {
+            "sentences": 60,
+            "tokens": 30932,
+            "native_labels": 1823
+          }
+        },
+        {
+          "variant": "ajmc-fr-dev",
+          "split": "dev",
+          "subset": "ajmc/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/fr/HIPE-2022-v2.1-ajmc-dev-fr.tsv",
+          "sha256": "756385b134006b345562423e0f4c97d6ee20c4406f73ac98f10575c37d47066e",
+          "counts": {
+            "sentences": 17,
+            "tokens": 5425,
+            "native_labels": 391
+          }
+        },
+        {
+          "variant": "ajmc-fr-test",
+          "split": "test",
+          "subset": "ajmc/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/fr/HIPE-2022-v2.1-ajmc-test-fr.tsv",
+          "sha256": "a8f2a1b4a021370baa49839501d79d5f9135dd849aa6e159023941ff59d56759",
+          "counts": {
+            "sentences": 15,
+            "tokens": 5390,
+            "native_labels": 360
+          }
+        },
+        {
+          "variant": "ajmc-fr-train",
+          "split": "train",
+          "subset": "ajmc/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/ajmc/fr/HIPE-2022-v2.1-ajmc-train-fr.tsv",
+          "sha256": "3f6b58d399e9acc63f6a0eecea5a9fad432cf439567dd510419d18be63768539",
+          "counts": {
+            "sentences": 72,
+            "tokens": 24669,
+            "native_labels": 1621
+          }
+        },
+        {
+          "variant": "hipe2020-de-dev",
+          "split": "dev",
+          "subset": "hipe2020/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-dev-de.tsv",
+          "sha256": "1578ae5070b4a2b5e67c197ec1e92c79c0d1c00b4b0eb7f87dc884144e1732b0",
+          "counts": {
+            "sentences": 33,
+            "tokens": 32671,
+            "native_labels": 1242
+          }
+        },
+        {
+          "variant": "hipe2020-de-test",
+          "split": "test",
+          "subset": "hipe2020/de",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-test-de.tsv",
+          "sha256": "39a27cae920561005c5a366b923a827bf7e0b35fbbae47943667dcf1865da550",
+          "counts": {
+            "sentences": 49,
+            "tokens": 30737,
+            "native_labels": 1147
+          }
+        },
+        {
+          "variant": "hipe2020-de-train",
+          "split": "train",
+          "subset": "hipe2020/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/de/HIPE-2022-v2.1-hipe2020-train-de.tsv",
+          "sha256": "efdf92bd90e56dc33b292a9bd4bdc2d298a9bd21b74dd699c3e7f98b5eb63df1",
+          "counts": {
+            "sentences": 103,
+            "tokens": 86445,
+            "native_labels": 3494
+          }
+        },
+        {
+          "variant": "hipe2020-en-dev",
+          "split": "dev",
+          "subset": "hipe2020/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/en/HIPE-2022-v2.1-hipe2020-dev-en.tsv",
+          "sha256": "0fedc96d176dcebefb0742c31e0d9e47acffb8544468eb72776e1f23f0920b87",
+          "counts": {
+            "sentences": 80,
+            "tokens": 29063,
+            "native_labels": 966
+          }
+        },
+        {
+          "variant": "hipe2020-en-test",
+          "split": "test",
+          "subset": "hipe2020/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/en/HIPE-2022-v2.1-hipe2020-test-en.tsv",
+          "sha256": "081e5b3648c26e7fb4f3825d0ab34fc60c9f021b06943750ad9973cb0458c311",
+          "counts": {
+            "sentences": 46,
+            "tokens": 16634,
+            "native_labels": 449
+          }
+        },
+        {
+          "variant": "hipe2020-fr-dev",
+          "split": "dev",
+          "subset": "hipe2020/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/fr/HIPE-2022-v2.1-hipe2020-dev-fr.tsv",
+          "sha256": "a98efbc45cb4e57cfb5431f833a6fbeab7feb6cb353a78032d09b86fbf191510",
+          "counts": {
+            "sentences": 43,
+            "tokens": 37953,
+            "native_labels": 1729
+          }
+        },
+        {
+          "variant": "hipe2020-fr-test",
+          "split": "test",
+          "subset": "hipe2020/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/fr/HIPE-2022-v2.1-hipe2020-test-fr.tsv",
+          "sha256": "c3e10f1c9a9b12bae71a40d8148516da3979315a405911474ecfee304bb688a6",
+          "counts": {
+            "sentences": 43,
+            "tokens": 40854,
+            "native_labels": 1600
+          }
+        },
+        {
+          "variant": "hipe2020-fr-train",
+          "split": "train",
+          "subset": "hipe2020/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/hipe2020/fr/HIPE-2022-v2.1-hipe2020-train-fr.tsv",
+          "sha256": "2f627bc1d7362c38e38d793c978812fa85dcc1c6ccff63a249ee897eb809787a",
+          "counts": {
+            "sentences": 158,
+            "tokens": 166220,
+            "native_labels": 6926
+          }
+        },
+        {
+          "variant": "letemps-fr-dev",
+          "split": "dev",
+          "subset": "letemps/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/letemps/fr/HIPE-2022-v2.1-letemps-dev-fr.tsv",
+          "sha256": "4b8485b75c66c3de062f20ab2c9cc17a180ec707f922d2116790fab1c4befd4e",
+          "counts": {
+            "sentences": 51,
+            "tokens": 38649,
+            "native_labels": 869
+          }
+        },
+        {
+          "variant": "letemps-fr-test",
+          "split": "test",
+          "subset": "letemps/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/letemps/fr/HIPE-2022-v2.1-letemps-test-fr.tsv",
+          "sha256": "fda8c8aace30a1b5a0e4ad4a0ee723c665508b00f099fae87df3554a37c4b384",
+          "counts": {
+            "sentences": 51,
+            "tokens": 48468,
+            "native_labels": 1017
+          }
+        },
+        {
+          "variant": "letemps-fr-train",
+          "split": "train",
+          "subset": "letemps/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/letemps/fr/HIPE-2022-v2.1-letemps-train-fr.tsv",
+          "sha256": "b00f120ada733104a30b0a8c19cf519c755e1f840ee4755ae9381e7a8678fc41",
+          "counts": {
+            "sentences": 414,
+            "tokens": 379487,
+            "native_labels": 9159
+          }
+        },
+        {
+          "variant": "newseye-de-dev",
+          "split": "dev",
+          "subset": "newseye/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/de/HIPE-2022-v2.1-newseye-dev-de.tsv",
+          "sha256": "83d182a71c11f9bb38c0ac73d7b37efb2ee52d326349efea90d8accda413d02f",
+          "counts": {
+            "sentences": 12,
+            "tokens": 40062,
+            "native_labels": 539
+          }
+        },
+        {
+          "variant": "newseye-de-test",
+          "split": "test",
+          "subset": "newseye/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/de/HIPE-2022-v2.1-newseye-test-de.tsv",
+          "sha256": "e208286fc47f364e5d60bf6a077852a5007ca514500f7bbb4bfc645755efe719",
+          "counts": {
+            "sentences": 13,
+            "tokens": 99775,
+            "native_labels": 2401
+          }
+        },
+        {
+          "variant": "newseye-de-train",
+          "split": "train",
+          "subset": "newseye/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/de/HIPE-2022-v2.1-newseye-train-de.tsv",
+          "sha256": "6bb9cc77cb80cabbe5135c7fce116aabaca96af053131cefbc9f02afaed387cb",
+          "counts": {
+            "sentences": 7,
+            "tokens": 374332,
+            "native_labels": 11381
+          }
+        },
+        {
+          "variant": "newseye-fi-dev",
+          "split": "dev",
+          "subset": "newseye/fi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fi/HIPE-2022-v2.1-newseye-dev-fi.tsv",
+          "sha256": "5be3c2c93e78e5e014e980e908b94b558c75ff939aa834e88045cbd05a624613",
+          "counts": {
+            "sentences": 24,
+            "tokens": 6350,
+            "native_labels": 223
+          }
+        },
+        {
+          "variant": "newseye-fi-test",
+          "split": "test",
+          "subset": "newseye/fi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fi/HIPE-2022-v2.1-newseye-test-fi.tsv",
+          "sha256": "115b3299226b97a1b34db2ee4a544530bced616f084f7e60327c7e375b46682a",
+          "counts": {
+            "sentences": 24,
+            "tokens": 14963,
+            "native_labels": 691
+          }
+        },
+        {
+          "variant": "newseye-fi-train",
+          "split": "train",
+          "subset": "newseye/fi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fi/HIPE-2022-v2.1-newseye-train-fi.tsv",
+          "sha256": "53ed1c064107cde1afcf64e35a51ee43f323810c9f0ebc883c42cbd07b1a2328",
+          "counts": {
+            "sentences": 24,
+            "tokens": 48222,
+            "native_labels": 2146
+          }
+        },
+        {
+          "variant": "newseye-fr-dev",
+          "split": "dev",
+          "subset": "newseye/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fr/HIPE-2022-v2.1-newseye-dev-fr.tsv",
+          "sha256": "7bbe79533f29e468c33d81fed51154d01a63e0a1cb247f16618a4fd95da9c118",
+          "counts": {
+            "sentences": 35,
+            "tokens": 21727,
+            "native_labels": 752
+          }
+        },
+        {
+          "variant": "newseye-fr-test",
+          "split": "test",
+          "subset": "newseye/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fr/HIPE-2022-v2.1-newseye-test-fr.tsv",
+          "sha256": "9afece6528a8dc4da51b00a73fdce0f67a0e14449c05c5e230e4c707da3ecfcc",
+          "counts": {
+            "sentences": 35,
+            "tokens": 70794,
+            "native_labels": 2530
+          }
+        },
+        {
+          "variant": "newseye-fr-train",
+          "split": "train",
+          "subset": "newseye/fr",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/fr/HIPE-2022-v2.1-newseye-train-fr.tsv",
+          "sha256": "0a3f7aaffa337e32a304c854053c91622714c77c75501418b595e120256c2e0d",
+          "counts": {
+            "sentences": 35,
+            "tokens": 255165,
+            "native_labels": 10423
+          }
+        },
+        {
+          "variant": "newseye-sv-dev",
+          "split": "dev",
+          "subset": "newseye/sv",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/sv/HIPE-2022-v2.1-newseye-dev-sv.tsv",
+          "sha256": "eaef6113f4f3b74e2f0c8c711e13b413137bca72aeee394a01ebc08b51b3a9b3",
+          "counts": {
+            "sentences": 21,
+            "tokens": 6906,
+            "native_labels": 266
+          }
+        },
+        {
+          "variant": "newseye-sv-test",
+          "split": "test",
+          "subset": "newseye/sv",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/sv/HIPE-2022-v2.1-newseye-test-sv.tsv",
+          "sha256": "6fd7634b1aa82432798e1858df2061249ce4a6e81fde9a422346a987460c7faa",
+          "counts": {
+            "sentences": 21,
+            "tokens": 16162,
+            "native_labels": 604
+          }
+        },
+        {
+          "variant": "newseye-sv-train",
+          "split": "train",
+          "subset": "newseye/sv",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/newseye/sv/HIPE-2022-v2.1-newseye-train-sv.tsv",
+          "sha256": "4602653761c1bb26a2f70b0b303533c1f8c8c10367d9df28d8b61ca2b996b5b9",
+          "counts": {
+            "sentences": 21,
+            "tokens": 56306,
+            "native_labels": 2140
+          }
+        },
+        {
+          "variant": "sonar-de-dev",
+          "split": "dev",
+          "subset": "sonar/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/sonar/de/HIPE-2022-v2.1-sonar-dev-de.tsv",
+          "sha256": "9ccfa577c92cff0e952a6984412e60d15fc1a0df9423606a8e475d328f5d2c7b",
+          "counts": {
+            "sentences": 10,
+            "tokens": 17476,
+            "native_labels": 654
+          }
+        },
+        {
+          "variant": "sonar-de-test",
+          "split": "test",
+          "subset": "sonar/de",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/sonar/de/HIPE-2022-v2.1-sonar-test-de.tsv",
+          "sha256": "9a3f633337300e26ed0cdf63799485fb171bc6e787e0b09f418fc44a83069819",
+          "counts": {
+            "sentences": 10,
+            "tokens": 15463,
+            "native_labels": 471
+          }
+        },
+        {
+          "variant": "topres19th-en-dev",
+          "split": "dev",
+          "subset": "topres19th/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/topres19th/en/HIPE-2022-v2.1-topres19th-dev-en.tsv",
+          "sha256": "ee9cb47f9f4ce238d780d642d4ab0ea60f0c7ec3bc7f85b12eece9854042f36a",
+          "counts": {
+            "sentences": 34,
+            "tokens": 11917,
+            "native_labels": 236
+          }
+        },
+        {
+          "variant": "topres19th-en-test",
+          "split": "test",
+          "subset": "topres19th/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/topres19th/en/HIPE-2022-v2.1-topres19th-test-en.tsv",
+          "sha256": "f54fb9ab5600f9f50126327ac9bef05c6c20ebd6472c1c9b1ffbd0cff465adeb",
+          "counts": {
+            "sentences": 112,
+            "tokens": 43270,
+            "native_labels": 1186
+          }
+        },
+        {
+          "variant": "topres19th-en-train",
+          "split": "train",
+          "subset": "topres19th/en",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/hipe-eval/HIPE-2022-data/147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea/data/v2.1/topres19th/en/HIPE-2022-v2.1-topres19th-train-en.tsv",
+          "sha256": "4b44d516b49e5036307b94c0539b6979b843e09c613e7b11427654d121dbd3f4",
+          "counts": {
+            "sentences": 309,
+            "tokens": 123983,
+            "native_labels": 3179
+          }
+        }
+      ]
+    },
+    {
+      "id": "HistNERo",
+      "usage": "general",
+      "registry_url": "https://github.com/avramandrei/histnero",
+      "attribution": "Andrei-Marius Avram, Andreea Iuga, George-Vlad Manolache and coauthors of HistNERo (2024), as listed in the retained source README.",
+      "license": "MIT release of the HistNERo dataset. Keep the license, named authors, citation and document identifiers of the historical source texts.",
+      "interpretation": "Named entities in historical Romanian. The adapter preserves the original JSON arrays and maps every class ID according to the published class-label notice. It retains all original source rows and fields, including the original empty token strings and their class IDs. The original PERS tag is compared literally with the heuristic model’s PER tag. Among 66 original empty token strings, 15 have a non-O tag. Two single-token B-PROD spans in validation have start equal to end. Anno counts them as supplied gold and reports two validation warnings.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/README.md",
+          "sha256": "08ce0f1bf16e3091d1e7473d19558e638390b159fbaf0a0f746b28ec3d7f7215"
+        },
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/LICENSE",
+          "sha256": "f7d6c2461cffc0f2971c8fa6b5a22f33c250a7758c5191958c4116f3c0e8a3e9"
+        },
+        {
+          "name": "publisher-class-labels.md",
+          "url": "https://huggingface.co/datasets/avramandrei/histnero/raw/433ca166efac28c952813c0e78bf301643cf5af3/README.md",
+          "sha256": "95d05467e9189455532167ec98fb2abb69d66aa6342e2e7eeaf3d191ac1196da"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "",
+          "default": true,
+          "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/test.json",
+          "sha256": "778c16f495a927892505a208f54a109f66d2d66fa56db444391b73e88a7722b7",
+          "counts": {
+            "sentences": 1003,
+            "tokens": 29021,
+            "native_labels": 690
+          },
+          "projection": "histnero-rows",
+          "cache_sha256": "032085963f8bd19fe357f0318be696127ad8b41aeac5850edea116a63806a9fd",
+          "empty_tokens": 6,
+          "tagged_empty_tokens": 0,
+          "zero_length_gold_spans": 0
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "",
+          "default": false,
+          "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/train.json",
+          "sha256": "bb9e088bf352b93f38dffbd2a37d27ed301a3c03658092118e8a5ca0563d385a",
+          "counts": {
+            "sentences": 8020,
+            "tokens": 231651,
+            "native_labels": 5686
+          },
+          "projection": "histnero-rows",
+          "cache_sha256": "eadbe9422c586e72d0f9d1bd7314c9a526f6908665e1b7182127d13be60d3359",
+          "empty_tokens": 52,
+          "tagged_empty_tokens": 11,
+          "zero_length_gold_spans": 0
+        },
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "",
+          "default": false,
+          "url": "https://media.githubusercontent.com/media/avramandrei/histnero/a105f3950570b8d92410fecce85ea06af32d8a86/data/valid.json",
+          "sha256": "32b793fad0837018948cdd9ae0c71bcb589881c6b4a2acb235f32207478a1aba",
+          "counts": {
+            "sentences": 1003,
+            "tokens": 29187,
+            "native_labels": 675
+          },
+          "projection": "histnero-rows",
+          "cache_sha256": "94d523983656cfa539b892246409f1896b9698657baab0b1aa72761a01d80b9e",
+          "empty_tokens": 8,
+          "tagged_empty_tokens": 4,
+          "zero_length_gold_spans": 2
+        }
+      ]
+    },
+    {
+      "id": "HittiteUD",
+      "usage": "general",
+      "registry_url": "https://universaldependencies.org/treebanks/hit_hittb/index.html",
+      "attribution": "UniversalDependencies/UD_Hittite-HitTB; Andersen, Erik; Rozonoyer, Ben",
+      "license": "CC BY-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Hittite-HitTB/791d281316d83c1755900446ad5b1e512ecd73ac/README.md",
+          "sha256": "296633838b03c6c54420fd1154ce40d0fad3acff9f4e7f2d925aa008595cb6d4"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Hittite-HitTB/791d281316d83c1755900446ad5b1e512ecd73ac/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Hittite-HitTB",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Hittite-HitTB/791d281316d83c1755900446ad5b1e512ecd73ac/hit_hittb-ud-test.conllu",
+          "sha256": "a55968a8a694503431cfceebf06fad3d2de6a509cc32f92f53710b58fa5fd019",
+          "counts": {
+            "sentences": 136,
+            "tokens": 1309,
+            "native_labels": 1309
+          }
+        }
+      ]
+    },
+    {
+      "id": "LatinPROIEL",
+      "usage": "noncommercial",
+      "registry_url": "https://universaldependencies.org/treebanks/la_proiel/index.html",
+      "attribution": "UniversalDependencies/UD_Latin-PROIEL; Haug, Dag",
+      "license": "Treebank LICENSE specifies CC BY-NC-SA 4.0 and README metadata specifies CC BY-NC-SA 3.0. The unmodified source carries both.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-PROIEL/56e6e8c8f6b1c6388dba17c807a9da19f6141b23/README.md",
+          "sha256": "5ce45e00111141f0b470cb0a069530fe2ff9c8fc80d4e45c7bd184c294919fd4"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-PROIEL/56e6e8c8f6b1c6388dba17c807a9da19f6141b23/LICENSE.txt",
+          "sha256": "33af57b85f3e7076e91926976985b7a02e986fdc43d2acb0c49fa9564774cdb2"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Latin-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-PROIEL/56e6e8c8f6b1c6388dba17c807a9da19f6141b23/la_proiel-ud-dev.conllu",
+          "sha256": "7a7531066438e3ce56ba7c92dfe95b92c1785dade58e55c9939b94db12fa7344",
+          "counts": {
+            "sentences": 1233,
+            "tokens": 13917,
+            "native_labels": 13917
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Latin-PROIEL",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-PROIEL/56e6e8c8f6b1c6388dba17c807a9da19f6141b23/la_proiel-ud-test.conllu",
+          "sha256": "bd3d538cf242e8940f09247fd55dc8f9417706f88c6685edd3c0873ebcea05bc",
+          "counts": {
+            "sentences": 1260,
+            "tokens": 14091,
+            "native_labels": 14091
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Latin-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-PROIEL/56e6e8c8f6b1c6388dba17c807a9da19f6141b23/la_proiel-ud-train.conllu",
+          "sha256": "4bcb47050363f32e6fad8f425d6d12bf4a1a44f1a24892aefd750f454c48f5cc",
+          "counts": {
+            "sentences": 16196,
+            "tokens": 177558,
+            "native_labels": 177558
+          }
+        }
+      ]
+    },
+    {
+      "id": "LatinUD",
+      "usage": "noncommercial",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/master/la_ittb-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Latin-ITTB; Passarotti, Marco; Testori, Marinella; Zeman, Daniel; González Saavedra, Berta; Cecchini, Flavio Massimiliano",
+      "license": "CC BY-NC-SA 3.0, including the original Index Thomisticus treebank.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/16cc97fce6969cdec628544c57194938281fbcdf/README.md",
+          "sha256": "379c2db2b78a932b6e41ec3314ef5694e4e9f83bbea5e8a0c124bca66f7934c3"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/16cc97fce6969cdec628544c57194938281fbcdf/LICENSE.txt",
+          "sha256": "3e07ac7ee7b02daa2a88e8bb1e825d6a580aababe1a7084c40cd0664d6231fb0"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Latin-ITTB",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/16cc97fce6969cdec628544c57194938281fbcdf/la_ittb-ud-dev.conllu",
+          "sha256": "6cf0438d04f1419cdd4b75b908eb260d73c0d683ab8868a921e0fb7d673d6acc",
+          "counts": {
+            "sentences": 2101,
+            "tokens": 29888,
+            "native_labels": 29888
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Latin-ITTB",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/16cc97fce6969cdec628544c57194938281fbcdf/la_ittb-ud-test.conllu",
+          "sha256": "e813e8859f2097e83ec2f7944b49f4cbb74ae5869be7110a2e730b53d4600f45",
+          "counts": {
+            "sentences": 2101,
+            "tokens": 29842,
+            "native_labels": 29842
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Latin-ITTB",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Latin-ITTB/16cc97fce6969cdec628544c57194938281fbcdf/la_ittb-ud-train.conllu",
+          "sha256": "7a8ed5d4a3391e918213ffa988f0930364e009e97a4ae4c3c820837fb3cfe29a",
+          "counts": {
+            "sentences": 22775,
+            "tokens": 390787,
+            "native_labels": 390787
+          }
+        }
+      ]
+    },
+    {
+      "id": "MasakhaNER",
+      "usage": "noncommercial",
+      "registry_url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/main/data/yor/test.txt",
+      "attribution": "masakhane-io/masakhane-ner",
+      "license": "Annotated MasakhaNER release CC BY-NC 4.0. Raw monolingual news has separate source terms and is outside these split files. Credit the language communities, authors and news sources listed in the README.",
+      "interpretation": "Named-entity spans in the original MasakhaNER release. The default is the Yoruba test split.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/README.md",
+          "sha256": "dd5fee02e92fa6096ab2c259023a6a5dbad4dbfdcc738feda9136dcadc515e2a"
+        },
+        {
+          "name": "data/README.md",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/README.md",
+          "sha256": "455f3f208b5d902dc4a726cea42e7880451585d10e18e3b9f561d0480ef782e6"
+        },
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/LICENSE",
+          "sha256": "194aaedc58f2aeaf707b36e727e1d97a86e71c661d5caadfb5f36bd5f461085a"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "amh-dev",
+          "split": "dev",
+          "subset": "amh",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/amh/dev.txt",
+          "sha256": "f7561345b55d41ccf472c1306e0a0a8f8bc3d46ac535f5dee3d1da3f1a0bb816",
+          "counts": {
+            "sentences": 250,
+            "tokens": 3749,
+            "native_labels": 328
+          }
+        },
+        {
+          "variant": "amh-test",
+          "split": "test",
+          "subset": "amh",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/amh/test.txt",
+          "sha256": "3968ef19c31c480859364f927ac6370ae5c33c9557437e87c0b6f7801df461b6",
+          "counts": {
+            "sentences": 500,
+            "tokens": 7449,
+            "native_labels": 558
+          }
+        },
+        {
+          "variant": "amh-train",
+          "split": "train",
+          "subset": "amh",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/amh/train.txt",
+          "sha256": "44d6e06d6bedd2b902578ae658fc3ad6548b8876166a821893d081393a92afe4",
+          "counts": {
+            "sentences": 1750,
+            "tokens": 25819,
+            "native_labels": 2247
+          }
+        },
+        {
+          "variant": "hau-dev",
+          "split": "dev",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/hau/dev.txt",
+          "sha256": "a4695528b190c629f417e66feda127650611ee8d0f0d0ce14dee8f1506da0f7f",
+          "counts": {
+            "sentences": 276,
+            "tokens": 8301,
+            "native_labels": 667
+          }
+        },
+        {
+          "variant": "hau-test",
+          "split": "test",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/hau/test.txt",
+          "sha256": "1f636716cb1633490bc475951721d81a637b033045123f3ee84fee2a1ea06c70",
+          "counts": {
+            "sentences": 552,
+            "tokens": 16841,
+            "native_labels": 1148
+          }
+        },
+        {
+          "variant": "hau-train",
+          "split": "train",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/hau/train.txt",
+          "sha256": "f09523f77aacc7d89e935ce8fdd0d7d6afb7ba06e4a6040a431f295b0b937939",
+          "counts": {
+            "sentences": 1912,
+            "tokens": 55010,
+            "native_labels": 4144
+          }
+        },
+        {
+          "variant": "ibo-dev",
+          "split": "dev",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/ibo/dev.txt",
+          "sha256": "059e81794392a659efd65218ae988ff4ae680cd5beceae84caa5a8658767e8ee",
+          "counts": {
+            "sentences": 320,
+            "tokens": 6304,
+            "native_labels": 600
+          }
+        },
+        {
+          "variant": "ibo-test",
+          "split": "test",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/ibo/test.txt",
+          "sha256": "ecfc765813ac82b5807e3cf00e26020ec971e5ebd93c71e172c7f48df427d818",
+          "counts": {
+            "sentences": 638,
+            "tokens": 12645,
+            "native_labels": 1179
+          }
+        },
+        {
+          "variant": "ibo-train",
+          "split": "train",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/ibo/train.txt",
+          "sha256": "9731a5268749b43c5f1c7ac1f420aa7b856cbe2a0002b14dd1d2f809257612bb",
+          "counts": {
+            "sentences": 2235,
+            "tokens": 42719,
+            "native_labels": 3483
+          }
+        },
+        {
+          "variant": "kin-dev",
+          "split": "dev",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/kin/dev.txt",
+          "sha256": "2adff8ef6a84927a9ebf68760feaffba8ff4d220fde89d6da88e084287c6cae9",
+          "counts": {
+            "sentences": 302,
+            "tokens": 6711,
+            "native_labels": 618
+          }
+        },
+        {
+          "variant": "kin-test",
+          "split": "test",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/kin/test.txt",
+          "sha256": "d49c012b50ef2e1e5f6e424f4348d18ebc171298dd0eb34ec5a000a353f3d98f",
+          "counts": {
+            "sentences": 605,
+            "tokens": 14196,
+            "native_labels": 968
+          }
+        },
+        {
+          "variant": "kin-train",
+          "split": "train",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/kin/train.txt",
+          "sha256": "46960b853d33b08759ec04dea5ba390ac196573b9fb868556aa3ed9ecd613d5a",
+          "counts": {
+            "sentences": 2116,
+            "tokens": 47912,
+            "native_labels": 3706
+          }
+        },
+        {
+          "variant": "lug-dev",
+          "split": "dev",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/lug/dev.txt",
+          "sha256": "654a457c9c7aaba690a6cab0a72390605288fd46668e3c17fa5f84596bbc740c",
+          "counts": {
+            "sentences": 200,
+            "tokens": 3771,
+            "native_labels": 288
+          }
+        },
+        {
+          "variant": "lug-test",
+          "split": "test",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/lug/test.txt",
+          "sha256": "6b8b327cecc61d7228be95331e6bf3bbdeea84a3d023172359f0aa1c89b52ecc",
+          "counts": {
+            "sentences": 407,
+            "tokens": 9841,
+            "native_labels": 854
+          }
+        },
+        {
+          "variant": "lug-train",
+          "split": "train",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/lug/train.txt",
+          "sha256": "5884e3c4be037b37dec9c1d60125638dad3510c81f903402d9c31f023deaf7fa",
+          "counts": {
+            "sentences": 1428,
+            "tokens": 33003,
+            "native_labels": 3084
+          }
+        },
+        {
+          "variant": "luo-dev",
+          "split": "dev",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/luo/dev.txt",
+          "sha256": "37a270c722d1c5462907222bf3ff1cf2453075490f00867a4c8d90838080416a",
+          "counts": {
+            "sentences": 92,
+            "tokens": 2567,
+            "native_labels": 197
+          }
+        },
+        {
+          "variant": "luo-test",
+          "split": "test",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/luo/test.txt",
+          "sha256": "9342c9a99a17b08daee32fe9ed414ab1e4810db886ba4e8b1c9f5522438479df",
+          "counts": {
+            "sentences": 186,
+            "tokens": 5159,
+            "native_labels": 405
+          }
+        },
+        {
+          "variant": "luo-train",
+          "split": "train",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/luo/train.txt",
+          "sha256": "a676dba1a88bfbf352150145855252f7c47c271c37da8c2d09fb3560e899fcd9",
+          "counts": {
+            "sentences": 644,
+            "tokens": 18577,
+            "native_labels": 1250
+          }
+        },
+        {
+          "variant": "pcm-dev",
+          "split": "dev",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/pcm/dev.txt",
+          "sha256": "34e2dc4868718fbb3646f2d65d3e7802866d4c17bde005ff28bfc3960de2f0bc",
+          "counts": {
+            "sentences": 306,
+            "tokens": 7728,
+            "native_labels": 638
+          }
+        },
+        {
+          "variant": "pcm-test",
+          "split": "test",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/pcm/test.txt",
+          "sha256": "de0dc15f4f74adff9486d03897354ef30ded9bedb73e058a96e3d1bd0a0c85fc",
+          "counts": {
+            "sentences": 600,
+            "tokens": 15731,
+            "native_labels": 919
+          }
+        },
+        {
+          "variant": "pcm-train",
+          "split": "train",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/pcm/train.txt",
+          "sha256": "7fbb8bc4f0b456e6283624d05a1bfd0e331c580ebf9564815d6f5b7453588272",
+          "counts": {
+            "sentences": 2124,
+            "tokens": 52604,
+            "native_labels": 4651
+          }
+        },
+        {
+          "variant": "swa-dev",
+          "split": "dev",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/swa/dev.txt",
+          "sha256": "ee742c38cba9139f1a147baffe7d294d6e38599c67a66ec896500ac2666f53d3",
+          "counts": {
+            "sentences": 300,
+            "tokens": 7263,
+            "native_labels": 674
+          }
+        },
+        {
+          "variant": "swa-test",
+          "split": "test",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/swa/test.txt",
+          "sha256": "f91b97def896572dfaaf6db247a01cc1a8b7bd2ce537c19956ec0a0a1ac5913c",
+          "counts": {
+            "sentences": 604,
+            "tokens": 15409,
+            "native_labels": 1179
+          }
+        },
+        {
+          "variant": "swa-train",
+          "split": "train",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/swa/train.txt",
+          "sha256": "3fbefb76d97a652a29c6f856946af60e31a92ad82927bb748092c5be1b96cb08",
+          "counts": {
+            "sentences": 2109,
+            "tokens": 56599,
+            "native_labels": 4591
+          }
+        },
+        {
+          "variant": "wol-dev",
+          "split": "dev",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/wol/dev.txt",
+          "sha256": "48517a2ad733938805be4bdd285518bed75f14d62068abed74c7eece550e9630",
+          "counts": {
+            "sentences": 267,
+            "tokens": 4384,
+            "native_labels": 109
+          }
+        },
+        {
+          "variant": "wol-test",
+          "split": "test",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/wol/test.txt",
+          "sha256": "4791d2b105f1022c6b9180b7d96d10d4daa864d7f7087f1822b55ddbdd22b931",
+          "counts": {
+            "sentences": 539,
+            "tokens": 11682,
+            "native_labels": 512
+          }
+        },
+        {
+          "variant": "wol-train",
+          "split": "train",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/wol/train.txt",
+          "sha256": "160b946c5944313135cd0893030f9f2e5f305e1195e763124bfffd30eac787e8",
+          "counts": {
+            "sentences": 1871,
+            "tokens": 36805,
+            "native_labels": 1397
+          }
+        },
+        {
+          "variant": "yor-dev",
+          "split": "dev",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/yor/dev.txt",
+          "sha256": "6fd8ba4c586606a08669ca56954185092f419ddf9c2c4d950815a1cb03af3832",
+          "counts": {
+            "sentences": 305,
+            "tokens": 7115,
+            "native_labels": 360
+          }
+        },
+        {
+          "variant": "yor-test",
+          "split": "test",
+          "subset": "yor",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/yor/test.txt",
+          "sha256": "fbace84a8b7cc0c4078f1600a2408b06b3d182977bb64d55318590cba56c2058",
+          "counts": {
+            "sentences": 645,
+            "tokens": 19896,
+            "native_labels": 1133
+          }
+        },
+        {
+          "variant": "yor-train",
+          "split": "train",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/data/yor/train.txt",
+          "sha256": "8baf42a3231ab6f10ce7ed5ed434a5a5447634d1cdf979ac932b2496e3566784",
+          "counts": {
+            "sentences": 2171,
+            "tokens": 56274,
+            "native_labels": 2863
+          }
+        }
+      ]
+    },
+    {
+      "id": "MasakhaNER2",
+      "usage": "noncommercial",
+      "registry_url": "https://huggingface.co/datasets/masakhane/masakhaner2",
+      "attribution": "masakhane-io/masakhane-ner",
+      "license": "Annotated MasakhaNER 2.0 release CC BY-NC 4.0. Raw monolingual news has separate source terms and is outside these split files. Retain the release authors, acknowledgments and sources; one malformed train file is preserved verbatim.",
+      "interpretation": "Named-entity spans in the MasakhaNER 2.0 release. Each language and split is separate. The original Xhosa training file has a missing entity tag on line 44,520 and is omitted from the native profiles.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/README.md",
+          "sha256": "dd5fee02e92fa6096ab2c259023a6a5dbad4dbfdcc738feda9136dcadc515e2a"
+        },
+        {
+          "name": "MasakhaNER2.0/README.md",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/README.md",
+          "sha256": "1f3cc4fb7331b438ddaf932defd185df3491b4326d973ee1892d6767292df742"
+        },
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/LICENSE",
+          "sha256": "194aaedc58f2aeaf707b36e727e1d97a86e71c661d5caadfb5f36bd5f461085a"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "bam-dev",
+          "split": "dev",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bam/dev.txt",
+          "sha256": "55df0c8a8cedc5a03f28b4e91ed055e327705127886b94210e79dcfaba6fc4d4",
+          "counts": {
+            "sentences": 638,
+            "tokens": 16502,
+            "native_labels": 634
+          }
+        },
+        {
+          "variant": "bam-test",
+          "split": "test",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bam/test.txt",
+          "sha256": "b9eab9168a5042d80bb40f4fa3bcceb173542a8708f834bb34513bf5caf8610a",
+          "counts": {
+            "sentences": 1274,
+            "tokens": 32024,
+            "native_labels": 1315
+          }
+        },
+        {
+          "variant": "bam-train",
+          "split": "train",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bam/train.txt",
+          "sha256": "d8c622197cb1101a374d376f6749a5291c2a9d60b0459fc76162cf60054ddc68",
+          "counts": {
+            "sentences": 4462,
+            "tokens": 106998,
+            "native_labels": 3686
+          }
+        },
+        {
+          "variant": "bbj-dev",
+          "split": "dev",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bbj/dev.txt",
+          "sha256": "689aed20d04d0471a23d96f89300aac00476e410693f7d74fa570b0164af03bc",
+          "counts": {
+            "sentences": 483,
+            "tokens": 7262,
+            "native_labels": 354
+          }
+        },
+        {
+          "variant": "bbj-test",
+          "split": "test",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bbj/test.txt",
+          "sha256": "e6ad57c4255c3f6e37d5dcef6dae93094c9412242f5cf8438117a804334de843",
+          "counts": {
+            "sentences": 966,
+            "tokens": 14958,
+            "native_labels": 1052
+          }
+        },
+        {
+          "variant": "bbj-train",
+          "split": "train",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/bbj/train.txt",
+          "sha256": "9f7154bcd94743ed1caf7cd2409c849dc6114f8e1d8473ff2e500d398d2c0469",
+          "counts": {
+            "sentences": 3384,
+            "tokens": 47239,
+            "native_labels": 2692
+          }
+        },
+        {
+          "variant": "ewe-dev",
+          "split": "dev",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ewe/dev.txt",
+          "sha256": "0a1a650e438e33bdac2f7d14ca54c37b9e6d6606a7f617e4e73d658a65b13d97",
+          "counts": {
+            "sentences": 501,
+            "tokens": 9320,
+            "native_labels": 1157
+          }
+        },
+        {
+          "variant": "ewe-test",
+          "split": "test",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ewe/test.txt",
+          "sha256": "7030547411e1883d25dc163112e9687a8a7ea34114c21cf96ea3dbdf4270c226",
+          "counts": {
+            "sentences": 1001,
+            "tokens": 20442,
+            "native_labels": 2344
+          }
+        },
+        {
+          "variant": "ewe-train",
+          "split": "train",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ewe/train.txt",
+          "sha256": "46afa4361f54718c79c6e33f62fa26859fe34520a8c85f0828a608fc7c1839bd",
+          "counts": {
+            "sentences": 3505,
+            "tokens": 60657,
+            "native_labels": 5258
+          }
+        },
+        {
+          "variant": "fon-dev",
+          "split": "dev",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/fon/dev.txt",
+          "sha256": "d044bff9935e32be9ce03fcc830149c9fcf00b375517bb161c43d680f11e8b7a",
+          "counts": {
+            "sentences": 623,
+            "tokens": 17539,
+            "native_labels": 557
+          }
+        },
+        {
+          "variant": "fon-test",
+          "split": "test",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/fon/test.txt",
+          "sha256": "a30b8fba1e8ec7c3e49708b9d97441d35e2f2028e6c5971a2b951aa78ecf4536",
+          "counts": {
+            "sentences": 1228,
+            "tokens": 36415,
+            "native_labels": 1307
+          }
+        },
+        {
+          "variant": "fon-train",
+          "split": "train",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/fon/train.txt",
+          "sha256": "85c99af3da2cddf7e6daa426af3b981daba4e88a8c11cf7ae8e94761c3d7b83e",
+          "counts": {
+            "sentences": 4343,
+            "tokens": 118853,
+            "native_labels": 5047
+          }
+        },
+        {
+          "variant": "hau-dev",
+          "split": "dev",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/hau/dev.txt",
+          "sha256": "1eee64451c25a3c96ae7fd780446ba5b29bf4eaca1b70d1d2c4ebc9571a70951",
+          "counts": {
+            "sentences": 816,
+            "tokens": 21537,
+            "native_labels": 1162
+          }
+        },
+        {
+          "variant": "hau-test",
+          "split": "test",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/hau/test.txt",
+          "sha256": "64c27e3e9ce2d47ee12e6e21ae2047cdc320ef9c65baec7d1f331189a881a234",
+          "counts": {
+            "sentences": 1633,
+            "tokens": 44848,
+            "native_labels": 4109
+          }
+        },
+        {
+          "variant": "hau-train",
+          "split": "train",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/hau/train.txt",
+          "sha256": "54c537b644f246b1d1fca61318151f1e01bcd1039ac3df328aed520934bc6d0f",
+          "counts": {
+            "sentences": 5716,
+            "tokens": 153238,
+            "native_labels": 9859
+          }
+        },
+        {
+          "variant": "ibo-dev",
+          "split": "dev",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ibo/dev.txt",
+          "sha256": "75cdebb3d04f4300ac1368e4f72a4e2027e586c31db53771a8da548ce368b2ac",
+          "counts": {
+            "sentences": 1090,
+            "tokens": 33510,
+            "native_labels": 1120
+          }
+        },
+        {
+          "variant": "ibo-test",
+          "split": "test",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ibo/test.txt",
+          "sha256": "149eb6edd255b35e204764c868949ac263edb06bd190ec000f24168d3d5f4c7d",
+          "counts": {
+            "sentences": 2181,
+            "tokens": 71802,
+            "native_labels": 3241
+          }
+        },
+        {
+          "variant": "ibo-train",
+          "split": "train",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/ibo/train.txt",
+          "sha256": "1bc7d541bb8c66e86c00f48c15f9edf477c3f2e8696299d81f2c4126a8853dc9",
+          "counts": {
+            "sentences": 7634,
+            "tokens": 238783,
+            "native_labels": 9722
+          }
+        },
+        {
+          "variant": "kin-dev",
+          "split": "dev",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/kin/dev.txt",
+          "sha256": "f7be4442fd522b4d4b112f660d90b9d4b093c02ca758e247687b1771a1fd6134",
+          "counts": {
+            "sentences": 1118,
+            "tokens": 22502,
+            "native_labels": 2076
+          }
+        },
+        {
+          "variant": "kin-test",
+          "split": "test",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/kin/test.txt",
+          "sha256": "07a1a34ec9914b13e36391c90fa0c7db7ac1bee06ee1aa5ca61c7abdeaad9558",
+          "counts": {
+            "sentences": 2235,
+            "tokens": 52284,
+            "native_labels": 3781
+          }
+        },
+        {
+          "variant": "kin-train",
+          "split": "train",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/kin/train.txt",
+          "sha256": "46ea60481db59e281b6df813043643fecfbc734cb0ffa3eefe86a80ec78c847f",
+          "counts": {
+            "sentences": 7825,
+            "tokens": 171147,
+            "native_labels": 10738
+          }
+        },
+        {
+          "variant": "lug-dev",
+          "split": "dev",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/lug/dev.txt",
+          "sha256": "cd9bd5126b9596965748a82082cced9cd66f99611836c1fd10b52e0fe59c03c3",
+          "counts": {
+            "sentences": 706,
+            "tokens": 11480,
+            "native_labels": 1225
+          }
+        },
+        {
+          "variant": "lug-test",
+          "split": "test",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/lug/test.txt",
+          "sha256": "025dd4b7036b21f30dca949fd35550b98c68f59c8b11b33e341cd3fc30adf433",
+          "counts": {
+            "sentences": 1412,
+            "tokens": 22329,
+            "native_labels": 2267
+          }
+        },
+        {
+          "variant": "lug-train",
+          "split": "train",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/lug/train.txt",
+          "sha256": "99cb8c486293b3582676d2f3f5cf1cb94bcebbb7f3661149adf209df9dd8c65b",
+          "counts": {
+            "sentences": 4942,
+            "tokens": 86308,
+            "native_labels": 7963
+          }
+        },
+        {
+          "variant": "luo-dev",
+          "split": "dev",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/luo/dev.txt",
+          "sha256": "d7b0db8cf9d080ff12045bb0a57e9d3458b53bc8ae4b39d2ee89e4e658777f8e",
+          "counts": {
+            "sentences": 737,
+            "tokens": 22270,
+            "native_labels": 1084
+          }
+        },
+        {
+          "variant": "luo-test",
+          "split": "test",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/luo/test.txt",
+          "sha256": "0630b7e8867dcd3482a5cd0971cfa27ddfcc5c4af144e93cf8694af4700f28b8",
+          "counts": {
+            "sentences": 1474,
+            "tokens": 44275,
+            "native_labels": 2566
+          }
+        },
+        {
+          "variant": "luo-train",
+          "split": "train",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/luo/train.txt",
+          "sha256": "2f47f9ccf39bc819d1b44c024fc39a3b04484b360b2701925bbe659cd139e411",
+          "counts": {
+            "sentences": 5161,
+            "tokens": 163382,
+            "native_labels": 11122
+          }
+        },
+        {
+          "variant": "mos-dev",
+          "split": "dev",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/mos/dev.txt",
+          "sha256": "ffff7e0e5dced9dadcf05e96a585a181bc4dda044b3d0d44156dc59eb0923f58",
+          "counts": {
+            "sentences": 648,
+            "tokens": 16562,
+            "native_labels": 797
+          }
+        },
+        {
+          "variant": "mos-test",
+          "split": "test",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/mos/test.txt",
+          "sha256": "45d6354600b4f082237fc434b9174b9d04ec2f94e920c2037796f44cb5671826",
+          "counts": {
+            "sentences": 1294,
+            "tokens": 27700,
+            "native_labels": 1196
+          }
+        },
+        {
+          "variant": "mos-train",
+          "split": "train",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/mos/train.txt",
+          "sha256": "00dd6ff8fc4b0d0c2ab40ed3709e200882361e7bdda0b5cc24ef507811bf260b",
+          "counts": {
+            "sentences": 4532,
+            "tokens": 123879,
+            "native_labels": 4150
+          }
+        },
+        {
+          "variant": "nya-dev",
+          "split": "dev",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/nya/dev.txt",
+          "sha256": "d689023abfe1008453ba2b940f7ff9f30c7c62bb7ba93de3697043f2572cb6c3",
+          "counts": {
+            "sentences": 893,
+            "tokens": 25479,
+            "native_labels": 1659
+          }
+        },
+        {
+          "variant": "nya-test",
+          "split": "test",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/nya/test.txt",
+          "sha256": "f6b0a9e0a3ab1e806090e1200b2e57057e71699ec435831f511504365c45e4bd",
+          "counts": {
+            "sentences": 1785,
+            "tokens": 51610,
+            "native_labels": 3464
+          }
+        },
+        {
+          "variant": "nya-train",
+          "split": "train",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/nya/train.txt",
+          "sha256": "8b4547976a24e14d9f82054d424a6df9b03592ed4e785ac843a1c6b8f6eeb87d",
+          "counts": {
+            "sentences": 6250,
+            "tokens": 186533,
+            "native_labels": 11413
+          }
+        },
+        {
+          "variant": "pcm-dev",
+          "split": "dev",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/pcm/dev.txt",
+          "sha256": "78b78e2ebe7a66e687216aaa205b792f1f04533382df5d8179a5b05a01c70fa6",
+          "counts": {
+            "sentences": 806,
+            "tokens": 21887,
+            "native_labels": 1336
+          }
+        },
+        {
+          "variant": "pcm-test",
+          "split": "test",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/pcm/test.txt",
+          "sha256": "9372969a757e73d2cb1eda46c8aa08f4d5dba7d2b88235fa255e576e65b2e055",
+          "counts": {
+            "sentences": 1613,
+            "tokens": 41760,
+            "native_labels": 2347
+          }
+        },
+        {
+          "variant": "pcm-train",
+          "split": "train",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/pcm/train.txt",
+          "sha256": "cfeb244f42664d88d703308ae78b30efd96e01ee47599589bb400a37d5e0465e",
+          "counts": {
+            "sentences": 5646,
+            "tokens": 142757,
+            "native_labels": 7782
+          }
+        },
+        {
+          "variant": "sna-dev",
+          "split": "dev",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/sna/dev.txt",
+          "sha256": "8d2fbd73c8821eb26b5704d6db0ef3e3652c974c3d8d3c1a783951021cacfa4a",
+          "counts": {
+            "sentences": 887,
+            "tokens": 20080,
+            "native_labels": 2037
+          }
+        },
+        {
+          "variant": "sna-test",
+          "split": "test",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/sna/test.txt",
+          "sha256": "11e5d87026a333ff8744ae25bac09ea452fe8c841ec05919c951a57a360dc114",
+          "counts": {
+            "sentences": 1773,
+            "tokens": 38460,
+            "native_labels": 3860
+          }
+        },
+        {
+          "variant": "sna-train",
+          "split": "train",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/sna/train.txt",
+          "sha256": "4f420d98e3ade1144bf977f3ea73ed85473eb92ca593851e59c340e14f343c92",
+          "counts": {
+            "sentences": 6207,
+            "tokens": 137240,
+            "native_labels": 13164
+          }
+        },
+        {
+          "variant": "swa-dev",
+          "split": "dev",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/swa/dev.txt",
+          "sha256": "9fb0d2c4e5b98e8b45bcc275bd63c08ac9b71dc8d40c187bfc0883d89dab86a0",
+          "counts": {
+            "sentences": 942,
+            "tokens": 25251,
+            "native_labels": 2018
+          }
+        },
+        {
+          "variant": "swa-test",
+          "split": "test",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/swa/test.txt",
+          "sha256": "8a165881018514d8e24333e6e785f7e1774d0cdbde56cbc39b76dc87db7235d8",
+          "counts": {
+            "sentences": 1883,
+            "tokens": 51179,
+            "native_labels": 4330
+          }
+        },
+        {
+          "variant": "swa-train",
+          "split": "train",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/swa/train.txt",
+          "sha256": "bdc27d69d5fb4555e988490cc8bcdd4d7516fa3d81cb838ebe978418e52d13d1",
+          "counts": {
+            "sentences": 6593,
+            "tokens": 175160,
+            "native_labels": 14583
+          }
+        },
+        {
+          "variant": "tsn-dev",
+          "split": "dev",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/tsn/dev.txt",
+          "sha256": "237ec6ae77d97c1c6d6747ae84efddf0a31fb63766076f43e3b0cb3b302b0aba",
+          "counts": {
+            "sentences": 499,
+            "tokens": 14389,
+            "native_labels": 749
+          }
+        },
+        {
+          "variant": "tsn-test",
+          "split": "test",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/tsn/test.txt",
+          "sha256": "495aa5fcef618b25f75a7b652e3da66c16076f5f0f6b7e4a9df1fdf97ebfa114",
+          "counts": {
+            "sentences": 996,
+            "tokens": 26705,
+            "native_labels": 1506
+          }
+        },
+        {
+          "variant": "tsn-train",
+          "split": "train",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/tsn/train.txt",
+          "sha256": "67681289bce4183df1d6ea6cd1c13a537cad845ef4294b6bffb3be235e46732e",
+          "counts": {
+            "sentences": 3489,
+            "tokens": 99973,
+            "native_labels": 4993
+          }
+        },
+        {
+          "variant": "twi-dev",
+          "split": "dev",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/twi/dev.txt",
+          "sha256": "21ba2b19cbb15835be77facaa7278c6352268454d0ee76b8d534fc61ba2e6353",
+          "counts": {
+            "sentences": 605,
+            "tokens": 14804,
+            "native_labels": 385
+          }
+        },
+        {
+          "variant": "twi-test",
+          "split": "test",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/twi/test.txt",
+          "sha256": "fd47aa9e7f6ac36b3210d3482fe348406981d63c9c0d2b5a32bcb6eecb91702a",
+          "counts": {
+            "sentences": 1211,
+            "tokens": 28996,
+            "native_labels": 735
+          }
+        },
+        {
+          "variant": "twi-train",
+          "split": "train",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/twi/train.txt",
+          "sha256": "486242d83412106ef4511629e99950fb6fe82dabbcda7dfd28bea9aa081ae28d",
+          "counts": {
+            "sentences": 4240,
+            "tokens": 112160,
+            "native_labels": 4616
+          }
+        },
+        {
+          "variant": "wol-dev",
+          "split": "dev",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/wol/dev.txt",
+          "sha256": "c7873a6fc7007fede9b2b4ec93313696e5dc9a7c83c212e8335739a9c1fe4914",
+          "counts": {
+            "sentences": 656,
+            "tokens": 19676,
+            "native_labels": 774
+          }
+        },
+        {
+          "variant": "wol-test",
+          "split": "test",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/wol/test.txt",
+          "sha256": "efb2fef612e86ceff6f8340f6dc9f8c45cef585c9dd814e140a8f90d1731c7c8",
+          "counts": {
+            "sentences": 1312,
+            "tokens": 38127,
+            "native_labels": 1523
+          }
+        },
+        {
+          "variant": "wol-train",
+          "split": "train",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/wol/train.txt",
+          "sha256": "e5a29d65e67a444d26fec4ab1b9806d9db9e5222af709498bacbaf90847e1e11",
+          "counts": {
+            "sentences": 4593,
+            "tokens": 123225,
+            "native_labels": 5134
+          }
+        },
+        {
+          "variant": "xho-dev",
+          "split": "dev",
+          "subset": "xho",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/xho/dev.txt",
+          "sha256": "a24a97ef218c724330ea902fb14f764231ff9900812da90ca359b09ada28b982",
+          "counts": {
+            "sentences": 817,
+            "tokens": 14246,
+            "native_labels": 1994
+          }
+        },
+        {
+          "variant": "xho-test",
+          "split": "test",
+          "subset": "xho",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/xho/test.txt",
+          "sha256": "b260ab77df44f95c6cba622c6d553febf68fae1fca2a3930eed65b6f229cf2eb",
+          "counts": {
+            "sentences": 1633,
+            "tokens": 26326,
+            "native_labels": 2847
+          }
+        },
+        {
+          "variant": "yor-dev",
+          "split": "dev",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/yor/dev.txt",
+          "sha256": "7b14a2a6abede574ab0abcbb59f06ba6fbf20629fa86dc660f9fec9a6dfa9441",
+          "counts": {
+            "sentences": 983,
+            "tokens": 22787,
+            "native_labels": 995
+          }
+        },
+        {
+          "variant": "yor-test",
+          "split": "test",
+          "subset": "yor",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/yor/test.txt",
+          "sha256": "08a4b4cffa1ac1d80217cb371f6bacd13deaeed6c0fa43af5e69f13c42bc6ccd",
+          "counts": {
+            "sentences": 1964,
+            "tokens": 45653,
+            "native_labels": 2009
+          }
+        },
+        {
+          "variant": "yor-train",
+          "split": "train",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/yor/train.txt",
+          "sha256": "0be68a94d2433677d08c9895f29cd246dff5c199f0e80face6db69f8fccbc94d",
+          "counts": {
+            "sentences": 6876,
+            "tokens": 175835,
+            "native_labels": 11591
+          }
+        },
+        {
+          "variant": "zul-dev",
+          "split": "dev",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/zul/dev.txt",
+          "sha256": "8bb6b06e6c4a347e458ce76df17e3ca646ff34b79ecd0037e69f06a0ac75a35d",
+          "counts": {
+            "sentences": 836,
+            "tokens": 13245,
+            "native_labels": 1109
+          }
+        },
+        {
+          "variant": "zul-test",
+          "split": "test",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/zul/test.txt",
+          "sha256": "06e982fa6feb51c799a2fae33fd9fa5f5a40ebd0a6a798c233d9ca958c202e5b",
+          "counts": {
+            "sentences": 1670,
+            "tokens": 26086,
+            "native_labels": 1919
+          }
+        },
+        {
+          "variant": "zul-train",
+          "split": "train",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/zul/train.txt",
+          "sha256": "88ffbf188731aa9001a328b1c111da67e80367139e6425547304207d616ae5ab",
+          "counts": {
+            "sentences": 5848,
+            "tokens": 89355,
+            "native_labels": 5444
+          }
+        }
+      ]
+    },
+    {
+      "id": "MasakhaPOS",
+      "usage": "noncommercial",
+      "registry_url": "https://github.com/masakhane-io/masakhane-pos",
+      "attribution": "masakhane-io/masakhane-pos",
+      "license": "Annotated MasakhaPOS release CC BY-NC 4.0. Raw monolingual news carries separate terms and is outside these split files. Credit the authors and source communities.",
+      "interpretation": "POS annotations in the original paired word/tag release. The adapter puts source word forms and POS into Anno row envelopes, with each sourced tag encoded as one native label. Each original two-column word/tag file is retained.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/README.md",
+          "sha256": "1e351724bbbdffc58525d2f5f36313b3f8723c99313dd15537576983e9021a7c"
+        },
+        {
+          "name": "LICENSE",
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/LICENSE",
+          "sha256": "437393e4e14d7114ff2eb556085300c71410d4a8db8873f3220b0ee415819751"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "bam-dev",
+          "split": "dev",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bam/dev.txt",
+          "sha256": "760b90b2bc4c5c18420fdcf2ae119b4034cdd9dff7c23a4ff5dfe961910e9f65",
+          "counts": {
+            "sentences": 154,
+            "tokens": 4242,
+            "native_labels": 4242
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "e8f2925d8331163594dc4afc69b0fb7918d54a77ea5522b9711bac484b556680"
+        },
+        {
+          "variant": "bam-test",
+          "split": "test",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bam/test.txt",
+          "sha256": "cc9d4c1d0511868d20ba8bfb27e5218b7fb3cbc48ba6c357d1b5c295bd6941fb",
+          "counts": {
+            "sentences": 619,
+            "tokens": 15106,
+            "native_labels": 15106
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "96f61eadfa022e229c0e6fc193ce30831e871e9b7456a1fe1e9565662c90cc42"
+        },
+        {
+          "variant": "bam-train",
+          "split": "train",
+          "subset": "bam",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bam/train.txt",
+          "sha256": "6a21df8ea31f20623f2bf53576c1fd9591c29faf55f9255c864f3744dd062d65",
+          "counts": {
+            "sentences": 775,
+            "tokens": 20789,
+            "native_labels": 20789
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "3e85d386cf2a38ecd53f3d2b1e248242a7a6837de17c3637e96595d80b458521"
+        },
+        {
+          "variant": "bbj-dev",
+          "split": "dev",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bbj/dev.txt",
+          "sha256": "212ad5a715f582b934feeda6af4f1e7c63c52e4aa9830900289ba1565cd37c9e",
+          "counts": {
+            "sentences": 149,
+            "tokens": 2316,
+            "native_labels": 2316
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "743821ca9f2cb14af8102759d992595c65e9afa48b0031042a2d0e235a84339b"
+        },
+        {
+          "variant": "bbj-test",
+          "split": "test",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bbj/test.txt",
+          "sha256": "e0efa401cbb14709e4f04752a56c6e42128e1ca42e08c6d9bffdf7931f4b5caf",
+          "counts": {
+            "sentences": 599,
+            "tokens": 9116,
+            "native_labels": 9116
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "5d19b85f204284a516ef2ac2a86511436876daf51c51c1334c8641a44200f118"
+        },
+        {
+          "variant": "bbj-train",
+          "split": "train",
+          "subset": "bbj",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/bbj/train.txt",
+          "sha256": "390ff371f0874182e9a22b4ee447a1f2e5ae367e8bd8ab48341c3ceb4abe78ea",
+          "counts": {
+            "sentences": 750,
+            "tokens": 11679,
+            "native_labels": 11679
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "c8b6f8dce66d0f95d61f86284a68190eaaf78b931615cc2bdf38655b7e8a530a"
+        },
+        {
+          "variant": "ewe-dev",
+          "split": "dev",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ewe/dev.txt",
+          "sha256": "be9b77e22c2996719bda8d8d4597189fd96008b84fb667978d0ee15779362d2c",
+          "counts": {
+            "sentences": 145,
+            "tokens": 2402,
+            "native_labels": 2402
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "8b55485776ec92a447f86894315a2f3ab609400e67f762906973f431e2cafb80"
+        },
+        {
+          "variant": "ewe-test",
+          "split": "test",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ewe/test.txt",
+          "sha256": "738e3311cca17d4c631e90aa7b15c5d56487ec3e3b0a364fc722113853fab43c",
+          "counts": {
+            "sentences": 582,
+            "tokens": 10500,
+            "native_labels": 10500
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "a8dd1cd4895d5e2c8ba968e0e7f1724be09d4dfb838cb8d3af15bdda5777f742"
+        },
+        {
+          "variant": "ewe-train",
+          "split": "train",
+          "subset": "ewe",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ewe/train.txt",
+          "sha256": "1de751b74404dd13b408c59fbfc6e20a00b8f4587ce21dadd4681edb40e0aaf4",
+          "counts": {
+            "sentences": 728,
+            "tokens": 15257,
+            "native_labels": 15257
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "8918a6b2f091512d2f34c4e41e33650ae2f59ba86811873343b5fd64ca6740e5"
+        },
+        {
+          "variant": "fon-dev",
+          "split": "dev",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/fon/dev.txt",
+          "sha256": "d7d3f5d9d140d34c5f3ccfafe3bbe76af25c25bb16125944e9ec147da1ca9584",
+          "counts": {
+            "sentences": 161,
+            "tokens": 4852,
+            "native_labels": 4852
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "ba3a0d949d6eaa3b0489f82ac9786582493e4ee4dd3ebd6c28e60dd98ae33722"
+        },
+        {
+          "variant": "fon-test",
+          "split": "test",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/fon/test.txt",
+          "sha256": "4994beeb7fa9412df96944359d93e94c92700efbf6f97794d66b265f896c50af",
+          "counts": {
+            "sentences": 646,
+            "tokens": 19811,
+            "native_labels": 19811
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "578b70a01505103b4aa6aa031ee0f97cccce8c6d9e9eecbe8c49e454d3e84043"
+        },
+        {
+          "variant": "fon-train",
+          "split": "train",
+          "subset": "fon",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/fon/train.txt",
+          "sha256": "436dcf881b8e9af95273961c274b32feeb3c1bbced36d54462ebf149d72bef56",
+          "counts": {
+            "sentences": 810,
+            "tokens": 24797,
+            "native_labels": 24797
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "4da17a7d0903b54022b96b85ab192ced648c5d149f51e4b52fdf52bd72a5c3ff"
+        },
+        {
+          "variant": "hau-dev",
+          "split": "dev",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/hau/dev.txt",
+          "sha256": "e226cdca33ec125f70f8d0e0c2e6c69de91d547cbda2d00bceb409c819824abe",
+          "counts": {
+            "sentences": 150,
+            "tokens": 3748,
+            "native_labels": 3748
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "7b89e56d8ec75bb3a5924c96bccff2fda4d6561e39a0b8f4f5799443a91bcff1"
+        },
+        {
+          "variant": "hau-test",
+          "split": "test",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/hau/test.txt",
+          "sha256": "7240ca5d6310ceaf2c5db27e2052667d7e0def66361ec7e81e2c830d4cead807",
+          "counts": {
+            "sentences": 601,
+            "tokens": 15438,
+            "native_labels": 15438
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "62610b9bb1a3c6c698e0ee1eb552b72e65b394d87ffea7ace698b480fa9a613a"
+        },
+        {
+          "variant": "hau-train",
+          "split": "train",
+          "subset": "hau",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/hau/train.txt",
+          "sha256": "042d6e5bc424028940527627616d2721f99100e01049a3026525394900d13373",
+          "counts": {
+            "sentences": 753,
+            "tokens": 22160,
+            "native_labels": 22160
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "973f58ace9e27967abacc8364bd8c0077503c175dca148c9e4c95b5e09c80e9b"
+        },
+        {
+          "variant": "ibo-dev",
+          "split": "dev",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ibo/dev.txt",
+          "sha256": "36693c186350d3ac9416903ffdffec1c47a1d1c2a1d859b225e8bfe947e58099",
+          "counts": {
+            "sentences": 160,
+            "tokens": 4786,
+            "native_labels": 4786
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "a8d2571ce5c109200f888742ed23e212d14057060020e826437d731a187b8cd4"
+        },
+        {
+          "variant": "ibo-test",
+          "split": "test",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ibo/test.txt",
+          "sha256": "35e417984c50d2dcb43051b3c1c3f8659b0ab15e681922e58d2973ebf292d9bd",
+          "counts": {
+            "sentences": 642,
+            "tokens": 21974,
+            "native_labels": 21974
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "f2464d24b8858280bb441a21cc7a72adb6a1c5c3e175c1bca05ff1b402e41fbc"
+        },
+        {
+          "variant": "ibo-train",
+          "split": "train",
+          "subset": "ibo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/ibo/train.txt",
+          "sha256": "8efe1232073b97fb4f2d72d9e773397eb40c36b8c50649b7a7471f06d069ccdc",
+          "counts": {
+            "sentences": 803,
+            "tokens": 25410,
+            "native_labels": 25410
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "98df718a751e35686388c2bc5ac56b9e9f5e62678ea2fecaaeaa89b6b30ef544"
+        },
+        {
+          "variant": "kin-dev",
+          "split": "dev",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/kin/dev.txt",
+          "sha256": "7aa913fbae578a4825e17fd160d2e15c3add9c89fa5f86a2af7495fef96bc075",
+          "counts": {
+            "sentences": 151,
+            "tokens": 4552,
+            "native_labels": 4552
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "819631f3b60613a636a2fa95e6e692e3a78efcca903faca3d19d1cff3c801b2b"
+        },
+        {
+          "variant": "kin-test",
+          "split": "test",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/kin/test.txt",
+          "sha256": "177933da961355c8f044d4e1bcc29001137a26b6a718d0be5f2036ea07aaedea",
+          "counts": {
+            "sentences": 604,
+            "tokens": 16980,
+            "native_labels": 16980
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "db5816313725a49c9ae243e0dbf5982e43df9865ac05b68a458c4086604298c6"
+        },
+        {
+          "variant": "kin-train",
+          "split": "train",
+          "subset": "kin",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/kin/train.txt",
+          "sha256": "4e7817f9bea2b73ee458688f3c7bd8a9f0a6e29dd3c4e718ee6cdf0d016d4a11",
+          "counts": {
+            "sentences": 757,
+            "tokens": 19026,
+            "native_labels": 19026
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "d10991cb0883d0cf5adc65ed0f2b0fa5ef29a8ff6e48045661f4602ff64765dc"
+        },
+        {
+          "variant": "lug-dev",
+          "split": "dev",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/lug/dev.txt",
+          "sha256": "9818324e0ffa1284b4c5a030a87a6c0fb0e32928ceca44032b7753fe5c8025ea",
+          "counts": {
+            "sentences": 146,
+            "tokens": 2216,
+            "native_labels": 2216
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "6062a3e2f1d7040d4c4a106d7069eb109b833892a404bb6f9de44a998bea3cc4"
+        },
+        {
+          "variant": "lug-test",
+          "split": "test",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/lug/test.txt",
+          "sha256": "e3e35057ae44f675622c3ab2cd5833ea6aa79305e7ff54639de3eca3cf01abdb",
+          "counts": {
+            "sentences": 586,
+            "tokens": 9700,
+            "native_labels": 9700
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "b63f88289bd38f1808a46e0ea6a90675246be5994973444d9b0c1b162c2ca85d"
+        },
+        {
+          "variant": "lug-train",
+          "split": "train",
+          "subset": "lug",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/lug/train.txt",
+          "sha256": "8e11a5e0a066a159d821fca0775d32a15e23db4b89ddd7d5bc2e986d0a39cae0",
+          "counts": {
+            "sentences": 733,
+            "tokens": 12742,
+            "native_labels": 12742
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "0d2643a64f5967749aa260093e5e4adda72ccef1386e94c4acf02fd2697c7725"
+        },
+        {
+          "variant": "luo-dev",
+          "split": "dev",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/luo/dev.txt",
+          "sha256": "5524184af0d7ac1e9116ab695b5c82913419ffdbe405f515e13d39c6f9aa1ba9",
+          "counts": {
+            "sentences": 151,
+            "tokens": 3610,
+            "native_labels": 3610
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "a20afadab78ec585fd91d716418a17a618ceafd3ebbf40463dff2e8bdd474aee"
+        },
+        {
+          "variant": "luo-test",
+          "split": "test",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/luo/test.txt",
+          "sha256": "76aa29d758a7145bdd2b5bc8caa977cb2c91f196661790002ebabf8d719abea1",
+          "counts": {
+            "sentences": 606,
+            "tokens": 16561,
+            "native_labels": 16561
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "d04e3b4a05a540331f1cd77ef87fc53a46eb81f8cec8d26d39dd95750b832c12"
+        },
+        {
+          "variant": "luo-train",
+          "split": "train",
+          "subset": "luo",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/luo/train.txt",
+          "sha256": "f21d83b30a0825707d9474139a41a8e3326890a3c23a02e6ed7a76493d864122",
+          "counts": {
+            "sentences": 758,
+            "tokens": 25563,
+            "native_labels": 25563
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "8a949ce43e74e8074b449dbebf688ba73c3ee584f7e8435dfc6fed46dd75349c"
+        },
+        {
+          "variant": "mos-dev",
+          "split": "dev",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/mos/dev.txt",
+          "sha256": "ecdda1af3c4088048f568afc1396f52b4b4cb4a482576a2dec187da58c9b0f69",
+          "counts": {
+            "sentences": 151,
+            "tokens": 2814,
+            "native_labels": 2814
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "b71696d3f92722a9533a54b415e6f284893bb575bd9dd14dc92bfbb63b5ae126"
+        },
+        {
+          "variant": "mos-test",
+          "split": "test",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/mos/test.txt",
+          "sha256": "8307cb0843d5aeb4635ed48b2d093bbd6241f4c6d44df9069b07cf75bb9e33b1",
+          "counts": {
+            "sentences": 604,
+            "tokens": 12370,
+            "native_labels": 12370
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "0946eebc593e7d0a92d7f630b278182887692bfdb64ff4d22d8c5f85c409d2ab"
+        },
+        {
+          "variant": "mos-train",
+          "split": "train",
+          "subset": "mos",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/mos/train.txt",
+          "sha256": "879a66d642337b8198672d7b61a90f3f9ad5dc8bd91bfb951b327f2ac66b1c89",
+          "counts": {
+            "sentences": 757,
+            "tokens": 18608,
+            "native_labels": 18608
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "5df858bfabbeb8d8d6ba54310c46546d5e506e656264fd2be500f2402020b6c2"
+        },
+        {
+          "variant": "nya-dev",
+          "split": "dev",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/nya/dev.txt",
+          "sha256": "a3c63b5cdfd68e5453ad047bc327ba4c65e4c49a27040627a1b16afe461167fe",
+          "counts": {
+            "sentences": 145,
+            "tokens": 2679,
+            "native_labels": 2679
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "40c8840e3737130485d87827e1244807062201d639978a8061c94e4789b63d12"
+        },
+        {
+          "variant": "nya-test",
+          "split": "test",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/nya/test.txt",
+          "sha256": "0cc2eeeb86038f2b8727d3dfd93c40f921cd2dcec36356ad93f4f06c49f74d43",
+          "counts": {
+            "sentences": 582,
+            "tokens": 9852,
+            "native_labels": 9852
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "c2b45e68144f3217865ba0a35d25bd8f50e6da4240eb7d07217455c1df23b91f"
+        },
+        {
+          "variant": "nya-train",
+          "split": "train",
+          "subset": "nya",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/nya/train.txt",
+          "sha256": "e1db6b1d7998f7c85e260324a8132a3f9d69e4b4dc39d8405728584ece21ecc7",
+          "counts": {
+            "sentences": 728,
+            "tokens": 11632,
+            "native_labels": 11632
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "3169f54a2eea7c8b88317b13cc634d9302a46264efba7ad19989de1d45aa2e93"
+        },
+        {
+          "variant": "pcm-dev",
+          "split": "dev",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/pcm/dev.txt",
+          "sha256": "9560f0bbc44a5890606d3762f3da83ea5023db05924071ae36f137c5f837384c",
+          "counts": {
+            "sentences": 150,
+            "tokens": 4699,
+            "native_labels": 4699
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "8b23ce411542fc799376b2b6dad5e1a92722bfdea941e61c63e3191cdf62fe0a"
+        },
+        {
+          "variant": "pcm-test",
+          "split": "test",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/pcm/test.txt",
+          "sha256": "bbb166252e031ed73ee09583bdc12305834d255a99a6714d5310cf52284bb26a",
+          "counts": {
+            "sentences": 600,
+            "tokens": 15242,
+            "native_labels": 15242
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "f7ac91eacca7ebdd50eec4da1ac1b35863fc77d05584874612919921d0ffe8f1"
+        },
+        {
+          "variant": "pcm-train",
+          "split": "train",
+          "subset": "pcm",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/pcm/train.txt",
+          "sha256": "fa82c7f425bbde8e3794d9aeb6af6559a87e017bdddd97145b05106739891b81",
+          "counts": {
+            "sentences": 752,
+            "tokens": 18629,
+            "native_labels": 18629
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "804f7f22b0b4b2f02d51daed0168e89e86e702f68a1caa5c90935dfef15e3339"
+        },
+        {
+          "variant": "sna-dev",
+          "split": "dev",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/sna/dev.txt",
+          "sha256": "37d14a15ec6f2d33191c34bdf9b5afe25a3f68bc038107b2bcfefe61ca78068f",
+          "counts": {
+            "sentences": 149,
+            "tokens": 3560,
+            "native_labels": 3560
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "677e57a490767dada1ff12b6695df6225249f327bb38e316f8302246018d8992"
+        },
+        {
+          "variant": "sna-test",
+          "split": "test",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/sna/test.txt",
+          "sha256": "afbc14308df30fb90452d7bd265ded3e6d0696aaa9774439efa254a139e04699",
+          "counts": {
+            "sentences": 596,
+            "tokens": 15508,
+            "native_labels": 15508
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "1281f4782086a21e558c3f70852801e596c6030bd28c02410e369270a4b4146a"
+        },
+        {
+          "variant": "sna-train",
+          "split": "train",
+          "subset": "sna",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/sna/train.txt",
+          "sha256": "4f0f9547fd573fcb7c4a17fa7027ffcd50a4d3c10f4317ba7ff897607a674478",
+          "counts": {
+            "sentences": 747,
+            "tokens": 20717,
+            "native_labels": 20717
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "aff41006bfecf872887e9c5185266e825e8cb4563f4375ba392c819e8a2b3eb1"
+        },
+        {
+          "variant": "swa-dev",
+          "split": "dev",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/swa/dev.txt",
+          "sha256": "c1aac714528b48d66c28da20bd420b034e32f614501c56a04a59527e4f20da55",
+          "counts": {
+            "sentences": 138,
+            "tokens": 3817,
+            "native_labels": 3817
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "aa45399c574b4700c578168654011e16c1047aa50afbd5704cd9748ff8ba7237"
+        },
+        {
+          "variant": "swa-test",
+          "split": "test",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/swa/test.txt",
+          "sha256": "e951eea0efb70d640c1af362cd12abde56dab99504791fa0c3073551b674c0ab",
+          "counts": {
+            "sentences": 553,
+            "tokens": 16074,
+            "native_labels": 16074
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "b30677aac470203a18be7992754460bde3e3381a369cdd7210a12a8a21030d91"
+        },
+        {
+          "variant": "swa-train",
+          "split": "train",
+          "subset": "swa",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/swa/train.txt",
+          "sha256": "f5b7e8eab1572bd6e1c108c7026905f8943d9034f05afc88029f3f6516f57f9f",
+          "counts": {
+            "sentences": 693,
+            "tokens": 20898,
+            "native_labels": 20898
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "af9bd37c1b2586232312daa2c33c9a6527a4548596e73442940fae86e1f47361"
+        },
+        {
+          "variant": "tsn-dev",
+          "split": "dev",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/tsn/dev.txt",
+          "sha256": "e5c3bcee987291c9a795df11092d47bd73fb1ad1d51e5783e2ff4e67321e5b70",
+          "counts": {
+            "sentences": 150,
+            "tokens": 4112,
+            "native_labels": 4112
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "9589c564fb86142d8fcb022a4e67c221cfe3d834f6dffa47edbb2c7364bc5294"
+        },
+        {
+          "variant": "tsn-test",
+          "split": "test",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/tsn/test.txt",
+          "sha256": "4c9943b11d76c30fa652fb1c40facad106354fd747231b95cb5a6613dd6b6dd2",
+          "counts": {
+            "sentences": 602,
+            "tokens": 15484,
+            "native_labels": 15484
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "94bdbc19fd5d02c164c1ef69fa8e2dcbb9d44e7617d8627c32f91d0efdd77ad6"
+        },
+        {
+          "variant": "tsn-train",
+          "split": "train",
+          "subset": "tsn",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/tsn/train.txt",
+          "sha256": "ed9bdd732717d13c9664e22ff388ac147c94a1cefbe89dbda8b97384b84b6785",
+          "counts": {
+            "sentences": 754,
+            "tokens": 22093,
+            "native_labels": 22093
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "1d1ff23eea9ce08f46556776bc5d770339664266d34da02be8bda606c826f884"
+        },
+        {
+          "variant": "twi-dev",
+          "split": "dev",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/twi/dev.txt",
+          "sha256": "93c5ee02f18f57ce28294bc1fafa7a8c9100536eff74f52e2b9f0fc821c1a902",
+          "counts": {
+            "sentences": 157,
+            "tokens": 3431,
+            "native_labels": 3431
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "3d82d568af2e060766cc7b9ae3b0cfe0964b0cdf11c7f7343eaedd036f390d58"
+        },
+        {
+          "variant": "twi-test",
+          "split": "test",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/twi/test.txt",
+          "sha256": "5dffddeb9172b9e16c653df11fc3fd8d4b628e0a1a3d21c3d51f4025006c7844",
+          "counts": {
+            "sentences": 628,
+            "tokens": 14315,
+            "native_labels": 14315
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "f624b1d7b2e2e36a0b0a18c861b55be73a25455889f77a3d924cc1ab970cf870"
+        },
+        {
+          "variant": "twi-train",
+          "split": "train",
+          "subset": "twi",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/twi/train.txt",
+          "sha256": "8b826f8649ab098818b6cd564b12f2edb667431262ded57f06bd4633e72642d4",
+          "counts": {
+            "sentences": 785,
+            "tokens": 23457,
+            "native_labels": 23457
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "da9e6cf1b8221934558961f2ef780c4dbd879e555c72905f86a85eb7d9d44d1d"
+        },
+        {
+          "variant": "wol-dev",
+          "split": "dev",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/wol/dev.txt",
+          "sha256": "b34db53712482dfc84dae46486f1b16c0c896991685605bbf3a1fe8f236bb037",
+          "counts": {
+            "sentences": 156,
+            "tokens": 4501,
+            "native_labels": 4501
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "47950b982d56597f42a970ec3ee223e8241c140651f2d55d5c43e74c68d403d3"
+        },
+        {
+          "variant": "wol-test",
+          "split": "test",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/wol/test.txt",
+          "sha256": "b4bf7f801556830da250c8becf9b58902b7bcf02792cdf88a854f7c8b6f53051",
+          "counts": {
+            "sentences": 625,
+            "tokens": 17383,
+            "native_labels": 17383
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "a640bd537964db6e1725d4736b90f172251ec0ed2c10ac442ebb9c8a2243e87d"
+        },
+        {
+          "variant": "wol-train",
+          "split": "train",
+          "subset": "wol",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/wol/train.txt",
+          "sha256": "58fef9e3d3d3e7ba022258e82ae01af48430b764ed80daa9f213cbb3281e2200",
+          "counts": {
+            "sentences": 782,
+            "tokens": 22118,
+            "native_labels": 22118
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "1c453d65606b04d7c9b6c39c39214acdb82c4c92ba531f51a8f4901c81de8a50"
+        },
+        {
+          "variant": "xho-dev",
+          "split": "dev",
+          "subset": "xho",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/xho/dev.txt",
+          "sha256": "e7f0c01aafc4af4429c3f96c4b0d5e3196719b83a1504e9f230d50093d62e090",
+          "counts": {
+            "sentences": 150,
+            "tokens": 2367,
+            "native_labels": 2367
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "0087fab6c2067deacb2f7c8571d3ba995ebb77fadd32d8c01d4fdb361f665ef0"
+        },
+        {
+          "variant": "xho-test",
+          "split": "test",
+          "subset": "xho",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/xho/test.txt",
+          "sha256": "045c4403a4615bdb707f03976703ad2c57898b9d7bbaa9db41ce730ba6b4b297",
+          "counts": {
+            "sentences": 601,
+            "tokens": 9749,
+            "native_labels": 9749
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "f1ad9197916d172f61e36a437f56e076e2f0b3339ffbf672fafd16d4eaf3f18f"
+        },
+        {
+          "variant": "xho-train",
+          "split": "train",
+          "subset": "xho",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/xho/train.txt",
+          "sha256": "d552fd8648cc59c9c9e5be02a8c74db4b83806daf2d365b88463bacaee5b04cc",
+          "counts": {
+            "sentences": 752,
+            "tokens": 13197,
+            "native_labels": 13197
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "84e3c5996f1def1b18ea7a2eae5a3d41e7f5f8406136409e8181c192990f750c"
+        },
+        {
+          "variant": "yor-dev",
+          "split": "dev",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/yor/dev.txt",
+          "sha256": "b3100ed320c69c1d6798b6d0fb2edaa54d07bc3d85d056298b5b8c64801500b4",
+          "counts": {
+            "sentences": 178,
+            "tokens": 4143,
+            "native_labels": 4143
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "44f02eb6ef64c5a25c6ed7a3f03d069d80c76ac74dd91173d58adfac016248bf"
+        },
+        {
+          "variant": "yor-test",
+          "split": "test",
+          "subset": "yor",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/yor/test.txt",
+          "sha256": "6aa93429da3f3895d1873a9bf1784cc468bd3b19f7e6c1f8a79a1525b2a7510d",
+          "counts": {
+            "sentences": 713,
+            "tokens": 17351,
+            "native_labels": 17351
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "8a4a84e845c7d292c310579b31493ecbe7112bd398ae1f12c2975c16fa164309"
+        },
+        {
+          "variant": "yor-train",
+          "split": "train",
+          "subset": "yor",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/yor/train.txt",
+          "sha256": "767f14818248a02338371fcf2a14caa9fe31cf470f87a955adc543d5eaa00322",
+          "counts": {
+            "sentences": 893,
+            "tokens": 22104,
+            "native_labels": 22104
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "a96d2c344fe323af11894205d575c2db64972da8ce6176793c6d443a6e848700"
+        },
+        {
+          "variant": "zul-dev",
+          "split": "dev",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/zul/dev.txt",
+          "sha256": "7c4ab43bf978338365a5f25e4bb82645377bb30cd0dbc70750500c918e136551",
+          "counts": {
+            "sentences": 150,
+            "tokens": 2383,
+            "native_labels": 2383
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "78176c08c94e78026ff07109c5da42286d4257799072cf1275de28c348bb693c"
+        },
+        {
+          "variant": "zul-test",
+          "split": "test",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/zul/test.txt",
+          "sha256": "25c10500ac9f14d43bccad66553d9e2a15221c99b37590149c7182d49b5516b5",
+          "counts": {
+            "sentences": 601,
+            "tokens": 9226,
+            "native_labels": 9226
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "3b503e833c16f94f07622f738455b07812e1c9f67625d230add90eb0d659bdd4"
+        },
+        {
+          "variant": "zul-train",
+          "split": "train",
+          "subset": "zul",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/masakhane-io/masakhane-pos/376f4161f0425584d4bd7664122b56fa026926d3/data/zul/train.txt",
+          "sha256": "c485dfc97250b2fd9330a9734f0aa572d40a8ef14408a9450d03e46892479dff",
+          "counts": {
+            "sentences": 753,
+            "tokens": 12419,
+            "native_labels": 12419
+          },
+          "projection": "masakhapos-rows",
+          "cache_sha256": "9492dc882172a961287b87eee2c37a68e5db889cd6fa34dbf5ceb06e72cb5a5b"
+        }
+      ]
+    },
+    {
+      "id": "NorNE",
+      "usage": "annotated-collection",
+      "registry_url": "https://github.com/ltgoslo/norne",
+      "attribution": "Fredrik Jørgensen, Tobias Aasmoe, Anne-Stine Ruud Husevåg, Lilja Øvrelid and Erik Velldal. The Norwegian Dependency Treebank is credited in the National Library of Norway source notices.",
+      "license": "NorNE adopts the NDT license. Linguistic annotations are CC0. Third-party source works may not be republished as stand-alone texts. Keep the original annotated corpus, full NDT notice and original source lists together.",
+      "interpretation": "The native cache exposes the named-entity BIO attribute from the Norwegian Dependency Treebank with its word forms and sentence boundaries. The source contains the full original dependency annotations, source credits and metadata.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/README.md",
+          "sha256": "5ca8a88af551e2211dc803a74af8e878b84a18c8e38c27e66cf69e5a086f04d0"
+        },
+        {
+          "name": "LICENSE_NDT.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/LICENSE_NDT.txt",
+          "sha256": "dedbcc1831a692872d22ec22da9e4416dc532abe3cb12a97e6b0a56a9e77232c"
+        },
+        {
+          "name": "documentation/references_blog_nno.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_blog_nno.txt",
+          "sha256": "452f9b64887103c818208b187062ad88de72b2454c409a99d67acc62bb3ff24c"
+        },
+        {
+          "name": "documentation/references_blog_nob.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_blog_nob.txt",
+          "sha256": "7bb83a69436ba2b6e0c9aa26e74ded01afc718a1d0552ae80bbd19238e4dd23e"
+        },
+        {
+          "name": "documentation/references_newspaper_nno.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_newspaper_nno.txt",
+          "sha256": "ddb5adbc23801ca6fff7028209f51c07153e95f76f2f04eb119a078c540b957d"
+        },
+        {
+          "name": "documentation/references_newspaper_nob.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_newspaper_nob.txt",
+          "sha256": "2432c88f13d6754394e034224c00a2d6ce391654970312a1eed2eef7e5052085"
+        },
+        {
+          "name": "documentation/references_parliament_nno.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_parliament_nno.txt",
+          "sha256": "7a93e71ff9c418484cab41a38968a1045685f180cc431278e46071fe9493baa9"
+        },
+        {
+          "name": "documentation/references_parliament_nob.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_parliament_nob.txt",
+          "sha256": "6c7e5b810e2f40bd2ceb8b9236a8b14c821c683542012221bcaf17a90cab6b26"
+        },
+        {
+          "name": "documentation/references_reports_nno.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_reports_nno.txt",
+          "sha256": "0468373163113640ec612cd65eba2ee3c33e74b0181ab4fe97e356bb62aa8d5a"
+        },
+        {
+          "name": "documentation/references_reports_nob.txt",
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/documentation/references_reports_nob.txt",
+          "sha256": "1e52e0cdd3cf0ab9a4b050beb7dd9faa71a2845539a88c1e0e1be48b898bb116"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "nno-dev",
+          "split": "dev",
+          "subset": "nno",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-dev.conllu",
+          "sha256": "6519a00c0ddc4f8ef2605d7c5326adcafb2dfa2df439e281c95e1a0ef218b928",
+          "counts": {
+            "sentences": 1890,
+            "tokens": 31250,
+            "native_labels": 1254
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "a4eebb9240376b27f0c163aa6327e5ed60f2b9d475cc2a93ac203fb3c3e37208"
+        },
+        {
+          "variant": "nno-test",
+          "split": "test",
+          "subset": "nno",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-test.conllu",
+          "sha256": "6b99cafd7019ed6d1eea1b51a0707df89cad597fe588b5987b9f278ffd87588c",
+          "counts": {
+            "sentences": 1511,
+            "tokens": 24773,
+            "native_labels": 1010
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "bf45887d99570cca7e6a57bc2294a730a1e95f97a913f355d0fb5fc5d3efe385"
+        },
+        {
+          "variant": "nno-train",
+          "split": "train",
+          "subset": "nno",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-train.conllu",
+          "sha256": "589564c68ab0763c2574ad90ea8928f029144c966e4af064e59a0865c53c5ef2",
+          "counts": {
+            "sentences": 14174,
+            "tokens": 245330,
+            "native_labels": 11668
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "a3c42fbc497a5b98f5f3cb3a8ae0e4df68c98b2a91f5e624b5fa2a5f093f1d0a"
+        },
+        {
+          "variant": "nob-dev",
+          "split": "dev",
+          "subset": "nob",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-dev.conllu",
+          "sha256": "dba752ca6dc0c628f7cf12e9131b2627be0dff082bd96311bafce40590c46f9c",
+          "counts": {
+            "sentences": 2410,
+            "tokens": 36369,
+            "native_labels": 1688
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "b90d5443362dd097dafc49763839e5e2c8a48d720bb5f7af65e2c45b0dfe437d"
+        },
+        {
+          "variant": "nob-test",
+          "split": "test",
+          "subset": "nob",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-test.conllu",
+          "sha256": "ace6fa65758541333e6a64210fa8466145e024cbbab18a156e8757c8b21c103b",
+          "counts": {
+            "sentences": 1939,
+            "tokens": 29966,
+            "native_labels": 1383
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "b0c03701f1e18cd8448074b518ff8410446959cbefc7d1ed836c0ee4721b8b20"
+        },
+        {
+          "variant": "nob-train",
+          "split": "train",
+          "subset": "nob",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-train.conllu",
+          "sha256": "b17efd70034071f65ba5e3a15bc15f9a597f4c1dd3febb2ffec964906a9c1a98",
+          "counts": {
+            "sentences": 15696,
+            "tokens": 243887,
+            "native_labels": 11403
+          },
+          "projection": "norne-bio",
+          "cache_sha256": "4bfedd14a5947a7777500e07da98f99225389e5f7b39776877f2adc903a7acbe"
+        }
+      ]
+    },
+    {
+      "id": "OldChurchSlavonicUD",
+      "usage": "noncommercial",
+      "registry_url": "https://universaldependencies.org/treebanks/cu_proiel/index.html",
+      "attribution": "UniversalDependencies/UD_Old_Church_Slavonic-PROIEL; Haug, Dag",
+      "license": "CC BY-NC-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_Church_Slavonic-PROIEL/33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b/README.md",
+          "sha256": "03679758ba5fcdf295b2ae37812fa379269b3d8b561c5d0978b4ec406a5b3021"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_Church_Slavonic-PROIEL/33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b/LICENSE.txt",
+          "sha256": "e0938af0d4c1751bd4e134be986bf8393348d5be75b6b26a04b02b81ed0d76d3"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Old_Church_Slavonic-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_Church_Slavonic-PROIEL/33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b/cu_proiel-ud-dev.conllu",
+          "sha256": "808d4771a401701ad076d3193f55f11ba89fefac1fba9b34c6fad6a95ab3c1a8",
+          "counts": {
+            "sentences": 2205,
+            "tokens": 18984,
+            "native_labels": 18984
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Old_Church_Slavonic-PROIEL",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_Church_Slavonic-PROIEL/33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b/cu_proiel-ud-test.conllu",
+          "sha256": "4aa66c91fffff8337d739c6a6fca2356e8fc4202daa026b8c2a96e63493e04f0",
+          "counts": {
+            "sentences": 2096,
+            "tokens": 20149,
+            "native_labels": 20149
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Old_Church_Slavonic-PROIEL",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_Church_Slavonic-PROIEL/33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b/cu_proiel-ud-train.conllu",
+          "sha256": "3f1a3b7fa963cc2813a856026d9d092b282eda0fd57348372217182c69ac6418",
+          "counts": {
+            "sentences": 18327,
+            "tokens": 159710,
+            "native_labels": 159710
+          }
+        }
+      ]
+    },
+    {
+      "id": "OldEnglishUD",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/ang_cairo-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Old_English-Cairo; Levine, Lauren; Min, Junghyun; Zeldes, Amir",
+      "license": "CC BY-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/README.md",
+          "sha256": "1a55f600968500ed11cd127bdacbe00b8d2f02b1a7b89007809b880731bfbbaf"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Old_English-Cairo",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Old_English-Cairo/118f11ad906fb15d930825fadce9ef9eccca9347/ang_cairo-ud-test.conllu",
+          "sha256": "d3e9a5eb84e84a662ca1afa901393c610013bef511b20712a2b84f3db8f46a3c",
+          "counts": {
+            "sentences": 20,
+            "tokens": 171,
+            "native_labels": 171
+          }
+        }
+      ]
+    },
+    {
+      "id": "OldNorseUD",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Icelandic-IcePaHC; Arnardóttir, Þórunn; Hafsteinsson, Hinrik; Sigurðsson, Einar Freyr; Jónsdóttir, Hildur; Bjarnadóttir, Kristín; Ingason, Anton Karl; Rúnarsson, Kristján; Steingrímsson, Steinþór; Wallenberg, Joel C.; Rögnvaldsson, Eiríkur",
+      "license": "CC BY-SA 4.0. Credit IcePaHC and the UD conversion as specified in README.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities. The registry ID points to UD Icelandic-IcePaHC, whose text spans multiple periods; interpret the rows as Icelandic-IcePaHC.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/README.md",
+          "sha256": "e4b63ed288382882a33fd0712df0a4a0573faee65473294bc1371c6fee96cefd"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Icelandic-IcePaHC",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-dev.conllu",
+          "sha256": "1ea62344c94791c91f974bc243fab0b08a2c20febafa0b2a5146c9ad342ef68d",
+          "counts": {
+            "sentences": 4865,
+            "tokens": 139604,
+            "native_labels": 139604
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Icelandic-IcePaHC",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-test.conllu",
+          "sha256": "2b30b3d504f344ffc96b3e9433020b38b8305c301312a3aaf1710a5d88186b1f",
+          "counts": {
+            "sentences": 5157,
+            "tokens": 139695,
+            "native_labels": 139695
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Icelandic-IcePaHC",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Icelandic-IcePaHC/ca72a59affd87c4b7b9067ae56efa7a694a7b4c4/is_icepahc-ud-train.conllu",
+          "sha256": "8fd17bd56309bdd2d3ecb3945fb59fe1961ddc4826baebef2c24f1b81212911f",
+          "counts": {
+            "sentences": 34007,
+            "tokens": 705747,
+            "native_labels": 705747
+          }
+        }
+      ]
+    },
+    {
+      "id": "SECFilingsNER",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/SEC-filings/CONLL-format/data/test/FIN3.txt",
+      "attribution": "juand-r/entity-recognition-datasets",
+      "license": "Named financial filings FIN3 (test) and FIN5 (train), CC BY 3.0. Attribution requested by Julio Cesar Salinas Alvarado, Karin Verspoor and Timothy Baldwin (2015), Domain Adaption of Named Entity Recognition to Support Credit Risk Assessment. Retain their dataset README and source note.",
+      "interpretation": "Named-entity labels in two original, annotated SEC filings.",
+      "notices": [
+        {
+          "name": "data/SEC-filings/README.txt",
+          "url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/README.txt",
+          "sha256": "d92f0da05487ce11cc00110827b6408060553d2744673ecb626ecfdd38a7f24d"
+        },
+        {
+          "name": "data/SEC-filings/NOTE.txt",
+          "url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/NOTE.txt",
+          "sha256": "0cca97b0adaa07bf01b0c3e6530dabf19f095c13653a88cc8dd82d685d1a4c21"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/CONLL-format/data/test/FIN3.txt",
+          "sha256": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+          "counts": {
+            "sentences": 303,
+            "tokens": 13246,
+            "native_labels": 318
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/CONLL-format/data/train/FIN5.txt",
+          "sha256": "7f9123aabbeb7ec8cd46bd026ae765a90ddb291783516eee1a77ee833237fdfe",
+          "counts": {
+            "sentences": 1164,
+            "tokens": 41010,
+            "native_labels": 1168
+          }
+        }
+      ]
+    },
+    {
+      "id": "SanskritUD",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/master/sa_vedic-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Sanskrit-Vedic; Scarlata, Salvatore; Ackermann, Elia; Hellwig, Oliver; Biagetti, Erica; Widmer, Paul; Sellmer, Sven",
+      "license": "CC BY-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/3ce6c31c379d4fc65a4f5073d126b1b24b45dadf/README.md",
+          "sha256": "0ce9d51531da5fd48177e5b9d677343012a5b2d1ebeb97c749fd8c923e8cd5f7"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/3ce6c31c379d4fc65a4f5073d126b1b24b45dadf/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "dev",
+          "split": "dev",
+          "subset": "Sanskrit-Vedic",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/3ce6c31c379d4fc65a4f5073d126b1b24b45dadf/sa_vedic-ud-dev.conllu",
+          "sha256": "f103e93cea236173afe93652c1ed251bc1dd2716c230ab95eab31a8090527871",
+          "counts": {
+            "sentences": 2996,
+            "tokens": 23862,
+            "native_labels": 23862
+          }
+        },
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Sanskrit-Vedic",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/3ce6c31c379d4fc65a4f5073d126b1b24b45dadf/sa_vedic-ud-test.conllu",
+          "sha256": "242546c3d6709c7c30d9c443039eb1483bc6d8f45b4873f821b60c19756cce43",
+          "counts": {
+            "sentences": 2709,
+            "tokens": 20619,
+            "native_labels": 20619
+          }
+        },
+        {
+          "variant": "train",
+          "split": "train",
+          "subset": "Sanskrit-Vedic",
+          "default": false,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Sanskrit-Vedic/3ce6c31c379d4fc65a4f5073d126b1b24b45dadf/sa_vedic-ud-train.conllu",
+          "sha256": "05829c606047956b25aa6ebbd1fd2b11255ed04840fb90c3661f102b556c791d",
+          "counts": {
+            "sentences": 21477,
+            "tokens": 161959,
+            "native_labels": 161959
+          }
+        }
+      ]
+    },
+    {
+      "id": "UDEsperantoCairo",
+      "usage": "general",
+      "registry_url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/master/eo_cairo-ud-test.conllu",
+      "attribution": "UniversalDependencies/UD_Esperanto-Cairo; Oya, Masanori",
+      "license": "CC BY-SA 4.0.",
+      "interpretation": "CoNLL-U dependency treebank. Anno exposes universal part-of-speech tags as labels, normally one per word. These counts do not measure named entities.",
+      "notices": [
+        {
+          "name": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/20bf38de1e2d02d9e908f1dd807ed606e1119915/README.md",
+          "sha256": "14503e232d28a72d81b2ec4cc5e68ac6b29858d25bd4ba12c07428372fed88cf"
+        },
+        {
+          "name": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/20bf38de1e2d02d9e908f1dd807ed606e1119915/LICENSE.txt",
+          "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79"
+        }
+      ],
+      "inputs": [
+        {
+          "variant": "test",
+          "split": "test",
+          "subset": "Esperanto-Cairo",
+          "default": true,
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Esperanto-Cairo/20bf38de1e2d02d9e908f1dd807ed606e1119915/eo_cairo-ud-test.conllu",
+          "sha256": "2d79881290d2c9b69ace635a6c54a569dbb63ba1fd6cbbd42eef385092518ed5",
+          "counts": {
+            "sentences": 20,
+            "tokens": 177,
+            "native_labels": 177
+          }
+        }
+      ]
+    }
+  ],
+  "other_reviewed_candidates": {
+    "BBQ": {
+      "status": "probed_native_reader",
+      "reason": "JSONL NER file for BBQ contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Age.jsonl",
+      "probe_sha256": "46e805b3fc2d8cbd26eeb8e8430d98cf7b2dc9c83574ff3674e8ce4f0fca2a60"
+    },
+    "CopticUD": {
+      "status": "source_terms",
+      "reason": "Annotations are CC BY 4.0. The mixed splits include transcriptions and translations for which the embedded texts’ redistribution terms were not established."
+    },
+    "ENer": {
+      "status": "publisher_only",
+      "reason": "The source contains 415,369 labeled rows including four tags outside BIO. The native reader reports 415,317 tokens; the discrepancy has not been reconciled."
+    },
+    "FewRel": {
+      "status": "publisher_only",
+      "reason": "The direct pack includes the source predicate mapping and relation groups. A full paired native relation evaluation was outside this cache selection."
+    },
+    "GICoref": {
+      "status": "publisher_only",
+      "reason": "The generic native CoNLL view produced 62,332 tokens versus 62,138 source tokens in the released document file. The raw pack retains all 91 documents."
+    },
+    "GUM": {
+      "status": "publisher_only",
+      "reason": "The publisher archive carries source-licensed original files and credits. The generic native CoNLL view does not establish the full GUM entity layers or coreference chains."
+    },
+    "KoCoNovel": {
+      "status": "probed_native_reader",
+      "reason": "GAP TSV file for KoCoNovel contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/storidient/KoCoNovel/211e57dba1ffd2b84bd9817e27e66f35ab6071d2/data/jsonl/10_Rich_Mine/coref.jsonl",
+      "probe_sha256": "2e1e61207038294fec7f1c3ef8085652df9b38663886a37746e097d3f327648e"
+    },
+    "MathDial": {
+      "status": "probed_native_reader",
+      "reason": "JSONL NER file for MathDial contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/eth-nlped/mathdial/600350952cf11f9d7e745df059b4e5723b34aa6e/data/test.jsonl",
+      "probe_sha256": "3ec54ee8ab921dc6191bf5e2ee766d4e7916b4264394eb17a6be9b3fe486e50b"
+    },
+    "MedievalCharterNER": {
+      "status": "publisher_only",
+      "reason": "On the original combined training file the generic native CoNLL view produced 1,828,785 tokens versus 1,827,779 source tokens. A dedicated reader is needed."
+    },
+    "MuDoCo": {
+      "status": "probed_native_reader",
+      "reason": "CrossRE-style JSON for MuDoCo contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_calling.json",
+      "probe_sha256": "73328d3f7d4035a400ccdb9c05e5f1d724c0768c767ea8cb929dc5883d0004e0"
+    },
+    "MultiWOZNER": {
+      "status": "probed_native_reader",
+      "reason": "JSONL NER file for MultiWOZNER contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/budzianowski/multiwoz/fe0c8e65cfcd8462bd33c86e35f21addc84ca82b/data/MultiWOZ_2.2/dev/dialogues_001.json",
+      "probe_sha256": "e7ddb563e4da5766ea820cc826dead77e7ca219c19b761e218d62d9c999a252e"
+    },
+    "NoiseBench": {
+      "status": "publisher_only",
+      "reason": "The English release supplies annotation sequences over [TOK] placeholders. A native text-extraction score would lack the source words. See the publisher pack for the authorized masked file."
+    },
+    "RAMS": {
+      "status": "publisher_only",
+      "reason": "The direct source pack can measure all 7,329 training event windows. The native parser returned no usable sentences on the original training input."
+    },
+    "StereoSet": {
+      "status": "probed_native_reader",
+      "reason": "Registry identifies the public dataset but provides no native parser",
+      "probe_url": "https://raw.githubusercontent.com/moinnadeem/StereoSet/ead7d086a64a192a1eca88e0dd2fd163de375218/data/dev.json",
+      "probe_sha256": "73a0f31b711688112602e4c3ac6ab1e1a7cadcdd67df6c6fd55501c889676c90"
+    },
+    "WikiGold": {
+      "status": "source_terms",
+      "reason": "The source authors release the annotations as CC BY 4.0 in Figshare 5462500 v1. The 146 source-document markers are anonymous, without Wikipedia article links needed to carry the underlying text attribution. Local download remains available for appropriately authorized evaluation."
+    },
+    "WinoBias": {
+      "status": "probed_native_reader",
+      "reason": "GAP TSV file for WinoBias contains no valid sentences",
+      "probe_url": "https://raw.githubusercontent.com/uclanlp/corefBias/0bce984dd081bbc10b0622f326727a024c607895/WinoBias/wino/data/anti_stereotyped_type1.txt.dev",
+      "probe_sha256": "a4e0ebae344e78b56f657a42e8ae684b9db7747d177c5e7149c0907ebb7f3bf6"
+    },
+    "WinoQueer": {
+      "status": "probed_native_reader",
+      "reason": "Registry identifies the public dataset but provides no native parser",
+      "probe_url": "https://raw.githubusercontent.com/katyfelkner/winoqueer/1180ba62df6bd1e682db8f2bf90f3add67cc0500/data/winoqueer_final.csv",
+      "probe_sha256": "1ed93f91834837b388c9129cd43c49dee70638fa6988634747565dd78c3c0237"
+    },
+    "Wnut17": {
+      "status": "source_terms",
+      "reason": "The WNUT-17 release declares CC BY 4.0, but the anonymous token files contain third-party social text without the original post and author references needed for the works in these files."
+    }
+  },
+  "omitted_inputs": [
+    {
+      "id": "MasakhaNER2",
+      "split": "train",
+      "subset": "xho",
+      "reason": "Missing BIO label on line 44,520. The direct native loader could otherwise silently shorten the file. The publisher package has the untouched original.",
+      "source_url": "https://raw.githubusercontent.com/masakhane-io/masakhane-ner/ba5843cd08aa491d5f96a5e809e71eb9ec461391/MasakhaNER2.0/data/xho/train.txt",
+      "source_sha256": "700e5abdbe655967098887d2d7d798dee8cc76b9450b06bcb20a893f77e5e256"
+    }
+  ]
+}

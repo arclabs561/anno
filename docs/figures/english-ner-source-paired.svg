@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="540" viewBox="0 0 520 540" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">What does BERT recover on news and filing text?</title><desc id="paired-desc">Baseline HeuristicNER compared with candidate FP32 BERT NER on the same inputs. Total suggestions include exact and unmatched predictions. CoNLL04RE. 288-case joint extraction test · entity layer · 288 source records. +359 net exact matches · 395 → 754. Gained 376 · lost 17. Retained 378 of 395 baseline matches (95.7%). Change in total suggestions is +6 (1,126 to 1,132). Change in unmatched is −353 (731 to 378). SECFilingsNER. SEC FIN3 · complete mirrored test file · 303 source records. −153 net exact matches · 218 → 65. Gained 22 · lost 175. Retained 43 of 218 baseline matches (19.7%). Change in total suggestions is −453 (1,166 to 713). Change in unmatched is −300 (948 to 648).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">What does BERT recover on</text>
+<text x="18" y="61" class="heading">news and filing text?</text>
+<text x="18" y="90" class="scope">Baseline · HeuristicNER → Candidate · FP32 BERT</text>
+<text x="18" y="110" class="scope">NER</text>
+<text x="18" y="130" class="scope">Net exact matches · −359 to +359 · center is zero</text>
+<path d="M18 150H502" stroke="#bdcec9"/>
+<text x="18" y="175" class="cohort">CoNLL04RE</text>
+<text x="18" y="199" class="scope">288-case joint extraction test · entity layer · 288</text>
+<text x="18" y="219" class="scope">source records</text>
+<path d="M390 236H494" stroke="#d2deda"/><path d="M442 226v20" stroke="#688079"/>
+<circle cx="494.00" cy="236" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="241" class="score">+359 net exact matches · 395 → 754</text>
+<text x="18" y="263" class="scope">Gained 376 · lost 17 · retained 378/395 (95.7%)</text>
+<text x="18" y="283" class="measure">Total suggestions</text>
+<text x="18" y="302" class="scope">1,126 → 1,132 (change</text>
+<text x="18" y="321" class="scope">+6)</text>
+<text x="267" y="283" class="measure">Unmatched</text>
+<text x="267" y="302" class="scope">731 → 378 (change</text>
+<text x="267" y="321" class="scope">−353)</text>
+<path d="M18 345H502" stroke="#bdcec9"/>
+<text x="18" y="370" class="cohort">SECFilingsNER</text>
+<text x="18" y="394" class="scope">SEC FIN3 · complete mirrored test file · 303</text>
+<text x="18" y="414" class="scope">source records</text>
+<path d="M390 431H494" stroke="#d2deda"/><path d="M442 421v20" stroke="#688079"/>
+<circle cx="419.84" cy="431" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="436" class="score">−153 net exact matches · 218 → 65</text>
+<text x="18" y="458" class="scope">Gained 22 · lost 175 · retained 43/218 (19.7%)</text>
+<text x="18" y="478" class="measure">Total suggestions</text>
+<text x="18" y="497" class="scope">1,166 → 713 (change</text>
+<text x="18" y="516" class="scope">−453)</text>
+<text x="267" y="478" class="measure">Unmatched</text>
+<text x="267" y="497" class="scope">948 → 648 (change</text>
+<text x="267" y="516" class="scope">−300)</text>
+</svg>

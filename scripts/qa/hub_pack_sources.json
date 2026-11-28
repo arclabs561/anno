@@ -1,0 +1,287 @@
+{
+  "releases": {
+    "WIESP2022NER": {
+      "ids": [
+        "WIESP2022NER",
+        "WIESPAstro"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete labeled train, validation and test sets of the WIESP 2022 astrophysics NER task. The original JSONL includes token-level word and tag sequences. The separate 20-record workshop demo and blind copies are outside this package.",
+      "original": "wiesp",
+      "extras": [
+        "ner_tags.json",
+        "tag_definitions.md",
+        "dataset_infos.json"
+      ]
+    },
+    "GermEval2014": {
+      "ids": [
+        "GermEval2014"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete train, validation and test partitions of the GermanT5 GermEval 2014 conversion. The released BIO column represents one annotation layer."
+    },
+    "FewNERD": {
+      "ids": [
+        "FewNERD"
+      ],
+      "terms": "CC BY-SA 4.0",
+      "scope": "Complete supervised, inter-domain and intra-domain test partitions with both coarse and fine annotation labels. The three experimental protocols can reuse text. Training and validation are outside this pack.",
+      "splits": [
+        "test"
+      ]
+    },
+    "FiNER139": {
+      "ids": [
+        "FiNER139"
+      ],
+      "terms": "CC BY-SA 4.0",
+      "scope": "Complete financial numeric-entity test split with 139 fine-grained types from SEC filings. Train and validation are outside this pack.",
+      "splits": [
+        "test"
+      ],
+      "extras": [
+        "dataset_infos.json"
+      ]
+    },
+    "WikiNeural": {
+      "ids": [
+        "WikiNeural"
+      ],
+      "terms": "CC BY-NC-SA 4.0 (noncommercial use)",
+      "scope": "Complete token-classified silver test partitions for all nine source languages. The publisher describes machine-produced Wikipedia annotations. Train and validation partitions are outside the pack.",
+      "splits": [
+        "test_.*"
+      ]
+    },
+    "MultiNERD": {
+      "ids": [
+        "MultiNERD"
+      ],
+      "terms": "CC BY-NC-SA 4.0 (noncommercial use)",
+      "scope": "The complete registry-linked English test JSONL, including token and label IDs. Other languages and splits are beyond this pinned Anno ledger entry.",
+      "original": "multinerd"
+    },
+    "MultiCoNER": {
+      "ids": [
+        "MultiCoNER"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete train, development and test sets for all 11 individual languages and the code-mixed v1 track. The v1 test set has tokens with gold labels withheld. Use development to score NER. The multilingual aggregate repeats language-specific examples and is excluded.",
+      "omit": [
+        "MULTI_Multilingual"
+      ]
+    },
+    "MultiCoNERv2": {
+      "ids": [
+        "MultiCoNERv2"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete labeled train, development and test release for each of the 12 individual v2 languages. The pooled multilingual configuration duplicates individual tracks and is excluded.",
+      "omit": [
+        "MULTI-Multilingual"
+      ]
+    },
+    "MHERCL": {
+      "ids": [
+        "MHERCL"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Full English historical entity-linking mention table. Multiple annotation rows can refer to one sentence. The separately published Italian table has no license declaration on its pinned release card.",
+      "omit": [
+        "it"
+      ]
+    },
+    "KORE50": {
+      "ids": [
+        "KORE50"
+      ],
+      "terms": "CC BY-SA 3.0 under the original Max Planck release; the NAIST conversion card lists CC BY 3.0",
+      "scope": "Complete 50-example KORE50 entity-linking test corpus in the pinned NAIST conversion."
+    },
+    "DROC": {
+      "ids": [
+        "DROC"
+      ],
+      "terms": "CC BY 3.0",
+      "scope": "All available train and test German literary excerpts with reformatted original DROC coreference annotations."
+    },
+    "Zcoref": {
+      "ids": [
+        "Zcoref"
+      ],
+      "terms": "Apache 2.0",
+      "scope": "Entire author-released Thai Z-coref mention/coreference corpus. The Hub names its single released partition train."
+    },
+    "DocRED": {
+      "ids": [
+        "DocRED"
+      ],
+      "terms": "MIT",
+      "scope": "Complete human-annotated training, validation and blind official test documents. Test relation labels are withheld. Distantly supervised training is a separate partition and is outside the pack.",
+      "splits": [
+        "train_annotated",
+        "validation",
+        "test"
+      ]
+    },
+    "AfriQA": {
+      "ids": [
+        "AfriQA"
+      ],
+      "terms": "The original project supplies CC BY 4.0. The hosted card also declares CC BY-SA 4.0 and specifies noncommercial use in its licensing section. Retain attribution and use this copy for noncommercial research.",
+      "scope": "All three complete partitions across ten languages from the African cross-lingual question-answering benchmark."
+    },
+    "MasakhaNEWS": {
+      "ids": [
+        "MasakhaNEWS"
+      ],
+      "terms": "The publisher card specifies Creative Commons 4.0 noncommercial use for the data. Its metadata lists AFL 3.0. Retain attribution and use this copy for noncommercial research.",
+      "scope": "All released news-topic train, validation and test partitions for all 16 languages. Headlines and text are the publisher data."
+    },
+    "MathDial": {
+      "ids": [
+        "MathDial"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete train and test source tutoring dialogues. Each row identifies a dialogue with its problem and dialogue history."
+    },
+    "DBPedia14": {
+      "ids": [
+        "DBPedia14"
+      ],
+      "terms": "CC BY-SA 3.0 and GNU Free Documentation License, as stated in the source card",
+      "scope": "Complete, labeled 14-class DBpedia ontology classification test split. Train is outside this pack.",
+      "splits": [
+        "test"
+      ]
+    },
+    "REBEL": {
+      "ids": [
+        "REBEL"
+      ],
+      "terms": "CC BY-NC-SA 4.0; the publisher restricts the contents to noncommercial research and retains original source copyright",
+      "scope": "Complete REBEL distant-supervision relation extraction test partition, with context and target triplets. Train and validation are outside this pack.",
+      "splits": [
+        "test"
+      ],
+      "extras": [
+        "dataset_infos.json"
+      ]
+    },
+    "MELO": {
+      "ids": [
+        "MELO"
+      ],
+      "terms": "MIT",
+      "scope": "All publisher occupation-retrieval query and candidate tables across 48 configurations. Candidate inventories and queries can recur across configurations. Use the paired corpus and queries within one configuration."
+    },
+    "MewsliX": {
+      "ids": [
+        "MewsliX"
+      ],
+      "terms": "Apache 2.0 for the dataset release; retain source attribution for the WikiNews text",
+      "scope": "Complete original WikiNews mention queries, development and test, for 11 languages. Candidate KB and Wikipedia training resources are separate resources and are outside this pack.",
+      "original": "mewslix"
+    },
+    "MSNER": {
+      "ids": [
+        "MSNER"
+      ],
+      "terms": "CC BY-SA 4.0 per the original dataset deposit (DOI 10.48804/ZTVMIX, version 1.0). The separate author code repository carries CC BY-NC 4.0.",
+      "scope": "Complete text/token and NER tag partitions for German, Spanish, French and Dutch parliamentary speech. The test labels are manually annotated; train and validation have silver labels. Audio and the separate English comparison corpus are outside this transcript pack."
+    },
+    "ACORD": {
+      "ids": [
+        "ACORD"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "Complete legal contract retrieval corpus, queries, train/validation/test graded judgments, the original readme and two publisher supplemental tables. Query rows, clauses and judgments are separate units."
+    },
+    "HUPD": {
+      "ids": [
+        "HUPD"
+      ],
+      "terms": "CC BY-NC-SA 4.0 under the publisher card’s release statement; noncommercial use",
+      "scope": "Complete original January 2016 application sample with 26,808 patent JSON records. It is the sample-jan-2016.tar.gz edition. It covers one month; the multi-year annual archives and index are outside this pack."
+    },
+    "WEBNLG": {
+      "ids": [
+        "WEBNLG"
+      ],
+      "terms": "CC BY-NC-SA 4.0 for the WebNLG dataset; the source DBpedia data carries CC BY-SA 3.0 and GFDL 1.1",
+      "scope": "All 14,237 records of the original release_v1 full configuration, including RDF triple sets and lexicalizations. Later challenge releases are separate."
+    },
+    "BookCoref": {
+      "ids": [
+        "BookCoref",
+        "BookCorefSplit"
+      ],
+      "terms": "CC BY-NC-SA 4.0 for the annotations according to the original publisher card",
+      "scope": "All three split files of the full-book and segmented annotation editions. Both reference the same underlying books, so the editions overlap. Only the original annotation JSONL is included. Underlying Project Gutenberg book texts are distributed separately and carry their own terms."
+    },
+    "FIREBALL": {
+      "ids": [
+        "FIREBALL"
+      ],
+      "terms": "CC BY 4.0",
+      "scope": "All 1,471 publisher filtered session JSONL files, with 153,829 gameplay turns. A row contains commands, dialogue and structured states before and after a turn. The larger raw Discord session collection is outside the filtered edition.",
+      "original": "fireball"
+    }
+  },
+  "original_notices": {
+    "AfriQA": [
+      "masakhane-io/afriqa",
+      "5c29933753692c28773c34ac1f68482007f1d2bb",
+      "LICENSE",
+      "7e7170e3cebf88a9f60c7b8421418323c09304da1af4d5e90f4da1dc1c8a2661"
+    ],
+    "DocRED": [
+      "thunlp/DocRED",
+      "64622e608d06e83deda6b6e0e871effb9d1fd74c",
+      "LICENSE",
+      "c8ad3bab352bc7fd6662ac85145d613df9063c34152108aec91e1b672e7bba50"
+    ],
+    "MELO": [
+      "Avature/melo-benchmark",
+      "014982fef0abf5149b16e75b1043bd286ae4c98f",
+      "LICENSE",
+      "896847e2cd11381a2fca6e14d4a42bae2461779a074eee296f51e81760481dc3"
+    ],
+    "MSNER": [
+      "qmeeus/MSNER",
+      "26f195530651d81d5275666c13da501210ff56ba",
+      "LICENSE",
+      "82656a050544ab820c9aa7b61433f5181f8e80cacd042377140962a3e3eb5721"
+    ],
+    "MewsliX": [
+      "google-research/google-research",
+      "d928962433a0aabcc2bed0d0510a076a8cb66a6c",
+      "dense_representations_for_entity_retrieval/mel/mewsli-x.md",
+      "f387ee2ccb06e549398f2bbac52165ce1e433a6dd610ad4dac94fa5da1758bb0"
+    ]
+  },
+  "exclusions": {
+    "UNER UniversalNER UniversalNERBench": "Universal NER was previously archived separately. These registry aliases share its source release.",
+    "CrossNER MasakhaNER2": "This corpus also appears in the separate Anno Git publisher collection.",
+    "ViraDialogActsLive": "Handled by the separate speech investigation and its publisher receipts.",
+    "CoNLL2003Sample OntoNotesSample PreCo": "The registered edition requires separate or local source authorization, or the free conversion does not identify that edition.",
+    "AfriSenti BroadTwitterCorpus CALCS CALCS2018 GLUECoS HindiEnglishSocialMediaNER LinCE TweetNER7 TweetTopic HOMOMEX": "Social-media source text and annotation releases carry collection-specific conditions. This pack did not establish permission to archive the full source texts.",
+    "B2NERD OpenNER": "Aggregate NER releases incorporate separately licensed corpora. A release-wide code or annotation license does not establish the rights to all source texts.",
+    "WikiANN PolyglotNER": "The pinned Hub card lists unknown dataset terms. An independently licensed raw edition was outside this collection.",
+    "HAREM CADEC TREC FabNER WNEDWiki MentionResolutionLLM NovelCR": "The pinned Hub release has missing, unknown or other terms. A clear source-specific grant for this hosted edition was not verified.",
+    "RealToxicityPrompts": "The Hub licensing prose addresses metadata and the repository license covers its software. The source web passages lack a specific verified corpus grant in those notices.",
+    "YahooAnswers AGNews": "The pinned Hub metadata lists unknown terms for the underlying source texts.",
+    "InterlingueWikipedia": "Wikipedia article archive; an alternate direct-source route is recorded separately.",
+    "CSN CodeSearchNet": "The two registry IDs share CodeSearchNet. Individual projects supply their own licenses; the published test files include copied source and comments from many repositories.",
+    "NatureLMAudio BEANSZero": "Heterogeneous audio collections with per-source licenses. The previous survey covers transcripts or selected columns, not a complete redistributable audio split.",
+    "SPoRC SLUE": "The pinned Hub distribution requires acceptance of its access terms.",
+    "FictionNER750M": "The 5.7 GB single ZIP contains synthetic annotations on many third-party works. The model or annotation grant does not establish permission for every included book.",
+    "ReasoningNER CharacterCodex TRIDIS FABLE AstroBERTCorpus BookCorefBamman InterslavicCorpus CorefUD": "The current pinned split ledger has no verified complete source data partition for this target.",
+    "PIIMasking200k": "The earlier survey counted training rows. The pinned hosted card does not establish data reuse conditions for a private copy.",
+    "BioMNER": "The linked corpus is BioNLP 2004 molecular NER; the registry requests method mentions and a matching edition was unverified.",
+    "DisrptDeuRstPccConlluSeg DisrptDeuRstPccRels DisrptEngDepScidtbConlluSeg DisrptEngDepScidtbRels": "DISRPT encodings can reuse documents with distinct underlying licenses. A separate Git publisher audit covers the DISRPT source.",
+    "AnatEM": "The original release licenses the standoff annotations under CC BY-SA 3.0. Its LICENSE assigns the abstracts and full-text excerpts to PubMed and individual PMC article conditions. The full-text hosted conversion was not copied.",
+    "S800 BC2GM BC2GMFull BC5CDR BC4CHEMD CHEMDNER GENIA": "The hosted conversion alone does not establish terms for the underlying publication text and annotations. Use the separately verified publisher or native source where available."
+  }
+}

@@ -1,0 +1,221 @@
+{
+  "schema": "anno.vira-speech-act/v1",
+  "dataset": "ViraDialogActsLive",
+  "task": "speech-act-classification",
+  "backend": "gliner2_fastino",
+  "seed": 45929075593,
+  "unit": "user turns",
+  "labels": [
+    "greeting",
+    "farewell",
+    "negative_reaction",
+    "positive_reaction",
+    "concern",
+    "query",
+    "other"
+  ],
+  "input_sources": {
+    "hub": "ibm-research/vira-dialog-acts-live",
+    "revision": "eca0119ce897681b73653531eeadc759bab7f917",
+    "ibm": "IBM/vira-dialog-act-classification",
+    "ibm_revision": "ecdafa4eab1acdf124636324713a34b2f9f847f6"
+  },
+  "model": {
+    "id": "jugaadsrl/gliner2-multi-v1-onnx",
+    "revision": "4241d7c66b648e618c89c150bf4cf418d2f83159",
+    "sha256_by_file": {
+      "tokenizer.json": "a1c7ccb287623cccb7c03150953b6d2a09dd95122933393c9151c3a60095c97e",
+      "encoder_fp32.onnx": "f931670d83718d07a78cbd9ca9e27b2ac42e137701684a31da4924784fa88170",
+      "token_gather_fp32.onnx": "739b66e91492ba6cdcf779497bdc9c322eaa141a9a1e2200c1db1c02ef63133b",
+      "span_rep_fp32.onnx": "fa2ce85872ac489fabf025fddb0634f11639c4ccda0d7aa93429d548526d40da",
+      "schema_gather_fp32.onnx": "24ceb4ae477e36a4291f8a29636e56cfe435d857c71b9248245d4eed62d67ab7",
+      "count_pred_argmax_fp32.onnx": "c67fe0b5b1d1d6b1832a82ccb88153e571033e39f7d46434e661e7befd38294c",
+      "count_lstm_fixed_fp32.onnx": "fc13477d00370f94cf6d62536e4955d4288020abee9195aeda3bcbefaaee8832",
+      "scorer_fp32.onnx": "8fd9305a1d393d0eb9551c2dabaf7707aeea80910d246588b6ff8576bcab8cce",
+      "classifier_fp32.onnx": "a59406b58c7bb448174c8df32b46d82e1b77b64bcb497da5b481836600ff3ad9"
+    }
+  },
+  "method": "Fastino's single-label prediction uses the highest of the seven IBM dialog act scores. An all-zero result abstains. Each abstention counts as an incorrect turn and a false negative for its gold class.",
+  "macro_f1": "Mean of seven per-class values 2 × correct / (gold + predicted), including classes with zero recall. Every label has gold support in each full split.",
+  "split_roles": {
+    "test": "official held-out test",
+    "validation": "development",
+    "train": "training-set diagnostic and source of the majority baseline"
+  },
+  "splits": {
+    "train": {
+      "examples": 571,
+      "correct": 302,
+      "abstained": 58,
+      "accuracy": 0.5288966725043783,
+      "macro_f1": 0.49100153900613003,
+      "input_sha256": "3ba3ac4f2f28ec326a763bbff6496bb38fa410386b4234a570c8f407e3687dff",
+      "by_label": {
+        "greeting": {
+          "gold": 39,
+          "predicted": 16,
+          "correct": 11,
+          "f1": 0.4
+        },
+        "farewell": {
+          "gold": 35,
+          "predicted": 33,
+          "correct": 23,
+          "f1": 0.6764705882352942
+        },
+        "negative_reaction": {
+          "gold": 172,
+          "predicted": 218,
+          "correct": 143,
+          "f1": 0.7333333333333333
+        },
+        "positive_reaction": {
+          "gold": 41,
+          "predicted": 89,
+          "correct": 37,
+          "f1": 0.5692307692307692
+        },
+        "concern": {
+          "gold": 129,
+          "predicted": 52,
+          "correct": 42,
+          "f1": 0.46408839779005523
+        },
+        "query": {
+          "gold": 87,
+          "predicted": 94,
+          "correct": 40,
+          "f1": 0.4419889502762431
+        },
+        "other": {
+          "gold": 68,
+          "predicted": 11,
+          "correct": 6,
+          "f1": 0.1518987341772152
+        }
+      },
+      "training_majority": {
+        "label": "negative_reaction",
+        "correct": 172,
+        "accuracy": 0.30122591943957966,
+        "macro_f1": 0.06614112670640261
+      }
+    },
+    "validation": {
+      "examples": 71,
+      "correct": 31,
+      "abstained": 15,
+      "accuracy": 0.43661971830985913,
+      "macro_f1": 0.4454765806833675,
+      "input_sha256": "04c4f9ea53c2f454efcc97d07442ee2186384d7cab9ac95a021e43082cd57d49",
+      "by_label": {
+        "greeting": {
+          "gold": 5,
+          "predicted": 0,
+          "correct": 0,
+          "f1": 0.0
+        },
+        "farewell": {
+          "gold": 3,
+          "predicted": 3,
+          "correct": 2,
+          "f1": 0.6666666666666666
+        },
+        "negative_reaction": {
+          "gold": 20,
+          "predicted": 21,
+          "correct": 13,
+          "f1": 0.6341463414634146
+        },
+        "positive_reaction": {
+          "gold": 3,
+          "predicted": 8,
+          "correct": 3,
+          "f1": 0.5454545454545454
+        },
+        "concern": {
+          "gold": 17,
+          "predicted": 6,
+          "correct": 4,
+          "f1": 0.34782608695652173
+        },
+        "query": {
+          "gold": 17,
+          "predicted": 16,
+          "correct": 7,
+          "f1": 0.42424242424242425
+        },
+        "other": {
+          "gold": 6,
+          "predicted": 2,
+          "correct": 2,
+          "f1": 0.5
+        }
+      },
+      "training_majority": {
+        "label": "negative_reaction",
+        "correct": 20,
+        "accuracy": 0.28169014084507044,
+        "macro_f1": 0.06279434850863422
+      }
+    },
+    "test": {
+      "examples": 72,
+      "correct": 29,
+      "abstained": 8,
+      "accuracy": 0.4027777777777778,
+      "macro_f1": 0.3227891156462585,
+      "input_sha256": "20c381f3e71fc06c78d81719a304c4e75dec44f7b32cdc96893defdb3a75092b",
+      "by_label": {
+        "greeting": {
+          "gold": 11,
+          "predicted": 5,
+          "correct": 2,
+          "f1": 0.25
+        },
+        "farewell": {
+          "gold": 3,
+          "predicted": 3,
+          "correct": 1,
+          "f1": 0.3333333333333333
+        },
+        "negative_reaction": {
+          "gold": 16,
+          "predicted": 19,
+          "correct": 13,
+          "f1": 0.7428571428571429
+        },
+        "positive_reaction": {
+          "gold": 6,
+          "predicted": 15,
+          "correct": 5,
+          "f1": 0.47619047619047616
+        },
+        "concern": {
+          "gold": 8,
+          "predicted": 2,
+          "correct": 0,
+          "f1": 0.0
+        },
+        "query": {
+          "gold": 15,
+          "predicted": 20,
+          "correct": 8,
+          "f1": 0.45714285714285713
+        },
+        "other": {
+          "gold": 13,
+          "predicted": 0,
+          "correct": 0,
+          "f1": 0.0
+        }
+      },
+      "training_majority": {
+        "label": "negative_reaction",
+        "correct": 16,
+        "accuracy": 0.2222222222222222,
+        "macro_f1": 0.05194805194805195
+      }
+    }
+  }
+}

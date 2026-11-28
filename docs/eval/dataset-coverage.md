@@ -18,7 +18,7 @@ The readers measured 26 of 63 news entries, 26 of 35 biomedical entries and 19 o
 
 <!-- coverage-evaluations -->
 
-**18 of 462 registry IDs have a completed score in these sources**. 12 of those IDs also have tagged-token counts. 432 IDs have no outcome in the indexed sources. The remaining IDs have a loader rejection, backend failure or exporter replay only. [Search by domain, backend and split](dataset-explorer.html) · [All outcomes with source receipts](dataset-evaluation-coverage.csv)
+**21 of 462 registry IDs have a completed score in these sources**. 14 of those IDs also have tagged-token counts. 430 IDs have no outcome in the indexed sources. The remaining IDs have a loader rejection, backend failure or exporter replay only. [Search by domain, backend and split](dataset-explorer.html) · [All outcomes with source receipts](dataset-evaluation-coverage.csv)
 
 On **2026-11-27 UTC**, `ci.yml` recorded 18 push runs on `main`. 16 succeeded and 2 were cancelled. The 32 sanity and matrix archives contain 240 scored attempts, 16 failed evaluations, 80 named loader selections and 62 named pre-scoring load rejections. The scored attempts reported 32 from S3 cache, 208 from local cache. A local read can follow an S3 staging step. A same-ID publisher-file digest identifies the input split or release for 92 scored attempts. 48 used named checkout fixtures and 100 had no established split. The same examples can recur across pushes. [Run and artifact digests](dataset-ci-survey.json) · [Normalized CI records](dataset-ci-outcomes.csv)
 
@@ -26,9 +26,13 @@ On **2026-11-27 UTC**, `ci.yml` recorded 18 push runs on `main`. 16 succeeded an
 
 Download `dataset-explorer.html` and open it locally. Start with a domain, a measured annotation unit and the **Scored** outcome. Expand an ID to see its declared tasks, the actual scoring task, backend, split, input count and receipt. An independent corpus count describes the annotations available for inspection. A completed run uses the specific population in its receipt. Source-defined labels can be manual, silver, mixed or scoped to one annotation layer. [Download the standalone explorer](https://raw.githubusercontent.com/arclabs561/anno/main/docs/eval/dataset-explorer.html) · [Plain CSV](dataset-evaluation-coverage.csv)
 
+The news and filings comparison adds full-file NER scores for CoNLL04RE and SECFilingsNER. Every sentence counts, including the 203 FIN3 sentences with no gold mentions. On the 288 CoNLL04 test records, the earlier generic reader returned one example. The corrected reader recovers 1,079 gold mentions with independently checked character offsets. [Paired comparison and source hashes](english-ner-source-replay.md)
+
 OntoNotesSample illustrates why the ID and input both matter. Its six scored CI attempts and ten CoNLL2003Sample attempts used five examples apiece from the same cached bytes, SHA-256 prefix `0632f32c090e`. Their registry names alone cannot establish independent test corpora. WikiGold supplies a positive control. Its 32 S3-backed sanity scores each used 20 sentences from the publisher-matched release, and ten local-cache matrix trials each used five examples from those same bytes. [Sample sizes, read routes and input hashes](dataset-ci-outcomes.csv) · [Publisher-file matches](s3-publisher-file-matches.csv)
 
-ViraDialogActsLive provides one actionable failure. Every November 27 attempt to score its speech acts with `gliner_multitask` ended in a backend failure. A rerun on the same cached input can test whether the backend now completes. Each failed receipt retains its artifact location, input hash and seed. The sampler names IDs it selected after a successful reader check and up to three rejected examples per pool pass. Both statuses precede inference. Policy-exclusion totals and unprobed candidates do not identify further eligible IDs. The completed evaluation needs its own receipt. [CI outcome records](dataset-ci-outcomes.csv)
+All 16 archived attempts to classify ViraDialogActsLive with the GLiNER span graph failed. The graph required the missing ONNX input `text_lengths`. The ordinary ONNX build now skips this pairing. The dedicated Fastino classifier runs the task with IBM’s seven labels. The test contains 72 utterances, including eight concerns. The classifier recovered none of those eight. [Scoring protocol and diagnosis](../EVALUATION_SAMPLING.md#classify-vira-dialog-acts) · [Historical failures](dataset-ci-outcomes.csv)
+
+The sampler names IDs it selected after a successful reader check and up to three rejected examples per pool pass. Both statuses precede inference. Policy-exclusion totals and unprobed candidates do not identify further eligible IDs. The completed evaluation needs its own receipt. [CI outcome records](dataset-ci-outcomes.csv)
 
 The study rows cover the checked-in WNUT-17 and WikiGold NER replays, their three-versus-four-prompt NuNER comparison, CrossRE prompts, numeric gates and endpoint-ranked review queues, MultiNERD panels, GAP and LitBank coreference panels, two DocRED JEREX controls and the GENIA gold-span exporter. Study rows identify a scored setting or population. The quantized NuNER MultiNERD panels distinguish original sentences from constructed long inputs. The Muxer WikiGold replay reports repeated example evaluations across three seeds. A subset can recur in another study or CI attempt. The index does not exhaust older CI, external model results or every diagnostic in this repository. RED-FM and Winogender lack IDs in this registry snapshot. A missing receipt leaves execution unknown. A CI split comes from an explicit fixture or an unambiguous same-ID file digest match. Otherwise it is marked *unreported*. [Index generator and source selection](../../scripts/dataset_evidence_index.py) · [Exact publisher-file matches](s3-publisher-file-matches.csv)
 
@@ -123,6 +127,27 @@ The following actions partition all **241** IDs without an independent content m
 | Use the measured alias | 2 |
 
 <!-- /coverage-exclusions -->
+
+## Restore datasets for local investigations
+
+The offline collection has two entry points. Open `datasets.csv` to find a registry ID, its exact source archives, omitted inputs and any alias supplied elsewhere. Open `archives.json` for the compressed sizes, SHA-256 digests and transfer parts. The publisher, direct and Hub manifests identify individual source files, splits, units and terms. The native archives include ready-to-use cache profiles. Keep each native archive in its own directory. The complete SEC test needs the general native archive and an eval-enabled Anno executable.
+
+```sh
+python3 offline_dataset_archives.py --archive native/anno-native-cache-general.zip --restore
+unzip -q native/anno-native-cache-general.zip -d native-general
+ANNO_CACHE_DIR="$PWD/native-general/cache" ANNO_NO_DOWNLOADS=1 \
+  anno dataset eval --dataset SECFilingsNER --task ner --model heuristic --cached-only --reports sec.jsonl
+```
+
+This command produces one report for each of the 303 SEC FIN3 sentences, including the empty-gold sentences. The heuristic found 218 of the 318 gold mentions and emitted 1,166 suggestions. The cache flag also works with the relation and coreference readers. A neural model needs its own local checkpoint.
+
+| Material | Script that builds it | Where to read the scope |
+|---|---|---|
+| Ready-to-use Anno cache profiles | [Native builder](../../scripts/build_offline_native_cache.py) | `native/*.sources.json` records original and cache hashes, split, language and loader counts |
+| Pinned Git releases | [Publisher packager](../../scripts/pack_publisher_datasets.py) | `publisher/publisher-coverage.csv` includes every checked and withheld file |
+| Direct publisher downloads | [Direct packager](../../scripts/pack_direct_datasets.py) | `direct/*.files.tsv` records files and task-specific denominators |
+| Hosted corpora | [Hub packager](../../scripts/pack_hub_datasets.py) | `hub/splits.csv` and `hub/exclusions.csv` record selected partitions and omissions |
+| Corpus and evidence archive index | [Collection indexer](../../scripts/index_offline_datasets.py) · [Integrity and restore tool](../../scripts/offline_dataset_archives.py) | `datasets.csv` covers the complete registry snapshot and `s3-file-matches.csv` compares exact file bytes |
 
 ## What the S3 cache establishes
 

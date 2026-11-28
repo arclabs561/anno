@@ -1,0 +1,985 @@
+{
+  "ledger_sha256": "2791f885a4fda3a014af1ef744ba475accf204fad29dab47a6cd9133009eb8da",
+  "repositories": {
+    "UniversalDependencies/UD_Akkadian-PISANDUB": {
+      "revision": "316522e1c1f2ec551df613111a82e00d3eeae3e0",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "94a6499fddfa4430593bcda6e7fddebf3304afca29343bbf3d54f065274af883"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Ancient_Greek-Perseus": {
+      "revision": "b4bac91d2e3ab80cf7ba8c117d35c1656b345086",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "CC BY-NC-SA 2.5, as stated by the pinned treebank.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "1e610c18edecad65470980c2990acef370ee51d6b962515282e698735c46d0af",
+        "README.md": "dfa8f9389227246e0d367d427d900b7a7d7eaf9f7f3e39de6d6a285bd4dc1238"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Ancient_Hebrew-PTNK": {
+      "revision": "300439891ec631f34683e074e8af2a78568654c1",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "Treebank LICENSE specifies CC BY-SA 4.0. The README credits underlying ETCBC annotations under CC BY-NC 4.0 and MACULA under CC BY 4.0. Keep all three notices.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "30e703321706395b5afbcafc89cf7bf6f7c74ad7dab3ae04d0ee5ed4f1a1f8b8"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Classical_Chinese-Kyoto": {
+      "revision": "b7db15b8b254f94343138966066c77203658c372",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "Treebank LICENSE specifies CC BY-SA 4.0. The README metadata labels its source PD.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "b07d2ff16490c465096a8ad6223fb2744ecaee499ba05e90b37343bc4cc29753"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Coptic-Scriptorium": {
+      "revision": "bbb6546254a1d34b90952ea4a7173d15b6b2bb5b",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "Treebank annotations carry CC BY 4.0. The linked Sahidica terms cover free electronic editions of the New Testament. The grant for redistributing these combined treebank splits with third-party text and translations was not established. See https://copticscriptorium.org/download/corpora/Mark/coptic_nt_sahidic.html."
+        }
+      ],
+      "review_notice": "LICENSE.txt"
+    },
+    "UniversalDependencies/UD_Esperanto-Cairo": {
+      "revision": "20bf38de1e2d02d9e908f1dd807ed606e1119915",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "14503e232d28a72d81b2ec4cc5e68ac6b29858d25bd4ba12c07428372fed88cf"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Gothic-PROIEL": {
+      "revision": "c51bc78b73ecea95bd4569a904544ce660636446",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "Treebank README and LICENSE text specify CC BY-NC-SA 3.0. The URL in LICENSE points to 4.0. The unmodified source carries both forms of notice.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "18854c055dfc4f1897f8047e884402ab069a7950cf2f028eef54c6191505999c",
+        "README.md": "ef5f69f2b4c09ccc90d4f130f6f7483ebdb3dc2550879cf2acafff1ebfba7de5"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Hittite-HitTB": {
+      "revision": "791d281316d83c1755900446ad5b1e512ecd73ac",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "296633838b03c6c54420fd1154ce40d0fad3acff9f4e7f2d925aa008595cb6d4"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Icelandic-IcePaHC": {
+      "revision": "ca72a59affd87c4b7b9067ae56efa7a694a7b4c4",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0. Credit IcePaHC and the UD conversion as specified in README.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "e4b63ed288382882a33fd0712df0a4a0573faee65473294bc1371c6fee96cefd"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Latin-ITTB": {
+      "revision": "16cc97fce6969cdec628544c57194938281fbcdf",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "CC BY-NC-SA 3.0, including the original Index Thomisticus treebank.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "3e07ac7ee7b02daa2a88e8bb1e825d6a580aababe1a7084c40cd0664d6231fb0",
+        "README.md": "379c2db2b78a932b6e41ec3314ef5694e4e9f83bbea5e8a0c124bca66f7934c3"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Latin-PROIEL": {
+      "revision": "56e6e8c8f6b1c6388dba17c807a9da19f6141b23",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "Treebank LICENSE specifies CC BY-NC-SA 4.0 and README metadata specifies CC BY-NC-SA 3.0. The unmodified source carries both.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "33af57b85f3e7076e91926976985b7a02e986fdc43d2acb0c49fa9564774cdb2",
+        "README.md": "5ce45e00111141f0b470cb0a069530fe2ff9c8fc80d4e45c7bd184c294919fd4"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Old_Church_Slavonic-PROIEL": {
+      "revision": "33c0e6d1baf6cf29beb8a38e8946ae3d6c08f86b",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "CC BY-NC-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "e0938af0d4c1751bd4e134be986bf8393348d5be75b6b26a04b02b81ed0d76d3",
+        "README.md": "03679758ba5fcdf295b2ae37812fa379269b3d8b561c5d0978b4ec406a5b3021"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Old_English-Cairo": {
+      "revision": "118f11ad906fb15d930825fadce9ef9eccca9347",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "1a55f600968500ed11cd127bdacbe00b8d2f02b1a7b89007809b880731bfbbaf"
+      },
+      "review_notice": "README.md"
+    },
+    "UniversalDependencies/UD_Sanskrit-Vedic": {
+      "revision": "3ce6c31c379d4fc65a4f5073d126b1b24b45dadf",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "CC BY-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE.txt": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+        "README.md": "0ce9d51531da5fd48177e5b9d677343012a5b2d1ebeb97c749fd8c923e8cd5f7"
+      },
+      "review_notice": "README.md"
+    },
+    "ZihanWangKi/CrossWeigh": {
+      "revision": "77d0c2dbf1a039211426f0fecb11daabba8e7bd1",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "Corrected CoNLL-2003 newspaper data. The implementation license does not establish a redistribution grant for the underlying Reuters text."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "amir-zeldes/gum": {
+      "revision": "1d999e5a0327ecb83015007774f6a9be23ecbc41",
+      "rules": [
+        {
+          "subsets": [
+            "academic",
+            "court"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Underlying text CC BY 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ]
+        },
+        {
+          "subsets": [
+            "bio",
+            "voyage"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Underlying Wikimedia text CC BY-SA 3.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ]
+        },
+        {
+          "subsets": [
+            "news",
+            "interview"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Underlying Wikinews text CC BY 2.5.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ]
+        },
+        {
+          "subsets": [
+            "fiction",
+            "whow"
+          ],
+          "bundle": "noncommercial",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Underlying text CC BY-NC-SA 3.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ]
+        },
+        {
+          "subsets": [
+            "essay",
+            "letter",
+            "podcast"
+          ],
+          "bundle": "noncommercial",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Underlying text CC BY-NC-SA 4.0.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ]
+        },
+        {
+          "subsets": [
+            "conversation"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. Santa Barbara Corpus of Spoken American English, John Du Bois and colleagues. The companion UD notice records CC Attribution permission.",
+          "notices": [
+            "README.md",
+            "LICENSE.md",
+            "UD_English-GUM/LICENSE.txt"
+          ]
+        },
+        {
+          "subsets": [
+            "speech"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. The companion UD notice identifies the political speeches as public domain. Original document sources and speakers are credited.",
+          "notices": [
+            "README.md",
+            "LICENSE.md",
+            "UD_English-GUM/LICENSE.txt"
+          ]
+        },
+        {
+          "subsets": [
+            "vlog"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. Retain annotator credits and the author, title and source URL in each CoNLL-U header and credits.csv. The companion UD notice identifies these as YouTube Creative Commons Attribution vlogs. The original uploader and video URL are credited.",
+          "notices": [
+            "README.md",
+            "LICENSE.md",
+            "UD_English-GUM/LICENSE.txt"
+          ]
+        },
+        {
+          "paths": [
+            "dep/GUM_textbook_alamo.conllu"
+          ],
+          "bundle": "",
+          "terms": "GUM annotations CC BY 4.0. The linked Texas Government 2.0 lesson is outside the OpenStax collection named in the companion notice. This release did not establish the terms of that chapter.",
+          "review_notices": [
+            "LICENSE.md"
+          ]
+        },
+        {
+          "paths": [
+            "dep/GUM_textbook_artwork.conllu",
+            "dep/GUM_textbook_evoethics.conllu"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. The original Rebus chapters each specify CC BY 4.0, with author, title and chapter URL in the CoNLL-U header and credits.csv. Retain the source citations.",
+          "notices": [
+            "README.md",
+            "LICENSE.md"
+          ],
+          "references": [
+            "https://press.rebus.community/intro-to-phil-aesthetics/chapter/what-makes-an-artwork-beautiful/",
+            "https://press.rebus.community/intro-to-phil-ethics/chapter/evolutionary-ethics/"
+          ]
+        },
+        {
+          "subsets": [
+            "textbook"
+          ],
+          "bundle": "general",
+          "terms": "GUM annotations CC BY 4.0. The companion UD notice identifies OpenStax textbooks under Creative Commons Attribution. The original book and author are credited in the CoNLL-U header and credits.csv.",
+          "notices": [
+            "README.md",
+            "LICENSE.md",
+            "UD_English-GUM/LICENSE.txt"
+          ]
+        }
+      ],
+      "supplement": {
+        "UD_English-GUM/LICENSE.txt": "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM/8e168382a25686ca6253deb7c4ef839494ddb154/LICENSE.txt"
+      },
+      "notice_sha256": {
+        "LICENSE.md": "54ce03d1784ed081d6e829d811d41d3f25e35041df1afec14417590b18a70257",
+        "README.md": "e399356a69c236eb56aace2494c0df1dd9bb56f2aff80f9e695be4ed0837668b",
+        "UD_English-GUM/LICENSE.txt": "b6310e2df084d7cf04d592a748a1449439768afe8c68d49a4248237db646915f"
+      },
+      "review_notice": "README.md"
+    },
+    "aritter/twitter_nlp": {
+      "revision": "65f3d77134c40d920db8d431c5c6faef1c051c94",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The splits contain third-party Twitter messages. A source-specific raw-text redistribution grant was not established for this mirror."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "avramandrei/histnero": {
+      "revision": "a105f3950570b8d92410fecce85ea06af32d8a86",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "MIT release of the HistNERo dataset. Keep the license, named authors, citation and document identifiers of the historical source texts.",
+          "notices": [
+            "README.md",
+            "LICENSE"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE": "f7d6c2461cffc0f2971c8fa6b5a22f33c250a7758c5191958c4116f3c0e8a3e9",
+        "README.md": "08ce0f1bf16e3091d1e7473d19558e638390b159fbaf0a0f746b28ec3d7f7215"
+      },
+      "review_notice": "README.md"
+    },
+    "bekou/multihead_joint_entity_relation_extraction": {
+      "revision": "7f40a0f7c1892821591358518c542139e88f693e",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The data-specific README links the Roth and Yih original and describes its format conversion. It does not grant redistribution of the underlying newspaper text; the repository MIT license accompanies the implementation."
+        }
+      ],
+      "review_notice": "data/CoNLL04/README.md"
+    },
+    "cambridgeltl/MTL-Bioinformatics-2016": {
+      "revision": "df0df02fae6dbb87d88ffcf323b9096528f06f84",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The mirror describes non-code materials as CC BY 4.0 and its data folder as redistributable. The JNLPBA paper identifies GENIA/MEDLINE as the source; separate permission for the original biomedical abstracts in these combined files was not established."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "disrpt/sharedtask2025": {
+      "revision": "502127398142a368840d0bde79aa5c6dec0ab642",
+      "rules": [
+        {
+          "subsets": [
+            "eng.sdrt.msdc"
+          ],
+          "bundle": "general",
+          "terms": "Minecraft Structured Dialogue Corpus release CC0 1.0. The original participant dialogues are also published in the Illinois lab’s Minecraft dialogue repository under its University of Illinois/NCSA notice. Retain both releases’ credits and the DISRPT conversion notice.",
+          "notices": [
+            "README.md",
+            "data/eng.sdrt.msdc/README.md",
+            "linagora-labs/MinecraftStucturedDialogueCorpus/LICENSE",
+            "linagora-labs/MinecraftStucturedDialogueCorpus/README.md",
+            "prashant-jayan21/minecraft-dialogue-models/LICENSE.txt"
+          ],
+          "references": [
+            "https://juliahmr.cs.illinois.edu/Minecraft/ACL2019.html"
+          ]
+        },
+        {
+          "subsets": [
+            "ces.rst.crdt"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Czech RST Discourse Treebank 1.0, CC BY-NC-SA 4.0. © 2023 Institute of Formal and Applied Linguistics, Charles University, Prague. Credit Lucie Poláková, Šárka Zikánová, Jiří Mírovský and Eva Hajičová (2023), LINDAT/CLARIAH-CZ 11234/1-5174. The original institutional release lists this license and citation.",
+          "notices": [
+            "README.md",
+            "data/ces.rst.crdt/README.md"
+          ],
+          "references": [
+            "https://ufal.mff.cuni.cz/czrst-dt1.0/licence",
+            "http://hdl.handle.net/11234/1-5174",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+          ]
+        },
+        {
+          "subsets": [
+            "deu.pdtb.pcc"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Unmodified DISRPT 2025 CoNLL-U splits only. Potsdam Commentary Corpus 2.2 CC BY-NC-SA 4.0.",
+          "notices": [
+            "README.md",
+            "data/deu.pdtb.pcc/README.md"
+          ]
+        },
+        {
+          "subsets": [
+            "deu.rst.pcc"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Unmodified DISRPT 2025 CoNLL-U splits only. Potsdam Commentary Corpus 2.2 CC BY-NC-SA 4.0. The sibling README states the terms of the underlying corpus.",
+          "notices": [
+            "README.md",
+            "data/deu.rst.pcc/README.md",
+            "data/deu.pdtb.pcc/README.md"
+          ]
+        },
+        {
+          "subsets": [
+            "fas.rst.prstc"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Unmodified DISRPT 2025 CoNLL-U splits only. Persian RST Corpus CC BY-NC 4.0.",
+          "notices": [
+            "README.md",
+            "data/fas.rst.prstc/README.md"
+          ]
+        },
+        {
+          "subsets": [
+            "pol.iso.pdc"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Unmodified DISRPT 2025 CoNLL-U splits only. Polish Discourse Corpus CC BY-NC 4.0.",
+          "notices": [
+            "README.md",
+            "data/pol.iso.pdc/README.md"
+          ]
+        },
+        {
+          "subsets": [
+            "rus.rst.rrt"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Unmodified DISRPT 2025 CoNLL-U splits only. Russian RST Treebank 2.1 CC BY-NC-SA 4.0.",
+          "notices": [
+            "README.md",
+            "data/rus.rst.rrt/README.md"
+          ]
+        },
+        {
+          "subsets": [
+            "eng.pdtb.tedm",
+            "tur.pdtb.tedm",
+            "por.pdtb.tedm",
+            "zho.pdtb.ted"
+          ],
+          "bundle": "",
+          "terms": "The TED-MDB notice grants CC BY 4.0 for the discourse release. The underlying TED talk transcripts have separate TED usage terms; redistribution of the combined tokenized works under those terms was not established."
+        },
+        {
+          "subsets": [
+            "eng.pdtb.pdtb",
+            "eng.rst.rstdt",
+            "tur.pdtb.tdb",
+            "zho.pdtb.cdtb"
+          ],
+          "bundle": "",
+          "terms": "The shared-task corpus uses underscores for licensed text; consult the upstream README for the rights-holder agreement or LDC distribution. Original text is outside this package."
+        },
+        {
+          "subsets": [
+            "eng.erst.gentle",
+            "eng.erst.gum",
+            "eng.pdtb.gentle",
+            "eng.pdtb.gum"
+          ],
+          "bundle": "",
+          "terms": "This compiled GUM/GENTLE release has mixed document-specific source rights and may include masked Reddit input. Original GUM documents with identified source terms are packaged under amir-zeldes/gum."
+        },
+        {
+          "subsets": [
+            "eng.rst.oll",
+            "eng.rst.sts"
+          ],
+          "bundle": "",
+          "terms": "The per-corpus Apache license accompanies analyses of third-party discussions or messages. Rights to redistribute the underlying messages in these combined files were not established."
+        },
+        {
+          "subsets": [
+            "eng.rst.umuc"
+          ],
+          "bundle": "",
+          "terms": "The notice grants CC BY 4.0 for the annotations. A grant for the text of the underlying UN Security Council Debates Corpus was not established."
+        },
+        {
+          "bundle": "",
+          "terms": "The DISRPT collection has corpus-specific terms. The release materials reviewed for this component did not establish permission for redistribution of these combined text and annotation files."
+        }
+      ],
+      "notice_sha256": {
+        "README.md": "fde064a2b035a2de149efa46b4ead3bff815c1c1a8f0f37d06271a67d98976c8",
+        "data/deu.pdtb.pcc/README.md": "2ec46534ffe73640d70732582c84d801dd1a8a6c9ca5ecd7558cac2a568620bb",
+        "data/deu.rst.pcc/README.md": "d35314959b47b68de326b30d777de74c1d56a9d54c7cae4ddfab1e351290c755",
+        "data/fas.rst.prstc/README.md": "8c9b076df4d66b7232af97a0b7eedb0aa38b9788f77b6d5b0178dc820e099f00",
+        "data/pol.iso.pdc/README.md": "4627dd02d97f6144324e57aa4f88c497f7af430a3d80ee7864b36a4179b6f603",
+        "data/rus.rst.rrt/README.md": "f767b11ba0a07ef90bfd1bbe887916c9252dd27edd8eeb6a046a66978776bcbc",
+        "linagora-labs/MinecraftStucturedDialogueCorpus/LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "linagora-labs/MinecraftStucturedDialogueCorpus/README.md": "2d596bcc46f45e1989263e7139fd97082cc53b9ab85da337aef015fd10f16c29",
+        "prashant-jayan21/minecraft-dialogue-models/LICENSE.txt": "8b6ebc966771e4be6c54bdcf4629ff720c229ae2b8a240b2c58ea0fd61ebf3d6",
+        "data/ces.rst.crdt/README.md": "077ddeec26bc230c4b05ee954af51f6afa594dc574f57b63aef05862f1a8f9db",
+        "data/eng.sdrt.msdc/README.md": "88982df81e4c6b8a9c6d37ac0fafb7e6d27802790dec2c1352079e87940d5f24"
+      },
+      "review_notice": "README.md",
+      "subset_review_notices": {
+        "ces.rst.crdt": "data/ces.rst.crdt/README.md",
+        "deu.pdtb.pcc": "data/deu.pdtb.pcc/README.md",
+        "deu.rst.pcc": "data/deu.rst.pcc/README.md",
+        "eng.dep.covdtb": "data/eng.dep.covdtb/README.md",
+        "eng.dep.scidtb": "data/eng.dep.scidtb/README.md",
+        "eng.erst.gentle": "data/eng.erst.gentle/README.md",
+        "eng.erst.gum": "data/eng.erst.gum/README.md",
+        "eng.pdtb.gentle": "data/eng.pdtb.gentle/README.md",
+        "eng.pdtb.gum": "data/eng.pdtb.gum/README.md",
+        "eng.pdtb.pdtb": "data/eng.pdtb.pdtb/README.md",
+        "eng.pdtb.tedm": "data/eng.pdtb.tedm/README.md",
+        "eng.rst.oll": "data/eng.rst.oll/README.md",
+        "eng.rst.rstdt": "data/eng.rst.rstdt/README.md",
+        "eng.rst.sts": "data/eng.rst.sts/README.md",
+        "eng.rst.umuc": "data/eng.rst.umuc/README.md",
+        "eng.sdrt.msdc": "data/eng.sdrt.msdc/README.md",
+        "eus.rst.ert": "data/eus.rst.ert/README.md",
+        "fas.rst.prstc": "data/fas.rst.prstc/README.md",
+        "fra.sdrt.annodis": "data/fra.sdrt.annodis/README.md",
+        "fra.sdrt.summre": "data/fra.sdrt.summre/summre-disprt-readme.md",
+        "ita.pdtb.luna": "data/ita.pdtb.luna/README.md",
+        "nld.rst.nldt": "data/nld.rst.nldt/README.md",
+        "pcm.pdtb.disconaija": "data/pcm.pdtb.disconaija/README.md",
+        "pol.iso.pdc": "data/pol.iso.pdc/README.md",
+        "por.pdtb.crpc": "data/por.pdtb.crpc/README.md",
+        "por.pdtb.tedm": "data/por.pdtb.tedm/README.md",
+        "por.rst.cstn": "data/por.rst.cstn/README.md",
+        "rus.rst.rrt": "data/rus.rst.rrt/README.md",
+        "spa.rst.rststb": "data/spa.rst.rststb/README.md",
+        "spa.rst.sctb": "data/spa.rst.sctb/README.md",
+        "tha.pdtb.tdtb": "data/tha.pdtb.tdtb/README.md",
+        "tur.pdtb.tdb": "data/tur.pdtb.tdb/README.md",
+        "tur.pdtb.tedm": "data/tur.pdtb.tedm/README.md",
+        "zho.dep.scidtb": "data/zho.dep.scidtb/README.md",
+        "zho.pdtb.cdtb": "data/zho.pdtb.cdtb/README.md",
+        "zho.pdtb.ted": "data/zho.pdtb.ted/README.md",
+        "zho.rst.gcdt": "data/zho.rst.gcdt/README.md",
+        "zho.rst.sctb": "data/zho.rst.sctb/README.md"
+      },
+      "supplement": {
+        "linagora-labs/MinecraftStucturedDialogueCorpus/LICENSE": "https://raw.githubusercontent.com/linagora-labs/MinecraftStucturedDialogueCorpus/8a02832add319006fbed72284ebc4930b28adfe4/LICENSE",
+        "linagora-labs/MinecraftStucturedDialogueCorpus/README.md": "https://raw.githubusercontent.com/linagora-labs/MinecraftStucturedDialogueCorpus/8a02832add319006fbed72284ebc4930b28adfe4/README.md",
+        "prashant-jayan21/minecraft-dialogue-models/LICENSE.txt": "https://raw.githubusercontent.com/prashant-jayan21/minecraft-dialogue-models/9becd5cc53d60be4d93b0581aed3ad48db635f47/LICENSE.txt"
+      }
+    },
+    "elenamer/NoiseBench": {
+      "revision": "d2cd262f6c511c9240e993ac5d5d9f0946e9148f",
+      "rules": [
+        {
+          "bundle": "general",
+          "terms": "MIT repository notice. Only the original annotation-only files with [TOK] placeholders are included. The publisher withholds Reuters words.",
+          "notices": [
+            "README.md",
+            "LICENSE"
+          ],
+          "subsets": [
+            "clean"
+          ],
+          "require_mask": "[TOK]"
+        },
+        {
+          "subsets": [
+            "clean-de"
+          ],
+          "bundle": "",
+          "terms": "The separate German annotations file retains unmasked lexical forms alongside <word> placeholders. The publisher directs users to obtain the full underlying German CoNLL-2003 data separately. A redistribution grant for the original lexical content in this file was not established."
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE": "691b7b752b9a58ea9d1058f9c0de0b0c0cb1d1be343a8b8ae79e5035688e2ec9",
+        "README.md": "ce7f35bf97796555d6b07e485a5f82458b0c0f98aad8f6bc1093282e362c6c8e"
+      },
+      "review_notice": "README.md"
+    },
+    "flairNLP/zelda": {
+      "revision": "04627bdefb1c1094ac43b1cb1678d66067aa562c",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The selected evaluation files combine third-party news, social media and other benchmarks. The publisher identifies individual sources but gives no common grant for redistribution of their text."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "hipe-eval/HIPE-2022-data": {
+      "revision": "147f5bc3c7fb7e5c6b024a9ffd6503cd019fb9ea",
+      "rules": [
+        {
+          "subsets": [
+            "ajmc/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The ajmc component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-ajmc.md"
+          ]
+        },
+        {
+          "subsets": [
+            "newseye/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The newseye component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-newseye.md"
+          ]
+        },
+        {
+          "subsets": [
+            "sonar/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The sonar component is identified separately as CC BY 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-sonar.md"
+          ]
+        },
+        {
+          "subsets": [
+            "hipe2020/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The hipe2020 component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-hipe2020.md"
+          ]
+        },
+        {
+          "subsets": [
+            "letemps/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The letemps component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-letemps.md"
+          ]
+        },
+        {
+          "subsets": [
+            "topres19th/*"
+          ],
+          "bundle": "noncommercial",
+          "terms": "HIPE-2022 compilation CC BY-NC-SA 4.0. The topres19th component is identified separately as CC BY-NC-SA 4.0. Retain the release and component notices and document/source identifiers.",
+          "notices": [
+            "README.md",
+            "LICENSE",
+            "documentation/README-topres19th.md"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE": "1349a4b6148492b44f629e64eed676612e234fe9a839e4f3b277c1482c8849f1",
+        "README.md": "199c11b712d6b6a10f02025adfb634579888906d0848228e35ddec0d702e07b0",
+        "documentation/README-ajmc.md": "d9f030ea5d7b5e55fa72b980f960a96ac4ab559fdcb8c9822a79b3dccde2b18f",
+        "documentation/README-hipe2020.md": "51a0962eda05b32fc4918be915d658ace5e90cbf56979b43277c13d4072b4d6b",
+        "documentation/README-letemps.md": "6fb8c022f545058c682a7e317b15802eb44c0366c5495f8d6ded94ec59a9e421",
+        "documentation/README-newseye.md": "80d65f4f4af04ab30b9b9cd6dd5afa318d6461a5394e52d3f4f057a677ef0100",
+        "documentation/README-sonar.md": "fcdfbff7c7abb260e9a1b8f45fa1f7c3a3e8c1f5c236e1d02566db676c4a7b79",
+        "documentation/README-topres19th.md": "27e520986ec604c3a04c3cb99b9474029727da6c4ae6767eed08ec93a64ebf65"
+      },
+      "review_notice": "README.md"
+    },
+    "jefferyYu/UMT": {
+      "revision": "f478ee65564b5532319a6cc643203149acfc5eed",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The author directs users to Twitter terms for the Twitter2015 text. A raw social-post redistribution grant for these splits was not established."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "juand-r/entity-recognition-datasets": {
+      "revision": "8522f4b39cf9ed323b77f2d8a5005628f8861908",
+      "rules": [
+        {
+          "ids": [
+            "SECFilingsNER"
+          ],
+          "bundle": "general",
+          "terms": "Named financial filings FIN3 (test) and FIN5 (train), CC BY 3.0. Attribution requested by Julio Cesar Salinas Alvarado, Karin Verspoor and Timothy Baldwin (2015), Domain Adaption of Named Entity Recognition to Support Credit Risk Assessment. Retain their dataset README and source note.",
+          "notices": [
+            "data/SEC-filings/README.txt",
+            "data/SEC-filings/NOTE.txt"
+          ]
+        },
+        {
+          "ids": [
+            "WikiGold"
+          ],
+          "bundle": "",
+          "terms": "The manual WikiGold annotations are CC BY 4.0 (Figshare DOI 10.6084/m9.figshare.5462500.v1). Original Wikipedia text has separate attribution/share-alike terms. The single file has anonymous document markers without links to the source articles.",
+          "review_notices": [
+            "data/wikigold/README.rst",
+            "data/wikigold/LICENSE"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "data/SEC-filings/NOTE.txt": "0cca97b0adaa07bf01b0c3e6530dabf19f095c13653a88cc8dd82d685d1a4c21",
+        "data/SEC-filings/README.txt": "d92f0da05487ce11cc00110827b6408060553d2744673ecb626ecfdd38a7f24d"
+      },
+      "review_notice": "README.rst"
+    },
+    "leondz/emerging_entities_17": {
+      "revision": "e52a2d2a71ac1a051ca2d532eef28653c5c02603",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The WNUT-17 release specifies CC BY 4.0 and identifies source text from Twitter, Reddit, YouTube and Stack Overflow. The split files do not give original post/author references for satisfying the underlying works’ terms."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "ltgoslo/norne": {
+      "revision": "0c0d133a0f9590d76b81078712261badd4b605e9",
+      "rules": [
+        {
+          "bundle": "annotated-collection",
+          "terms": "NorNE adopts the NDT license. Linguistic annotations are CC0. Third-party source works may not be republished as stand-alone texts. Keep the original annotated corpus, full NDT notice and original source lists together.",
+          "notices": [
+            "README.md",
+            "LICENSE_NDT.txt",
+            "documentation/references_blog_nno.txt",
+            "documentation/references_blog_nob.txt",
+            "documentation/references_newspaper_nno.txt",
+            "documentation/references_newspaper_nob.txt",
+            "documentation/references_parliament_nno.txt",
+            "documentation/references_parliament_nob.txt",
+            "documentation/references_reports_nno.txt",
+            "documentation/references_reports_nob.txt"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE_NDT.txt": "dedbcc1831a692872d22ec22da9e4416dc532abe3cb12a97e6b0a56a9e77232c",
+        "README.md": "5ca8a88af551e2211dc803a74af8e878b84a18c8e38c27e66cf69e5a086f04d0",
+        "documentation/references_blog_nno.txt": "452f9b64887103c818208b187062ad88de72b2454c409a99d67acc62bb3ff24c",
+        "documentation/references_blog_nob.txt": "7bb83a69436ba2b6e0c9aa26e74ded01afc718a1d0552ae80bbd19238e4dd23e",
+        "documentation/references_newspaper_nno.txt": "ddb5adbc23801ca6fff7028209f51c07153e95f76f2f04eb119a078c540b957d",
+        "documentation/references_newspaper_nob.txt": "2432c88f13d6754394e034224c00a2d6ce391654970312a1eed2eef7e5052085",
+        "documentation/references_parliament_nno.txt": "7a93e71ff9c418484cab41a38968a1045685f180cc431278e46071fe9493baa9",
+        "documentation/references_parliament_nob.txt": "6c7e5b810e2f40bd2ceb8b9236a8b14c821c683542012221bcaf17a90cab6b26",
+        "documentation/references_reports_nno.txt": "0468373163113640ec612cd65eba2ee3c33e74b0181ab4fe97e356bb62aa8d5a",
+        "documentation/references_reports_nob.txt": "1e52e0cdd3cf0ab9a4b050beb7dd9faa71a2845539a88c1e0e1be48b898bb116"
+      },
+      "review_notice": "README.md"
+    },
+    "mainlp/CrossRE": {
+      "revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "GPL-3.0 covers the repository. Separate annotation terms and re-publication grants for the underlying CrossNER / Reuters source words were not established."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "masakhane-io/masakhane-ner": {
+      "revision": "ba5843cd08aa491d5f96a5e809e71eb9ec461391",
+      "rules": [
+        {
+          "ids": [
+            "MasakhaNER"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Annotated MasakhaNER release CC BY-NC 4.0. Raw monolingual news has separate source terms and is outside these split files. Credit the language communities, authors and news sources listed in the README.",
+          "notices": [
+            "README.md",
+            "data/README.md",
+            "LICENSE"
+          ]
+        },
+        {
+          "ids": [
+            "MasakhaNER2"
+          ],
+          "bundle": "noncommercial",
+          "terms": "Annotated MasakhaNER 2.0 release CC BY-NC 4.0. Raw monolingual news has separate source terms and is outside these split files. Retain the release authors, acknowledgments and sources; one malformed train file is preserved verbatim.",
+          "notices": [
+            "README.md",
+            "MasakhaNER2.0/README.md",
+            "LICENSE"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE": "194aaedc58f2aeaf707b36e727e1d97a86e71c661d5caadfb5f36bd5f461085a",
+        "MasakhaNER2.0/README.md": "1f3cc4fb7331b438ddaf932defd185df3491b4326d973ee1892d6767292df742",
+        "README.md": "dd5fee02e92fa6096ab2c259023a6a5dbad4dbfdcc738feda9136dcadc515e2a",
+        "data/README.md": "455f3f208b5d902dc4a726cea42e7880451585d10e18e3b9f561d0480ef782e6"
+      },
+      "review_notice": "README.md"
+    },
+    "masakhane-io/masakhane-pos": {
+      "revision": "376f4161f0425584d4bd7664122b56fa026926d3",
+      "rules": [
+        {
+          "bundle": "noncommercial",
+          "terms": "Annotated MasakhaPOS release CC BY-NC 4.0. Raw monolingual news carries separate terms and is outside these split files. Credit the authors and source communities.",
+          "notices": [
+            "README.md",
+            "LICENSE"
+          ]
+        }
+      ],
+      "notice_sha256": {
+        "LICENSE": "437393e4e14d7114ff2eb556085300c71410d4a8db8873f3220b0ee415819751",
+        "README.md": "1e351724bbbdffc58525d2f5f36313b3f8723c99313dd15537576983e9021a7c"
+      },
+      "review_notice": "README.md"
+    },
+    "shreyashub/BioFLAIR": {
+      "revision": "9edc438997baca6337552639120e363b9894cc98",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "This mirror contains BIO-encoded NCBI Disease abstracts. Public access to PubMed records does not establish redistribution rights for the full third-party abstracts."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "tangxuemei1995/CHisIEC": {
+      "revision": "646a771064f3cfb3507b419949ba45faf3c63bdb",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The historical texts are derived from classical works, but the annotated CHisIEC release has no established dataset redistribution license in this revision."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "thecharm/boundary-aware-nested-ner": {
+      "revision": "7e87e1cb282a4441f1136c8eac5de5aedad60138",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The research implementation republishes data derived from GENIA/MEDLINE. The source-specific grant for these processed labels and underlying third-party abstracts was not established."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "wangdsh/MMNERD": {
+      "revision": "dda173b4088b4f05576da24ec787c81aba687082",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "The English text files contain third-party social posts. The dataset README does not give a redistribution grant for those posts."
+        }
+      ],
+      "review_notice": "README.md"
+    },
+    "zliucr/CrossNER": {
+      "revision": "2e7ba2a7798c961e3f29fbc51252c5a8d40224bf",
+      "rules": [
+        {
+          "bundle": "",
+          "terms": "Five target domains contain Wikipedia text. The repository MIT notice does not provide source article links for attributing the underlying works in these token-only files."
+        }
+      ],
+      "review_notice": "README.md"
+    }
+  }
+}

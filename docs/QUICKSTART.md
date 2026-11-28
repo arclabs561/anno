@@ -234,16 +234,22 @@ document can simultaneously gain and lose a gold match.
 
 For a whole NER dataset, use an eval-enabled build and write one report for
 every loaded sentence, including sentences with no gold mentions. With WikiGold
-cached, the following runs cover the full input twice. The HTML comparison
+cached, the following runs score the full local input twice. The HTML comparison
 checks that both runs evaluated the same occurrences against the same gold.
 
 ```sh
-anno dataset eval --dataset WikiGold --task ner --model pattern --reports pattern.jsonl
-anno dataset eval --dataset WikiGold --task ner --model heuristic --reports heuristic.jsonl
+anno dataset eval --cached-only --dataset WikiGold --task ner --model pattern --reports pattern.jsonl
+anno dataset eval --cached-only --dataset WikiGold --task ner --model heuristic --reports heuristic.jsonl
 anno viz paired pattern.jsonl --against heuristic.jsonl --cohort WikiGold --unit sentences \
   --baseline-name Pattern --candidate-name Heuristic -o wikigold.html
 anno viz errors heuristic.jsonl -o wikigold-errors.svg
 ```
+
+`--cached-only` reads the local dataset or a checkout fixture for NER, coreference
+and relation evaluation. A missing input reports its expected path. To replay a
+saved cache, point `ANNO_CACHE_DIR` at the directory containing `datasets/`.
+The two rule-based models above work offline. For a supported local neural
+backend, set `ANNO_NO_DOWNLOADS=1` to require cached model weights as well.
 
 On the pinned WikiGold release this example pairs 1,696 sentences, including
 355 with no gold mentions. The heuristic scores 1,394 exact matches and the

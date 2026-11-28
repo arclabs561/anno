@@ -1,0 +1,91 @@
+{
+  "repository": "ibm-research/vira-dialog-acts-live",
+  "revision": "eca0119ce897681b73653531eeadc759bab7f917",
+  "license": null,
+  "files": [
+    {
+      "path": "publisher/README.md",
+      "url": "https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live/resolve/eca0119ce897681b73653531eeadc759bab7f917/README.md",
+      "sha256": "1f90441897839099c671f980575ec64664fb5b241fff1cdd5825a7aa170fc3a4",
+      "bytes": 503
+    },
+    {
+      "path": "publisher/data/test-00000-of-00001-83cb6a6319c85a27.parquet",
+      "url": "https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live/resolve/eca0119ce897681b73653531eeadc759bab7f917/data/test-00000-of-00001-83cb6a6319c85a27.parquet",
+      "sha256": "97ba289aa01e5ac06846247f67d4d9597cd5fa07f907dd846707c82b61613759",
+      "bytes": 2588
+    },
+    {
+      "path": "publisher/data/train-00000-of-00001-a6ed34b40072c4f6.parquet",
+      "url": "https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live/resolve/eca0119ce897681b73653531eeadc759bab7f917/data/train-00000-of-00001-a6ed34b40072c4f6.parquet",
+      "sha256": "18cb98f8b890046cdf2134dda0370dcfa106c34ad84861e96a81b0d926966460",
+      "bytes": 13391
+    },
+    {
+      "path": "publisher/data/validation-00000-of-00001-6847b753ec7fe581.parquet",
+      "url": "https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live/resolve/eca0119ce897681b73653531eeadc759bab7f917/data/validation-00000-of-00001-6847b753ec7fe581.parquet",
+      "sha256": "05f7d7138b428b6ce65fab9bcaff8ac32e7c8f1b4cb673418c4b1e243277401e",
+      "bytes": 3009
+    },
+    {
+      "path": "ibm-classifier/dialog_act_dataset/dialog_acts.csv",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/dialog_act_dataset/dialog_acts.csv",
+      "sha256": "b05097979f8eeb1afdedefdaae462c410bf3f464c71e117e24e5176d8e1a5e3a",
+      "bytes": 84
+    },
+    {
+      "path": "ibm-classifier/dialog_act_dataset/train.csv",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/dialog_act_dataset/train.csv",
+      "sha256": "a3afb61422d02b4ba5d532aa6efbd0461af8ee1df1443011a66ae2cd87eb8e07",
+      "bytes": 24953
+    },
+    {
+      "path": "ibm-classifier/dialog_act_dataset/validation.csv",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/dialog_act_dataset/validation.csv",
+      "sha256": "a673989d8bcf2549d4b86d09d116e66630283209d34c91388e9b36007d4c8e0d",
+      "bytes": 3331
+    },
+    {
+      "path": "ibm-classifier/dialog_act_dataset/test.csv",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/dialog_act_dataset/test.csv",
+      "sha256": "f14436e2a327e47a54ccddee779b7d452095dfc3408022512f47127e8dced46c",
+      "bytes": 2738
+    },
+    {
+      "path": "ibm-classifier/LICENSE",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/LICENSE",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "bytes": 11358
+    },
+    {
+      "path": "ibm-classifier/service.py",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/service.py",
+      "sha256": "675290017d1754ca4b3b58527dce3220980132d7b5c10cf541a83818fd0644ab",
+      "bytes": 1858
+    },
+    {
+      "path": "ibm-classifier/utils.py",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/utils.py",
+      "sha256": "cfa84028380d4836207811cffaf7f064a32bf094d7bcd2548e27355e55dde394",
+      "bytes": 797
+    },
+    {
+      "path": "ibm-classifier/README.md",
+      "url": "https://raw.githubusercontent.com/IBM/vira-dialog-act-classification/ecdafa4eab1acdf124636324713a34b2f9f847f6/README.md",
+      "sha256": "1aa6489ba963fd785f0d6f3e97be4555637ffdadf7223b5927b6e2be8adc4fee",
+      "bytes": 5351
+    }
+  ],
+  "verified_against": {
+    "repo": "IBM/vira-dialog-act-classification",
+    "revision": "ecdafa4eab1acdf124636324713a34b2f9f847f6",
+    "ordered_split_text_and_label_counts": {
+      "train": 571,
+      "validation": 71,
+      "test": 72
+    },
+    "class_decoder": "service.py indexes the ordered rows of dialog_acts.csv by integer model output",
+    "repo_license": "Apache-2.0",
+    "hub_card_license": null
+  }
+}

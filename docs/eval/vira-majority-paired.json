@@ -1,0 +1,39 @@
+{
+  "schema": "anno.paired/v1",
+  "title": "Which ViRA turns does Fastino gain or lose?",
+  "unit": "dialogue turns",
+  "baseline": "Always predict negative reaction",
+  "candidate": "Fastino classifier",
+  "rows": [
+    {
+      "label": "Held-out test",
+      "role": "8 Fastino abstentions",
+      "observations": 72,
+      "baseline": {
+        "correct": 16,
+        "unmatched": 56
+      },
+      "candidate": {
+        "correct": 29,
+        "unmatched": 35
+      },
+      "gained": 16,
+      "lost": 3
+    },
+    {
+      "label": "Validation",
+      "role": "15 Fastino abstentions",
+      "observations": 71,
+      "baseline": {
+        "correct": 20,
+        "unmatched": 51
+      },
+      "candidate": {
+        "correct": 31,
+        "unmatched": 25
+      },
+      "gained": 18,
+      "lost": 7
+    }
+  ]
+}

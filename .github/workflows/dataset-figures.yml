@@ -14,6 +14,17 @@ on:
       - scripts/qa/*nuner*.py
       - scripts/qa/test_native_gap_link_retention.py
       - scripts/qa/test_dataset_*.py
+      - scripts/qa/*english_ner_source_replay.py
+      - scripts/qa/*vira*.py
+      - scripts/qa/fixtures/vira-dialog-act-sources.json
+      - scripts/qa/test_pack_*.py
+      - scripts/qa/test_offline_native_cache.py
+      - scripts/qa/direct_pack_sources.json
+      - scripts/pack_*_datasets.py
+      - scripts/build_offline_native_cache.py
+      - scripts/index_offline_datasets.py
+      - scripts/offline_dataset_archives.py
+      - scripts/data/*.json
       - scripts/survey_dataset_ci_outcomes.py
       - scripts/figure_coverage_report.py
       - scripts/figure_catalog.py
@@ -63,6 +74,17 @@ on:
       - scripts/qa/*nuner*.py
       - scripts/qa/test_native_gap_link_retention.py
       - scripts/qa/test_dataset_*.py
+      - scripts/qa/*english_ner_source_replay.py
+      - scripts/qa/*vira*.py
+      - scripts/qa/fixtures/vira-dialog-act-sources.json
+      - scripts/qa/test_pack_*.py
+      - scripts/qa/test_offline_native_cache.py
+      - scripts/qa/direct_pack_sources.json
+      - scripts/pack_*_datasets.py
+      - scripts/build_offline_native_cache.py
+      - scripts/index_offline_datasets.py
+      - scripts/offline_dataset_archives.py
+      - scripts/data/*.json
       - scripts/survey_dataset_ci_outcomes.py
       - scripts/figure_coverage_report.py
       - scripts/figure_catalog.py
@@ -121,7 +143,9 @@ jobs:
       - name: Reconcile paired studies with their source counts
         run: |
           python3 -m unittest discover -s scripts/qa/joint_baseline -p 'test_relex_*.py'
-          for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py; do
+          python3 scripts/qa/vira_majority_paired.py --output "$RUNNER_TEMP/vira-majority-paired.json"
+          cmp "$RUNNER_TEMP/vira-majority-paired.json" docs/eval/vira-majority-paired.json
+          for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py test_offline_native_cache.py 'test_*vira*.py' 'test_*english_ner_source_replay.py' 'test_pack_*.py'; do
             python3 -m unittest discover -s scripts/qa -p "$pattern"
           done
       - name: Check publication, dataset evidence and GENIA measurements

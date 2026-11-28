@@ -1,0 +1,467 @@
+{
+  "checkpoint": "protectai/bert-base-NER-onnx@84d28ab2bc28401b4353b26033eb043c8c8a0739",
+  "checkpoint_sha256": {
+    "config.json": "e3cc09261a1c73bda961e030563585b2be563bef339a78e11c802c3377b98d66",
+    "model.onnx": "e2165e300f6e0016c1f295bcdee36e084371e1f4f3564cd7e47cb833b58a75b7",
+    "tokenizer.json": "cb26b43c98e8266ae3e99c2a583cf8315d73b33a17e6b20b4df7ff1f22392d34"
+  },
+  "datasets": {
+    "CoNLL04RE": {
+      "backends": {
+        "bert-onnx": {
+          "all_labels": {
+            "correct": 754,
+            "f1": 0.68204432,
+            "gold": 1079,
+            "precision": 0.66607774,
+            "predicted": 1132,
+            "recall": 0.69879518
+          },
+          "by_label": {
+            "LOC": {
+              "correct": 336,
+              "f1": 0.75932203,
+              "gold": 427,
+              "precision": 0.73362445,
+              "predicted": 458,
+              "recall": 0.78688525
+            },
+            "MISC": {
+              "correct": 0,
+              "f1": 0.0,
+              "gold": 0,
+              "precision": 0.0,
+              "predicted": 118,
+              "recall": null
+            },
+            "ORG": {
+              "correct": 141,
+              "f1": 0.66352941,
+              "gold": 198,
+              "precision": 0.62114537,
+              "predicted": 227,
+              "recall": 0.71212121
+            },
+            "Other": {
+              "correct": 0,
+              "f1": 0.0,
+              "gold": 133,
+              "precision": null,
+              "predicted": 0,
+              "recall": 0.0
+            },
+            "PER": {
+              "correct": 277,
+              "f1": 0.85230769,
+              "gold": 321,
+              "precision": 0.84194529,
+              "predicted": 329,
+              "recall": 0.86292835
+            }
+          },
+          "cases_with_repeated_typed_prediction": 2,
+          "deduplicated_typed_predictions_counterfactual": {
+            "correct": 754,
+            "f1": 0.68266184,
+            "gold": 1079,
+            "precision": 0.66725664,
+            "predicted": 1130,
+            "recall": 0.69879518
+          },
+          "distinct_spans_with_competing_types": 9,
+          "gold_empty_cases_with_prediction": 0,
+          "gold_empty_predictions": 0,
+          "literal_native_matches": 754,
+          "ordered_predictions_sha256": "109d4f4b9168787879f8236a53315ec40edb5e7fd0fb52e2ab5c27010e851a81",
+          "repeated_typed_predictions": 2,
+          "shared_labels": {
+            "correct": 754,
+            "f1": 0.76938776,
+            "gold": 946,
+            "precision": 0.74358974,
+            "predicted": 1014,
+            "recall": 0.79704017
+          }
+        },
+        "heuristic": {
+          "all_labels": {
+            "correct": 395,
+            "f1": 0.35827664,
+            "gold": 1079,
+            "precision": 0.35079929,
+            "predicted": 1126,
+            "recall": 0.3660797
+          },
+          "by_label": {
+            "LOC": {
+              "correct": 153,
+              "f1": 0.46363636,
+              "gold": 427,
+              "precision": 0.65665236,
+              "predicted": 233,
+              "recall": 0.35831382
+            },
+            "ORG": {
+              "correct": 77,
+              "f1": 0.31752577,
+              "gold": 198,
+              "precision": 0.26829268,
+              "predicted": 287,
+              "recall": 0.38888889
+            },
+            "Other": {
+              "correct": 0,
+              "f1": 0.0,
+              "gold": 133,
+              "precision": null,
+              "predicted": 0,
+              "recall": 0.0
+            },
+            "PER": {
+              "correct": 165,
+              "f1": 0.35598706,
+              "gold": 321,
+              "precision": 0.27227723,
+              "predicted": 606,
+              "recall": 0.51401869
+            }
+          },
+          "cases_with_repeated_typed_prediction": 0,
+          "deduplicated_typed_predictions_counterfactual": {
+            "correct": 395,
+            "f1": 0.35827664,
+            "gold": 1079,
+            "precision": 0.35079929,
+            "predicted": 1126,
+            "recall": 0.3660797
+          },
+          "distinct_spans_with_competing_types": 0,
+          "gold_empty_cases_with_prediction": 0,
+          "gold_empty_predictions": 0,
+          "literal_native_matches": 395,
+          "ordered_predictions_sha256": "9175a49cad1393cc9b84197be7c910a904cde97c11255a423db132b81b885810",
+          "repeated_typed_predictions": 0,
+          "shared_labels": {
+            "correct": 395,
+            "f1": 0.38127413,
+            "gold": 946,
+            "precision": 0.35079929,
+            "predicted": 1126,
+            "recall": 0.41754757
+          }
+        }
+      },
+      "cases": 288,
+      "distinct_texts": 287,
+      "gold": 1079,
+      "gold_empty_cases": 0,
+      "observed_gold_labels": {
+        "Loc": 427,
+        "Org": 198,
+        "Other": 133,
+        "Peop": 321
+      },
+      "ordered_cases_sha256": "233d08fc870a702cf2e6e6aeca49b7885f641919dccab3b742422f5d874d04a6",
+      "paired": {
+        "by_label": {
+          "LOC": {
+            "gained": 186,
+            "lost": 3
+          },
+          "ORG": {
+            "gained": 71,
+            "lost": 7
+          },
+          "PER": {
+            "gained": 119,
+            "lost": 7
+          }
+        },
+        "gained": 376,
+        "lost": 17
+      },
+      "prior_reader": {
+        "cases": 1,
+        "distinct_gold_labels": 298,
+        "gold": 1275,
+        "revision": "fe6a4c1"
+      },
+      "scope": "288-case joint extraction test · entity layer",
+      "source": {
+        "bytes": 191006,
+        "path": "data/CoNLL04/test.txt",
+        "repository": "bekou/multihead_joint_entity_relation_extraction",
+        "revision": "7f40a0f7c1892821591358518c542139e88f693e",
+        "sha256": "d172819deff771c059c9c6688d67c3ff2bdaa25cf71ec56b1f7e8c6705f96700",
+        "url": "https://raw.githubusercontent.com/bekou/multihead_joint_entity_relation_extraction/7f40a0f7c1892821591358518c542139e88f693e/data/CoNLL04/test.txt"
+      },
+      "source_label_mapping": {
+        "Loc": "LOC",
+        "Org": "ORG",
+        "Other": "Other",
+        "Peop": "PER"
+      },
+      "split": "test",
+      "tagged_tokens": 2024,
+      "tokens": 8408
+    },
+    "SECFilingsNER": {
+      "backends": {
+        "bert-onnx": {
+          "all_labels": {
+            "correct": 65,
+            "f1": 0.12609117,
+            "gold": 318,
+            "precision": 0.0911641,
+            "predicted": 713,
+            "recall": 0.20440252
+          },
+          "by_label": {
+            "LOC": {
+              "correct": 17,
+              "f1": 0.32380952,
+              "gold": 39,
+              "precision": 0.25757576,
+              "predicted": 66,
+              "recall": 0.43589744
+            },
+            "MISC": {
+              "correct": 3,
+              "f1": 0.02135231,
+              "gold": 7,
+              "precision": 0.01094891,
+              "predicted": 274,
+              "recall": 0.42857143
+            },
+            "ORG": {
+              "correct": 24,
+              "f1": 0.12403101,
+              "gold": 56,
+              "precision": 0.07250755,
+              "predicted": 331,
+              "recall": 0.42857143
+            },
+            "PER": {
+              "correct": 21,
+              "f1": 0.1627907,
+              "gold": 216,
+              "precision": 0.5,
+              "predicted": 42,
+              "recall": 0.09722222
+            }
+          },
+          "cases_with_repeated_typed_prediction": 1,
+          "deduplicated_typed_predictions_counterfactual": {
+            "correct": 65,
+            "f1": 0.12621359,
+            "gold": 318,
+            "precision": 0.09129213,
+            "predicted": 712,
+            "recall": 0.20440252
+          },
+          "distinct_spans_with_competing_types": 8,
+          "gold_empty_cases_with_prediction": 106,
+          "gold_empty_predictions": 214,
+          "literal_native_matches": 62,
+          "ordered_predictions_sha256": "6ed9b61a4a260cebb1e6231d142ca812ad0a89ac1b9452993dfacf0756d9185a",
+          "repeated_typed_predictions": 1,
+          "shared_labels": {
+            "correct": 62,
+            "f1": 0.16533333,
+            "gold": 311,
+            "precision": 0.14123007,
+            "predicted": 439,
+            "recall": 0.19935691
+          }
+        },
+        "heuristic": {
+          "all_labels": {
+            "correct": 218,
+            "f1": 0.29380054,
+            "gold": 318,
+            "precision": 0.18696398,
+            "predicted": 1166,
+            "recall": 0.68553459
+          },
+          "by_label": {
+            "LOC": {
+              "correct": 11,
+              "f1": 0.23157895,
+              "gold": 39,
+              "precision": 0.19642857,
+              "predicted": 56,
+              "recall": 0.28205128
+            },
+            "MISC": {
+              "correct": 0,
+              "f1": 0.0,
+              "gold": 7,
+              "precision": null,
+              "predicted": 0,
+              "recall": 0.0
+            },
+            "ORG": {
+              "correct": 24,
+              "f1": 0.15286624,
+              "gold": 56,
+              "precision": 0.09302326,
+              "predicted": 258,
+              "recall": 0.42857143
+            },
+            "PER": {
+              "correct": 183,
+              "f1": 0.34269663,
+              "gold": 216,
+              "precision": 0.21478873,
+              "predicted": 852,
+              "recall": 0.84722222
+            }
+          },
+          "cases_with_repeated_typed_prediction": 0,
+          "deduplicated_typed_predictions_counterfactual": {
+            "correct": 218,
+            "f1": 0.29380054,
+            "gold": 318,
+            "precision": 0.18696398,
+            "predicted": 1166,
+            "recall": 0.68553459
+          },
+          "distinct_spans_with_competing_types": 0,
+          "gold_empty_cases_with_prediction": 169,
+          "gold_empty_predictions": 396,
+          "literal_native_matches": 218,
+          "ordered_predictions_sha256": "d593697c0500d090cb8ebdabae4ec0ce873250392a8d7ccab0c752aa76e0f705",
+          "repeated_typed_predictions": 0,
+          "shared_labels": {
+            "correct": 218,
+            "f1": 0.29519296,
+            "gold": 311,
+            "precision": 0.18696398,
+            "predicted": 1166,
+            "recall": 0.70096463
+          }
+        }
+      },
+      "cases": 303,
+      "distinct_texts": 299,
+      "gold": 318,
+      "gold_empty_cases": 203,
+      "observed_gold_labels": {
+        "LOC": 39,
+        "MISC": 7,
+        "ORG": 56,
+        "PER": 216
+      },
+      "ordered_cases_sha256": "d222b31c9b6a4ba03b40c7fa2ffe33ea7708be7a878d7978d11ce1f0a4aef02a",
+      "paired": {
+        "by_label": {
+          "LOC": {
+            "gained": 7,
+            "lost": 1
+          },
+          "MISC": {
+            "gained": 3,
+            "lost": 0
+          },
+          "ORG": {
+            "gained": 8,
+            "lost": 8
+          },
+          "PER": {
+            "gained": 4,
+            "lost": 166
+          }
+        },
+        "gained": 22,
+        "lost": 175
+      },
+      "person_role_audit": {
+        "borrower": {
+          "candidate_on_lost_baseline_mentions": {
+            "no_overlap": 40,
+            "partial_overlap": 1,
+            "same_span_MISC": 2,
+            "same_span_ORG": 62
+          },
+          "exact": {
+            "baseline": 116,
+            "candidate": 14,
+            "gained": 3,
+            "gold": 131,
+            "lost": 105
+          },
+          "exact_boundary_any_type": {
+            "baseline": 119,
+            "candidate": 80,
+            "gained": 2,
+            "lost": 41
+          }
+        },
+        "lender": {
+          "candidate_on_lost_baseline_mentions": {
+            "no_overlap": 3,
+            "same_span_ORG": 53
+          },
+          "exact": {
+            "baseline": 56,
+            "candidate": 0,
+            "gained": 0,
+            "gold": 65,
+            "lost": 56
+          },
+          "exact_boundary_any_type": {
+            "baseline": 60,
+            "candidate": 59,
+            "gained": 2,
+            "lost": 3
+          }
+        },
+        "other_PER": {
+          "candidate_on_lost_baseline_mentions": {
+            "partial_overlap": 5
+          },
+          "exact": {
+            "baseline": 11,
+            "candidate": 7,
+            "gained": 1,
+            "gold": 20,
+            "lost": 5
+          },
+          "exact_boundary_any_type": {
+            "baseline": 11,
+            "candidate": 7,
+            "gained": 1,
+            "lost": 5
+          }
+        }
+      },
+      "scope": "SEC FIN3 · complete mirrored test file",
+      "source": {
+        "bytes": 167860,
+        "path": "data/SEC-filings/CONLL-format/data/test/FIN3.txt",
+        "repository": "juand-r/entity-recognition-datasets",
+        "revision": "8522f4b39cf9ed323b77f2d8a5005628f8861908",
+        "sha256": "fc71db3cb718bf7400af08c9080d435ec2a002ddd9070c8bcbb4e8e3396835bd",
+        "url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/SEC-filings/CONLL-format/data/test/FIN3.txt"
+      },
+      "source_label_mapping": {
+        "LOC": "LOC",
+        "MISC": "MISC",
+        "ORG": "ORG",
+        "PER": "PER"
+      },
+      "split": "test",
+      "tagged_tokens": 436,
+      "tokens": 13246
+    }
+  },
+  "prediction_label_aliases": {
+    "misc": "MISC"
+  },
+  "schema": "anno.english-ner-source/v1",
+  "shared_types": [
+    "LOC",
+    "ORG",
+    "PER"
+  ]
+}

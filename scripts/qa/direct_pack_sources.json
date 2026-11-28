@@ -1,0 +1,2468 @@
+{
+  "schema": "anno.direct-pack-recipes/v1",
+  "datasets": {
+    "AMIMeeting": {
+      "pack": "annotations",
+      "name": "AMI Meeting",
+      "edition": "URL 1.6.2, internal manual release notes 1.7",
+      "source": "https://groups.inf.ed.ac.uk/ami/download/",
+      "citation": "Carletta et al. (2005)",
+      "terms_label": "CC BY 4.0",
+      "terms_source": "https://groups.inf.ed.ac.uk/ami/corpus/license.shtml",
+      "terms_scope": "Publisher manual annotations and transcripts. The original archive includes its CC BY 4.0 license and release notes.",
+      "included": "All released words tracks plus all released named-entity tracks. Their native NXT ID links are preserved. The linked named-entity ontology is included.",
+      "excluded": "Audio/video, summaries, gesture and other manual layers. Some speaker tracks have no named-entity layer.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+          "bytes": 22887865,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "ami-words",
+              "split": "all speaker transcripts",
+              "match": "words/*.words.xml",
+              "count": 687
+            },
+            {
+              "parser": "ami-entities",
+              "split": "entity-annotated speaker tracks",
+              "match": "namedEntities/*.ne.xml",
+              "count": 468
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "role": "notice",
+              "match": "LICENCE.txt",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "release notes",
+              "role": "notice",
+              "match": "00README_MANUAL.txt",
+              "count": 1
+            },
+            {
+              "parser": "ami-types",
+              "split": "named entity ontology",
+              "match": "ontologies/ne-types.xml",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "speaker transcripts with a released named-entity layer",
+              "unit": "speaker transcripts",
+              "records": "468",
+              "source": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip"
+            },
+            {
+              "split_or_subset": "speaker transcripts without a released named-entity layer",
+              "unit": "speaker transcripts",
+              "records": "219",
+              "source": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip"
+            }
+          ]
+        }
+      ]
+    },
+    "AgCNER": {
+      "pack": "annotations",
+      "name": "AgCNER",
+      "edition": "Figshare constituent datasets version 1",
+      "source": "https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873",
+      "citation": "Hao et al., AgCNER dataset, Figshare. Files 42188205, 42188211 and 42188208.",
+      "terms_label": "CC0 1.0",
+      "terms_source": "https://doi.org/10.6084/m9.figshare.c.6807873",
+      "terms_scope": "The Figshare records for the three individual files identify CC0. This is the file-level grant.",
+      "included": "Complete published train, development and test BIO files.",
+      "excluded": "Models, collection-level guidelines and separate article.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://ndownloader.figshare.com/files/42188205",
+          "sha256": "08b41babefc61ed26560cd6d922e98e0b6a32ea65acd50760737bb6d98db811f",
+          "bytes": 23602170,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bio",
+              "split": "train",
+              "dest": "train.bio"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train",
+              "unit": "nonempty BIO sequences",
+              "records": "47839",
+              "source": "https://ndownloader.figshare.com/files/42188205"
+            }
+          ]
+        },
+        {
+          "url": "https://ndownloader.figshare.com/files/42188211",
+          "sha256": "5096006714dc84e9f5131c8abae65ed3130c8db3eae416cf6ef9e7723101b2c0",
+          "bytes": 2976863,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bio",
+              "split": "dev",
+              "dest": "dev.bio"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "dev",
+              "unit": "nonempty BIO sequences",
+              "records": "5963",
+              "source": "https://ndownloader.figshare.com/files/42188211"
+            }
+          ]
+        },
+        {
+          "url": "https://ndownloader.figshare.com/files/42188208",
+          "sha256": "f520109a9bc89cda1d6a2928fbf06157908358909ea3a7b73de46ad23eefb7b4",
+          "bytes": 2923714,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bio",
+              "split": "test",
+              "dest": "test.bio"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test",
+              "unit": "nonempty BIO sequences",
+              "records": "5974",
+              "source": "https://ndownloader.figshare.com/files/42188208"
+            }
+          ]
+        }
+      ],
+      "terms_records": [
+        {
+          "url": "https://api.figshare.com/v2/articles/24056205/versions/1",
+          "title": "Training set",
+          "doi": "10.6084/m9.figshare.24056205.v1",
+          "license": "CC0",
+          "file_id": 42188205
+        },
+        {
+          "url": "https://api.figshare.com/v2/articles/24056211/versions/1",
+          "title": "Development set",
+          "doi": "10.6084/m9.figshare.24056211.v1",
+          "license": "CC0",
+          "file_id": 42188211
+        },
+        {
+          "url": "https://api.figshare.com/v2/articles/24056208/versions/1",
+          "title": "Test set",
+          "doi": "10.6084/m9.figshare.24056208.v1",
+          "license": "CC0",
+          "file_id": 42188208
+        }
+      ]
+    },
+    "AnEM": {
+      "pack": "annotations",
+      "name": "AnEM",
+      "edition": "AnEM 1.0.4",
+      "source": "http://www.nactem.ac.uk/anatomy/",
+      "citation": "Ohta et al. (2012)",
+      "terms_label": "CC BY-SA 3.0 annotations; publisher-specific text rights",
+      "terms_source": "https://www.nactem.ac.uk/anatomy/",
+      "terms_scope": "Preserve the bundled LICENSE and REFERENCES. PubMed abstracts retain their respective copyrights and PMC article fragments retain their article-specific OA licenses. Private research use for the combined token files.",
+      "included": "Both official train/test offset and BIO token files, including the source fragment ID lists.",
+      "excluded": "Parallel BRAT representations and alternate development partition.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://www.nactem.ac.uk/anatomy/data/AnEM-1.0.4.tar.gz",
+          "sha256": "b52ac2c1de5fbfc47d4c180ed83df03b95d7e7b4d1f5545ba878f65b7e7368e9",
+          "bytes": 1629800,
+          "container": "tar",
+          "files": [
+            {
+              "parser": "bio",
+              "split": "train",
+              "dest": "train.bio",
+              "match": "AnEM-1.0.4/test/AnEM.train",
+              "count": 1
+            },
+            {
+              "parser": "bio",
+              "split": "test",
+              "dest": "test.bio",
+              "match": "AnEM-1.0.4/test/AnEM.test",
+              "count": 1
+            },
+            {
+              "parser": "lines",
+              "split": "train source IDs",
+              "dest": "train-files.list",
+              "role": "notice",
+              "match": "AnEM-1.0.4/test/train-files.list",
+              "count": 1
+            },
+            {
+              "parser": "lines",
+              "split": "test source IDs",
+              "dest": "test-files.list",
+              "role": "notice",
+              "match": "AnEM-1.0.4/test/test-files.list",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice",
+              "match": "AnEM-1.0.4/LICENSE",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README",
+              "role": "notice",
+              "match": "AnEM-1.0.4/README",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "REFERENCES",
+              "role": "notice",
+              "match": "AnEM-1.0.4/REFERENCES",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train",
+              "unit": "nonempty BIO sequences",
+              "records": "2815",
+              "source": "https://www.nactem.ac.uk/anatomy/data/AnEM-1.0.4.tar.gz"
+            },
+            {
+              "split_or_subset": "test",
+              "unit": "nonempty BIO sequences",
+              "records": "1882",
+              "source": "https://www.nactem.ac.uk/anatomy/data/AnEM-1.0.4.tar.gz"
+            }
+          ]
+        }
+      ]
+    },
+    "BC2GMFull": {
+      "pack": "annotations",
+      "name": "BC2GM Full",
+      "edition": "original NLM data, distributor commit 018161681145daf751af037cb890f3a54f62a74d",
+      "source": "https://biocreative.bioinformatics.udel.edu/resources/biocreative-ii-corpus/",
+      "citation": "Smith et al. (2008)",
+      "terms_label": "US public domain notice for government-authored database; original NOTICE applies",
+      "terms_source": "https://github.com/spyysalo/bc2gm-corpus/blob/018161681145daf751af037cb890f3a54f62a74d/original-data/NOTICE",
+      "terms_scope": "The release includes its original NLM public domain notice. Third-party material can retain independent rights.",
+      "included": "Original train/test sentences, primary annotated spans and alternative accepted spans.",
+      "excluded": "Derived development split and alternative BIO/standoff encodings.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/train.in",
+          "sha256": "408f32a796e7aa8ed5b6428c1887e084282b42a02409bba151d0bda3698ca6e3",
+          "bytes": 2515605,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-sentences",
+              "split": "train / train.in",
+              "dest": "train/train.in"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train/train.in",
+              "unit": "source sentences",
+              "records": "15000",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/train.in"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/GENE.eval",
+          "sha256": "6f2b01a25d700f1fddcc7dea6a1b722498b5a9ad6cf12b19ec9d36ab3b63ad87",
+          "bytes": 626733,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-spans",
+              "split": "train / GENE.eval",
+              "dest": "train/GENE.eval"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train/GENE.eval",
+              "unit": "gold gene mentions",
+              "records": "18265",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/GENE.eval"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/ALTGENE.eval",
+          "sha256": "39b33098791c57747db1f8b6f91109879310fc726ba52dd3e446f9653d795bf5",
+          "bytes": 565323,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-spans",
+              "split": "train / ALTGENE.eval",
+              "dest": "train/ALTGENE.eval"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train/ALTGENE.eval",
+              "unit": "acceptable alternate gene mentions",
+              "records": "14499",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/train/ALTGENE.eval"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/test.in",
+          "sha256": "dc1b919a143f99d0cb9182a3a26b1c98e46799d052a463d4c212c49532f123fd",
+          "bytes": 842987,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-sentences",
+              "split": "test / test.in",
+              "dest": "test/test.in"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test/test.in",
+              "unit": "source sentences",
+              "records": "5000",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/test.in"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/GENE.eval",
+          "sha256": "e6df54b52d337a02a5b11432d132b28c7c657f717e1fe6e8035d3c7b2a18bf4f",
+          "bytes": 215118,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-spans",
+              "split": "test / GENE.eval",
+              "dest": "test/GENE.eval"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test/GENE.eval",
+              "unit": "gold gene mentions",
+              "records": "6331",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/GENE.eval"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/ALTGENE.eval",
+          "sha256": "07bee7571c3197db1b886cc790c6f488f2408d3d012006865cc926d93b6c7b8d",
+          "bytes": 197812,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bc-spans",
+              "split": "test / ALTGENE.eval",
+              "dest": "test/ALTGENE.eval"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test/ALTGENE.eval",
+              "unit": "acceptable alternate gene mentions",
+              "records": "5068",
+              "source": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/test/ALTGENE.eval"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spyysalo/bc2gm-corpus/018161681145daf751af037cb890f3a54f62a74d/original-data/NOTICE",
+          "sha256": "5b6338964360911f2d2699865ded093531a89648db0bf2ceeea667b614cde4bd",
+          "bytes": 1398,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "original-NLM-NOTICE.txt",
+              "role": "notice"
+            }
+          ]
+        }
+      ]
+    },
+    "CRAFT": {
+      "pack": "annotations",
+      "name": "CRAFT",
+      "edition": "SHA-256 of the measured CRAFT repository ZIP",
+      "source": "https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip",
+      "citation": "Bada et al. (2012)",
+      "terms_label": "CC BY 3.0 annotations; original OA article terms apply",
+      "terms_source": "https://github.com/UCDenver-ccp/CRAFT",
+      "terms_scope": "The corpus license covers the annotations. Retain the article identifiers and upstream article/document notices for the underlying open access texts.",
+      "included": "All 97 published CoNLL-U dependency-annotated articles and article-ID documentation.",
+      "excluded": "Other ontology layers and parallel article encodings.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip",
+          "sha256": "b9d7594d5e3c8a46075ec865e0408c243236898a0674d8e559a4194a3126931d",
+          "bytes": 241114956,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "conllu",
+              "split": "complete dependency layer",
+              "match": "*/structural-annotation/dependency/conllu/*.conllu",
+              "count": 97
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE.txt",
+              "role": "notice",
+              "match": "CRAFT-master/LICENSE.txt",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "release notes",
+              "dest": "README.md",
+              "role": "notice",
+              "match": "CRAFT-master/README.md",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "article identifiers",
+              "role": "notice",
+              "match": "CRAFT-master/articles/ids/*.txt",
+              "count": 6
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "structural-annotation/dependency/conllu only",
+              "unit": "dependency-annotated articles",
+              "records": "97",
+              "source": "https://github.com/UCDenver-ccp/CRAFT/archive/refs/heads/master.zip"
+            }
+          ]
+        }
+      ]
+    },
+    "DistantListeningCorpus": {
+      "pack": "annotations",
+      "name": "Distant Listening Corpus",
+      "edition": "Distant Listening Corpus v3.1",
+      "source": "https://zenodo.org/records/15150283",
+      "citation": "Hentschel et al., The Distant Listening Corpus, v3.1, doi:10.5281/zenodo.15150283",
+      "terms_label": "CC BY 4.0",
+      "terms_source": "https://doi.org/10.5281/zenodo.15150283",
+      "terms_scope": "The publisher declares CC BY 4.0 for this release. Retain per-score metadata and associated corpus references.",
+      "included": "Complete combined expanded harmonic label table and corresponding score catalogue.",
+      "excluded": "Raw scores, notes, printed score facsimiles, and the parallel 1 GB project tree.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/records/15150283/files/distant_listening_corpus.zip",
+          "sha256": "997860a0f49ad0e05bfaf4bff7096c8a5286643e697ca9a79a46bd0a4e19c19c",
+          "bytes": 46900271,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "harmonies",
+              "split": "canonical combined harmonic labels",
+              "match": "distant_listening_corpus.expanded.tsv",
+              "count": 1
+            },
+            {
+              "parser": "score-catalog",
+              "split": "score catalogue",
+              "match": "distant_listening_corpus.metadata.tsv",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Combined expanded annotation table",
+              "unit": "catalogued harmonic annotation rows",
+              "records": "242867",
+              "source": "https://zenodo.org/records/15150283/files/distant_listening_corpus.zip"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/15150283",
+        "doi": "10.5281/zenodo.15150283",
+        "title": "The Distant Listening Corpus",
+        "creators": [
+          "Hentschel, Johannes",
+          "Rammos, Yannis",
+          "Neuwirth, Markus",
+          "Rohrmeier, Martin Alois"
+        ],
+        "license_id": "cc-by-4.0",
+        "release_version": "v3.1"
+      }
+    },
+    "MedievalCharterNER": {
+      "pack": "annotations",
+      "name": "Medieval Charter NER",
+      "edition": "Zenodo 6463699; four checksum-pinned ZIP64 members",
+      "source": "https://zenodo.org/records/6463699",
+      "citation": "Camps et al. (2022)",
+      "terms_label": "CC BY 4.0",
+      "terms_source": "https://doi.org/10.5281/zenodo.6463699",
+      "terms_scope": "Zenodo record 6463699 identifies CC BY 4.0. Native per-member hashes match the measured documentation.",
+      "included": "All four publisher files under datasets/, including annotations for persons, places, language and charter identifiers.",
+      "excluded": "More than 15 GB of language models, embeddings, training logs and other release contents.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/train_set_all_17_03_2022.txt",
+          "sha256": "eb4356f241a30f7faab216d7480dcb73fc0aceb50f35000af929f9c9a06e4c54",
+          "bytes": 44794034,
+          "container": "charter",
+          "files": [
+            {
+              "parser": "charter",
+              "split": "train",
+              "dest": "train_set_all_17_03_2022.txt"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train",
+              "unit": "charter IDs",
+              "records": "5911",
+              "source": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/train_set_all_17_03_2022.txt"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/val_set_all_17_03_2022.txt",
+          "sha256": "c1c43a9fd64df8c5f97d6fc4f660e85ade88126df255b09cca37abbda94d711e",
+          "bytes": 3290581,
+          "container": "charter",
+          "files": [
+            {
+              "parser": "charter",
+              "split": "validation",
+              "dest": "val_set_all_17_03_2022.txt"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "validation",
+              "unit": "charter IDs",
+              "records": "441",
+              "source": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/val_set_all_17_03_2022.txt"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/test_set_all_17_03_2022.txt",
+          "sha256": "5c3cf7449344d8fbe0825234fb611981ee8c0db2ce87598be549649fdd36fc41",
+          "bytes": 8186700,
+          "container": "charter",
+          "files": [
+            {
+              "parser": "charter",
+              "split": "test",
+              "dest": "test_set_all_17_03_2022.txt"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test",
+              "unit": "charter IDs",
+              "records": "1036",
+              "source": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/test_set_all_17_03_2022.txt"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/Nesle_Eslonza.txt",
+          "sha256": "480f7725adda95a35d0ee886485f56d850c2d6585fefcdb446df17d1135d821d",
+          "bytes": 2535594,
+          "container": "charter",
+          "files": [
+            {
+              "parser": "charter",
+              "split": "Nesle_Eslonza",
+              "dest": "Nesle_Eslonza.txt"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Nesle_Eslonza",
+              "unit": "charter IDs",
+              "records": "271",
+              "source": "https://zenodo.org/api/records/6463699/files/Multilingual_NER_medieval_charters.zip/content#datasets/Nesle_Eslonza.txt"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/6463699",
+        "doi": "10.5281/zenodo.6463699",
+        "title": "Multilingual named entity recognition for medieval charters. Datasets and models",
+        "creators": [
+          "Torres Aguilar, Sergio"
+        ],
+        "license_id": "cc-by-4.0"
+      }
+    },
+    "TweetNERD": {
+      "pack": "annotations",
+      "name": "TweetNERD",
+      "edition": "Zenodo 6617192",
+      "source": "https://zenodo.org/records/6617192",
+      "citation": "Mishra et al. (2022)",
+      "terms_label": "CC BY 4.0 public annotation files",
+      "terms_source": "https://doi.org/10.5281/zenodo.6617192",
+      "terms_scope": "Twitter posts are not included. The public benchmark contains tweet IDs, surface phrases, spans, entity IDs and judgment scores. Platform terms govern any separate hydration.",
+      "included": "All 14 publisher public annotation TSVs: Academic, OOD and 12 unordered remainder files. Repeated IDs can occur across files.",
+      "excluded": "Tweet text, private material and hydration. The 12 files are not 12 separate named experimental splits.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/records/6617192/files/Academic.public.tsv",
+          "sha256": "0c668c2d734eee7dd0675b4b6c13c841915002e8dee143d098917fe9ab8e617c",
+          "bytes": 2209504,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "Academic",
+              "dest": "Academic.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Academic.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "51685",
+              "source": "https://zenodo.org/records/6617192/files/Academic.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/OOD.public.tsv",
+          "sha256": "842ed9b1f7d198494904e33f1f695ea4d23669600a42c2418988e6eebe1e4848",
+          "bytes": 1685692,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "OOD",
+              "dest": "OOD.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "OOD.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "34102",
+              "source": "https://zenodo.org/records/6617192/files/OOD.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_0.public.tsv",
+          "sha256": "fb3407e3a55caaa9105b5bbd5ff10b79b1ca64e63beb215d3801341646ac269a",
+          "bytes": 561727,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_0.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_0.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "11830",
+              "source": "https://zenodo.org/records/6617192/files/part_0.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_1.public.tsv",
+          "sha256": "c344c6172d7e46e353f164a93a2f09b0763b67866ba0241ad1deb2f952c3f57a",
+          "bytes": 1753217,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_1.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_1.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "35681",
+              "source": "https://zenodo.org/records/6617192/files/part_1.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_2.public.tsv",
+          "sha256": "76ecc719fc219a30fc268f9b0f6b59f4336fb0893f10300aa447a719e38beec1",
+          "bytes": 1644475,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_2.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_2.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "34256",
+              "source": "https://zenodo.org/records/6617192/files/part_2.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_3.public.tsv",
+          "sha256": "30f97aad7b113b41406d1491cbbde947a8df976cfa66e43a1b89c82f14a61342",
+          "bytes": 1765029,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_3.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_3.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "36478",
+              "source": "https://zenodo.org/records/6617192/files/part_3.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_4.public.tsv",
+          "sha256": "e96439c67e6eeb9a69783ee9f3a9dbe2c855e882d79e524c06ed73f81bb90c63",
+          "bytes": 1810179,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_4.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_4.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "37518",
+              "source": "https://zenodo.org/records/6617192/files/part_4.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_5.public.tsv",
+          "sha256": "36f2ff6204cb34ace155f0e0439e2e2602986ca125bff0f5a67fbc7386047e91",
+          "bytes": 1767387,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_5.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_5.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "36626",
+              "source": "https://zenodo.org/records/6617192/files/part_5.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_6.public.tsv",
+          "sha256": "a4f41bc65254170f7055f10b231e7a6e5a9a793a08dd84266a17eb745ad3c337",
+          "bytes": 1677432,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_6.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_6.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "34001",
+              "source": "https://zenodo.org/records/6617192/files/part_6.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_7.public.tsv",
+          "sha256": "94441ca9c0628544cb2538cb56554314656b5ed141032efea79c9c96c4330e90",
+          "bytes": 1615936,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_7.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_7.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "34125",
+              "source": "https://zenodo.org/records/6617192/files/part_7.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_8.public.tsv",
+          "sha256": "adedb53e97a5da9f6c6e1cadae64f1ee9749e9dfa79be2470e40ab79088520ea",
+          "bytes": 1542524,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_8.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_8.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "32556",
+              "source": "https://zenodo.org/records/6617192/files/part_8.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_9.public.tsv",
+          "sha256": "81970d17c51bde8ff1923988cdea5f67ba96066142631b932f2e6b9262fdfc85",
+          "bytes": 1609498,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_9.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_9.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "32657",
+              "source": "https://zenodo.org/records/6617192/files/part_9.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_10.public.tsv",
+          "sha256": "06e7190442b4202edf6ee45bd829f7eff8d3feebbd2e6cb615c41161eb9e2b62",
+          "bytes": 1542071,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_10.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_10.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "32442",
+              "source": "https://zenodo.org/records/6617192/files/part_10.public.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://zenodo.org/records/6617192/files/part_11.public.tsv",
+          "sha256": "821897804bba71ae33d408777b0be71bea1bd1276d99558b8226d58d75865a18",
+          "bytes": 1499110,
+          "container": "file",
+          "files": [
+            {
+              "parser": "tweetnerd",
+              "split": "unordered remainder",
+              "dest": "part_11.public.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "part_11.public.tsv",
+              "unit": "released annotation rows including no-entity placeholders",
+              "records": "32033",
+              "source": "https://zenodo.org/records/6617192/files/part_11.public.tsv"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/6617192",
+        "doi": "10.5281/zenodo.6617192",
+        "title": "TweetNERD - End to End Entity Linking Benchmark for Tweets",
+        "creators": [
+          "Mishra, Shubhanshu",
+          "Saini, Aman",
+          "Makki, Raheleh",
+          "Mehta, Sneha",
+          "Haghighi, Aria",
+          "Mollahosseini, Ali"
+        ],
+        "license_id": "cc-by-4.0",
+        "release_version": "0.0.0"
+      }
+    },
+    "RAMS": {
+      "pack": "annotations",
+      "name": "RAMS",
+      "edition": "RAMS 1.0c",
+      "source": "https://nlp.jhu.edu/rams/",
+      "citation": "Ebner et al. (2020)",
+      "terms_label": "CC BY-SA 4.0 annotations; linked news excerpts for research use",
+      "terms_source": "https://nlp.jhu.edu/rams/",
+      "terms_scope": "The bundled LICENSE_info reserves third-party article copyrights, specifies research use and has a notice-and-takedown policy. Keep the combined windows in private research use.",
+      "included": "All three event-argument JSONLines files in version 1.0c.",
+      "excluded": "Code, alternate exports and original full news articles.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://nlp.jhu.edu/rams/RAMS_1.0c.tar.gz",
+          "sha256": "cbcbec6759d520afe565d065c8086925120a42609bd0ad8ed79f49f0ccd68b54",
+          "bytes": 4689798,
+          "container": "tar",
+          "files": [
+            {
+              "parser": "rams",
+              "split": "train",
+              "dest": "train.jsonl",
+              "match": "*/data/train.jsonlines",
+              "count": 1
+            },
+            {
+              "parser": "rams",
+              "split": "dev",
+              "dest": "dev.jsonl",
+              "match": "*/data/dev.jsonlines",
+              "count": 1
+            },
+            {
+              "parser": "rams",
+              "split": "test",
+              "dest": "test.jsonl",
+              "match": "*/data/test.jsonlines",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice",
+              "match": "RAMS_1.0c/LICENSE",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE_info",
+              "role": "notice",
+              "match": "RAMS_1.0c/LICENSE_info",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice",
+              "match": "RAMS_1.0c/README.md",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train",
+              "unit": "event-centered windows",
+              "records": "7329",
+              "source": "https://nlp.jhu.edu/rams/RAMS_1.0c.tar.gz"
+            },
+            {
+              "split_or_subset": "dev",
+              "unit": "event-centered windows",
+              "records": "924",
+              "source": "https://nlp.jhu.edu/rams/RAMS_1.0c.tar.gz"
+            },
+            {
+              "split_or_subset": "test",
+              "unit": "event-centered windows",
+              "records": "871",
+              "source": "https://nlp.jhu.edu/rams/RAMS_1.0c.tar.gz"
+            }
+          ]
+        }
+      ]
+    },
+    "SemEval2013Task91": {
+      "pack": "annotations",
+      "name": "SemEval-2013 Task 9.1",
+      "edition": "DDI corpus, Zenodo 10560167",
+      "source": "https://www.cs.york.ac.uk/semeval-2013/task9/",
+      "citation": "Segura-Bedmar et al. (2013)",
+      "terms_label": "CC BY-NC 4.0 corpus deposit",
+      "terms_source": "https://doi.org/10.5281/zenodo.10560167",
+      "terms_scope": "Use for noncommercial research. DrugBank and MEDLINE source-text rights can apply independently of the corpus annotations.",
+      "included": "Shared training XML and drug named-entity recognition task 9.1 test XML for DrugBank and MEDLINE, with supplied spans and relations.",
+      "excluded": "Separate DDI extraction test task and packaging metadata.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/api/records/10560167/files/DDICorpus-2013.zip/content",
+          "sha256": "87fc63e32ebce20d9841c372e0c594ec72d60882ab5621550ca73c3eaf80ab60",
+          "bytes": 1545162,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "ddi",
+              "split": "train/DrugBank",
+              "match": "DDICorpus/Train/DrugBank/*.xml",
+              "count": 572
+            },
+            {
+              "parser": "ddi",
+              "split": "train/MedLine",
+              "match": "DDICorpus/Train/MedLine/*.xml",
+              "count": 142
+            },
+            {
+              "parser": "ddi",
+              "split": "task 9.1 test/DrugBank",
+              "match": "DDICorpus/Test/Test for DrugNER task/DrugBank/*.xml",
+              "count": 54
+            },
+            {
+              "parser": "ddi",
+              "split": "task 9.1 test/MedLine",
+              "match": "DDICorpus/Test/Test for DrugNER task/MedLine/*.xml",
+              "count": 58
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "shared training, DrugBank",
+              "unit": "annotated documents",
+              "records": "572",
+              "source": "https://zenodo.org/api/records/10560167/files/DDICorpus-2013.zip/content"
+            },
+            {
+              "split_or_subset": "shared training, MedLine",
+              "unit": "annotated documents",
+              "records": "142",
+              "source": "https://zenodo.org/api/records/10560167/files/DDICorpus-2013.zip/content"
+            },
+            {
+              "split_or_subset": "task 9.1 test, DrugBank",
+              "unit": "annotated documents",
+              "records": "54",
+              "source": "https://zenodo.org/api/records/10560167/files/DDICorpus-2013.zip/content"
+            },
+            {
+              "split_or_subset": "task 9.1 test, MedLine",
+              "unit": "annotated documents",
+              "records": "58",
+              "source": "https://zenodo.org/api/records/10560167/files/DDICorpus-2013.zip/content"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/10560167",
+        "doi": "10.5281/zenodo.10560167",
+        "title": "DDI corpus",
+        "creators": [
+          "SEGURA-BEDMAR, ISABEL",
+          "HERRERO-ZAZO, MARIA",
+          "MARTÍNEZ, PALOMA"
+        ],
+        "license_id": "cc-by-nc-4.0"
+      }
+    },
+    "DrugProtBioCreative": {
+      "pack": "annotations",
+      "name": "DrugProt",
+      "edition": "DrugProt 1.2",
+      "source": "https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vii/track-1/",
+      "citation": "BioCreative VII (2021)",
+      "terms_label": "CC BY 4.0 publisher annotations",
+      "terms_source": "https://doi.org/10.5281/zenodo.5119892",
+      "terms_scope": "Include publisher annotation tables only. Article texts retain their original rights.",
+      "included": "Complete training and development entity/relation tables and blinded test-background entity table, linked by PubMed IDs.",
+      "excluded": "All original abstract texts and unavailable blinded relationship labels.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/api/records/5119892/files/drugprot-training-development-test-background.zip/content",
+          "sha256": "679ca89698ca471a7fedc9af95acc8722c127c04eba19660fead406b5b9b52c9",
+          "bytes": 13418218,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "drug-entities",
+              "split": "training/entities",
+              "match": "*/training/*_entities.tsv",
+              "count": 1
+            },
+            {
+              "parser": "drug-relations",
+              "split": "training/relations",
+              "match": "*/training/*_relations.tsv",
+              "count": 1
+            },
+            {
+              "parser": "drug-entities",
+              "split": "development/entities",
+              "match": "*/development/*_entities.tsv",
+              "count": 1
+            },
+            {
+              "parser": "drug-relations",
+              "split": "development/relations",
+              "match": "*/development/*_relations.tsv",
+              "count": 1
+            },
+            {
+              "parser": "drug-entities",
+              "split": "test-background/entities",
+              "match": "*/test-background/*_entities.tsv",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "training",
+              "unit": "abstracts",
+              "records": "3500",
+              "source": "https://zenodo.org/api/records/5119892/files/drugprot-training-development-test-background.zip/content"
+            },
+            {
+              "split_or_subset": "development",
+              "unit": "abstracts",
+              "records": "750",
+              "source": "https://zenodo.org/api/records/5119892/files/drugprot-training-development-test-background.zip/content"
+            },
+            {
+              "split_or_subset": "test-background",
+              "unit": "abstracts",
+              "records": "10750",
+              "source": "https://zenodo.org/api/records/5119892/files/drugprot-training-development-test-background.zip/content"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/5119892",
+        "doi": "10.5281/zenodo.5119892",
+        "title": "DrugProt corpus: Biocreative VII Track 1 - Text mining drug and chemical-protein interactions",
+        "creators": [
+          "Krallinger, Martin",
+          "Rabal, Obdulia",
+          "Miranda-Escalada, Antonio",
+          "Valencia, Alfonso"
+        ],
+        "license_id": "cc-by-4.0",
+        "release_version": "1.2"
+      }
+    },
+    "ELGold": {
+      "pack": "annotations",
+      "name": "ELGold",
+      "edition": "March 2025 mostwiedzy release",
+      "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset",
+      "citation": "Pokrywka et al. (2025)",
+      "terms_label": "CC BY 4.0 publisher deposit",
+      "terms_source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0",
+      "terms_scope": "The publisher identifies CC BY 4.0 for the deposited resource. The collection combines editorial and scientific sources. Preserve the original genre and document names.",
+      "included": "Complete publisher archive of inline English entity mentions and links in 11 genres.",
+      "excluded": "Web collection interface.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download",
+          "sha256": "4c2afa2eb6622307da4bf279aa9d0420fc75abec13f2dc143d49a9ec8e307aec",
+          "bytes": 275651,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "elgold",
+              "split": "complete 11-genre release",
+              "match": "data/*.txt",
+              "count": 276
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Amazon product reviews",
+              "unit": "annotated documents",
+              "records": "34",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Automotive blogs",
+              "unit": "annotated documents",
+              "records": "34",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Historic blogs",
+              "unit": "annotated documents",
+              "records": "13",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Job offers",
+              "unit": "annotated documents",
+              "records": "34",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Movie reviews",
+              "unit": "annotated documents",
+              "records": "37",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "News",
+              "unit": "annotated documents",
+              "records": "37",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Scientific - Biomedicine",
+              "unit": "annotated documents",
+              "records": "27",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Scientific - Humanities & Social Sciences",
+              "unit": "annotated documents",
+              "records": "9",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Scientific - Life Sciences",
+              "unit": "annotated documents",
+              "records": "21",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Scientific - Mathematics",
+              "unit": "annotated documents",
+              "records": "16",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            },
+            {
+              "split_or_subset": "Scientific - Medicine & Public Health",
+              "unit": "annotated documents",
+              "records": "14",
+              "source": "https://mostwiedzy.pl/en/open-research-data/elgold-gold-standard-multi-genre-dataset-for-named-entity-recognition-and-linking,202503241553453028951-0/download"
+            }
+          ]
+        }
+      ]
+    },
+    "DutchArchaeology": {
+      "pack": "annotations",
+      "name": "Dutch Archaeology NER",
+      "edition": "v1.0, Zenodo 3544544",
+      "source": "https://live.european-language-grid.eu/catalogue/corpus/13410",
+      "citation": "Brandsen et al. (2020)",
+      "terms_label": "GNU GPL v3",
+      "terms_source": "https://github.com/alexbrandsen/dutch-archaeo-NER-dataset/tree/v1.0",
+      "terms_scope": "The released README and embedded license apply GPL v3 to repository files. The Zenodo metadata uses other-open, and the source registry CC-BY label does not supersede the release.",
+      "included": "Complete combined gold BIO file for all six archaeological categories.",
+      "excluded": "Alternate per-user and per-document encodings and agreement samples.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://zenodo.org/api/records/3544544/files/alexbrandsen/dutch-archaeo-NER-dataset-v1.0.zip/content",
+          "sha256": "7e8385771bac8f526226d8a26ce976f2a0f873dc32127bf63d4570ca054c8869",
+          "bytes": 8367452,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "bio",
+              "split": "combined gold",
+              "dest": "complete-bio-gs.bio",
+              "match": "*/complete-bio-gs.bio",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "license.txt",
+              "role": "notice",
+              "match": "*/license.txt",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "release notes",
+              "dest": "README.md",
+              "role": "notice",
+              "match": "*/README.md",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Brandsen's v1.0 complete-bio-gs.bio, all six archaeological categories",
+              "unit": "annotated sentence blocks",
+              "records": "33506",
+              "source": "https://zenodo.org/api/records/3544544/files/alexbrandsen/dutch-archaeo-NER-dataset-v1.0.zip/content"
+            }
+          ]
+        }
+      ],
+      "deposition_record": {
+        "source": "https://zenodo.org/api/records/3544544",
+        "doi": "10.5281/zenodo.3544544",
+        "title": "alexbrandsen/dutch-archaeo-NER-dataset: First version",
+        "creators": [
+          "Alex Brandsen"
+        ],
+        "license_id": "other-open",
+        "release_version": "v1.0"
+      }
+    },
+    "BBQ": {
+      "pack": "language",
+      "name": "BBQ",
+      "edition": "bea11bd97d79217245b5871acd247b9d6eb24598",
+      "source": "https://raw.githubusercontent.com/nyu-mll/BBQ/main/data/Gender_identity.jsonl",
+      "citation": "Parrish et al. (2022)",
+      "terms_label": "CC BY 4.0",
+      "terms_source": "https://github.com/nyu-mll/BBQ/blob/bea11bd97d79217245b5871acd247b9d6eb24598/LICENSE",
+      "terms_scope": "Source questions and annotations covered by the publisher license. This is a bias evaluation corpus.",
+      "included": "All eleven released question JSONLines files, including the two intersectional categories.",
+      "excluded": "Generation templates, scores, ancillary metadata and analysis code.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/LICENSE",
+          "sha256": "95df2e9564862e51d69683a899b6dcc8218d577057bdf67322880769ff85f29e",
+          "bytes": 18649,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/README.md",
+          "sha256": "9b98910f37b3c1b0dc12170ece772847e37bbb514e3158f5cfce18aa8cc703b8",
+          "bytes": 5603,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Age.jsonl",
+          "sha256": "46e805b3fc2d8cbd26eeb8e8430d98cf7b2dc9c83574ff3674e8ce4f0fca2a60",
+          "bytes": 3091834,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Age",
+              "dest": "data/Age.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Disability_status.jsonl",
+          "sha256": "375d40d9b71f056150264445ec189b13934998f3f49a1e311aa7578eb3b45e5f",
+          "bytes": 1336984,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Disability_status",
+              "dest": "data/Disability_status.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Gender_identity.jsonl",
+          "sha256": "8b5adbb368510a97d5775dc43e1c719e0249fe2da33f13c83e3e29edafec7a00",
+          "bytes": 4331406,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Gender_identity",
+              "dest": "data/Gender_identity.jsonl"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "Gender_identity.jsonl",
+              "unit": "JSONL records",
+              "records": "5672",
+              "source": "https://raw.githubusercontent.com/nyu-mll/BBQ/main/data/Gender_identity.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Nationality.jsonl",
+          "sha256": "a583e74666aec0341ded8aa3983e7cad694eb24de72c254d28b2df3035720090",
+          "bytes": 2900040,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Nationality",
+              "dest": "data/Nationality.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Physical_appearance.jsonl",
+          "sha256": "e48d7e13508565f4801574e611043470c25c95a0a62af3699cb5ee7cb02608fb",
+          "bytes": 1347476,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Physical_appearance",
+              "dest": "data/Physical_appearance.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Race_ethnicity.jsonl",
+          "sha256": "4a9f1214cfaa115ce7f0bdb40609122e431f5152c71b8ca64d665e483b946ae6",
+          "bytes": 6062426,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Race_ethnicity",
+              "dest": "data/Race_ethnicity.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Race_x_SES.jsonl",
+          "sha256": "af8e2ae3d0e5be9ebcbfe7149e591d47ff649e263307f4548f7fb12f6a6d83e8",
+          "bytes": 11222218,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Race_x_SES",
+              "dest": "data/Race_x_SES.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Race_x_gender.jsonl",
+          "sha256": "e5dbba782f8c4e25b99dd5470b5136e2db73dbf401cf6d4a5a3ed31b02f95696",
+          "bytes": 13094106,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Race_x_gender",
+              "dest": "data/Race_x_gender.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Religion.jsonl",
+          "sha256": "cb9555f9f3454a52cd2df85956b59bd7fcca5aa922c8527693b1164d08417616",
+          "bytes": 1118728,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Religion",
+              "dest": "data/Religion.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/SES.jsonl",
+          "sha256": "9f92754bb037b0982604b9112705fb81d60a19d9e759c67e4a85e484a070f528",
+          "bytes": 5696950,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "SES",
+              "dest": "data/SES.jsonl"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nyu-mll/BBQ/bea11bd97d79217245b5871acd247b9d6eb24598/data/Sexual_orientation.jsonl",
+          "sha256": "2c71036b9e7584fe589c42aef32c1a42bc01b9a5e9b1b8704342630cdb08cefd",
+          "bytes": 729010,
+          "container": "file",
+          "files": [
+            {
+              "parser": "bbq",
+              "split": "Sexual_orientation",
+              "dest": "data/Sexual_orientation.jsonl"
+            }
+          ]
+        }
+      ]
+    },
+    "WinoQueer": {
+      "pack": "language",
+      "name": "WinoQueer",
+      "edition": "1180ba62df6bd1e682db8f2bf90f3add67cc0500",
+      "source": "https://raw.githubusercontent.com/katyfelkner/winoqueer/main/data/winoqueer_final.csv",
+      "citation": "Felkner et al. (2023)",
+      "terms_label": "MIT",
+      "terms_source": "https://github.com/katyfelkner/winoqueer/blob/1180ba62df6bd1e682db8f2bf90f3add67cc0500/LICENSE",
+      "terms_scope": "Includes the repository license, documentation and final paired benchmark.",
+      "included": "Full released paired bias-evaluation sentence CSV.",
+      "excluded": "Training-news URLs and social-media IDs.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/katyfelkner/winoqueer/1180ba62df6bd1e682db8f2bf90f3add67cc0500/LICENSE",
+          "sha256": "61d79bed7b8e5d076354ae801efc955a940f9ab04286035ec02fab0b1a0863a4",
+          "bytes": 1076,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/katyfelkner/winoqueer/1180ba62df6bd1e682db8f2bf90f3add67cc0500/README.md",
+          "sha256": "d746355f30ffdce364fffbc767980bd498da4207f55858836d9546407634b41b",
+          "bytes": 3312,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/katyfelkner/winoqueer/1180ba62df6bd1e682db8f2bf90f3add67cc0500/data/winoqueer_final.csv",
+          "sha256": "1ed93f91834837b388c9129cd43c49dee70638fa6988634747565dd78c3c0237",
+          "bytes": 4816487,
+          "container": "file",
+          "files": [
+            {
+              "parser": "winoqueer",
+              "split": "complete final pairs",
+              "dest": "data/winoqueer_final.csv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "winoqueer_final.csv",
+              "unit": "table rows after header",
+              "records": "45540",
+              "source": "https://raw.githubusercontent.com/katyfelkner/winoqueer/main/data/winoqueer_final.csv"
+            }
+          ]
+        }
+      ]
+    },
+    "QxoRef": {
+      "pack": "language",
+      "name": "qxoRef",
+      "edition": "f0eb5716573b3f428bfcfdda923b195d0e7967b8",
+      "source": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll",
+      "citation": "Pankratz, E. (2021), qxoRef 1.0, doi:10.18653/v1/2021.americasnlp-1.1",
+      "terms_label": "CC BY-NC-SA 4.0",
+      "terms_source": "https://github.com/elizabethpankratz/qxoRef/blob/f0eb5716573b3f428bfcfdda923b195d0e7967b8/README.md",
+      "terms_scope": "Native-speaker story transcripts and mention annotations are available under the noncommercial share-alike grant. Preserve the original source citation.",
+      "included": "All twelve Conchucos Quechua stories in the release.",
+      "excluded": "Separate underlying recordings and non-corpus resources.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/README.md",
+          "sha256": "4fe257b75dbd904ad956f3281ae1546340e63f694a2cfcef509ff31fb907c0f5",
+          "bytes": 1610,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll",
+          "sha256": "4d896a5237337fb32274bf62291aa93012b28afc7eb9ce50046f278fb965f976",
+          "bytes": 8548,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_AZ23.conll"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "qxoRef_AZ23.conll",
+              "unit": "released coreference token rows",
+              "records": "294",
+              "source": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_AZ23.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_HA30.conll",
+          "sha256": "a5f9ba468fc708a44e5ccf675b7f631f9742b9a32ffa68cf2e9d48c91633b6e5",
+          "bytes": 2708,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_HA30.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_KP04.conll",
+          "sha256": "17781b64c47dc00c1f9d9187520ff4ade0322bb9e2a8c3823c5ed5d716765155",
+          "bytes": 12206,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_KP04.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_LC34.conll",
+          "sha256": "6a00821cb4d34ccb7e0eb0b11c8401e756ae967c17f3384dc1a8daca0eab40fe",
+          "bytes": 5649,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_LC34.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_OA32.conll",
+          "sha256": "89aad095e69546b7d2fddd7b69c0014a771913f2bebf804ff707d09388f1171c",
+          "bytes": 6392,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_OA32.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_QF16.conll",
+          "sha256": "df8ffed7116e5d3ebb90b36c1fc54b7b8470d8b458f6c17c9edc4abd96012839",
+          "bytes": 9250,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_QF16.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_SG15.conll",
+          "sha256": "fc36c6bea769bcff08e117717b1639807c54a2c2596fa96545d8e74170a4e41c",
+          "bytes": 5138,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_SG15.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_TP03.conll",
+          "sha256": "95f6709bc65947e41177b261d399d4cb2eb456eeb672f41d1f7f0ed7768d9657",
+          "bytes": 9600,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_TP03.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_XQ33.conll",
+          "sha256": "4915bfb955c57d23a0b59e4a6c9406ec8dc6fe6cc22558bbb2753a0c2a873ec4",
+          "bytes": 4822,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_XQ33.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_XU31.conll",
+          "sha256": "0606841d080ecdf90f1ad1b8994e28152b527ea13316d98244acd84c7c875007",
+          "bytes": 13322,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_XU31.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_ZR29.conll",
+          "sha256": "22452b208e84385b941a0b4533f69b888b15cff8fed57eb23ebb7e1942a7a25d",
+          "bytes": 9284,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_ZR29.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/elizabethpankratz/qxoRef/f0eb5716573b3f428bfcfdda923b195d0e7967b8/qxoRef_ZZ24.conll",
+          "sha256": "490652511197fa97176ee874b2098d32b61b91e7b86a3d3c1a8678c87ebd997a",
+          "bytes": 5367,
+          "container": "file",
+          "files": [
+            {
+              "parser": "qxo",
+              "split": "12-story release",
+              "dest": "qxoRef_ZZ24.conll"
+            }
+          ]
+        }
+      ]
+    },
+    "MuDoCo": {
+      "pack": "language",
+      "name": "MuDoCo",
+      "edition": "da9f4e798baeb9cc48c460a80384f97560779dcd",
+      "source": "https://raw.githubusercontent.com/facebookresearch/mudoco/main/mudoco_calling.json",
+      "citation": "Martin et al. (2020)",
+      "terms_label": "CC BY-NC 4.0",
+      "terms_source": "https://github.com/facebookresearch/mudoco/blob/da9f4e798baeb9cc48c460a80384f97560779dcd/LICENSE.md",
+      "terms_scope": "The publisher applies CC BY-NC 4.0. Each dialogue retains its published train/eval/test field.",
+      "included": "All six original domain files for calling, messaging, music, news, reminders and weather.",
+      "excluded": "Parallel JSONLines and CoNLL serializations.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/LICENSE.md",
+          "sha256": "336255dc30193e8e15d689d9481bb05673d89055718f3a96923a7ffb99adbbaf",
+          "bytes": 19333,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/README.md",
+          "sha256": "d028f834f0e61e81c79d175d477633b13a3526d616d94e44550c495acb8e2d7f",
+          "bytes": 6408,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_calling.json",
+          "sha256": "73328d3f7d4035a400ccdb9c05e5f1d724c0768c767ea8cb929dc5883d0004e0",
+          "bytes": 10032044,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "calling / original partition labels",
+              "dest": "mudoco_calling.json"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "mudoco_calling.json",
+              "unit": "dialogs",
+              "records": "4140",
+              "source": "https://raw.githubusercontent.com/facebookresearch/mudoco/main/mudoco_calling.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_messaging.json",
+          "sha256": "8d8a5a61c409110008870ae991cced0f28ab85a0ea8ce15b5e3569252edc8951",
+          "bytes": 4515289,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "messaging / original partition labels",
+              "dest": "mudoco_messaging.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_music.json",
+          "sha256": "4b9253c49a460ca1a86dd546560ec2d836827946c139012dc084eac3923513e5",
+          "bytes": 3074198,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "music / original partition labels",
+              "dest": "mudoco_music.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_news.json",
+          "sha256": "2db846a78847edf878276b2f4c2338d71ac50472ef536ddee7aca2cbae5f6745",
+          "bytes": 522637,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "news / original partition labels",
+              "dest": "mudoco_news.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_reminders.json",
+          "sha256": "2047b0ac4e890767ce9bb8879bce100820e5d2ad7019d16959bd1f140627445e",
+          "bytes": 2003707,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "reminders / original partition labels",
+              "dest": "mudoco_reminders.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/mudoco/da9f4e798baeb9cc48c460a80384f97560779dcd/mudoco_weather.json",
+          "sha256": "7be4c6469c072385d926fe80fd4e2bb888aef18bcf7b4aa5ebbf6bd74d2bb032",
+          "bytes": 278677,
+          "container": "file",
+          "files": [
+            {
+              "parser": "mudoco",
+              "split": "weather / original partition labels",
+              "dest": "mudoco_weather.json"
+            }
+          ]
+        }
+      ]
+    },
+    "AmericasNLI": {
+      "pack": "language",
+      "name": "AmericasNLI",
+      "edition": "be3c351b7e1ae69936c61bfde3e24f30757db9ac",
+      "source": "https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv",
+      "citation": "Ebrahimi et al. (2022)",
+      "terms_label": "CC BY-SA 4.0",
+      "terms_source": "https://github.com/abteen/americasnli/blob/main/LICENSE.md",
+      "terms_scope": "The dataset card identifies the authors’ attribution-share-alike license. The checked-in copy of that license applies to the NLI data.",
+      "included": "Complete combined development and test files for all ten translated Latin American Indigenous languages, with per-language validation counts.",
+      "excluded": "Language-specific copies of the same rows and unavailable gold training split.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/dev.tsv",
+          "sha256": "a2678f2820a2008547c5d993118979cc82a25d51a73570571566a1b74d8e8530",
+          "bytes": 1090405,
+          "container": "file",
+          "files": [
+            {
+              "parser": "americasnli",
+              "split": "dev",
+              "dest": "dev.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv",
+          "sha256": "1e16c058de33ddaab4a037b1078a31ecab08afddfdc840140593b6da1439bcf8",
+          "bytes": 1165688,
+          "container": "file",
+          "files": [
+            {
+              "parser": "americasnli",
+              "split": "test",
+              "dest": "test.tsv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "test.tsv",
+              "unit": "table rows after header",
+              "records": "7486",
+              "source": "https://raw.githubusercontent.com/nala-cub/AmericasNLI/be3c351b7e1ae69936c61bfde3e24f30757db9ac/test.tsv"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/abteen/americasnli/main/LICENSE.md",
+          "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5",
+          "bytes": 20138,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE.md",
+              "role": "notice"
+            }
+          ]
+        }
+      ]
+    },
+    "GICoref": {
+      "pack": "language",
+      "name": "GICoref",
+      "edition": "1121bef66c84f28caca0e171caa47873c92a7005",
+      "source": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/master/GICoref/coref.combo.conll",
+      "citation": "Cao & Daume III (2020)",
+      "terms_label": "BSD 3-Clause corpus grant; preserve underlying source notices",
+      "terms_source": "https://github.com/TristaCao/into_inclusivecoref/blob/1121bef66c84f28caca0e171caa47873c92a7005/GICoref/datasheet-gicoref.md",
+      "terms_scope": "The author datasheet identifies a BSD license. Source writers retain their independent rights. The datasheet and LICENSE accompany the corpus.",
+      "included": "The combined gold gender-inclusive coreference corpus.",
+      "excluded": "The distinct MAP corpus and publication.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/1121bef66c84f28caca0e171caa47873c92a7005/GICoref/coref.combo.conll",
+          "sha256": "63930c52c42ac5dde7e78612d98a3f6042c81f2e9fcc94ff6d558944c6622329",
+          "bytes": 470685,
+          "container": "file",
+          "files": [
+            {
+              "parser": "gicoref",
+              "split": "complete combined corpus",
+              "dest": "GICoref/coref.combo.conll"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "coref.combo.conll",
+              "unit": "released coreference token rows",
+              "records": "62150",
+              "source": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/master/GICoref/coref.combo.conll"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/1121bef66c84f28caca0e171caa47873c92a7005/GICoref/datasheet-gicoref.md",
+          "sha256": "ae82732325c4f8e1d23adaa526eba9a56990c52d6716788b45ced103e20aa0bb",
+          "bytes": 28457,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "GICoref/datasheet-gicoref.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/1121bef66c84f28caca0e171caa47873c92a7005/LICENSE",
+          "sha256": "e1ac7e62517061f23b8276631f7b1962369002470821ceed811e8fecccfd7c9e",
+          "bytes": 1517,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/TristaCao/into_inclusivecoref/1121bef66c84f28caca0e171caa47873c92a7005/README.md",
+          "sha256": "74805019e8fbc6c3684d646e0dfce6d318f4006e1ea084bab1f44b9f692737b2",
+          "bytes": 951,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        }
+      ]
+    },
+    "ENer": {
+      "pack": "language",
+      "name": "E-NER (EDGAR-NER)",
+      "edition": "4efb293384401081f166bb78c7da8148f2341929",
+      "source": "https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/main/all.csv",
+      "citation": "Au et al. (2022)",
+      "terms_label": "CC BY-NC-SA 4.0",
+      "terms_source": "https://github.com/terenceau1/E-NER-Dataset/blob/4efb293384401081f166bb78c7da8148f2341929/LICENSE",
+      "terms_scope": "Include the attribution and noncommercial share-alike terms in the source README and license. Counts record labels outside BIO separately.",
+      "included": "Complete combined all.csv token-level financial NER release.",
+      "excluded": "Parallel SEC filing view and presentation documents.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/4efb293384401081f166bb78c7da8148f2341929/LICENSE",
+          "sha256": "1349a4b6148492b44f629e64eed676612e234fe9a839e4f3b277c1482c8849f1",
+          "bytes": 20849,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/4efb293384401081f166bb78c7da8148f2341929/README.md",
+          "sha256": "20e42a7c44c4ecc098ddd8c1482095140211a4e2bacd30ab2f21c70a3e07ade5",
+          "bytes": 1390,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README.md",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/4efb293384401081f166bb78c7da8148f2341929/all.csv",
+          "sha256": "8ed9ae1a7c3ae9f84c4a69219ac0496c9e72306480f2c3b075683f037973989b",
+          "bytes": 3445556,
+          "container": "file",
+          "files": [
+            {
+              "parser": "ener",
+              "split": "all.csv",
+              "dest": "all.csv"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "all.csv",
+              "unit": "nonempty token rows",
+              "records": "403621",
+              "source": "https://raw.githubusercontent.com/terenceau1/E-NER-Dataset/main/all.csv"
+            }
+          ]
+        }
+      ]
+    },
+    "FewRel": {
+      "pack": "language",
+      "name": "FewRel",
+      "edition": "278a2315d2138810a379cd8d5718914dc56e2582",
+      "source": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json",
+      "citation": "Han et al. (2018)",
+      "terms_label": "MIT publisher repository; Wikipedia source text under CC BY-SA",
+      "terms_source": "https://github.com/thunlp/FewRel/blob/278a2315d2138810a379cd8d5718914dc56e2582/LICENSE",
+      "terms_scope": "Research collection of Wikipedia-derived snippets and Wikidata entity identifiers. The repository license does not replace rights in Wikipedia contributions.",
+      "included": "Complete labeled Wikipedia train and validation files, including native subject/object position lists, plus the predicate dictionary.",
+      "excluded": "Unlabeled competition test answers, unrelated public-domain adaptation evaluation sets and benchmark scripts.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/LICENSE",
+          "sha256": "101669c6396d156750c0169a32e27b3b68eba95802aa9a1aa2aa3db5143bee76",
+          "bytes": 1062,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/pid2name.json",
+          "sha256": "eeedd25512a8e4c2bc06b78009836d27de81807bcba6ed929debd5cd713c07ea",
+          "bytes": 80278,
+          "container": "file",
+          "files": [
+            {
+              "parser": "json-map",
+              "split": "predicate dictionary",
+              "dest": "data/pid2name.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/train_wiki.json",
+          "sha256": "8e9e58a05d559be773cbe18a8d4a16ba17e6d397663f9f05a056f894a94b92c1",
+          "bytes": 14298985,
+          "container": "file",
+          "files": [
+            {
+              "parser": "fewrel",
+              "split": "training",
+              "dest": "data/train_wiki.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json",
+          "sha256": "76bb44c2485b6faed358a3ce040eadafcc8a8835245cd7e6afc1bef672d4a0bf",
+          "bytes": 3534147,
+          "container": "file",
+          "files": [
+            {
+              "parser": "fewrel",
+              "split": "validation",
+              "dest": "data/val_wiki.json"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "val_wiki.json",
+              "unit": "relation examples",
+              "records": "11200",
+              "source": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/data/val_wiki.json"
+            }
+          ]
+        },
+        {
+          "url": "https://raw.githubusercontent.com/thunlp/FewRel/278a2315d2138810a379cd8d5718914dc56e2582/readme.md",
+          "sha256": "8992d368bfd6fcbeac056c81027a27ddb124cff8ab8d06abdbdee68b95de0c29",
+          "bytes": 8857,
+          "container": "file",
+          "files": [
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "readme.md",
+              "role": "notice"
+            }
+          ]
+        }
+      ]
+    },
+    "CoQAEntities": {
+      "pack": "language",
+      "name": "CoQA",
+      "edition": "Stanford CoQA v1.0, selected author-licensed domains",
+      "source": "https://stanfordnlp.github.io/coqa/",
+      "citation": "Reddy et al. (2019)",
+      "terms_label": "CC BY-SA 4.0 for the Wikipedia and literature domains",
+      "terms_source": "https://stanfordnlp.github.io/coqa/",
+      "terms_scope": "The publisher explicitly places the literature and Wikipedia passages under CC BY-SA 4.0. This edition selects only those two domains and preserves the source dialogue objects.",
+      "included": "All Wikipedia and Project Gutenberg dialogues, questions, answers and source identifiers from published train and dev v1.0.",
+      "excluded": "MCTest, RACE, CNN and hidden test data. The registry ID denotes conversational QA, not an entity-span benchmark.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://downloads.cs.stanford.edu/nlp/data/coqa/coqa-train-v1.0.json?download=1",
+          "sha256": "b0fdb2bc1bd38dd3ca2ce5fa2ac3e02c6288ac914f241ac409a655ffb6619fa6",
+          "bytes": 49001836,
+          "container": "coqa",
+          "files": [
+            {
+              "parser": "coqa",
+              "split": "train",
+              "dest": "train.json"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "train",
+              "unit": "question-answer turns",
+              "records": "108647",
+              "source": "https://downloads.cs.stanford.edu/nlp/data/coqa/coqa-train-v1.0.json?download=1"
+            }
+          ]
+        },
+        {
+          "url": "https://downloads.cs.stanford.edu/nlp/data/coqa/coqa-dev-v1.0.json",
+          "sha256": "dfa367a9733ce53222918d0231d9b3bedc2b8ee831a2845f62dfc70701f2540a",
+          "bytes": 9090845,
+          "container": "coqa",
+          "files": [
+            {
+              "parser": "coqa",
+              "split": "dev",
+              "dest": "dev.json"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "dev",
+              "unit": "question-answer turns",
+              "records": "7983",
+              "source": "https://downloads.cs.stanford.edu/nlp/data/coqa/coqa-dev-v1.0.json"
+            }
+          ]
+        }
+      ],
+      "terms_record": {
+        "source": "https://stanfordnlp.github.io/coqa/",
+        "publisher_statement": "Literature and Wikipedia passages are shared under CC BY-SA 4.0 license.",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
+      }
+    },
+    "QUOREF": {
+      "pack": "language",
+      "name": "QUOREF",
+      "edition": "AllenAI v0.1 train/dev",
+      "source": "https://github.com/allenai/quoref",
+      "citation": "Dasigi et al. (2019)",
+      "terms_label": "CC BY 4.0 dataset; Wikipedia passage rights apply",
+      "terms_source": "https://allenai.org/data/quoref",
+      "terms_scope": "AllenAI lists CC BY 4.0 for the corpus. Preserve the source Wikipedia titles and article information for underlying passages.",
+      "included": "Complete original publisher JSON train and dev questions and released answer offsets, with the same partition counts as the direct ledger’s Parquet edition.",
+      "excluded": "Hidden test labels and the parallel HF Parquet serialization.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://ai2-public-datasets.s3.amazonaws.com/quoref/quoref-train-dev-v0.1.zip",
+          "sha256": "aacde0863c04ba6e9ab46995ea844a5b0c6cea58a77ab6fd86a128e33a3ad8fb",
+          "bytes": 5078438,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "quoref",
+              "split": "train",
+              "dest": "train.json",
+              "match": "*quoref-train-v0.1.json",
+              "count": 1
+            },
+            {
+              "parser": "quoref",
+              "split": "dev",
+              "dest": "dev.json",
+              "match": "*quoref-dev-v0.1.json",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "source notes",
+              "dest": "README.txt",
+              "role": "notice",
+              "match": "*/README.txt",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "quality_note": "Native answer offsets disagree with the released paragraph slice for 416 of 22,266 training answer spans and 50 of 2,768 development answer spans. All affected answer strings occur elsewhere in their source paragraph. The original labels are preserved."
+    },
+    "LojbanTatoeba": {
+      "pack": "language",
+      "name": "Lojban Tatoeba",
+      "edition": "OPUS Tatoeba 2026-07-08",
+      "source": "https://tatoeba.org/en/downloads",
+      "citation": "Tatoeba Project (2024)",
+      "terms_label": "CC BY 2.0 as included in the OPUS release",
+      "terms_source": "https://tatoeba.org/en/terms_of_use",
+      "terms_scope": "Retain the Tatoeba contributor attribution, publisher README and original license. The two columns are parallel representations of the same pairs.",
+      "included": "All aligned English and Lojban lines and original release notices.",
+      "excluded": "Other Tatoeba language pairs, audio and raw downloads.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://object.pouta.csc.fi/OPUS-Tatoeba/v2026-07-08/moses/en-jbo.txt.zip",
+          "sha256": "70fffec6ba1d7152d7627aa9999b58882ca6298ba1de3a875955f532616e6b2a",
+          "bytes": 266358,
+          "container": "zip",
+          "files": [
+            {
+              "parser": "lines",
+              "split": "aligned English column",
+              "dest": "Tatoeba.en-jbo.en",
+              "match": "Tatoeba.en-jbo.en",
+              "count": 1
+            },
+            {
+              "parser": "lines",
+              "split": "aligned Lojban column",
+              "dest": "Tatoeba.en-jbo.jbo",
+              "match": "Tatoeba.en-jbo.jbo",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "README",
+              "role": "notice",
+              "match": "README",
+              "count": 1
+            },
+            {
+              "parser": "notice",
+              "split": "terms",
+              "dest": "LICENSE",
+              "role": "notice",
+              "match": "LICENSE",
+              "count": 1
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "8 July 2026 OPUS Tatoeba English–Lojban parallel release",
+              "unit": "aligned sentence pairs",
+              "records": "12435",
+              "source": "https://object.pouta.csc.fi/OPUS-Tatoeba/v2026-07-08/moses/en-jbo.txt.zip"
+            }
+          ]
+        }
+      ]
+    },
+    "InterlingueWikipedia": {
+      "pack": "language",
+      "name": "Interlingue Wikipedia",
+      "edition": "2026-11-01 current-articles dump",
+      "source": "https://dumps.wikimedia.org/iewiki/",
+      "citation": "Wikimedia (2024)",
+      "terms_label": "CC BY-SA 4.0; individual Wikimedia exceptions apply",
+      "terms_source": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+      "terms_scope": "Each retained article carries a permanent revision and history URL for attribution to Wikimedia contributors and article-specific sources. Article text is preserved as wikitext.",
+      "included": "Every current nonredirect main-namespace article in the 2026-11-01 Interlingue Wikipedia dump, with title, text, page/revision IDs and attribution links.",
+      "excluded": "Other namespaces, redirects, user/editor metadata and page histories.",
+      "direct_ledger_sha256": "26b97d3869e6f40996f0f7f91019f3ae9c0101974de6bebc46a9c863e80b2ea9",
+      "sources": [
+        {
+          "url": "https://dumps.wikimedia.org/iewiki/20261101/iewiki-20261101-pages-articles.xml.bz2",
+          "sha256": "0c992b61ee2ab1cef8f992694502e4da7ececb6c8f5c14d6c11e8c2f4fa29898",
+          "bytes": 4639311,
+          "container": "wiki",
+          "files": [
+            {
+              "parser": "wiki-articles",
+              "split": "main namespace / nonredirect",
+              "dest": "articles.jsonl"
+            }
+          ],
+          "measured_ledger_rows": [
+            {
+              "split_or_subset": "1 November 2026, current revision, main-namespace nonredirect pages",
+              "unit": "main-namespace nonredirect articles",
+              "records": "13897",
+              "source": "https://dumps.wikimedia.org/iewiki/20261101/iewiki-20261101-pages-articles.xml.bz2"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

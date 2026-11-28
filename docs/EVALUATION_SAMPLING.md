@@ -80,6 +80,14 @@ English phrase-expansion rule gave no incremental gain on either panel. Research
 Both now-inspected independent panels are regression controls under their source terms. Freeze new source
 documents before evaluating a subsequent candidate. [Prepare the independent panels](../scripts/qa/temporal_sources/README.md)
 
+### Classify ViRA dialog acts
+
+Use Anno’s `gliner2_fastino` backend with the `gliner2-fastino` feature to evaluate ViRA. Its classifier scores IBM’s seven dialog act names in their published order. The November 27 CI matrix logged 16 failures for `gliner_multitask` on one cached payload with an unreported split. A local replay on five official test turns reproduced a missing `text_lengths` input in that default span graph. With the original CI feature set, the planner now reports one cached ViRA dataset and zero runnable speech-act pairs. Enabling the classifier feature and supplying the pinned model gives it a runnable pair. [Historical CI receipts](eval/figure-catalog.json) · [IBM class dictionary](https://github.com/IBM/vira-dialog-act-classification/blob/ecdafa4eab1acdf124636324713a34b2f9f847f6/dialog_act_dataset/dialog_acts.csv)
+
+On the 72 held-out test turns, Fastino got **29 correct (40.3%)** and abstained eight times. Always predicting the training majority, `negative_reaction`, got **16 correct (22.2%)**. Fastino retained 13 of those 16 successes, lost three and gained 16 on other acts. It recovered zero of eight concerns and zero of thirteen `other` turns. That makes a targeted test of class descriptions and abstentions on development data a better next experiment than another retry of the span graph. Validation contributed 31/71 correct with 15 abstentions. The separate training-set diagnostic contributed 302/571 with 58 abstentions. [Paired outcomes on test and validation](figures/vira-majority-paired.html) · [Counts and input hashes for every split](eval/vira-speech-act.json)
+
+Test macro F1 was **0.323** for Fastino and **0.052** for the majority baseline. Each of the seven acts contributes equally, including acts with zero recall. Each abstention counts as an incorrect turn and a false negative for its gold act. The benchmark used the publisher’s label strings without fitting them to the held-out turns. To reproduce it, build the data pack, extract it and run its offline replay with a cached classifier. [Data pack and replay script](../scripts/qa/vira_speech_act.py) · [Pinned ONNX conversion](https://huggingface.co/jugaadsrl/gliner2-multi-v1-onnx/tree/4241d7c66b648e618c89c150bf4cf418d2f83159)
+
 ## Choose a mode
 
 `anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.
