@@ -1,0 +1,21 @@
+{
+  "survey": {
+    "repository": "onnx-community/gliner_small-v2",
+    "revision": "6b17161d3a8ef6737ee6492659a095daed73d868",
+    "path": "onnx/model_quantized.onnx",
+    "bytes": 183403734,
+    "sha256": "cc6565062918f49172b7e2a8dd92c77d09e122f50d73fdedb41962ddc8f289c8",
+    "delivery": "Fetched directly from Hugging Face on an explicit local survey.",
+    "base_model_license": "Apache-2.0",
+    "license_evidence": "https://huggingface.co/urchade/gliner_small-v2",
+    "conversion_card": "https://huggingface.co/onnx-community/gliner_small-v2/blob/6b17161d3a8ef6737ee6492659a095daed73d868/README.md"
+  },
+  "historical_crf": {
+    "source": "https://github.com/arclabs561/anno/blob/136a7e7aea5c8abc6b722822c2b5f5473f5ede88/crates/anno/src/backends/crf_weights.json",
+    "bytes": 956589,
+    "sha256": "77f25b81e528750835349a766a8056435b8d65110de1362d2733cff7f0b985a0",
+    "delivery": "Previously embedded in the port WASM. Excluded starting at gh-pages commit 1b6f72c8.",
+    "provenance": "Anno documents training on English WikiANN. The port uses the hand-tuned CRF instead.",
+    "provenance_evidence": "https://github.com/arclabs561/anno/blob/136a7e7aea5c8abc6b722822c2b5f5473f5ede88/crates/anno/src/backends/crf/mod.rs"
+  }
+}

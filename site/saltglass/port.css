@@ -1,0 +1,52 @@
+*{box-sizing:border-box} [hidden]{display:none!important}
+:root{color-scheme:dark;font:15px/1.38 Arial,Helvetica,sans-serif;color:#e6e4db;background:#08090c}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:3vh 12px;background:radial-gradient(ellipse at 52% 48%,#24202a,#090a0d 72%)}
+main{width:min(100%,940px)} .metal{background:repeating-linear-gradient(0deg,#39393a 0,#39393a 1px,#434344 2px,#373637 4px);border:2px ridge #777472}
+#port,#orbit{border:3px ridge #777471;box-shadow:0 12px 50px #000}.vista{display:block;width:100%;aspect-ratio:2.21;object-fit:cover;object-position:50% 32%;image-rendering:pixelated}
+.console{display:grid;grid-template-columns:19% 1fr 19%;gap:6px;min-height:305px;padding:4px}
+nav{padding:42px 5px 10px;display:flex;flex-direction:column;gap:14px}nav button:last-child:not(:first-child){margin-bottom:3px}#leave{margin-top:auto}
+button{font:bold 13px Arial;color:#fff8df;background:linear-gradient(#621f28,#881c2a 35%,#450c13 85%);border:2px ridge #8d8382;box-shadow:0 0 0 1px #141316;border-radius:16px;padding:5px 12px;cursor:pointer}button:hover,button:focus-visible{filter:brightness(1.32)}:focus-visible{outline:2px solid #d2eaaa;outline-offset:2px}button:disabled{filter:grayscale(1);opacity:.5;cursor:default}button[aria-current=true]{border-color:#ddc597}
+article,.details,.stats,#inventory{background:#080909;border:2px inset #605f5d}h1,h2{font:bold 22px/1.1 'Trebuchet MS',Arial,sans-serif;text-align:center;margin:0;padding:7px 3px;border-bottom:2px ridge #565453}h3{font-size:16px}#content{padding:0 11px 12px}p{margin:10px 0}mark{color:var(--ink,#d3d4b7);background:transparent;border-bottom:1px solid currentColor}.person{--ink:#a8e8b6}.place{--ink:#d4adee}.vessel{--ink:#f1d782}.organization{--ink:#9ee3e0}.key{color:var(--ink);margin-right:10px;display:inline-block}.small,footer,.key{font-size:12px}.small{color:#c1c1b5}footer,.actions{display:flex;justify-content:space-between;gap:8px;padding:8px}footer a{color:#c1bacb}textarea{width:100%;font:inherit;background:#17181b;border:1px inset #777;color:inherit;padding:6px}label{display:block;margin:8px 0}#orbit{padding-bottom:16px;text-align:center}
+dialog{color:inherit;width:min(960px,96vw);padding:5px;box-shadow:0 10px 35px #000}dialog::backdrop{background:#0505096b}dialog h2{background:#151516;font-size:16px}.shop-body{display:grid;grid-template-columns:42% 31% 1fr;min-height:235px}#inventory{display:grid;grid-template-columns:repeat(2,1fr);align-content:start}.tile{background:#060607;border:1px solid #464347;border-radius:0;box-shadow:none;font:13px Arial;padding:4px}.tile[aria-pressed=true]{outline:2px solid #b7424c;outline-offset:-2px}.sprite{display:block;background-image:url(assets/catalog.webp);background-size:400% 300%;aspect-ratio:1;width:min(100%,150px);margin:auto;image-rendering:pixelated}.tile .sprite{width:65px}.details,.stats{padding:9px}.actions{justify-content:flex-end}.actions button{min-width:85px}.stats p{border-top:1px solid #56545a;padding-top:8px}
+@media(max-width:650px){body{padding:0 4px}.console{grid-template-columns:1fr 1fr;gap:4px}article{grid-column:1/-1;grid-row:1}nav{padding:4px;gap:6px}.shop-body{grid-template-columns:1fr 1fr}.details{grid-column:1/-1;grid-row:2}dialog{max-height:92dvh}button{min-height:36px}h1{font-size:20px}}
+
+.span-detail{display:block;color:#e2dbc2;font-size:12px;margin:.5em 0}
+mark[role=button]{cursor:pointer}select{font:inherit}#content button+button{margin-left:6px}details{margin:7px 0}summary{cursor:pointer}
+
+/* Cast-metal service banks and the narrow radio above the reader glass. */
+.harbor-strip{display:flex;align-items:center;gap:12px;padding:4px 10px;border-block:2px ridge #716b61;background:#21221f;color:#c4c8a1;font:12px/1.4 monospace}
+.harbor-strip span:first-child{padding:0 5px;background:#afa58a;color:#212323;font:bold 11px/1.5 Arial;text-transform:uppercase;white-space:nowrap}
+.console nav{border:2px ridge #555450;padding:18px 9px 10px;gap:8px;background:radial-gradient(circle at 5px 5px,#100f10 1px,#888074 2px,transparent 3px),repeating-linear-gradient(174deg,transparent 0 28px,#8a878011 29px,transparent 30px 57px),linear-gradient(98deg,#444443,#292a29 83%,#44423f)}
+button:not(.tile){border-radius:3px;border:2px outset #796b68;background:linear-gradient(#74383f,#50262c 44%,#411d22 46%,#51262c);text-shadow:1px 1px #1d1617}
+nav button[aria-current=true]{border-style:inset;box-shadow:inset 3px 0 #d7c98e}
+@media(max-width:650px){.console nav{padding:8px;gap:6px}.harbor-strip{gap:7px;font-size:11px}}
+.watch-ledger{border-top:1px solid #49483e;padding-top:5px;color:#d6d2ba;font-size:13px}
+.watch-ledger ol{padding-left:2em}.watch-ledger li::marker{color:#bdb096}
+mark[aria-pressed=true]{background:#353832;outline:1px solid currentColor}
+.manifest{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;background:#10120f;border-left:2px solid #817853;padding:8px;font:13px/1.45 monospace}
+article,.details{min-width:0}
+
+/* Ship instruments remain visible beside the docked service window. */
+main{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:5px;align-items:center}
+#port,#orbit{grid-area:1/1}footer{grid-column:1/-1}
+#ship-rail{align-self:stretch;padding:4px;display:flex;flex-direction:column;background-color:#333}
+.scope{position:relative;aspect-ratio:1;background:radial-gradient(ellipse at center,#212326 0 1px,transparent 2px 32%,#232526 33%,transparent 34%),#070909;border:2px inset #655f59}
+.scope i,.scope b{position:absolute;width:5px;height:5px;background:#c8bc86;top:61%;left:35%}.scope b{width:3px;height:3px;top:57%;left:39%;background:#9acead}#ship-rail[data-outbound=true] .scope b{top:24%;left:72%}
+#ship-rail dl{margin:4px 0;background:#080909;text-align:center;border:2px inset #686461;font:12px/1.25 Arial}
+#ship-rail dt{color:#afa99f;padding-top:8px}#ship-rail dd{margin:3px 0 0;padding:0 2px 8px;border-bottom:2px groove #56524d}
+.console{grid-template-columns:23% minmax(0,1fr) 23%}.console nav button,.actions button{border-radius:12px;background:linear-gradient(#5e2729,#862529 39%,#4a1015 60%,#400f13);border:2px ridge #837874}
+h1{font:bold 19px/1.1 Georgia,serif}.console nav{padding-top:36px}
+#outfitter{width:min(880px,96vw)}.shop-body{grid-template-columns:44% 28% 1fr}#inventory{grid-template-columns:repeat(4,minmax(0,1fr))}.tile{font-size:12px}.tile .sprite{width:min(47px,100%)}
+.notice-paper,.receipt{background:#d1c5a2;color:#302e28;padding:10px 12px;border-left:4px double #77725e;font:14px/1.4 Georgia,serif}.notice-paper strong,.receipt strong{font: bold 11px monospace;letter-spacing:.06em}.notice-paper mark,.notice-paper .key{color:#303d35}.notice-paper .span-detail{color:#51402f}.receipt{max-width:32em;border-block:1px dashed #605c50}.pencil{color:#d3ceb6;font-style:italic}.slip-tabs{display:flex;gap:4px;margin:6px 0}.slip-tabs button[aria-pressed=true]{border-style:inset;color:#fff0a6}#content .slip-tabs button{margin:0}
+@media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}#ship-rail{display:none}}
+@media(max-width:650px){.console,.shop-body{grid-template-columns:1fr 1fr}.console nav{padding-top:8px}#inventory{grid-template-columns:repeat(2,minmax(0,1fr))}.tile .sprite{width:48px}}
+@media(min-width:761px){main{width:min(100%,880px)}.console{min-height:250px}#content,.details{font-size:13px;line-height:1.36}.details h3{margin:3px 0 8px}#outfitter{width:min(820px,96vw)}#ship-rail dl{flex:1;display:grid;grid-template-rows:auto 1fr auto 1fr auto 1fr}#ship-rail dd{border-bottom:4px ridge #56524d}}
+#preview{border-top:1px solid #514d48;padding-top:6px}
+.bench-label{display:block;font:12px monospace;color:#d5cdb1;letter-spacing:.04em}
+.bench-switches{display:flex;gap:2px;margin:5px 0}.bench-switches button,.paper-source{padding:3px 5px;font-size:11px}
+.bench-switches button[aria-pressed=true]{border-style:inset;color:#f2d795;background:#3b3126}
+.paper-source{float:right;margin-left:4px}.bench-copy{font:12px/1.5 monospace;color:#b4d6ae}
+@media(min-width:651px){#outfitter .shop-body{min-height:204px;grid-template-columns:38% 37% 25%}#outfitter .details,#outfitter .stats{padding:6px}.tile{min-height:62px}.tile .sprite{width:40px}.details p{margin:6px 0}.actions{padding:4px 6px}.stats .sprite{width:min(100%,128px)}}
+#survey-labels{width:100%;padding:5px;color:#cfdfc1;background:#171b16;border:2px inset #665f55;font:13px monospace}
+#equipment{border-top:1px solid #56545a;margin-top:8px;padding-top:6px}
+.spec-plate{display:grid;grid-template-columns:auto 1fr;gap:2px 6px;margin:0;font:11px/1.4 Arial,sans-serif}.spec-plate dt{color:#bcb7a4}.spec-plate dd{margin:0;text-align:right}
