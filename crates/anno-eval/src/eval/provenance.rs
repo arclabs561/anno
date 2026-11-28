@@ -434,7 +434,8 @@ pub enum EvalSkipReason {
 }
 
 impl EvalSkipReason {
-    pub(crate) fn code(self) -> &'static str {
+    /// Stable reason recorded by the evaluator and its public result reports.
+    pub fn code(self) -> &'static str {
         match self {
             Self::CapabilityUnavailable => "capability_unavailable",
             Self::IncompatibleEntityTypes => "incompatible_entity_types",

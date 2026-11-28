@@ -1,36 +1,37 @@
 name: Compare S3 cache with measured publisher files
 on:
   workflow_dispatch:
+    inputs:
+      bucket:
+        description: Authorized S3 bucket (defaults to the ANNO_S3_BUCKET repository variable)
+        required: false
+        type: string
   workflow_call:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/cache-source-evidence.yml
-      - scripts/qa/cache_source_evidence.py
-      - scripts/plot_s3_source_evidence.py
-      - docs/eval/dataset-coverage.csv
-      - docs/eval/dataset-direct-files.csv
-      - docs/eval/dataset-github-sources.csv
-      - docs/eval/dataset-hf-splits.csv
-      - docs/eval/dataset-repo-files.csv
+    inputs:
+      bucket:
+        description: Authorized S3 bucket
+        required: false
+        type: string
 
 permissions: {}
 
 jobs:
   compare:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
     env:
-      BUCKET: ${{ vars.ANNO_S3_BUCKET || 'arc-anno-data' }}
+      BUCKET: ${{ inputs.bucket || vars.ANNO_S3_BUCKET }}
       CACHE_ROLE: ${{ vars.ANNO_AWS_ROLE_ARN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Check the authorized role and bucket
+        run: python3 .github/scripts/check_dataset_cache.py
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
         with:
           enable-cache: false
@@ -41,6 +42,7 @@ jobs:
       - name: Assume the cache role for the dataset prefix listing
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
         with:
+          mask-aws-account-id: true
           role-to-assume: ${{ env.CACHE_ROLE }}
           aws-region: ${{ vars.ANNO_AWS_REGION || 'us-east-1' }}
           inline-session-policy: >-

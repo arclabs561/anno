@@ -64,7 +64,10 @@ jobs:
             -p MemoryMax=6G -p MemorySwapMax=0 -p CPUQuota=200% \
             --setenv="LD_LIBRARY_PATH=$LD_LIBRARY_PATH" \
             "$(command -v python)" scripts/qa/checkpoint_replay/run.py --fetch \
-            --models "$RUNNER_TEMP/anno-models" --binary target/debug/anno --receipt checkpoint-receipt.json
+            --models "$RUNNER_TEMP/anno-models" --binary target/debug/anno --aggregate --receipt checkpoint-receipt.json > "$RUNNER_TEMP/checkpoint.log" 2>&1 || {
+                echo "::error::Checkpoint replay failed. Inspect completed model and case counts in the public receipt."
+                exit 1
+              }
       - name: Build the default-stack layer observer
         run: cargo build --locked -p anno --no-default-features --features onnx --example stacked_nuner_routing
       - name: Replay the default CLI and stock routing with and without BERT
@@ -74,7 +77,10 @@ jobs:
             --setenv="LD_LIBRARY_PATH=$LD_LIBRARY_PATH" \
             "$(command -v python)" scripts/qa/checkpoint_replay/stacked.py --fetch \
             --cli target/debug/anno --worker target/debug/examples/stacked_nuner_routing \
-            --models "$RUNNER_TEMP/anno-models" --receipt stacked-receipt.json
+            --models "$RUNNER_TEMP/anno-models" --aggregate --receipt stacked-receipt.json > "$RUNNER_TEMP/stacked.log" 2>&1 || {
+                echo "::error::Default-stack routing verification failed. Replay the pinned fixtures to inspect predictions locally."
+                exit 1
+              }
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

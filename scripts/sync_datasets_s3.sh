@@ -15,7 +15,7 @@
 #
 # Environment Variables:
 #   ANNO_CACHE_DIR       Local cache directory (default: ~/.cache/anno or ~/Library/Caches/anno)
-#   ANNO_S3_BUCKET       S3 bucket URL (default: s3://anno-cache)
+#   ANNO_S3_BUCKET       Operator-selected bucket name or s3://bucket/
 #   ANNO_CACHE_SOURCE    Cache source priority: "local", "s3", "local+s3" (default: local+s3)
 #
 # S3 CLI Selection (in order of preference):
@@ -24,9 +24,8 @@
 
 set -euo pipefail
 
-# Configurable S3 bucket for all anno artifacts (datasets, models, scripts)
-# Naming: arc (global namespace) -> anno (project) -> data
-S3_BUCKET="${ANNO_S3_BUCKET:-s3://arc-anno-data}"
+source "$(dirname "${BASH_SOURCE[0]}")/s3_bucket.sh"
+S3_BUCKET=""
 MANIFEST_FILE="manifest.json"
 
 # Platform-aware cache directory
@@ -89,84 +88,44 @@ generate_manifest() {
     local manifest_path="$1"
     log_info "Generating manifest..."
     
-    # Create manifest with metadata about all artifacts
-    cat > "$manifest_path" << MANIFEST_HEADER
-{
-  "version": "2.0",
-  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "created_by": "${USER:-unknown}@$(hostname -s)",
-  "anno_version": "$(cargo pkgid -p anno 2>/dev/null | cut -d'#' -f2 || echo 'unknown')",
-  "bucket": "$S3_BUCKET",
-  "description": "Anno NER artifacts cache (datasets, models, scripts)",
-  "artifacts": {
-    "datasets": [
-MANIFEST_HEADER
+    local version
+    version=$(cargo pkgid -p anno 2>/dev/null | cut -d'#' -f2 || echo unknown)
+    python3 - "$manifest_path" "$LOCAL_CACHE" "$S3_BUCKET" "$version" <<'PY_MANIFEST'
+import datetime
+import json
+import sys
+from pathlib import Path
 
-    # No raw dataset package has been approved for shared publication.
-    local first=true
-    cat >> "$manifest_path" << MID_SECTION
-    ],
-    "models": [
-MID_SECTION
-
-    # Add models
-    first=true
-    if [ -d "$MODELS_DIR" ]; then
-        for f in "$MODELS_DIR"/*; do
-            if [ -f "$f" ]; then
-                local basename=$(basename "$f")
-                local size=$(stat -f%z "$f" 2>/dev/null || stat --format=%s "$f" 2>/dev/null || echo 0)
-                
-                if [ "$first" = true ]; then
-                    first=false
-                else
-                    echo "," >> "$manifest_path"
-                fi
-                
-                cat >> "$manifest_path" << ENTRY
-      {"filename": "$basename", "size_bytes": $size}
-ENTRY
-            fi
-        done
-    fi
-    
-    cat >> "$manifest_path" << MID_SECTION2
-    ],
-    "scripts": [
-MID_SECTION2
-
-    # Add scripts
-    first=true
-    if [ -d "$SCRIPTS_DIR" ]; then
-        for f in "$SCRIPTS_DIR"/*; do
-            if [ -f "$f" ]; then
-                local basename=$(basename "$f")
-                local size=$(stat -f%z "$f" 2>/dev/null || stat --format=%s "$f" 2>/dev/null || echo 0)
-                
-                if [ "$first" = true ]; then
-                    first=false
-                else
-                    echo "," >> "$manifest_path"
-                fi
-                
-                cat >> "$manifest_path" << ENTRY
-      {"filename": "$basename", "size_bytes": $size}
-ENTRY
-            fi
-        done
-    fi
-    
-    cat >> "$manifest_path" << MANIFEST_FOOTER
-    ]
-  }
+output, cache, bucket, version = sys.argv[1:]
+cache = Path(cache).resolve()
+artifacts = {"datasets": []}  # Raw datasets have no approved publication package.
+for category in ("models", "scripts"):
+    directory = cache / category
+    if directory.is_symlink():
+        raise SystemExit(f"Refusing to publish a linked {category} directory: {directory}")
+    files = []
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink() and not path.resolve().is_relative_to(directory):
+            raise SystemExit(f"Refusing to publish a link outside {category}: {path}")
+        if path.is_file():
+            files.append({"filename": str(path.relative_to(directory)), "size_bytes": path.stat().st_size})
+    artifacts[category] = files
+manifest = {
+    "version": "2.0",
+    "created": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "created_by": "anno",
+    "anno_version": version,
+    "bucket": bucket,
+    "description": "Anno model and script cache",
+    "artifacts": artifacts,
 }
-MANIFEST_FOOTER
-    
+Path(output).write_text(json.dumps(manifest, indent=2) + "\n")
+PY_MANIFEST
     log_info "Manifest generated: $manifest_path"
 }
 
 upload_all() {
-    log_info "Uploading all artifacts to S3..."
+    log_info "Uploading models, scripts and their manifest to S3..."
     
     mkdir -p "$DATASETS_DIR" "$MODELS_DIR" "$SCRIPTS_DIR"
     
@@ -177,8 +136,8 @@ upload_all() {
     
     if [[ "$S3_CMD" == "s5cmd" ]]; then
         # s5cmd is much faster for bulk operations
-        [[ -d "$MODELS_DIR" ]] && s5cmd sync --size-only "$MODELS_DIR/" "$S3_BUCKET/models/" 2>/dev/null || true
-        [[ -d "$SCRIPTS_DIR" ]] && s5cmd sync --size-only "$SCRIPTS_DIR/" "$S3_BUCKET/scripts/" 2>/dev/null || true
+        if [[ -n "$(ls -A "$MODELS_DIR")" ]]; then s5cmd sync --size-only "$MODELS_DIR/*" "$S3_BUCKET/models/"; fi
+        if [[ -n "$(ls -A "$SCRIPTS_DIR")" ]]; then s5cmd sync --size-only "$SCRIPTS_DIR/*" "$S3_BUCKET/scripts/"; fi
         s5cmd cp "$local_manifest" "$S3_BUCKET/$MANIFEST_FILE"
     else
         # aws cli fallback
@@ -287,65 +246,11 @@ show_size() {
 
 upload_script() {
     log_info "Uploading safetensor conversion script..."
-    mkdir -p "$SCRIPTS_DIR"
-    
-    local script_path="$SCRIPTS_DIR/convert_pytorch_to_safetensors.py"
-    
-    # Create the script if it doesn't exist
-    if [ ! -f "$script_path" ]; then
-        cat > "$script_path" << 'SCRIPT'
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.9"
-# dependencies = ["torch>=2.6", "safetensors>=0.4"]
-# ///
-"""Convert PyTorch model weights to SafeTensors format.
+    # Publish the repository's converter, even if a downloaded cache has a
+    # different file or symlink of the same name.
+    local script_path
+    script_path="$(dirname "${BASH_SOURCE[0]}")/convert_pytorch_to_safetensors.py"
 
-Usage: uv run convert_pytorch_to_safetensors.py <input.pt> <output.safetensors>
-
-SafeTensors is a faster, safer format for storing tensors:
-- Memory-mapped loading (instant load, low memory)
-- No arbitrary code execution (unlike pickle)
-- Cross-framework compatible
-"""
-import sys
-from pathlib import Path
-
-def convert(input_path: str, output_path: str) -> None:
-    import torch
-    from safetensors.torch import save_file
-
-    print(f"Loading {input_path}...")
-    state_dict = torch.load(input_path, map_location="cpu", weights_only=True)
-    
-    # Handle nested state dicts
-    if "state_dict" in state_dict:
-        state_dict = state_dict["state_dict"]
-    elif "model" in state_dict:
-        state_dict = state_dict["model"]
-    
-    # Ensure all tensors are contiguous
-    state_dict = {k: v.contiguous() for k, v in state_dict.items() if isinstance(v, torch.Tensor)}
-    
-    print(f"Saving {len(state_dict)} tensors to {output_path}...")
-    save_file(state_dict, output_path)
-    
-    # Verify
-    from safetensors import safe_open
-    with safe_open(output_path, framework="pt") as f:
-        print(f"Verified: {len(f.keys())} tensors")
-    
-    print("Done!")
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(__doc__)
-        sys.exit(1)
-    convert(sys.argv[1], sys.argv[2])
-SCRIPT
-        log_info "Created script: $script_path"
-    fi
-    
     # Upload to S3
     if [[ "$S3_CMD" == "s5cmd" ]]; then
         s5cmd cp "$script_path" "$S3_BUCKET/scripts/convert_pytorch_to_safetensors.py"
@@ -356,7 +261,17 @@ SCRIPT
     log_info "Script uploaded to $S3_BUCKET/scripts/"
 }
 
-# Main
+# A status without remote configuration is a local cache report.
+case "${1:-status}" in
+    status) if [[ -z "${ANNO_S3_BUCKET:-}" ]]; then show_local_summary; exit; fi ;;
+    help|-h|--help) sed -n '5,23s/^# //p' "${BASH_SOURCE[0]}"; exit 0 ;;
+esac
+case "${1:-status}" in
+    upload|download|download-datasets|sync|status|ls|size|upload-script)
+        bucket_name=$(anno_bucket_name "${ANNO_S3_BUCKET:-}" ANNO_S3_BUCKET)
+        S3_BUCKET="s3://$bucket_name"
+        ;;
+esac
 case "${1:-status}" in
     upload)
         check_aws
@@ -396,7 +311,7 @@ case "${1:-status}" in
         echo "Usage: $0 {upload|download|download-datasets|sync|status|ls|size|upload-script}"
         echo ""
         echo "Commands:"
-        echo "  upload        Upload local cache to S3"
+        echo "  upload        Upload local models, scripts and their manifest"
         echo "  download      Download S3 cache to local"
         echo "  download-datasets  Download permitted datasets only"
         echo "  sync          Bidirectional sync (local wins)"
@@ -406,7 +321,7 @@ case "${1:-status}" in
         echo "  upload-script Upload safetensor conversion script"
         echo ""
         echo "Environment:"
-        echo "  ANNO_S3_BUCKET     S3 bucket URL (default: s3://anno-cache)"
+        echo "  ANNO_S3_BUCKET     Operator-selected bucket name or s3://bucket/"
         echo "  ANNO_CACHE_DIR     Local cache dir"
         echo "  ANNO_CACHE_SOURCE  Priority: local, s3, local+s3"
         exit 1

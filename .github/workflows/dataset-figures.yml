@@ -16,6 +16,9 @@ on:
       - scripts/qa/test_dataset_*.py
       - scripts/qa/*english_ner_source_replay.py
       - scripts/qa/*vira*.py
+      - scripts/qa/*agcner*.py
+      - scripts/qa/*histnero*.py
+      - scripts/plot_histnero_person_errors.py
       - scripts/qa/fixtures/vira-dialog-act-sources.json
       - scripts/qa/test_pack_*.py
       - scripts/qa/test_offline_native_cache.py
@@ -76,6 +79,9 @@ on:
       - scripts/qa/test_dataset_*.py
       - scripts/qa/*english_ner_source_replay.py
       - scripts/qa/*vira*.py
+      - scripts/qa/*agcner*.py
+      - scripts/qa/*histnero*.py
+      - scripts/plot_histnero_person_errors.py
       - scripts/qa/fixtures/vira-dialog-act-sources.json
       - scripts/qa/test_pack_*.py
       - scripts/qa/test_offline_native_cache.py
@@ -119,6 +125,19 @@ on:
       - docs/eval/s3-publisher-file-matches.csv
       - docs/eval/wnut-*.csv
   workflow_dispatch:
+    inputs:
+      with_cache_audit:
+        description: Verify the configured cache inventory and pinned WikiGold input
+        type: boolean
+        default: false
+      with_publisher_audit:
+        description: Compare eligible cached inputs with measured publisher files
+        type: boolean
+        default: false
+      bucket:
+        description: Authorized bucket for the selected audits (defaults to ANNO_S3_BUCKET)
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -145,16 +164,20 @@ jobs:
           python3 -m unittest discover -s scripts/qa/joint_baseline -p 'test_relex_*.py'
           python3 scripts/qa/vira_majority_paired.py --output "$RUNNER_TEMP/vira-majority-paired.json"
           cmp "$RUNNER_TEMP/vira-majority-paired.json" docs/eval/vira-majority-paired.json
-          for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py test_offline_native_cache.py 'test_*vira*.py' 'test_*english_ner_source_replay.py' 'test_pack_*.py'; do
+          for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py test_offline_native_cache.py 'test_agcner*.py' test_s3_destinations.py test_cache_source_evidence.py 'test_*vira*.py' 'test_*english_ner_source_replay.py' 'test_pack_*.py'; do
             python3 -m unittest discover -s scripts/qa -p "$pattern"
           done
       - name: Check publication, dataset evidence and GENIA measurements
         run: |
           uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p test_refresh_dataset_figures.py
           uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p 'test_dataset_*.py'
+          uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p 'test_*histnero*.py'
           python3 -m unittest discover -s scripts/qa -p test_genia_nesting_counts.py
       - name: Render and compare the published figures
-        run: uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check --output "$RUNNER_TEMP/dataset-figures"
+        id: figures
+        run: |
+          test ! -e "$RUNNER_TEMP/dataset-figures"
+          uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check --output "$RUNNER_TEMP/dataset-figures"
       - name: Discover recorded inputs and render a named study from the artifact
         run: |
           target=$(cargo metadata --locked --format-version=1 --no-deps | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
@@ -166,7 +189,7 @@ jobs:
       - name: Read the native reports at phone and documentation widths
         run: uv run --python 3.12 --with playwright==1.62.0 python scripts/qa/check_native_figure_layout.py "$RUNNER_TEMP/dataset-figures" --require-explorer
       - name: Save the rendered images and measurements
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.figures.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dataset-figures
@@ -176,16 +199,20 @@ jobs:
 
   s3:
     name: Verify the live S3 cache
-    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'workflow_dispatch' && inputs.with_cache_audit && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/verify-dataset-cache.yml
+    with:
+      bucket: ${{ inputs.bucket }}
 
   publisher-files:
     name: Match cached inputs to measured publisher files
-    if: github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'workflow_dispatch' && inputs.with_publisher_audit && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/cache-source-evidence.yml
+    with:
+      bucket: ${{ inputs.bucket }}

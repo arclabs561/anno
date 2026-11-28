@@ -25,8 +25,12 @@ just eval-local BACKENDS="heuristic,stacked" DATASETS="WikiGold,Wnut17" MAX=100
 ### AWS Spot (distributed)
 
 ```bash
-# 1. Initial setup (one-time)
+# Use an existing bucket you control. Replace the example name first.
+export ANNO_S3_BUCKET=your-evaluation-bucket
+
+# 1. Configure the worker role and launch template, then publish its build inputs.
 ./scripts/spot/setup.sh
+just spot-upload-src
 
 # 2. Launch evaluation fleet
 just spot-eval
@@ -100,10 +104,15 @@ Treat this directory as a runner, not a benchmark; measure your own spend and wa
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ANNO_SPOT_REGION` | AWS region | us-east-1 |
-| `ANNO_SPOT_BUCKET` | S3 bucket for data | arc-anno-data |
-| `ANNO_SPOT_QUEUE` | SQS queue name | anno-eval-tasks |
+| `ANNO_S3_BUCKET` | Operator-selected bucket name or root `s3://bucket/` URI | Required for S3 operations |
+| `ANNO_SPOT_BUCKET` | Overrides `ANNO_S3_BUCKET` for this fleet | Value saved by setup when neither environment variable is set |
+| `ANNO_SPOT_QUEUE` | Existing or new SQS queue name | `anno-eval-<bucket>` (dots become underscores) |
 | `ANNO_SPOT_FLEET_SIZE` | Number of spot instances | 4 |
 | `ANNO_SPOT_INSTANCE_TYPES` | Comma-separated types | c7i.xlarge,c7a.xlarge,m7i.xlarge |
+
+Setup writes the selected bucket into the launch template `anno-eval-worker-<bucket>`. Each bucket gets its own default task queue and worker IAM profile. To retain an existing queue, set `ANNO_SPOT_QUEUE` to its name during setup and use the resulting configuration for launches. Drain workers from a previous destination before intentionally sharing an existing queue across destinations. Run setup once per destination before launching. With a config from an older setup, export the bucket explicitly or run setup again to save the selection. Workers read the build archive at `src/anno-src.tar.gz` and the input prefixes `models/` and `datasets/`. The worker role can write reports under `results/`. Workers project native receipts into aggregate JSON and Markdown before upload. Missing or malformed receipts produce a classified error marker. Set `ANNO_SPOT_RETAIN_FAILURE_ARTIFACTS=1` on the worker to keep private failure diagnostics on its local disk. The source archive contains the Rust workspace inputs and worker script. Raw corpus files require a reviewed publication package under the shared dataset policy. No raw package currently qualifies for upload.
+
+Local reports, help and `just spot-generate-dry` use no bucket. For an ad hoc results download, pass `--bucket NAME` or `--bucket s3://NAME/` to `scripts/spot/aggregate.py --download`.
 
 ## Interruption Handling
 
@@ -148,7 +157,10 @@ aws sqs get-queue-attributes --queue-url $QUEUE_URL --attribute-names Approximat
 aws ec2 cancel-spot-fleet-requests --spot-fleet-request-ids $FLEET_ID --terminate-instances
 
 # List results
-aws s3 ls s3://arc-anno-data/results/
+source scripts/s3_bucket.sh
+anno_spot_config scripts/spot/config.env
+bucket=$(anno_bucket_name "$ANNO_SPOT_BUCKET" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+aws s3 ls "s3://$bucket/results/"
 ```
 
 ## Relationship to CI Tests
@@ -174,7 +186,7 @@ The spot evaluation complements the CI randomized matrix tests:
 2. **Repeat a sampled NER cell**. Match the observed backend and dataset,
    the CI seed, and the example cap. For example, preview the Spot task:
    ```bash
-   uv run scripts/spot/orchestrate.py generate --dry-run \
+   python3 scripts/spot/orchestrate.py generate --dry-run \
        --backends heuristic --datasets WikiGold --seeds 12345 --max-examples 5
    ```
    Reproducing the score also requires the same dataset, model, and code revisions.
@@ -238,7 +250,7 @@ The `trainctl-bridge.sh` script provides the integration. Build trainctl with:
 cd ../trainctl && cargo build --release
 ```
 
-The self-contained approach (`just spot-eval`) works without trainctl. `just spot-sync-datasets` downloads datasets using the shared cache exclusion rules with s5cmd or the AWS CLI. It uses `ANNO_SPOT_BUCKET` for the source bucket and `ANNO_CACHE_DIR` for the local cache.
+The self-contained approach (`just spot-eval`) works without trainctl. `just spot-sync-datasets` downloads datasets using the shared cache exclusion rules with s5cmd or the AWS CLI. Set `ANNO_SPOT_BUCKET` or `ANNO_S3_BUCKET` for the source and `ANNO_CACHE_DIR` for the local cache.
 
 ## Troubleshooting
 

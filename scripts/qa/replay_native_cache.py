@@ -53,6 +53,11 @@ def compare(anno, archive, item, task, work):
     ]
     if task == "ner":
         args.extend(["--reports", "reports.jsonl"])
+    if item["id"] == "HistNERo":
+        # This historical replay measures the literal source-label baseline.
+        help_text = subprocess.check_output([anno, "dataset", "eval", "--help"], text=True)
+        if "--ner-scoring" in help_text:
+            args.extend(["--ner-scoring", "source"])
     env = {
         **os.environ,
         "ANNO_CACHE_DIR": str(work),
