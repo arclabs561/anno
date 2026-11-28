@@ -122,6 +122,10 @@ def attribution_index(raw, field):
     return out.getvalue().encode()
 
 
+def article_notice_path(dataset_id, variant):
+    return f"notices/{dataset_id}/articles-{variant}.csv"
+
+
 def native_bytes(kind, original):
     """Build the adapter's parser input. The archive always retains the exact original separately."""
     if not kind:
@@ -257,6 +261,35 @@ def member(archive, name, raw):
     archive.writestr(info, raw, compresslevel=6)
 
 
+def profile_record(data, item):
+    """Describe the archive members required by one pinned publisher input."""
+    dataset_id, variant = data["id"], item["variant"]
+    root = "cache" if item["default"] else f"profiles/{dataset_id}/{variant}"
+    path = f"{root}/datasets/{dataset_id}.cache"
+    original = path
+    if item.get("projection"):
+        basename = item.get("original_filename") or item["url"].split("/")[-1]
+        original = f"originals/{dataset_id}/{variant}/{basename}"
+    return {
+        **{
+            k: data[k]
+            for k in ("id", "usage", "attribution", "license", "interpretation")
+        },
+        **item,
+        "notices": [
+            {
+                "path": f"notices/{dataset_id}/{n['name']}",
+                "sha256": n["sha256"],
+                "url": n["url"],
+            }
+            for n in data["notices"]
+        ],
+        "path": path,
+        "original_path": original,
+        "cache_sha256": item.get("cache_sha256", item["sha256"]),
+    }
+
+
 def build(index, output, anno, caches, online, group, archived=None):
     datasets = [d for d in index["datasets"] if d["usage"] == group]
     version = (
@@ -296,26 +329,16 @@ def build(index, output, anno, caches, online, group, archived=None):
                         raise ValueError(
                             f"{dataset_id}/{item['variant']} native counts changed: {actual}"
                         )
-                    root = (
-                        "cache"
-                        if item["default"]
-                        else f"profiles/{dataset_id}/{item['variant']}"
-                    )
-                    name = f"{root}/datasets/{filename}"
+                    record = profile_record(data, item)
+                    name = record["path"]
+                    root = name.rsplit("/datasets/", 1)[0]
                     member(archive, name, raw)
-                    original_path = name
                     if item.get("projection"):
-                        basename = (
-                            item.get("original_filename") or item["url"].split("/")[-1]
-                        )
-                        original_path = (
-                            f"originals/{dataset_id}/{item['variant']}/{basename}"
-                        )
-                        member(archive, original_path, original)
+                        member(archive, record["original_path"], original)
                     if item.get("article_url_column"):
                         member(
                             archive,
-                            f"notices/{dataset_id}/articles-{item['variant']}.csv",
+                            article_notice_path(dataset_id, item["variant"]),
                             attribution_index(raw, item["article_url_column"]),
                         )
                     entry = {
@@ -332,29 +355,8 @@ def build(index, output, anno, caches, online, group, archived=None):
                     manifests.setdefault(root, {})[filename] = entry
                     records.append(
                         {
-                            **{
-                                k: data[k]
-                                for k in (
-                                    "id",
-                                    "usage",
-                                    "attribution",
-                                    "license",
-                                    "interpretation",
-                                )
-                            },
-                            "notices": [
-                                {
-                                    "path": f"notices/{dataset_id}/{n['name']}",
-                                    "sha256": n["sha256"],
-                                    "url": n["url"],
-                                }
-                                for n in data["notices"]
-                            ],
-                            **item,
-                            "path": name,
-                            "original_path": original_path,
+                            **record,
                             "source_bytes": len(original),
-                            "cache_sha256": digest(raw),
                             "bytes": len(raw),
                         }
                     )
@@ -387,10 +389,32 @@ def build(index, output, anno, caches, online, group, archived=None):
     return artifact
 
 
-def verify(artifact, anno):
+def verify(artifact, anno, index, group):
     """Restore one native profile at a time, including the exact manifest from the ZIP."""
     with zipfile.ZipFile(artifact) as archive, tempfile.TemporaryDirectory() as work:
         catalog = json.loads(archive.read("sources.json"))
+        expected = {
+            (data["id"], item["variant"]): profile_record(data, item)
+            for data in index["datasets"]
+            if data["usage"] == group
+            for item in data["inputs"]
+        }
+        if (
+            not expected
+            or catalog.get("file_count") != len(expected)
+            or catalog.get("package") != group
+        ):
+            raise ValueError(f"Archive does not match the pinned {group} collection")
+        for item in catalog["inputs"]:
+            key = (item["id"], item["variant"])
+            pinned = expected.pop(key, None)
+            if pinned is None:
+                raise ValueError(f"Unexpected or duplicate profile {key}")
+            for field, value in pinned.items():
+                if field not in item or item[field] != value:
+                    raise ValueError(f"Profile {key} differs from the index in {field}")
+        if expected:
+            raise ValueError(f"Missing pinned profiles: {sorted(expected)}")
         cache = Path(work)
         files = cache / "datasets"
         files.mkdir()
@@ -400,6 +424,13 @@ def verify(artifact, anno):
             manifest = archive.read(manifest_path)
             filename = f"{item['id']}.cache"
             entry = json.loads(manifest)["entries"][filename]
+            if (
+                entry["dataset_id"] != filename
+                or entry["resolved_url"] != item["url"]
+                or entry["sentence_count"] != item["counts"]["sentences"]
+                or entry["entity_count"] != item["counts"]["native_labels"]
+            ):
+                raise ValueError(f"Restored manifest differs for {item['path']}")
             raw = archive.read(item["path"])
             if (
                 digest(raw) != item["cache_sha256"]
@@ -409,6 +440,14 @@ def verify(artifact, anno):
                 raise ValueError(f"Corrupt native cache member {item['path']}")
             if digest(archive.read(item["original_path"])) != item["sha256"]:
                 raise ValueError(f"Corrupt publisher copy {item['original_path']}")
+            if column := item.get("article_url_column"):
+                notice_path = article_notice_path(item["id"], item["variant"])
+                if notice_path not in archive.NameToInfo or archive.read(
+                    notice_path
+                ) != attribution_index(raw, column):
+                    raise ValueError(
+                        f"Missing or incorrect article attribution: {notice_path}"
+                    )
             for notice in item["notices"]:
                 if notice["path"] not in checked:
                     if digest(archive.read(notice["path"])) != notice["sha256"]:
@@ -581,7 +620,12 @@ def main():
     archived = archived_originals(a.from_archives) if a.from_archives else None
     for group in a.usage or sorted({data["usage"] for data in index["datasets"]}):
         if a.verify_only:
-            verify(a.output / f"anno-native-cache-{group}.zip", a.anno.resolve())
+            verify(
+                a.output / f"anno-native-cache-{group}.zip",
+                a.anno.resolve(),
+                index,
+                group,
+            )
         else:
             build(index, a.output, a.anno.resolve(), a.cache, a.fetch, group, archived)
     if a.inventory:

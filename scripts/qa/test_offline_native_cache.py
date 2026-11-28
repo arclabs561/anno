@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_offline_native_cache as native
@@ -73,6 +74,85 @@ class NativeCacheTest(unittest.TestCase):
             (cache / item["sha256"]).write_bytes(b"different bytes")
             with self.assertRaisesRegex(ValueError, "digest"):
                 native.source_bytes(item, [cache], False)
+
+    def test_verify_uses_pinned_profiles_even_when_zip_is_internally_consistent(self):
+        data = json.loads(native.INDEX.read_text())["datasets"][0]
+        counts = {"sentences": 1, "tokens": 1, "native_labels": 1}
+        raw = b"ID\tURL\ncase-1\thttps://en.wikipedia.org/wiki/Example\n"
+        item = {
+            "variant": "test",
+            "article_url_column": "URL",
+            "default": True,
+            "counts": counts,
+            "url": "https://example.org/test",
+            "sha256": native.digest(raw),
+        }
+        data.update(usage="general", notices=[], inputs=[item])
+        index = {"snapshot_date": "2026-11-28", "datasets": [data]}
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(native, "stats", return_value=counts),
+        ):
+            root = Path(tmp)
+            (root / item["sha256"]).write_bytes(raw)
+            archive = native.build(
+                index, root, sys.executable, [root], False, "general"
+            )
+            native.verify(archive, sys.executable, index, "general")
+            with zipfile.ZipFile(archive) as z:
+                members = {name: z.read(name) for name in z.namelist()}
+            for case, message in [
+                ("empty", "pinned general collection"),
+                ("omitted", "Missing pinned profiles"),
+                ("duplicate", "duplicate profile"),
+                ("manifest", "Restored manifest differs"),
+                ("replacement", "differs from the index"),
+                ("missing articles", "article attribution"),
+                ("wrong articles", "article attribution"),
+            ]:
+                with self.subTest(case=case):
+                    catalog = json.loads(members["sources.json"])
+                    changed = dict(members)
+                    if case in {"empty", "omitted"}:
+                        catalog["inputs"] = []
+                        if case == "empty":
+                            catalog["file_count"] = 0
+                    elif case == "duplicate":
+                        catalog["inputs"] *= 2
+                    elif case in {"missing articles", "wrong articles"}:
+                        path = native.article_notice_path(data["id"], item["variant"])
+                        if case == "missing articles":
+                            del changed[path]
+                        else:
+                            changed[path] = changed[path].replace(
+                                b"wiki/Example", b"wiki/Other"
+                            )
+                    elif case == "manifest":
+                        path = "cache/datasets/manifest.json"
+                        manifest = json.loads(changed[path])
+                        manifest["entries"][data["id"] + ".cache"][
+                            "sentence_count"
+                        ] += 1
+                        changed[path] = native.json_bytes(manifest)
+                    else:
+                        record = catalog["inputs"][0]
+                        replacement = b"two\n"
+                        record["sha256"] = record["cache_sha256"] = native.digest(
+                            replacement
+                        )
+                        changed[record["path"]] = replacement
+                        manifest_path = "cache/datasets/manifest.json"
+                        manifest = json.loads(changed[manifest_path])
+                        manifest["entries"][data["id"] + ".cache"]["sha256"] = record[
+                            "sha256"
+                        ]
+                        changed[manifest_path] = native.json_bytes(manifest)
+                    changed["sources.json"] = native.json_bytes(catalog)
+                    with zipfile.ZipFile(archive, "w") as z:
+                        for name, payload in changed.items():
+                            z.writestr(name, payload)
+                    with self.assertRaisesRegex(ValueError, message):
+                        native.verify(archive, sys.executable, index, "general")
 
     def test_rejects_duplicate_defaults_and_unsafe_zip_names(self):
         data = json.loads(native.INDEX.read_text())["datasets"][0]
