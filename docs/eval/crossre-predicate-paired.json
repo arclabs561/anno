@@ -1,0 +1,39 @@
+{
+  "baseline": "Confidence",
+  "candidate": "Both margins",
+  "rows": [
+    {
+      "baseline": {
+        "correct": 13,
+        "unmatched": 67
+      },
+      "candidate": {
+        "correct": 12,
+        "unmatched": 68
+      },
+      "gained": 1,
+      "label": "Development",
+      "lost": 2,
+      "observations": 96,
+      "role": "Rule selection"
+    },
+    {
+      "baseline": {
+        "correct": 20,
+        "unmatched": 140
+      },
+      "candidate": {
+        "correct": 24,
+        "unmatched": 136
+      },
+      "gained": 5,
+      "label": "Original balanced test",
+      "lost": 1,
+      "observations": 192,
+      "role": "Initial test panel"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "Extra CrossRE matches in the original ranking study",
+  "unit": "sentences"
+}
