@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["boto3>=1.34"]
+# dependencies = []
 # ///
 """
 Aggregate spot evaluation results into hierarchical summary.

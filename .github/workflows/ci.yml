@@ -76,7 +76,7 @@ jobs:
           mv "$RUNNER_TEMP/ner-language-length.json" qa/reports/ner-language-length.json
       - name: Save live QA reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: live-document-qa
           path: |
@@ -145,7 +145,7 @@ jobs:
       - name: Run portable check command
         run: ./scripts/ci-portable.sh check
       - name: Upload portable check receipts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: ci-check-receipts
@@ -283,7 +283,7 @@ jobs:
           python3 scripts/verification/check_language_spans.py "${CARGO_TARGET_DIR:-target}/debug/anno" language-spans.json
       - name: Publish multilingual source-coordinate results
         if: always() && hashFiles('language-spans.json') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: language-spans
           path: language-spans.json
@@ -825,7 +825,7 @@ jobs:
             "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
       - name: Publish trusted matrix checkpoint
         if: steps.checkpoint.outcome == 'success' && steps.checkpoint.outputs.observations != '0'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.MATRIX_CHECKPOINT }}
           path: ${{ runner.temp }}/matrix-checkpoint/
@@ -833,7 +833,7 @@ jobs:
           retention-days: 60
       - name: Upload matrix decision and outcome log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: matrix-muxer-decisions${{ github.run_attempt != '1' && format('-attempt-{0}', github.run_attempt) || '' }}
           path: |
@@ -938,7 +938,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
           # Note: cli feature is included in eval via script
       - name: Upload sanity reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: eval-sanity-report
@@ -1002,7 +1002,7 @@ jobs:
         env:
           MAX_EXAMPLES: ${{ inputs.max_examples }}
       - name: Upload full report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: eval-full-report
@@ -1232,7 +1232,7 @@ jobs:
         with:
           sarif_file: opengrep-results.sarif
       - name: Upload JSON results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: opengrep-results
@@ -1294,7 +1294,7 @@ jobs:
           ANNO_NO_DOWNLOADS: "1"
         run: cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
       - name: Upload coverage report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-lcov
           path: lcov.info
@@ -1338,7 +1338,7 @@ jobs:
           grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
           grep -Fxq 'tests/fixtures/tplinker_plus_tags.json' /tmp/pkg.txt
       - name: Upload publish validation log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: publish-validation-report

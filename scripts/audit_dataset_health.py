@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["httpx"]
+# dependencies = []
 # ///
 """Audit dataset registry URLs against S3 cache and live HTTP status.
 
