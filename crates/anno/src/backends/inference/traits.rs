@@ -182,6 +182,11 @@ pub trait ZeroShotNER: Send + Sync {
     /// let entities = ner.extract_with_types(text, &types, 0.5)?;
     /// ```
     fn default_types(&self) -> &[&'static str];
+
+    /// Checkpoint-specific inference threshold when the caller supplies no override.
+    fn default_threshold(&self) -> f32 {
+        0.5
+    }
 }
 
 // =============================================================================

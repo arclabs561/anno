@@ -14,28 +14,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from nuner_fallback_routing import BERT_CHECKPOINT, BERT_FILES, CHECKPOINT, FILES, text_sha
 
 
+def stacked_assets(bert=True):
+    checkpoints = [(CHECKPOINT, FILES)]
+    if bert:
+        checkpoints.append((BERT_CHECKPOINT, BERT_FILES))
+    for checkpoint, hashes in checkpoints:
+        repo, revision = checkpoint.split("@")
+        yield repo.split("/")[-1], {
+            "repo": repo, "revision": revision,
+            "files": {name: {"remote": name, "sha256": sha} for name, sha in hashes.items()},
+        }
+
+
 @contextmanager
 def offline_stack(models, *, bert, fetch=False):
     """Give StackedNER::default a fresh Hub cache, including only verified bytes."""
-    assets = [(CHECKPOINT, FILES)]
-    if bert:
-        assets.append((BERT_CHECKPOINT, BERT_FILES))
     with TemporaryDirectory(prefix="anno-stacked-hub-") as home:
-        for checkpoint, hashes in assets:
-            repo, revision = checkpoint.split("@")
-            directory = models / repo.split("/")[-1]
-            verify_assets(directory, {
-                "repo": repo, "revision": revision,
-                "files": {name: {"remote": name, "sha256": sha} for name, sha in hashes.items()},
-            }, fetch)
+        for name, spec in stacked_assets(bert):
+            repo, revision = spec["repo"], spec["revision"]
+            directory = models / name
+            verify_assets(directory, spec, fetch)
             root = Path(home) / "hub" / ("models--" + repo.replace("/", "--"))
             snapshot = root / "snapshots" / revision
             snapshot.mkdir(parents=True)
             (root / "refs").mkdir()
             (root / "refs/main").write_text(revision)
-            for name in hashes:
+            for name in spec["files"]:
                 (snapshot / name).symlink_to((directory / name).resolve())
-        yield {**os.environ, "HF_HOME": home, "ANNO_NO_DOWNLOADS": "1",
+        hub = str(Path(home) / "hub")
+        yield {**os.environ, "HF_HOME": home, "HF_HUB_CACHE": hub,
+               "HUGGINGFACE_HUB_CACHE": hub, "ANNO_NO_DOWNLOADS": "1",
                "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"}
 
 

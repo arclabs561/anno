@@ -1,7 +1,8 @@
 //! NER Backend Catalog
 //!
-//! This module is documentation-only: it describes the set of backends that live
-//! under `crate::backends` and gives a few “where to start” pointers.
+//! The `anno models` CLI and [`crate::available_backends`] use this metadata
+//! to describe extraction backends. Runtime constructors resolve checkpoints
+//! and prepared assets separately.
 //!
 //! Keep in mind:
 //! - Many backends are **feature-gated** (`onnx`, `candle`, etc.).
@@ -66,6 +67,60 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
     // Implemented Backends
     // =========================================================================
     BackendInfo {
+        name: "otter_cross",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "Otter cross-encoder for prompted multilingual NER",
+        recommended_models: &["whoisjones/otter-cross-mmbert"],
+    },
+    BackendInfo {
+        name: "otter_bi",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "Otter bi-encoder for prompted multilingual NER",
+        recommended_models: &["whoisjones/otter-bi-mmbert"],
+    },
+    BackendInfo {
+        name: "kniv",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: false,
+        gpu_support: false,
+        description: "Kniv English named entities and within-window facts",
+        recommended_models: &["dragonscale-ai/kniv-v7-large-en"],
+    },
+    BackendInfo {
+        name: "glinerel_72m",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "GLiNEREL multilingual entity and relation extraction",
+        recommended_models: &["VAGOsolutions/SauerkrautLM-GLiNEREL-72m"],
+    },
+    BackendInfo {
+        name: "adaptner",
+        feature: Some("onnx"),
+        status: BackendStatus::Beta,
+        zero_shot: false,
+        gpu_support: false,
+        description: "AdaptNER Arabic nested entities (Wojood label inventory)",
+        recommended_models: &["NAMAA-Space/KnowledgeGraphEval-2026-AdaptNER-AraBERTv02-Nested"],
+    },
+    BackendInfo {
+        name: "gliner2_pii",
+        feature: Some("gliner2-fastino"),
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "GLiNER2 multilingual PII extraction with the Fastino ONNX backend",
+        recommended_models: &["jugaadsrl/gliner2-privacy-filter-PII-multi-onnx"],
+    },
+    BackendInfo {
         name: "pattern",
         feature: None,
         status: BackendStatus::Stable,
@@ -89,7 +144,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: false,
         gpu_support: false,
-        description: "Stacked NER (pattern + heuristic; default no-ML baseline)",
+        description: "Default stack adds available ONNX models to the pattern and heuristic layers",
         recommended_models: &[],
     },
     BackendInfo {
@@ -152,7 +207,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "UniversalNER (LLM-backed zero-shot via OpenRouter/Anthropic/Groq/Ollama; configurable model)",
+        description: "UniversalNER via a configurable chat endpoint, OpenRouter, Anthropic, Groq, Gemini or Ollama",
         recommended_models: &[
             "google/gemini-2.5-flash-lite",
             "anthropic/claude-haiku-4.5",
@@ -238,12 +293,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
-        recommended_models: &[
-            crate::models::GLINER_CANDLE,
-            crate::models::GLINER_BI_BASE,
-            crate::models::GLINER_BI_LARGE,
-        ],
+        description: "Experimental GLiNER via Candle, requires a compatible BERT tensor layout",
+        recommended_models: &[crate::models::GLINER_CANDLE],
     },
     BackendInfo {
         name: "nuner",
@@ -251,12 +302,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: true,
         gpu_support: true,
-        description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        // First entry is the source PyTorch repo; the runtime loader uses
-        // crate::models::NUNER (deepanwa/NuNerZero_onnx), a community ONNX
-        // export of the same weights.
+        description: "NuNER Zero label-conditioned NER (word or span scoring, depending on checkpoint)",
+        // The first entry is the default ONNX export. The other checkpoints
+        // require compatible ONNX artifacts.
         recommended_models: &[
-            crate::models::NUNER_ZERO,
+            crate::models::NUNER,
             crate::models::NUNER_ZERO_4K,
             crate::models::NUNER_ZERO_SPAN,
         ],
@@ -308,11 +358,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "fastino-ai GLiNER2 (NER + classification + structure extraction; IoBinding mode opt-in) — experimental, issue #18",
-        recommended_models: &[
-            "fastino/gliner2-multi-v1",
-            "fastino/gliner2-large-v1",
-            "fastino/gliner2-base-v1",
-        ],
+        recommended_models: &[crate::models::GLINER2_FASTINO_ONNX],
     },
     BackendInfo {
         name: "gliner2_fastino_candle",
@@ -321,11 +367,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "fastino-ai GLiNER2 with PEFT LoRA adapter merge-at-load (Candle backend, multi-domain inference) — experimental, issue #18 / Phase 4",
-        recommended_models: &[
-            "fastino/gliner2-multi-v1",
-            "fastino/gliner2-large-v1",
-            "fastino/gliner2-base-v1",
-        ],
+        recommended_models: &["fastino/gliner2-multi-v1"],
     },
     BackendInfo {
         name: "gliner_pii",
@@ -481,7 +523,7 @@ mod tests {
             ("deberta_v3", crate::models::DEBERTA_V3),
             ("biomedical", crate::models::BIOMEDICAL),
             ("gliner_candle", crate::models::GLINER_CANDLE),
-            ("nuner", crate::models::NUNER_ZERO),
+            ("nuner", crate::models::NUNER),
             ("candle_ner", crate::models::CANDLE),
             ("gliner_poly", crate::models::GLINER_POLY),
             ("gliner_pii", crate::models::GLINER_PII),
@@ -557,6 +599,6 @@ mod tests {
         assert!(entry.zero_shot);
         assert!(entry
             .recommended_models
-            .contains(&"fastino/gliner2-multi-v1"));
+            .contains(&crate::backends::gliner2_fastino::SUPPORTED_GLINER2_FASTINO_MODEL));
     }
 }

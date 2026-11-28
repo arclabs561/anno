@@ -84,6 +84,8 @@ pub struct GLiNEROnnx {
     /// Token-level classifiers (e.g., gliner-pii-edge) don't have span inputs.
     /// Detected at load time from the ONNX session input names.
     has_span_inputs: bool,
+    /// Uni-encoder with a [batch, words, classes, 3] token scoring head.
+    token_head: bool,
     /// Separate ONNX session for the label encoder (bi-encoder models only).
     ///
     /// Loaded from `label_encoder.onnx` alongside the main `model.onnx`.

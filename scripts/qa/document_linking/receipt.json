@@ -1,0 +1,113 @@
+{
+  "documents": 2,
+  "candidate_count": 7,
+  "named_span_and_type": {
+    "matched": 10,
+    "reference": 10,
+    "emitted": 10
+  },
+  "predicted": {
+    "mentions": {
+      "matched": 12,
+      "reference": 12,
+      "emitted": 14
+    },
+    "coref_pairs_on_reviewed_spans": {
+      "matched": 9,
+      "reference": 9,
+      "emitted": 9
+    },
+    "relations": {
+      "matched": 1,
+      "reference": 2,
+      "emitted": 1
+    },
+    "links": {
+      "reference": 12,
+      "emitted": 14,
+      "nil": 9,
+      "correct_reviewed": 0,
+      "nil_reviewed": 7,
+      "wrong_id_reviewed": 5,
+      "assessed": 12,
+      "correct_name": 0,
+      "assessed_name": 10,
+      "correct_pronoun": 0,
+      "assessed_pronoun": 2
+    },
+    "reference_fact_scores": [
+      {
+        "document": "concert",
+        "relation": [
+          "singer",
+          "P27",
+          "island"
+        ],
+        "max_score": 0.305155485868454
+      },
+      {
+        "document": "capital",
+        "relation": [
+          "state",
+          "P36",
+          "city"
+        ],
+        "max_score": 0.12451917678117752
+      }
+    ]
+  },
+  "reviewed": {
+    "mentions": {
+      "matched": 12,
+      "reference": 12,
+      "emitted": 12
+    },
+    "coref_pairs_on_reviewed_spans": {
+      "matched": 9,
+      "reference": 9,
+      "emitted": 9
+    },
+    "relations": {
+      "matched": 0,
+      "reference": 2,
+      "emitted": 0
+    },
+    "links": {
+      "reference": 12,
+      "emitted": 12,
+      "nil": 9,
+      "correct_reviewed": 1,
+      "nil_reviewed": 9,
+      "wrong_id_reviewed": 2,
+      "assessed": 12,
+      "correct_name": 1,
+      "assessed_name": 10,
+      "correct_pronoun": 0,
+      "assessed_pronoun": 2
+    },
+    "reference_fact_scores": [
+      {
+        "document": "concert",
+        "relation": [
+          "singer",
+          "P27",
+          "island"
+        ],
+        "max_score": 0.17476750910282135
+      },
+      {
+        "document": "capital",
+        "relation": [
+          "state",
+          "P36",
+          "city"
+        ],
+        "max_score": 0.09958089888095856
+      }
+    ]
+  },
+  "paired_link_decisions": {
+    "reviewed_occurrences_in_both": 12,
+    "different_qid_or_nil": 6
+  }
+}

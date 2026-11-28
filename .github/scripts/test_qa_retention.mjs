@@ -8,9 +8,13 @@ import { parse } from 'yaml';
 for (const [workflow, job, reports] of [
   ['ci', 'eval-sanity', ['reports/eval-sanity-report.json', 'reports/eval-sanity-report.md']],
   ['ci', 'eval-full', ['eval-full-report.md']],
-  ['fcoref-cli', 'pipeline', ['${{ steps.replay.outputs.receipt }}']],
+  ['fcoref-cli', 'pipeline', [
+    ...['config.json', 'encoder.onnx', 'scorer_weights.safetensors', 'tokenizer.json']
+      .map(file => '${{ env.FCOREF_MODEL_PATH }}/' + file),
+    '${{ steps.replay.outputs.receipt }}',
+  ]],
 ]) {
-  test(`${job} shares only its reviewed QA reports`, () => {
+  test(`${job} shares only its reviewed QA files`, () => {
     const jobs = parse(readFileSync(`.github/workflows/${workflow}.yml`, 'utf8')).jobs;
     const paths = jobs[job].steps
       .filter(step => /^actions\/(?:cache(?:\/(?:save|restore))?|upload-artifact)@/.test(step.uses ?? ''))

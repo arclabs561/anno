@@ -84,7 +84,14 @@ def test_invalid_backend_and_gliner_options():
         anno_py.Extractor(backend="bert", threshold=0.5)
 
 
-@pytest.mark.parametrize("backend", ["bert", "gliner"])
+@pytest.mark.parametrize("backend", ["adaptner", "kniv"])
+@pytest.mark.parametrize("option", [{"labels": ["person"]}, {"threshold": 0.5}])
+def test_fixed_specialists_reject_schema_overrides_before_loading(backend, option):
+    with pytest.raises(ValueError, match="does not support zero-shot"):
+        anno_py.Extractor(backend=backend, **option)
+
+
+@pytest.mark.parametrize("backend", ["bert", "gliner", "adaptner"])
 def test_model_backends_require_onnx_in_offline_wheel(backend):
     if getattr(anno_py, "__onnx_enabled__", False):
         pytest.skip("feature-unavailable assertion applies only to an offline wheel")
@@ -100,6 +107,8 @@ def test_fastino_capability_gate():
     if not anno_py.__fastino_enabled__:
         with pytest.raises(RuntimeError, match="Fastino-enabled source build"):
             anno_py.FastinoExtractor()
+        with pytest.raises(RuntimeError, match="Fastino-enabled source build"):
+            anno_py.Extractor(backend="gliner2-pii")
 
 
 def test_fastino_cache_miss_is_explicit(monkeypatch):

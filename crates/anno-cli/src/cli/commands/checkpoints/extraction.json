@@ -1,0 +1,282 @@
+[
+  {
+    "id": "adaptner",
+    "command": "anno extract --model adaptner",
+    "source": "https://huggingface.co/NAMAA-Space/KnowledgeGraphEval-2026-AdaptNER-AraBERTv02-Nested/tree/c3096335b1e8d00f51451e267b8034a0cc59876f",
+    "preparation": "scripts/export_adaptner.py",
+    "guide": "docs/models/adaptner.md",
+    "notes": "Set ADAPTNER_MODEL_DIR to the prepared ONNX directory. Independent BIO channels support overlapping Arabic mentions of different types."
+  },
+  {
+    "id": "albert",
+    "command": "BERT_ONNX_MODEL_PATH=\"$ALBERT_MODEL_PATH\" anno extract --model bert-onnx",
+    "source": "",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "A compatible local ALBERT token classifier uses the BERT ONNX graph interface. The separate evaluation factory also reads ALBERT_MODEL_PATH through its albert selector."
+  },
+  {
+    "id": "bert-large",
+    "command": "anno extract --model bert-onnx",
+    "source": "https://huggingface.co/protectai/bert-large-NER-onnx/tree/b7e9629704356133c212014d9729639884ee6d56",
+    "preparation": "scripts/qa/checkpoint_replay/models.json",
+    "guide": "scripts/qa/checkpoint_replay/README.md",
+    "notes": "The replay pins the full BERT-large graph. Set BERT_ONNX_MODEL_PATH to its prepared directory."
+  },
+  {
+    "id": "bert-onnx",
+    "command": "anno extract --model bert-onnx",
+    "source": "https://huggingface.co/protectai/bert-base-NER-onnx/tree/84d28ab2bc28401b4353b26033eb043c8c8a0739",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The ONNX token classifier reads the label mapping from config.json. BERT_ONNX_MODEL_PATH selects a local directory or Hub ID."
+  },
+  {
+    "id": "biomedical",
+    "command": "anno extract --model biomedical",
+    "source": "d4data/biomedical-ner-all",
+    "preparation": "scripts/export_biomedical_ner_to_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Set BIOMEDICAL_MODEL_PATH to the prepared ONNX directory for the biomedical label inventory."
+  },
+  {
+    "id": "candle-ner",
+    "command": "anno extract --model candle-ner",
+    "source": "dslim/bert-base-NER",
+    "preparation": "scripts/convert_pytorch_to_safetensors.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The candle feature loads BERT tokenizer and safetensors assets. The conversion utility handles compatible legacy PyTorch state dictionaries."
+  },
+  {
+    "id": "crf",
+    "command": "anno extract --model crf",
+    "source": "https://github.com/arclabs561/anno/blob/1ac5507868dd4e5ba3b2698a85f0cc749da9b912/crates/anno/src/backends/crf_weights.json",
+    "preparation": "scripts/train_crf_weights.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Enable the anno crate feature bundled-crf-weights to load the compact bundled parameters. The baseline can also run without them."
+  },
+  {
+    "id": "deberta-v3",
+    "command": "anno extract --model deberta-v3",
+    "source": "ficsort/deberta-v3-base-conll2003-ner",
+    "preparation": "scripts/export_deberta_ner_to_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Set DEBERTA_MODEL_PATH to the exported token-classification directory. The runtime uses the BERT ONNX interface."
+  },
+  {
+    "id": "gliner",
+    "command": "anno extract --model gliner",
+    "source": "onnx-community/gliner_small-v2.1",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The extraction CLI uses the ONNX shared-encoder span model. Entity types may be supplied at inference."
+  },
+  {
+    "id": "gliner-bi-edge",
+    "command": "anno extract --model gliner-poly",
+    "source": "knowledgator/gliner-bi-edge-v2.0",
+    "preparation": "scripts/export_gliner_poly_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Use --strategy manual for the compact bi-encoder export, then set GLINER_POLY_MODEL_PATH to its directory."
+  },
+  {
+    "id": "gliner-bi-large-v2",
+    "command": "anno extract --model gliner-poly",
+    "source": "knowledgator/gliner-bi-large-v2.0",
+    "preparation": "scripts/export_gliner_poly_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "This is the exporter’s default checkpoint. Use --strategy manual --max-width 12 for the documented width-12 graph and select it with GLINER_POLY_MODEL_PATH."
+  },
+  {
+    "id": "gliner-candle",
+    "command": "anno extract --model gliner-candle",
+    "source": "urchade/gliner_small-v2.1",
+    "preparation": "scripts/convert_pytorch_to_safetensors.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Experimental Candle loader. It requires compatible BERT tensors. Conversion to safetensors alone does not establish architecture compatibility."
+  },
+  {
+    "id": "gliner-multitask",
+    "command": "anno extract --model gliner-multitask",
+    "source": "onnx-community/gliner-multitask-large-v0.5",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The ONNX multitask model predicts entities. The relation path can use a separately prepared GLiREL model or heuristics."
+  },
+  {
+    "id": "gliner-pii",
+    "command": "anno extract --model gliner-pii",
+    "source": "knowledgator/gliner-pii-edge-v1.0",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Uses the GLiNER ONNX backend. Request the desired PII labels with --extract-types."
+  },
+  {
+    "id": "gliner-poly",
+    "command": "anno extract --model gliner-poly",
+    "source": "knowledgator/gliner-bi-large-v1.0",
+    "preparation": "scripts/export_gliner_poly_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Pass the v1.0 model ID explicitly when exporting. Set GLINER_POLY_MODEL_PATH to the prepared split encoder and fusion graphs."
+  },
+  {
+    "id": "gliner-relex",
+    "command": "anno extract --model gliner-relex",
+    "source": "knowledgator/gliner-relex-large-v1.0",
+    "preparation": "scripts/export_gliner_relex_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The entity-only ONNX export supports prompted entity extraction. Keep the matching schema sidecars alongside the graph."
+  },
+  {
+    "id": "gliner-relex-joint",
+    "command": "anno extract --model gliner-relex --extract-relations",
+    "source": "knowledgator/gliner-relex-large-v1.0",
+    "preparation": "scripts/export_gliner_relex_onnx.py",
+    "guide": "docs/eval/crossre-full-prompt-comparison.md",
+    "notes": "Export with --joint to include the trained relation head. Supply entity and directed predicate labels at inference."
+  },
+  {
+    "id": "gliner2-fastino",
+    "command": "cargo test -p anno --features gliner2-fastino --test gliner2_fastino_integration fastino_multi_v1_extracts_org_and_loc -- --ignored",
+    "source": "https://huggingface.co/jugaadsrl/gliner2-multi-v1-onnx/tree/4241d7c66b648e618c89c150bf4cf418d2f83159",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Rust GLiNER2Fastino uses a pinned eight-graph ONNX pipeline. The checkpoint integration test exercises organization and location extraction."
+  },
+  {
+    "id": "gliner2-fastino-candle",
+    "command": "cargo test -p anno --features gliner2-fastino-candle-cuda --test gliner2_fastino_candle_integration extraction_matches_python_spans_and_scores -- --ignored",
+    "source": "fastino/gliner2-multi-v1",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Experimental accelerator-only Candle implementation. This checkpoint test checks entity spans and scores. Select the Metal feature on Apple Silicon."
+  },
+  {
+    "id": "gliner2-pii",
+    "command": "anno extract --model gliner2-pii",
+    "source": "https://huggingface.co/jugaadsrl/gliner2-privacy-filter-PII-multi-onnx/tree/e594898629d452e8311796f5f329c7edbeda907c",
+    "preparation": "scripts/export_gliner2_pii_onnx.py",
+    "guide": "docs/models/gliner2-pii.md",
+    "notes": "The gliner2-fastino feature loads the eight FP32 graphs from the pinned release or an export in GLINER2_PII_MODEL_DIR."
+  },
+  {
+    "id": "gliner25",
+    "command": "anno extract --model gliner25",
+    "source": "https://huggingface.co/jugaadsrl/gliner2.5-multi-v1-onnx/tree/3de2c11f55853b7919f985a59bfc8df27b5ec991",
+    "preparation": "scripts/qa/checkpoint_replay/models.json",
+    "guide": "scripts/qa/checkpoint_replay/README.md",
+    "notes": "Set GLINER25_MODEL_DIR to the pinned FP32 boundary export. This native NER route requires gliner2-fastino and a shared 512-token text and schema budget."
+  },
+  {
+    "id": "gliner25-pytorch",
+    "command": "uv run scripts/gliner25_import.py letter.txt person organization",
+    "source": "https://huggingface.co/fastino/gliner2.5-multi-v1/tree/7b005274e82da37dcf1f5fd9d6a2ef413c6a004c",
+    "preparation": "scripts/gliner25_import.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The upstream long-text Python decoder writes checked Unicode spans as JSONL for anno dataset import."
+  },
+  {
+    "id": "glinerel-72m",
+    "command": "anno extract --model glinerel-72m",
+    "source": "https://huggingface.co/VAGOsolutions/SauerkrautLM-GLiNEREL-72m/tree/34c024bb2ea85326526f6c5d150b9afe8bbe4808",
+    "preparation": "",
+    "guide": "docs/models/glinerel-72m.md",
+    "notes": "The glinerel-fast CPU worker opens the pinned snapshot from the Hub cache or ANNO_GLINEREL_MODEL_DIR."
+  },
+  {
+    "id": "glirel",
+    "command": "anno extract --model gliner-multitask --extract-relations",
+    "source": "jackboyla/glirel-large-v0",
+    "preparation": "scripts/export_glirel_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The multitask adapter probes the local GLiREL ONNX export. Inspect edge provenance because it can fall back to heuristic relations."
+  },
+  {
+    "id": "hmm",
+    "command": "anno extract --model hmm",
+    "source": "https://github.com/arclabs561/anno/blob/1ac5507868dd4e5ba3b2698a85f0cc749da9b912/crates/anno/src/backends/hmm_params.json",
+    "preparation": "scripts/train_hmm_params.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Enable the anno crate feature bundled-hmm-params to load the compact bundled parameters. The baseline can also run without them."
+  },
+  {
+    "id": "kniv",
+    "command": "anno extract --model kniv",
+    "source": "https://huggingface.co/dragonscale-ai/kniv-v7-large-en/tree/44e6d50774a22ada4fd825e1c48663afb5fd7dc0",
+    "preparation": "scripts/download_kniv.py",
+    "guide": "docs/models/kniv.md",
+    "notes": "Requires the pinned local Python package and INT8 ONNX graphs. Directed facts are scoped to individual English windows."
+  },
+  {
+    "id": "modernbert",
+    "command": "anno extract --model bert-onnx",
+    "source": "https://huggingface.co/onnx-community/modernbert-ner-conll2003-ONNX/tree/feac2551592e650f9d952fe23839ca052b6fa096",
+    "preparation": "scripts/qa/checkpoint_replay/models.json",
+    "guide": "scripts/qa/checkpoint_replay/README.md",
+    "notes": "The replay pins the quantized graph. Set BERT_ONNX_MODEL_PATH to the prepared ModernBERT directory."
+  },
+  {
+    "id": "nuner",
+    "command": "anno extract --model nuner",
+    "source": "https://huggingface.co/deepanwa/NuNerZero_onnx/tree/40349bb15d985ced384bed5c35115fd70069f4b9",
+    "preparation": "scripts/export_nuner_to_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The default NuNER Zero graph scores words. NUNER_MODEL_PATH accepts compatible local exports or Hub IDs."
+  },
+  {
+    "id": "nuner-4k",
+    "command": "anno extract --model nuner",
+    "source": "https://huggingface.co/numind/NuNER_Zero-4k/tree/7a7cd8d65af2572c297054dbaf8f25c0d46da55d",
+    "preparation": "scripts/export_nuner_to_onnx.py",
+    "guide": "docs/eval/nuner-4k-labeled.md",
+    "notes": "Pass --model numind/NuNER_Zero-4k to the exporter and set NUNER_MODEL_PATH to the resulting FP32 Longformer export."
+  },
+  {
+    "id": "nuner-4k-pytorch",
+    "command": "uv run scripts/nuner_4k_import.py letter.txt person location",
+    "source": "https://huggingface.co/numind/NuNER_Zero-4k/tree/7a7cd8d65af2572c297054dbaf8f25c0d46da55d",
+    "preparation": "scripts/nuner_4k_import.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The Python adapter merges adjacent words, checks the 4,096-token prompt and text limit, and emits JSONL for anno dataset import."
+  },
+  {
+    "id": "nuner-span",
+    "command": "anno extract --model nuner",
+    "source": "https://huggingface.co/onnx-community/NuNER_Zero-span/tree/d1d6eec6228f60f75b3ffdea099b6841c0b16b56",
+    "preparation": "scripts/qa/checkpoint_replay/models.json",
+    "guide": "scripts/qa/checkpoint_replay/README.md",
+    "notes": "The replay pins the INT8 span classifier. Set NUNER_MODEL_PATH to the directory containing its graph, tokenizer and gliner_config.json."
+  },
+  {
+    "id": "otter-bi",
+    "command": "anno extract --model otter-bi",
+    "source": "https://huggingface.co/whoisjones/otter-bi-mmbert/tree/53e10a09bc71a2e45980a7a257233a28305a5777",
+    "preparation": "scripts/prepare_otter.py",
+    "guide": "docs/models/otter.md",
+    "notes": "Prepare the bi snapshot with scripts/prepare_otter.py bi DIR. The CPU Python worker uses 0.2 as its default threshold."
+  },
+  {
+    "id": "otter-cross",
+    "command": "anno extract --model otter-cross",
+    "source": "https://huggingface.co/whoisjones/otter-cross-mmbert/tree/8729188e4f5fc7948d0e9dfd7d7e6d36c2e7270d",
+    "preparation": "scripts/prepare_otter.py",
+    "guide": "docs/models/otter.md",
+    "notes": "Prepare the cross snapshot with scripts/prepare_otter.py cross DIR. The CPU Python worker uses 0.5 as its default threshold."
+  },
+  {
+    "id": "tplinker",
+    "command": "anno extract --model tplinker",
+    "source": "",
+    "preparation": "scripts/export_tplinker_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "A trained three-head checkpoint is required for neural extraction. The upstream evaluation weights are unavailable. Without the graph this selector can emit heuristic edges."
+  },
+  {
+    "id": "w2ner",
+    "command": "anno extract --model w2ner",
+    "source": "https://github.com/ljynlp/W2NER",
+    "preparation": "scripts/export_w2ner_to_onnx.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "Set W2NER_MODEL_PATH to a compatible local model. The simplified fixed-shape exporter changes the original head and needs compatible trained weights for meaningful predictions."
+  }
+]

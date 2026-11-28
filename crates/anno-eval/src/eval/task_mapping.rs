@@ -420,12 +420,16 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "ensemble" | "EnsembleNER" => &[Task::NER],
         "heuristic_crf" | "heuristic-crf" | "HeuristicCrfNER" => &[Task::NER],
 
+        "otter_cross" | "otter-cross" | "otter_bi" | "otter-bi" | "adaptner" | "gliner2_pii"
+        | "gliner2-pii" => &[Task::NER],
+        "kniv" | "glinerel_72m" | "glinerel-72m" => &[Task::NER, Task::RelationExtraction],
+
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
         "candle_ner" | "CandleNER" => &[Task::NER],
         "nuner" | "NuNER" | "nuner_4k" | "nunerzero4k" => &[Task::NER], // Also implements ZeroShotNER
         "b2ner" | "B2NER" => &[Task::NER],
-        "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
+        "biomedical" | "biomedical-ner" | "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
         "albert" | "ALBERTNER" => &[Task::NER],
 
         // Zero-shot NER backends (implement Model + ZeroShotNER)
@@ -550,6 +554,12 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // but it still advertises NER capability via `backend_tasks` and can be enabled by callers.
         // "pattern",
         // ML backends
+        "otter_cross",
+        "otter_bi",
+        "kniv",
+        "glinerel_72m",
+        "adaptner",
+        "gliner2_pii",
         "bert_onnx",
         "candle_ner",
         "nuner",
@@ -566,6 +576,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // New backends
         "tplinker",
         "gliner_poly",
+        "biomedical",
         "deberta_v3",
         "albert",
         "universal_ner",
@@ -630,9 +641,16 @@ impl TaskMapping {
             "hmm",
             "ensemble",
             "heuristic_crf",
+            "otter_cross",
+            "otter_bi",
+            "kniv",
+            "glinerel_72m",
+            "adaptner",
+            "gliner2_pii",
             "bert_onnx",
             "candle_ner",
             "nuner",
+            "biomedical",
             "deberta_v3",
             "albert",
             "gliner_onnx",

@@ -1,0 +1,37 @@
+[
+  {
+    "wb_id": "Q244",
+    "label": "Barbados",
+    "descr": "Caribbean country"
+  },
+  {
+    "wb_id": "Q142",
+    "label": "France",
+    "descr": "European country"
+  },
+  {
+    "wb_id": "Q84",
+    "label": "London",
+    "descr": "capital city of the United Kingdom"
+  },
+  {
+    "wb_id": "Q7186",
+    "label": "Marie Curie",
+    "descr": "physicist and chemist"
+  },
+  {
+    "wb_id": "Q90",
+    "label": "Paris",
+    "descr": "capital city of France"
+  },
+  {
+    "wb_id": "Q36",
+    "label": "Poland",
+    "descr": "European country"
+  },
+  {
+    "wb_id": "Q36844",
+    "label": "Rihanna",
+    "descr": "Barbadian singer"
+  }
+]

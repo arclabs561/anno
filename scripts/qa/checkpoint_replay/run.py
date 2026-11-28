@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import tempfile
 import time
+from http.client import IncompleteRead
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
@@ -24,10 +26,27 @@ def digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+def download_file(url, path):
+    for attempt in range(3):
+        try:
+            # Open in write mode on each attempt so a partial transfer cannot be appended.
+            with urlopen(url, timeout=180) as source, path.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            return
+        except HTTPError as error:
+            if error.code not in (408, 429, 500, 502, 503, 504) or attempt == 2:
+                raise
+        except (URLError, TimeoutError, ConnectionError, IncompleteRead):
+            if attempt == 2:
+                raise
+        time.sleep(2 ** attempt)
+
+
 def verify_assets(directory, spec, fetch):
     directory.mkdir(parents=True, exist_ok=True)
     for filename, item in spec["files"].items():
         target = directory / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists() and digest(target) == item["sha256"]:
             continue
         if not fetch:
@@ -36,8 +55,7 @@ def verify_assets(directory, spec, fetch):
         with tempfile.NamedTemporaryFile(dir=directory, delete=False) as download:
             temporary = Path(download.name)
         try:
-            with temporary.open("wb") as download, urlopen(url, timeout=180) as source:
-                shutil.copyfileobj(source, download)
+            download_file(url, temporary)
             if digest(temporary) != item["sha256"]:
                 raise ValueError(f"Artifact hash mismatch for {url}")
             os.replace(temporary, target)
@@ -130,7 +148,9 @@ def main():
             with tempfile.TemporaryDirectory(prefix="anno-verified-") as model_dir:
                 verified = Path(model_dir)
                 for filename in spec["files"]:
-                    (verified / filename).symlink_to(directory / filename)
+                    link = verified / filename
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.symlink_to(directory / filename)
                 for case in spec["cases"]:
                     observed = check_case(binary, verified, spec, case)
                     if args.aggregate:

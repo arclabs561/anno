@@ -1,13 +1,12 @@
 //! CPU inference with the optional `maverick-coref` Python runtime. One worker
 //! retains its model across documents. Supply prepared MES safetensors or an official Hub ID prepared in the local cache.
 use super::{CorefBackend, CorefCluster};
+use crate::backends::python_worker::Worker;
 use crate::{Error, Result};
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::ffi::{OsStr, OsString};
-use std::io::{self, BufRead, BufReader, Write};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 /// A persistent Maverick worker. Install `maverick-coref==1.0.7` in the selected
@@ -21,98 +20,6 @@ pub struct MaverickCoref {
     singletons: bool,
 }
 
-struct Worker {
-    child: Child,
-    requests: Sender<String>,
-    replies: Receiver<io::Result<String>>,
-}
-
-impl Worker {
-    fn start(python: &OsStr, checkpoint: &OsStr, timeout: Duration) -> Result<Self> {
-        let mut command = Command::new(python);
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-            command.process_group(0);
-        }
-        let mut child = command
-            .args(["-u", "-c", include_str!("maverick_worker.py")])
-            .arg(checkpoint)
-            .arg(include_str!("maverick_models.json"))
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|e| Error::model_init(format!("cannot start Maverick Python: {e}")))?;
-        let mut input = child.stdin.take().expect("piped stdin");
-        let mut output = BufReader::new(child.stdout.take().expect("piped stdout"));
-        let (requests, pending) = mpsc::channel::<String>();
-        let (completed, replies) = mpsc::channel();
-        let worker = Self {
-            child,
-            requests,
-            replies,
-        };
-
-        // The caller must be able to kill the child while either pipe is blocked,
-        // including a large request that fills stdin before the model reads it.
-        std::thread::Builder::new()
-            .name("maverick-io".into())
-            .spawn(move || loop {
-                let mut line = String::new();
-                let result = match output.read_line(&mut line) {
-                    Ok(0) => Err(io::Error::new(
-                        io::ErrorKind::UnexpectedEof,
-                        "worker exited",
-                    )),
-                    Ok(_) => Ok(line),
-                    Err(error) => Err(error),
-                };
-                let failed = result.is_err();
-                if completed.send(result).is_err() || failed {
-                    break;
-                }
-                let Ok(request) = pending.recv() else {
-                    break;
-                };
-                if let Err(error) = writeln!(input, "{request}").and_then(|()| input.flush()) {
-                    let _ = completed.send(Err(error));
-                    break;
-                }
-            })
-            .map_err(|e| Error::model_init(format!("cannot start Maverick I/O thread: {e}")))?;
-
-        let line = worker
-            .receive(timeout, "startup")
-            .map_err(Error::model_init)?;
-        if line.trim() != "\"ready\"" {
-            return Err(Error::model_init(
-                "Maverick did not send its ready frame; see worker stderr",
-            ));
-        }
-        Ok(worker)
-    }
-
-    fn receive(&self, timeout: Duration, stage: &str) -> std::result::Result<String, String> {
-        match self.replies.recv_timeout(timeout) {
-            Ok(Ok(line)) => Ok(line),
-            Ok(Err(error)) => Err(format!("Maverick {stage} failed: {error}")),
-            Err(mpsc::RecvTimeoutError::Timeout) => Err(format!("Maverick {stage} timed out")),
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                Err(format!("Maverick {stage} worker disconnected"))
-            }
-        }
-    }
-
-    fn request(&self, request: String, timeout: Duration) -> Result<Reply> {
-        self.requests
-            .send(request)
-            .map_err(|_| Error::inference("Maverick worker exited"))?;
-        let line = self.receive(timeout, "request").map_err(Error::inference)?;
-        serde_json::from_str(&line)
-            .map_err(|e| Error::inference(format!("invalid Maverick output: {e}")))
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Reply {
@@ -120,20 +27,13 @@ enum Reply {
     Error(String),
 }
 
-impl Drop for Worker {
-    fn drop(&mut self) {
-        if !matches!(self.child.try_wait(), Ok(Some(_))) {
-            // A wrapper or model helper may hold the pipes open after the
-            // interpreter dies. Signal only the group this adapter created.
-            #[cfg(unix)]
-            {
-                use rustix::process::{kill_process_group, Pid, Signal};
-                let _ = kill_process_group(Pid::from_child(&self.child), Signal::KILL);
-            }
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
-    }
+fn start_worker(python: &OsStr, checkpoint: &OsStr, timeout: Duration) -> Result<Worker> {
+    let mut command = Command::new(python);
+    command
+        .args(["-u", "-c", include_str!("maverick_worker.py")])
+        .arg(checkpoint)
+        .arg(include_str!("maverick_models.json"));
+    Worker::start(command, "Maverick", timeout)
 }
 
 impl MaverickCoref {
@@ -167,7 +67,7 @@ impl MaverickCoref {
         }
         let python = python.as_ref().to_owned();
         let checkpoint = checkpoint.as_ref().to_owned();
-        let worker = Worker::start(&python, &checkpoint, startup_timeout)?;
+        let worker = start_worker(&python, &checkpoint, startup_timeout)?;
         Ok(Self {
             python,
             checkpoint,
@@ -207,12 +107,9 @@ impl MaverickCoref {
                 "timed out waiting for the Maverick worker",
             ));
         }
-        if !slot
-            .as_mut()
-            .is_some_and(|w| matches!(w.child.try_wait(), Ok(None)))
-        {
+        if !slot.as_mut().is_some_and(|w| w.running()) {
             *slot = None;
-            *slot = Some(Worker::start(
+            *slot = Some(start_worker(
                 &self.python,
                 &self.checkpoint,
                 self.startup_timeout,
@@ -285,10 +182,9 @@ impl CorefBackend for MaverickCoref {
         "maverick"
     }
     fn is_available(&self) -> bool {
-        self.worker.try_lock().is_none_or(|mut slot| {
-            slot.as_mut()
-                .is_some_and(|worker| matches!(worker.child.try_wait(), Ok(None)))
-        })
+        self.worker
+            .try_lock()
+            .is_none_or(|mut slot| slot.as_mut().is_some_and(|worker| worker.running()))
     }
 }
 

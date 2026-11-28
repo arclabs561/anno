@@ -135,6 +135,18 @@ pub enum Commands {
     #[command(visible_alias = "x")]
     Extract(crate::cli::commands::ExtractArgs),
 
+    /// Link mentions against supplied catalog candidates with the ReLiK reader
+    Relik(commands::relik::RelikArgs),
+
+    /// Score directed relations between supplied entity clusters in a document
+    Glidre(commands::glidre::GlidreArgs),
+
+    /// Retrieve, rerank or import multilingual historical Wikidata links
+    Mhel(commands::mhel::MhelArgs),
+
+    /// Resolve coreference with the CorPipe one-stage checkpoint
+    Corpipe(commands::corpipe::CorpipeArgs),
+
     /// Extract a schema-constrained entity and relation graph with GLiNER2.5 JointIE
     Joint(commands::joint::JointArgs),
 
@@ -260,7 +272,7 @@ pub enum ModelBackend {
     Minimal,
     /// Automatic backend selection (currently stacked)
     Auto,
-    /// Stacked: Pattern + Heuristic (default)
+    /// Default stack combines pattern and heuristic layers with available ONNX models
     #[default]
     Stacked,
     /// CRF sequence labeling (classical ML)
@@ -282,6 +294,27 @@ pub enum ModelBackend {
     #[cfg(feature = "heuristic-fr")]
     #[value(alias = "heuristic_fr")]
     HeuristicFr,
+
+    /// Otter cross-encoder for prompted multilingual NER
+    #[value(name = "otter-cross")]
+    OtterCross,
+    /// Otter bi-encoder for prompted multilingual NER
+    #[value(name = "otter-bi")]
+    OtterBi,
+    /// Kniv English named entities and within-window facts
+    #[value(name = "kniv")]
+    Kniv,
+    /// GLiNEREL multilingual entity and relation extraction
+    #[value(name = "glinerel-72m")]
+    Glinerel72m,
+    /// AdaptNER Arabic nested entities (Wojood label inventory)
+    #[cfg(feature = "onnx")]
+    #[value(name = "adaptner")]
+    Adaptner,
+    /// GLiNER2 multilingual PII extraction with the Fastino ONNX backend
+    #[cfg(feature = "gliner2-fastino")]
+    #[value(name = "gliner2-pii")]
+    Gliner2Pii,
 
     // === ONNX Feature Required ===
     /// GLiNER via ONNX (enabled by default; disable with --no-default-features)
@@ -337,6 +370,15 @@ impl ModelBackend {
     /// Explicit checkpoint selector used by the NER backend, if configured.
     pub(super) fn checkpoint_override(self) -> Option<std::ffi::OsString> {
         let key: Option<&str> = match self {
+            Self::OtterCross => Some("OTTER_CROSS_MODEL_DIR"),
+            Self::OtterBi => Some("OTTER_BI_MODEL_DIR"),
+            Self::Kniv => Some("KNIV_MODEL_DIR"),
+            Self::Glinerel72m => Some("ANNO_GLINEREL_MODEL_DIR"),
+            #[cfg(feature = "onnx")]
+            Self::Adaptner => Some("ADAPTNER_MODEL_DIR"),
+            #[cfg(feature = "gliner2-fastino")]
+            Self::Gliner2Pii => Some("GLINER2_PII_MODEL_DIR"),
+
             #[cfg(feature = "onnx")]
             Self::BertOnnx => Some("BERT_ONNX_MODEL_PATH"),
             #[cfg(feature = "onnx")]
@@ -378,6 +420,12 @@ impl ModelBackend {
         {
             use anno_eval::eval::backend_factory::BackendFactory;
             let factory_name = match self {
+                Self::OtterCross | Self::OtterBi | Self::Kniv | Self::Glinerel72m => self.name(),
+                #[cfg(feature = "onnx")]
+                Self::Adaptner => self.name(),
+                #[cfg(feature = "gliner2-fastino")]
+                Self::Gliner2Pii => self.name(),
+
                 // Always available
                 Self::Pattern => "pattern",
                 Self::Heuristic => "heuristic",
@@ -428,6 +476,12 @@ impl ModelBackend {
         {
             use anno::{HeuristicNER, RegexNER, StackedNER};
             match self {
+                Self::OtterCross | Self::OtterBi | Self::Kniv | Self::Glinerel72m => anno_eval::eval::backend_factory::BackendFactory::create(self.name()).map_err(|error| error.to_string()),
+                #[cfg(feature = "onnx")]
+                Self::Adaptner => anno_eval::eval::backend_factory::BackendFactory::create(self.name()).map_err(|error| error.to_string()),
+                #[cfg(feature = "gliner2-fastino")]
+                Self::Gliner2Pii => anno_eval::eval::backend_factory::BackendFactory::create(self.name()).map_err(|error| error.to_string()),
+
                 // Always available
                 Self::Pattern => Ok(Box::new(RegexNER::new())),
                 Self::Heuristic => Ok(Box::new(HeuristicNER::new())),
@@ -554,11 +608,9 @@ impl ModelBackend {
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!(
                         "GLiNER-Candle model unavailable: {}\n\n\
-                         GLiNER Candle is experimental and has compatibility issues with\n\
-                         most GLiNER models due to non-standard weight formats.\n\n\
-                         Recommended: Use --model gliner (ONNX version) instead.\n\
-                         It works with all GLiNER models and provides better performance.",
-                        e
+                         The experimental Candle backend requires a compatible BERT tensor layout.\n  \
+                         For ONNX inference, build with the onnx feature and select --model gliner ({}).",
+                        e, anno::models::GLINER
                     )),
                 #[cfg(feature = "candle")]
                 Self::CandleNer => anno::backends::candle::CandleNER::from_pretrained(anno::DEFAULT_CANDLE_MODEL)
@@ -609,6 +661,15 @@ impl ModelBackend {
     /// Get the canonical string name for this backend.
     pub fn name(self) -> &'static str {
         match self {
+            Self::OtterCross => "otter-cross",
+            Self::OtterBi => "otter-bi",
+            Self::Kniv => "kniv",
+            Self::Glinerel72m => "glinerel-72m",
+            #[cfg(feature = "onnx")]
+            Self::Adaptner => "adaptner",
+            #[cfg(feature = "gliner2-fastino")]
+            Self::Gliner2Pii => "gliner2-pii",
+
             // Always available
             Self::Pattern => "pattern",
             Self::Heuristic => "heuristic",

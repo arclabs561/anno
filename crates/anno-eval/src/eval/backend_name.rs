@@ -28,6 +28,21 @@ pub enum BackendName {
     /// Stacked NER combining Pattern and Heuristic backends.
     Stacked,
 
+    /// Otter cross-encoder.
+    OtterCross,
+    /// Otter bi-encoder.
+    OtterBi,
+    /// Kniv structured extractor.
+    Kniv,
+    /// GLiNEREL joint entity and relation extractor.
+    GLiNEREL72m,
+    /// Arabic nested NER with AdaptNER.
+    #[cfg(feature = "onnx")]
+    AdaptNER,
+    /// GLiNER2 PII checkpoint.
+    #[cfg(feature = "gliner2-fastino")]
+    GLiNER2PII,
+
     // ONNX backends
     /// BERT-based NER via ONNX runtime.
     #[cfg(feature = "onnx")]
@@ -53,6 +68,9 @@ pub enum BackendName {
     /// GLiNER with polynomial attention via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERPoly,
+    /// Biomedical token classifier from a local ONNX export.
+    #[cfg(feature = "onnx")]
+    Biomedical,
     /// DeBERTa v3 NER via ONNX runtime.
     #[cfg(feature = "onnx")]
     DeBERTaV3,
@@ -90,6 +108,14 @@ impl BackendName {
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
+            BackendName::OtterCross => "otter_cross",
+            BackendName::OtterBi => "otter_bi",
+            BackendName::Kniv => "kniv",
+            BackendName::GLiNEREL72m => "glinerel_72m",
+            #[cfg(feature = "onnx")]
+            BackendName::AdaptNER => "adaptner",
+            #[cfg(feature = "gliner2-fastino")]
+            BackendName::GLiNER2PII => "gliner2_pii",
             BackendName::Pattern => "pattern",
             BackendName::Heuristic => "heuristic",
             BackendName::Stacked => "stacked",
@@ -109,6 +135,8 @@ impl BackendName {
             BackendName::GLiNER25 => "gliner25",
             #[cfg(feature = "onnx")]
             BackendName::GLiNERPoly => "gliner_poly",
+            #[cfg(feature = "onnx")]
+            BackendName::Biomedical => "biomedical",
             #[cfg(feature = "onnx")]
             BackendName::DeBERTaV3 => "deberta_v3",
             #[cfg(feature = "onnx")]
@@ -132,6 +160,14 @@ impl BackendName {
     #[must_use]
     pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
+            "otter_cross" | "otter-cross" => Some(BackendName::OtterCross),
+            "otter_bi" | "otter-bi" => Some(BackendName::OtterBi),
+            "kniv" => Some(BackendName::Kniv),
+            "glinerel_72m" | "glinerel-72m" => Some(BackendName::GLiNEREL72m),
+            #[cfg(feature = "onnx")]
+            "adaptner" => Some(BackendName::AdaptNER),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_pii" | "gliner2-pii" => Some(BackendName::GLiNER2PII),
             "pattern" | "patternner" | "regex" | "regexner" => Some(BackendName::Pattern),
             "heuristic" | "heuristicner" => Some(BackendName::Heuristic),
             "stacked" | "stackedner" => Some(BackendName::Stacked),
@@ -155,6 +191,8 @@ impl BackendName {
             }
             #[cfg(feature = "onnx")]
             "gliner_poly" | "glinerpoly" => Some(BackendName::GLiNERPoly),
+            #[cfg(feature = "onnx")]
+            "biomedical" | "biomedical-ner" | "biomedical_ner" => Some(BackendName::Biomedical),
             #[cfg(feature = "onnx")]
             "deberta_v3" | "debertav3" => Some(BackendName::DeBERTaV3),
             #[cfg(feature = "onnx")]
@@ -183,6 +221,14 @@ impl BackendName {
     pub fn all_available() -> Vec<Self> {
         #[allow(unused_mut)] // mut needed when onnx/candle features enabled
         let mut backends = vec![
+            BackendName::OtterCross,
+            BackendName::OtterBi,
+            BackendName::Kniv,
+            BackendName::GLiNEREL72m,
+            #[cfg(feature = "onnx")]
+            BackendName::AdaptNER,
+            #[cfg(feature = "gliner2-fastino")]
+            BackendName::GLiNER2PII,
             BackendName::Pattern,
             BackendName::Heuristic,
             BackendName::Stacked,
@@ -199,6 +245,7 @@ impl BackendName {
                 BackendName::W2NER,
                 BackendName::GLiNERMultitask,
                 BackendName::GLiNERPoly,
+                BackendName::Biomedical,
                 BackendName::DeBERTaV3,
                 BackendName::ALBERT,
                 BackendName::TPLinker,

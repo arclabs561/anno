@@ -6,6 +6,11 @@ use anno::available_backends;
 use anno::backends::catalog::{BackendInfo, BACKEND_CATALOG};
 use clap::{Parser, Subcommand};
 
+#[path = "checkpoints/mod.rs"]
+mod checkpoints;
+#[path = "models_explain.rs"]
+mod explain;
+
 /// List and compare available models
 #[derive(Parser, Debug)]
 pub struct ModelsArgs {
@@ -21,6 +26,20 @@ pub enum ModelsAction {
     #[command(visible_alias = "ls")]
     List,
 
+    /// Explain how a request selects a model using offline preflight.
+    Explain(explain::ExplainArgs),
+
+    /// Browse checkpoint sources, entry points and preparation recipes offline.
+    Checkpoints {
+        /// Show the recipe for a single checkpoint ID.
+        #[arg(value_name = "ID")]
+        id: Option<String>,
+
+        /// Output a JSON array of matching checkpoint records.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Show detailed information about a model
     #[command(visible_alias = "i")]
     Info {
@@ -33,22 +52,17 @@ pub enum ModelsAction {
     #[command(visible_alias = "c")]
     Compare,
 
-    /// Prefetch/download model artifacts into cache.
+    /// Prepare model artifacts for extraction.
     ///
-    /// This works by instantiating the model backend(s), which triggers the normal
-    /// “download if missing” paths (HF Hub / local cache) used by the rest of the CLI.
-    ///
-    /// Notes:
-    /// - If `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` is set, downloads will likely fail.
-    /// - For some backends (e.g. `deberta-v3`, `albert`) you must provide local ONNX exports
-    ///   via env vars (`DEBERTA_MODEL_PATH`, `ALBERT_MODEL_PATH`).
+    /// Hub-backed models load from cache or download missing files. Local-only
+    /// models validate a prepared export and workers also start their interpreter.
     #[command(visible_alias = "dl")]
     Download {
         /// One or more model backends to download (e.g., gliner, gliner_multitask, bert-onnx).
         #[arg(value_name = "MODEL", required = true)]
         models: Vec<String>,
 
-        /// Also prefetch the GLiNER multi-task relation-extraction model (when `gliner_multitask` is included).
+        /// Also validate the local GLiREL relation export used by GLiNER multi-task.
         #[arg(long, default_value_t = false)]
         include_relation: bool,
     },
@@ -64,6 +78,38 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         other => other,
     };
     ModelBackend::from_str(cli_name, true).ok()
+}
+
+fn prepare_backend(backend: super::super::parser::ModelBackend) -> Result<String, String> {
+    use super::super::parser::ModelBackend::*;
+
+    match backend {
+        Pattern | Heuristic | Minimal | Crf | Hmm | HeuristicCrf => {
+            return Ok("no checkpoint download required".into());
+        }
+        #[cfg(feature = "heuristic-fr")]
+        HeuristicFr => return Ok("no checkpoint download required".into()),
+        UniversalNer => {
+            return Ok("uses a configured LLM service with no local checkpoint to prepare".into())
+        }
+        _ => {}
+    }
+
+    let model = backend.create_model()?;
+    let runtime = model.runtime_name();
+    match backend {
+        Tplinker if runtime == "tplinker-heuristic" => Err(
+            "Only the TPLinker heuristic fallback is available. For neural weights, build with ONNX support and prepare the local export with scripts/export_tplinker_onnx.py.".into(),
+        ),
+        OtterCross | OtterBi | Kniv => Ok(format!("local checkpoint loaded by {runtime} worker")),
+        Tplinker => Ok(format!("local checkpoint loaded by {runtime}")),
+        #[cfg(feature = "onnx")]
+        Adaptner | Biomedical => Ok(format!("local export loaded by {runtime}")),
+        #[cfg(feature = "gliner2-fastino")]
+        Gliner25 => Ok(format!("local export loaded by {runtime}")),
+        Stacked | Auto | Ensemble => Ok(format!("{runtime} initialized (select a component backend to require its weights)")),
+        _ => Ok(format!("checkpoint loaded by {runtime}")),
+    }
 }
 
 /// Resolve a CLI spelling to the catalog entry used for informational output.
@@ -97,6 +143,8 @@ fn build_status(compiled: bool) -> String {
 /// Execute the models command.
 pub fn run(args: ModelsArgs) -> Result<(), String> {
     match args.action {
+        ModelsAction::Explain(args) => return explain::run(args),
+        ModelsAction::Checkpoints { id, json } => return checkpoints::run(id.as_deref(), json),
         ModelsAction::List => {
             println!();
             println!("{}", color("1;36", "Available Models"));
@@ -114,6 +162,9 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             println!(
                 "Use 'anno models info <MODEL>' for detailed information about a specific model."
             );
+            println!(
+                "Use 'anno models checkpoints' for checkpoint recipes and task-specific commands."
+            );
             println!();
         }
         ModelsAction::Info { model } => {
@@ -121,7 +172,15 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             println!("{}: {}", color("1;36", "Model Information"), model);
             println!();
 
-            let info = resolve_backend_metadata(&model).ok_or_else(|| {
+            let backend = resolve_backend_metadata(&model);
+            let recipe = checkpoints::find(backend.map_or(model.as_str(), |info| info.name))?;
+            if backend.is_none() {
+                if let Some(entry) = &recipe {
+                    checkpoints::print_details(entry);
+                    return Ok(());
+                }
+            }
+            let info = backend.ok_or_else(|| {
                 let backends_list: Vec<&str> = BACKEND_CATALOG.iter().map(|info| info.name).collect();
                 let suggestions = find_similar_models(&model, &backends_list);
                 if !suggestions.is_empty() {
@@ -161,6 +220,9 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
                     println!("    - {}", model_id);
                 }
             }
+            if let Some(entry) = &recipe {
+                checkpoints::print_details(entry);
+            }
             println!();
         }
         ModelsAction::Compare => {
@@ -190,61 +252,66 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             models,
             include_relation: _include_relation,
         } => {
-            if std::env::var("ANNO_NO_DOWNLOADS")
-                .ok()
-                .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                || std::env::var("HF_HUB_OFFLINE")
-                    .ok()
-                    .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            {
-                println!(
-                    "{} Downloads may fail because ANNO_NO_DOWNLOADS or HF_HUB_OFFLINE is set.",
-                    color("33", "warning:")
-                );
-            }
-
             println!();
-            println!("{}", color("1;36", "Downloading models"));
+            println!("{}", color("1;36", "Preparing model backends"));
             println!();
 
             let mut any_err = false;
             for m in models {
                 let Some(backend) = parse_model_backend(&m) else {
                     any_err = true;
-                    println!("{} Unknown model backend: {}", color("31", "error:"), m);
+                    if let Some(info) = resolve_backend_metadata(&m) {
+                        let compiled = compiled_backends().get(info.name).copied().unwrap_or(false);
+                        if let Some(feature) = info.feature.filter(|_| !compiled) {
+                            println!(
+                                "{} {} requires Cargo feature {}",
+                                color("31", "error:"),
+                                info.name,
+                                feature
+                            );
+                        } else {
+                            println!(
+                                "{} {} has no download selector in this CLI build",
+                                color("31", "error:"),
+                                info.name
+                            );
+                        }
+                    } else {
+                        println!("{} Unknown model backend: {}", color("31", "error:"), m);
+                    }
                     continue;
                 };
 
                 print!("  {} {} ... ", color("36", "→"), backend.name());
-                match backend.create_model() {
-                    Ok(_model) => {
-                        println!("{}", color("32", "ok"));
-                    }
+                match prepare_backend(backend) {
+                    Ok(status) => println!("{}", color("32", &status)),
                     Err(e) => {
                         any_err = true;
                         println!("{}", color("31", "failed"));
                         println!("    {}", e);
+                        if let Ok(Some(recipe)) = checkpoints::find(backend.name()) {
+                            println!(
+                                "    Preparation guide: anno models checkpoints {}",
+                                recipe.id
+                            );
+                        }
                     }
                 }
 
-                // Optional: prefetch relation-capable GLiNER multi-task weights as well.
                 #[cfg(feature = "onnx")]
+                if _include_relation
+                    && matches!(backend, super::super::parser::ModelBackend::GlinerMultitask)
                 {
-                    use super::super::parser::ModelBackend;
-
-                    if _include_relation && matches!(backend, ModelBackend::GlinerMultitask) {
-                        // Match the dataset CLI’s default relation model id.
-                        let rel_id = "onnx-community/gliner-multitask-large-v0.5";
-                        print!("  {} gliner_multitask(relation) ... ", color("36", "→"));
-                        match anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
-                            rel_id,
-                        ) {
-                            Ok(_m) => println!("{}", color("32", "ok")),
-                            Err(e) => {
-                                any_err = true;
-                                println!("{}", color("31", "failed"));
-                                println!("    {}", e);
-                            }
+                    let dir = dirs::cache_dir()
+                        .unwrap_or_else(|| ".cache".into())
+                        .join("anno/models/glirel");
+                    print!("  {} glirel ... ", color("36", "→"));
+                    match anno::backends::glirel::GLiREL::from_local(&dir) {
+                        Ok(_) => println!("{}", color("32", "local relation export loaded")),
+                        Err(e) => {
+                            any_err = true;
+                            println!("{}", color("31", "failed"));
+                            println!("    {e}");
                         }
                     }
                 }
@@ -252,7 +319,9 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
 
             println!();
             if any_err {
-                return Err("Some downloads failed. See errors above.".to_string());
+                return Err(
+                    "Model preparation failed for one or more requested backends.".to_string(),
+                );
             }
         }
     }
@@ -263,6 +332,17 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn download_distinguishes_backends_without_checkpoint_artifacts() {
+        use super::super::super::parser::ModelBackend;
+        assert!(prepare_backend(ModelBackend::Pattern)
+            .unwrap()
+            .contains("no checkpoint"));
+        assert!(prepare_backend(ModelBackend::UniversalNer)
+            .unwrap()
+            .contains("LLM service"));
+    }
 
     #[test]
     fn metadata_resolver_preserves_cli_aliases() {

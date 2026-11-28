@@ -1,0 +1,50 @@
+{
+  "checkpoint": {
+    "id": "cea-list-ia/glidre_multi_v2",
+    "revision": "1881f8126342d47ac4b9b1c7049d4af99424d8f3",
+    "pytorch_model.bin_sha256": "85ad27c58fb9617f56b7ba7b0c4ab380784097ccb2380a28c5372de0039f919f",
+    "upstream_revision": "1a830bb2154fc503c968081e4d583d320fa5c309"
+  },
+  "sources": {
+    "split": {
+      "url": "https://raw.githubusercontent.com/tonytan48/Re-DocRED/ccfb54f5ddf5836027c87badda10f6dfc56efaac/data/dev_revised.json",
+      "sha256": "051ee1d057204a5d08ef5502beacdadf191245b5eaf0e29ec2c607cf002c016f"
+    },
+    "schema": {
+      "url": "https://huggingface.co/datasets/thunlp/docred/resolve/7985b4e0371e6c61a756feb41b7b27becf71c666/data/rel_info.json.gz",
+      "decompressed_sha256": "5ecf4e5e55c179fc83a3a3d19baa01efffecb26ba5edc0b4ac5a54ddf61fe3de"
+    }
+  },
+  "enrollment": {
+    "rank_prefix": "anno-glidre-redocred-dev-v1\u0000",
+    "split_documents": 500,
+    "size": 6,
+    "indices": [
+      89,
+      74,
+      459,
+      13,
+      456,
+      414
+    ],
+    "replacement": false
+  },
+  "settings": {
+    "threshold": 0.3,
+    "predicates": 96,
+    "multi_label": true,
+    "device": "cpu",
+    "endpoints": "supplied"
+  },
+  "result": {
+    "documents": 6,
+    "gold_clusters": 98,
+    "gold_relations": 227,
+    "predicted_relations": 28,
+    "matched_relations": 10,
+    "precision": 0.35714285714285715,
+    "recall": 0.04405286343612335,
+    "micro_f1": 0.0784313725490196
+  },
+  "unrepresentable_documents": 0
+}

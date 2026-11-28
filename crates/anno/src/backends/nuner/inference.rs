@@ -114,6 +114,16 @@ impl NuNER {
         crate::backends::hf_loader::hub_onnx_files_available(model, false, false)
     }
 
+    /// Check a checkpoint's prepared local files or current Hub cache without loading it.
+    #[cfg(feature = "onnx-local")]
+    pub fn cached_assets_available(model: &str) -> bool {
+        if model == crate::models::NUNER_ZERO_4K || std::path::Path::new(model).is_dir() {
+            Self::model_files_available(model)
+        } else {
+            crate::backends::hf_loader::cached_hub_onnx_files(model, false, false)
+        }
+    }
+
     /// Whether the graph and tokenizer for the local 4k export are installed.
     #[cfg(feature = "onnx-local")]
     #[must_use]

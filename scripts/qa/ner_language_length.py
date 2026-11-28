@@ -13,6 +13,7 @@ from pathlib import Path
 import random
 import resource
 import subprocess
+import sys
 import tempfile
 import time
 from urllib.request import urlopen
@@ -268,6 +269,66 @@ def warm_predictions(worker, checkpoint, cases, cli_predict):
     return predictions, sorted(checked)
 
 
+def checkpoint_test_panel(args, cases, corpus):
+    """Replay the published worker checkpoints on the existing held-out cohorts."""
+    if args.calibrate or args.compare_heuristic or args.compare_fp32 or args.nuner_worker or args.precision != "fp32":
+        raise ValueError("Checkpoint replay uses fixed thresholds and FP32")
+    if not args.checkpoint or not args.checkpoint.is_dir():
+        raise ValueError("Provide --checkpoint pointing at the prepared snapshot")
+    root = Path(__file__).resolve().parents[2]
+    panel_id = hashlib.sha256("\n".join(case.fingerprint for case in cases).encode()).hexdigest()
+    baselines = json.loads((root / "docs/eval/ner-language-length.json").read_text())["corpora"]
+    expected = baselines[corpus]["panels"].get(str(args.per_cell))
+    if not expected or panel_id != expected["panel_sha256"]:
+        raise ValueError("Cohort differs from the published panel")
+    test = [case for case in cases if case.split == "test"]
+    checkpoint = args.checkpoint.resolve()
+    threshold = args.threshold if args.threshold is not None else (0.2 if args.backend == "otter-bi" else 0.5)
+    if not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be between zero and one")
+    report = {"dataset": corpus, "source_sha256": MULTINERD_HASHES if args.corpus == "multinerd" else HASHES,
+              "panel_sha256": panel_id, "cases": len(test), "backend": args.backend,
+              "checkpoint_sha256": digest(checkpoint / "model.safetensors"), "threshold": threshold,
+              "labels": list(LABELS)}
+    if args.backend == "glinerel-72m":
+        if not args.anno or threshold != 0.5:
+            raise ValueError("GLiNEREL batch parity requires --anno and its default threshold 0.5")
+        env = dict(os.environ, ANNO_NO_DOWNLOADS="1", ANNO_GLINEREL_MODEL_DIR=str(checkpoint),
+                   ANNO_GLINEREL_PYTHON=sys.executable)
+        payload = "".join(json.dumps({"id": c.fingerprint, "text": c.text}) + "\n" for c in test)
+        output = subprocess.run([str(args.anno.resolve()), "batch", "--stdin", "--format", "jsonl",
+                                 "--model", args.backend, "--quiet"], text=True, input=payload,
+                                stdout=subprocess.PIPE, check=True, env=env)
+        records = [json.loads(line) for line in output.stdout.splitlines()]
+        by_id = {r["id"]: r for r in records}
+        if len(records) != len(test) or set(by_id) != {c.fingerprint for c in test}:
+            raise ValueError("Unexpected or missing batch document IDs")
+        reference, _ = predictor(argparse.Namespace(**{**vars(args), "backend": "sauerkraut"}))
+        predictions = []
+        for case in test:
+            row = by_id[case.fingerprint]
+            pred = spans(case.text, row["entities"], "type")
+            if (row["model"] != args.backend or row["runtime_model"] != args.backend
+                    or row["source_sha256"] != hashlib.sha256(case.text.encode()).hexdigest()
+                    or pred != reference(case.text, threshold)[0]):
+                raise ValueError(f"GLiNEREL source, producer or span parity failed for {case.fingerprint}")
+            predictions.append(pred)
+        report.update(exact_span_parity=len(test), cli_sha256=digest(args.anno))
+    else:
+        worker = root / "crates/anno/src/backends/otter"
+        variant = args.backend.removeprefix("otter-")
+        payload = "".join(json.dumps({"text": c.text, "labels": list(LABELS), "threshold": threshold}) + "\n" for c in test)
+        output = subprocess.run([sys.executable, str(worker / "worker.py"), str(checkpoint), variant,
+                                 (worker / "models.json").read_text()], input=payload, text=True,
+                                stdout=subprocess.PIPE, check=True)
+        ready, *rows = [json.loads(line) for line in output.stdout.splitlines()]
+        if ready != "ready" or any("ok" not in row for row in rows):
+            raise ValueError("Otter worker returned an initialization or inference error")
+        predictions = [spans(case.text, row["ok"], "label") for case, row in zip(test, rows, strict=True)]
+    report.update(summary([counts(c.gold, pred) for c, pred in zip(test, predictions, strict=True)]))
+    return report
+
+
 def run(args):
     if args.per_cell < 1:
         raise ValueError("per-cell budget must be positive")
@@ -292,6 +353,10 @@ def run(args):
             else:
                 rows = source_rows(args.data_dir, f"{split}.{lang}", args.fetch)
             cases.extend(select(rows, split, lang, used, args.per_cell, corpus=args.corpus, lengths=lengths))
+    if args.backend in ("otter-cross", "otter-bi", "glinerel-72m"):
+        return checkpoint_test_panel(args, cases, corpus)
+    if getattr(args, "threshold", None) is not None:
+        raise ValueError("--threshold is for the Otter or GLiNEREL checkpoint replay")
     predict, identity = predictor(args)
     warm = None
     if args.nuner_worker:
@@ -389,7 +454,8 @@ def main():
     p.add_argument("--data-dir", type=Path, required=True)
     p.add_argument("--fetch", action="store_true", help="Fetch missing pinned data into an external cache")
     p.add_argument("--anno", type=Path)
-    p.add_argument("--backend", choices=("heuristic", "crf", "hmm", "nuner", "bert-onnx", "sauerkraut"), required=True)
+    p.add_argument("--backend", choices=("heuristic", "crf", "hmm", "nuner", "bert-onnx", "sauerkraut", "otter-cross", "otter-bi", "glinerel-72m"), required=True)
+    p.add_argument("--threshold", type=float, help="Threshold for Otter or GLiNEREL; defaults to the checkpoint setting")
     p.add_argument("--checkpoint", type=Path)
     p.add_argument("--nuner-worker", type=Path, help="Use the nuner_panel Rust example and verify against --anno")
     p.add_argument("--precision", choices=("fp32", "bf16"), default="fp32",

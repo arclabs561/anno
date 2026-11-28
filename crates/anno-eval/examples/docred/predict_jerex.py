@@ -1,17 +1,59 @@
 """Run the upstream JEREX joint model with a local checkpoint on CPU.
 
 Give Python access to the lavis-nlp/jerex checkout (e.g. via PYTHONPATH).
-Input is a DocRED-format array. Only titles and sentence tokens enter inference.
-The published DocRED joint checkpoint supplies the task schema and thresholds.
-Output uses its joint-mode predictions.json schema, accepted by score_jerex.py.
+Use --input-format text for one UTF-8 document or pass tokenized JSON by default.
+The published checkpoint supplies the entity types, predicates and thresholds.
+The output uses JEREX joint-mode predictions.json with document-wide token spans.
+Text input also records exact Unicode character offsets into the original text.
 """
 
 import argparse
 import hashlib
 import json
+import re
+import sys
+from itertools import accumulate
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import is_zipfile
+
+
+def text_document(text, title):
+    """Create upstream sentence tokens directly from unchanged Unicode source text."""
+    sentences = []
+    spans = []
+    terminator = False
+    previous_end = 0
+    for match in re.finditer(r"\w+|[^\w\s]", text):
+        token = match.group()
+        gap = text[previous_end:match.start()]
+        if not sentences or re.search(r"[\r\n\u0085\u2028\u2029]", gap) or (gap and terminator):
+            sentences.append([])
+            terminator = False
+        sentences[-1].append(token)
+        spans.append(match.span())
+        terminator = token in ".?!。！？" or (terminator and token in "\"'”’»)]}")
+        previous_end = match.end()
+    if not spans:
+        raise ValueError("Text input must contain at least one non-whitespace token")
+    return {"title": title, "sents": sentences, "source_text": text, "token_char_spans": spans}
+
+
+def attach_text_offsets(row, document):
+    """Keep upstream token indices and add verified ranges into raw input text."""
+    tokens = [token for sentence in document["sents"] for token in sentence]
+    if row["tokens"] != tokens:
+        raise ValueError("JEREX output tokens differ from the raw input tokens")
+    spans = document["token_char_spans"]
+    row["source_text"] = document["source_text"]
+    row["token_char_spans"] = spans
+    row["sentence_token_ends"] = list(accumulate(map(len, document["sents"])))
+    for mention in row["mentions"]:
+        start, end = mention["start"], mention["end"]
+        if not 0 <= start < end <= len(spans):
+            raise ValueError(f"Invalid JEREX mention token span [{start}, {end})")
+        mention["char_start"] = spans[start][0]
+        mention["char_end"] = spans[end - 1][1]
 
 
 class CheckpointMetadata:
@@ -47,7 +89,8 @@ def load_inference_state(model, state):
     model.load_state_dict(state, strict=True, assign=can_assign)
 
 
-def predict(model_dir, documents, output, include_mention_scores=False, observer=None, relation_threshold=None):
+def predict(model_dir, documents, output, include_mention_scores=False, observer=None, relation_threshold=None,
+            include_text_offsets=False):
     import torch
     from jerex import models
     from jerex.datasets import DocREDDataset
@@ -102,12 +145,13 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
     predictions = []
     mention_scores = []
     with torch.inference_mode():
-        for index in range(len(dataset)):
-            batch = collate_fn_padding([dataset[index]])
-            encoded_length = batch["encodings"].shape[-1]
+        for index, parsed in enumerate(dataset.documents):
+            # The upstream sampler allocates a wordpiece mask for each candidate span.
+            encoded_length = len(parsed.encodings)
             if encoded_length > position_ids.shape[-1]:
                 raise ValueError(f"{documents[index]['title']}: {encoded_length} wordpieces exceed "
                                  f"checkpoint capacity {position_ids.shape[-1]}")
+            batch = collate_fn_padding([dataset[index]])
             result = model(**batch, inference=True, max_spans=32, max_coref_pairs=128, max_rel_pairs=64)
             if observer is not None:
                 # Diagnostics see annotations only after the unmodified forward pass.
@@ -125,6 +169,8 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
         rows = json.loads(staged.read_text(encoding="utf-8"))
         for row, document in zip(rows, documents, strict=True):
             row["title"] = document["title"]
+            if include_text_offsets:
+                attach_text_offsets(row, document)
             if relation_threshold is not None:
                 row["relation_threshold"] = relation_threshold
         if include_mention_scores:
@@ -143,13 +189,29 @@ def predict(model_dir, documents, output, include_mention_scores=False, observer
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model_dir", type=Path)
-    parser.add_argument("documents", type=Path)
+    parser.add_argument("documents", type=Path, help="Tokenized JSON array or one UTF-8 text file (- for text on stdin)")
+    parser.add_argument("--input-format", choices=("tokenized", "text"), default="tokenized",
+                        help="Default: JSON array of {title, sents}. Use text for one ordinary document.")
+    parser.add_argument("--title", help="Title for text input (defaults to the filename, or stdin)")
     parser.add_argument("predictions", type=Path)
     parser.add_argument("--mention-scores", action="store_true", help="Include the trained mention detector probabilities")
     parser.add_argument("--relation-threshold", type=float, help="explicit sigmoid cutoff, defaults to the checkpoint setting")
     args = parser.parse_args()
-    predict(args.model_dir, json.loads(args.documents.read_text(encoding="utf-8")), args.predictions, args.mention_scores,
-            relation_threshold=args.relation_threshold)
+    raw = args.input_format == "text"
+    if args.title is not None and not raw:
+        parser.error("--title is only used with --input-format text")
+    if raw:
+        stdin = args.documents == Path("-")
+        content = sys.stdin.buffer.read() if stdin else args.documents.read_bytes()
+        try:
+            title = args.title if args.title is not None else ("stdin" if stdin else args.documents.name)
+            documents = [text_document(content.decode("utf-8"), title)]
+        except ValueError as error:
+            parser.error(str(error))
+    else:
+        documents = json.loads(args.documents.read_text(encoding="utf-8"))
+    predict(args.model_dir, documents, args.predictions, args.mention_scores,
+            relation_threshold=args.relation_threshold, include_text_offsets=raw)
 
 
 if __name__ == "__main__":
