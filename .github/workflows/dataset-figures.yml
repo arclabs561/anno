@@ -18,6 +18,7 @@ on:
       - scripts/qa/*vira*.py
       - scripts/qa/*agcner*.py
       - scripts/qa/*histnero*.py
+      - scripts/qa/*norne*.py
       - scripts/plot_histnero_person_errors.py
       - scripts/qa/fixtures/vira-dialog-act-sources.json
       - scripts/qa/test_pack_*.py
@@ -48,6 +49,7 @@ on:
       - crates/anno-cli/src/cli/commands/dataset/**
       - crates/anno-cli/src/cli/commands/figure_catalog.rs
       - crates/anno-eval/src/eval/dataset_registry.rs
+      - crates/anno-eval/src/eval/loader/norne.rs
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
@@ -81,6 +83,7 @@ on:
       - scripts/qa/*vira*.py
       - scripts/qa/*agcner*.py
       - scripts/qa/*histnero*.py
+      - scripts/qa/*norne*.py
       - scripts/plot_histnero_person_errors.py
       - scripts/qa/fixtures/vira-dialog-act-sources.json
       - scripts/qa/test_pack_*.py
@@ -110,6 +113,7 @@ on:
       - crates/anno-cli/src/cli/commands/dataset/**
       - crates/anno-cli/src/cli/commands/figure_catalog.rs
       - crates/anno-eval/src/eval/dataset_registry.rs
+      - crates/anno-eval/src/eval/loader/norne.rs
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
@@ -126,6 +130,10 @@ on:
       - docs/eval/wnut-*.csv
   workflow_dispatch:
     inputs:
+      with_norne_replay:
+        description: Replay all six pinned NorNE publisher files and verify the recorded measurements
+        type: boolean
+        default: false
       with_cache_audit:
         description: Verify the configured cache inventory and pinned WikiGold input
         type: boolean
@@ -164,6 +172,9 @@ jobs:
           python3 -m unittest discover -s scripts/qa/joint_baseline -p 'test_relex_*.py'
           python3 scripts/qa/vira_majority_paired.py --output "$RUNNER_TEMP/vira-majority-paired.json"
           cmp "$RUNNER_TEMP/vira-majority-paired.json" docs/eval/vira-majority-paired.json
+          python3 scripts/qa/norne_source_paired.py --output "$RUNNER_TEMP/norne-source-paired.json"
+          cmp "$RUNNER_TEMP/norne-source-paired.json" docs/eval/norne-source-paired.json
+          python3 -m unittest discover -s scripts/qa -p 'test_*norne*.py'
           for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py test_offline_native_cache.py 'test_agcner*.py' test_s3_destinations.py test_cache_source_evidence.py 'test_*vira*.py' 'test_*english_ner_source_replay.py' 'test_pack_*.py'; do
             python3 -m unittest discover -s scripts/qa -p "$pattern"
           done
@@ -173,6 +184,22 @@ jobs:
           uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p 'test_dataset_*.py'
           uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p 'test_*histnero*.py'
           python3 -m unittest discover -s scripts/qa -p test_genia_nesting_counts.py
+      - name: Replay the complete NorNE release from its publisher
+        if: github.event_name == 'workflow_dispatch' && inputs.with_norne_replay
+        run: |
+          cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
+          target=$(cargo metadata --locked --no-deps --format-version=1 | python3 -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')
+          anno="$target/debug/anno"
+          study=$(mktemp -d "$RUNNER_TEMP/norne.XXXXXXXX")
+          python3 scripts/build_offline_native_cache.py "$study/cache" --anno "$anno" --dataset NorNE --fetch
+          archive="$study/cache/anno-native-cache-dataset-NorNE.zip"
+          python3 scripts/qa/norne_source_replay.py --archive "$archive" --anno "$anno" \
+            --output "$study/norne-source-replay.json" --errors-output "$study/norne-test-errors.json"
+          python3 scripts/qa/norne_place_review.py --archive "$archive" --anno "$anno" \
+            --replay "$study/norne-source-replay.json" --output "$study/norne-place-review.json"
+          for report in norne-source-replay norne-test-errors norne-place-review; do
+            cmp "$study/$report.json" "docs/eval/$report.json"
+          done
       - name: Render and compare the published figures
         id: figures
         run: |

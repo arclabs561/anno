@@ -35,16 +35,16 @@ fn strict_scoring_counts_duplicate_emissions() {
 #[test]
 fn bio_sentence_support_depends_on_the_opening_tag() {
     for (first_tag, expected) in [("B-PER", 1), ("I-PER", 0)] {
-        let sentence = AnnotatedSentence {
-            source_dataset: DatasetId::CoNLL2003Sample,
-            tokens: [("Jo", first_tag), ("Lee", "I-PER")]
+        let sentence = AnnotatedSentence::from_tokens(
+            DatasetId::CoNLL2003Sample,
+            [("Jo", first_tag), ("Lee", "I-PER")]
                 .into_iter()
                 .map(|(word, tag)| AnnotatedToken {
                     text: word.into(),
                     ner_tag: tag.into(),
                 })
                 .collect(),
-        };
+        );
         assert_eq!(sentence.entities().len(), expected);
     }
 }

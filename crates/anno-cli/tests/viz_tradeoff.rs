@@ -91,6 +91,18 @@ fn invalid_reports_leave_existing_input_and_output_intact() {
             STUDY.replace("\"correct\":1", "\"correct\":2"),
             "points[0].correct",
         ),
+        (
+            STUDY.replace("\"series\"", "\"x_axis\":\"reviews\",\"series\""),
+            "unknown variant",
+        ),
+        (
+            STUDY.replace("\"series\"", "\"x_axis\":null,\"series\""),
+            "invalid operating-point JSON",
+        ),
+        (
+            STUDY.replace("\"series\"", "\"x_axis\":{\"suggestions\":null},\"series\""),
+            "invalid operating-point JSON",
+        ),
     ] {
         let output = tradeoff(path, &["-o", "published.svg"], input.as_bytes());
         assert!(!output.status.success() && output.stdout.is_empty());
@@ -103,4 +115,35 @@ fn invalid_reports_leave_existing_input_and_output_intact() {
     let same = tradeoff(path, &["study.json", "-o", "./study.json"], &[]);
     assert!(!same.status.success() && String::from_utf8_lossy(&same.stderr).contains("same file"));
     assert_eq!(fs::read_to_string(path.join("study.json")).unwrap(), STUDY);
+}
+
+#[test]
+fn saved_review_budget_applies_until_overridden() {
+    let dir = tempfile::tempdir().unwrap();
+    let render = |args: &[&str], input: &[u8]| successful(tradeoff(dir.path(), args, input));
+    let legacy_svg = render(&[], STUDY.as_bytes());
+    let saved = render(
+        &["--x-axis", "suggestions", "--format", "json"],
+        STUDY.as_bytes(),
+    );
+    let counts: serde_json::Value = serde_json::from_str(&saved).unwrap();
+    assert_eq!(counts["x_axis"], "suggestions");
+    assert_eq!(render(&["--format", "json"], saved.as_bytes()), saved);
+    let suggestions = render(&[], saved.as_bytes());
+    assert!(suggestions.contains("Suggestions / 100"));
+    assert_eq!(
+        suggestions,
+        render(&["--x-axis", "suggestions"], STUDY.as_bytes())
+    );
+    assert_eq!(
+        render(&["--x-axis", "unmatched"], saved.as_bytes()),
+        legacy_svg
+    );
+    let changed = render(
+        &["--x-axis", "unmatched", "--format", "json"],
+        saved.as_bytes(),
+    );
+    let counts: serde_json::Value = serde_json::from_str(&changed).unwrap();
+    assert_eq!(counts["x_axis"], "unmatched");
+    assert_eq!(render(&["--format", "json"], changed.as_bytes()), changed);
 }

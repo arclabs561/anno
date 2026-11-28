@@ -62,7 +62,20 @@ class NativeCacheTest(unittest.TestCase):
         )
         self.assertEqual(payload["rows"][1]["row_idx"], 1)
 
-    def test_norne_reads_name_attribute_only_for_word_rows(self):
+    def test_norne_profiles_install_the_pinned_original_as_the_cache(self):
+        norne = next(
+            item for item in json.loads(native.INDEX.read_text())["datasets"]
+            if item["id"] == "NorNE"
+        )
+        self.assertEqual(len(norne["inputs"]), 6)
+        for item in norne["inputs"]:
+            with self.subTest(item["variant"]):
+                profile = native.profile_record(norne, item)
+                self.assertEqual(profile["path"], profile["original_path"])
+                self.assertEqual(profile["cache_sha256"], item["sha256"])
+                self.assertIsNone(item.get("projection"))
+
+    def test_legacy_norne_projection_reads_name_attribute_only_for_word_rows(self):
         source = b"# source reference\n1-2\txy\t_\t_\t_\t_\t_\t_\t_\t_\n1\tx\t_\tX\t_\t_\t_\t_\t_\tSpaceAfter=No|name=B-PER\n2\ty\t_\tX\t_\t_\t_\t_\t_\tname=I-PER\n"
         self.assertEqual(
             native.native_bytes("norne-bio", source), b"x\tB-PER\ny\tI-PER\n"

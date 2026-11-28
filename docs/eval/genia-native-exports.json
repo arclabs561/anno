@@ -3,9 +3,9 @@
   "input": "All four gold IOB2 layers. Tokens within each sentence are joined by one ASCII space.",
   "native_build": {
     "anno_eval_version": "0.16.0",
-    "example_rs_sha256": "e1a628c34457b8edaa6e3377e921085b93fab84ff65e0f1496bcb6fa8b78794a",
-    "export_rs_sha256": "a4df802cbfba4d8891c8fb70bb3ec4b8f736dece89687523f63f399a0795383e",
-    "loader_rs_sha256": "b12bb4f18d333f9e2afce55044d001077c02e11f25230332c8707c6e761ec5e5"
+    "example_rs_sha256": "7e32dfe9c49a1e185ff51a232270f58485b5b0eba03bb718803e2b3117487863",
+    "export_rs_sha256": "f924fe657666ca11fab377a31a91498f18213de5f989ee11638c892ffa257f16",
+    "loader_rs_sha256": "42a10b541307f7a34697e34e3d1a8bec03f980b981bd105b5ef53925c4034132"
   },
   "checks_per_sentence": [
     "Decoded anno::export::to_html markup recovers the entire input text.",

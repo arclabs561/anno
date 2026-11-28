@@ -58,10 +58,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             "example_rs_sha256": sha256(include_bytes!("genia_export.rs")),
         })
     )?;
-    let mut layers: [AnnotatedSentence; 4] = std::array::from_fn(|_| AnnotatedSentence {
-        tokens: Vec::new(),
-        source_dataset: DatasetId::GENIANested,
-    });
+    let mut layers: [AnnotatedSentence; 4] =
+        std::array::from_fn(|_| AnnotatedSentence::from_tokens(DatasetId::GENIANested, Vec::new()));
     let mut number = 1;
     for (line_index, line) in io::stdin().lock().lines().enumerate() {
         let line = line?;

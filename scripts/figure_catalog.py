@@ -9,23 +9,17 @@ NAME = "figure-catalog.json"
 SCHEMA = "anno.figure-catalog/v1"
 
 
-def studies(evidence, native_inputs):
+def registered_studies(evidence, native_inputs):
+    """Only a listed study may contribute a portable report to the published bundle."""
     descriptors = csv_rows(evidence / "figure-studies.csv")
     guides = {row["study"]: row for row in descriptors}
     if len(guides) != len(descriptors):
         raise ValueError("Duplicate study ID in figure-studies.csv")
-    paths = sorted(native_inputs)
-    missing = guides.keys() - {p.stem for p in paths}
+    paths = {p.stem: p for p in native_inputs}
+    missing = guides.keys() - paths.keys()
     if missing:
         raise ValueError(f"Missing native inputs listed in figure-studies.csv: {', '.join(sorted(missing))}")
-    for path in paths:
-        descriptor = guides.get(path.stem, {})
-        yield {
-            "id": path.stem,
-            "datasets": [value for value in descriptor.get("datasets", "").split("|") if value],
-            "guide": descriptor.get("guide", ""),
-            "report": json.loads(path.read_text(encoding="utf-8")),
-        }
+    return {paths[name]: guides[name] for name in sorted(guides)}
 
 
 def datasets(rendered):
@@ -65,13 +59,21 @@ def datasets(rendered):
         }
 
 
-def write_catalog(evidence, rendered, native_inputs):
+def write_catalog(evidence, rendered, studies):
     survey = json.loads((evidence / "dataset-ci-survey.json").read_text(encoding="utf-8"))
     catalog = {
         "schema": SCHEMA,
         "ci_survey_day": survey["day_utc"],
         "datasets": list(datasets(rendered)),
-        "studies": list(studies(evidence, native_inputs)),
+        "studies": [
+            {
+                "id": path.stem,
+                "datasets": [value for value in row["datasets"].split("|") if value],
+                "guide": row["guide"],
+                "report": json.loads((rendered / path.name).read_text(encoding="utf-8")),
+            }
+            for path, row in studies.items()
+        ],
     }
     (rendered / NAME).write_text(
         json.dumps(catalog, ensure_ascii=False, allow_nan=False, indent=2) + "\n",

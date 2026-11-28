@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>How many mislabeled places does a NorNE review find?</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" width="560" height="883" viewBox="0 0 560 883" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">How many mislabeled places does a NorNE review find?</title><desc id="chart-desc">Horizontal position counts all suggestions sent to review. Rates are per 100 PER suggestions. Settings with identical counts share a mark. Bokmål test has 1,219 PER suggestions and 265 gold items. After i or fra has 106 correct, 68 unmatched, and 174 total suggestions. All PER suggestions has 265 correct, 954 unmatched, and 1,219 total suggestions. Nynorsk test has 945 PER suggestions and 182 gold items. After i or fra has 102 correct, 57 unmatched, and 159 total suggestions. All PER suggestions has 182 correct, 763 unmatched, and 945 total suggestions. </desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:15px}.heading{font-size:24px;font-weight:700}.cohort{font-size:20px;font-weight:700}.scope,.counts,.axis{fill:#405963}.label,.axis-title{font-weight:700}.axis{font-size:16px}.grid,.rule{fill:none;stroke:#d8e2e3}.frontier{fill:none;stroke:#41877f;stroke-width:2}.optimal{fill:#006867;stroke:white;stroke-width:1.4}.dominated{fill:white;stroke:#425b63;stroke-width:1.6}.leader{fill:none;stroke:#9aaeb0;stroke-width:.9}</style>
+<rect width="560" height="883" fill="white"/><text x="18" y="31" class="heading">How many mislabeled places does</text>
+<text x="18" y="59" class="heading">a NorNE review find?</text>
+<text x="18" y="87" class="scope">Horizontal position counts all suggestions sent to review.</text>
+<text x="18" y="106" class="scope">Rates are per 100 PER suggestions.</text>
+<text x="18" y="125" class="scope">Filled points give the most correct matches at or below the</text>
+<text x="18" y="144" class="scope">stated budget.</text>
+<path d="M18 170H542" class="rule"/>
+<text x="18" y="196" class="cohort">Bokmål test</text>
+<text x="18" y="219" class="scope">1,219 PER suggestions · 265 gold</text>
+<text x="69" y="250" class="axis-title">Correct / 100</text>
+<path d="M69 464.00H299" class="grid"/><text x="62" y="469.00" text-anchor="end" class="axis">0</text>
+<path d="M69 397.33H299" class="grid"/><text x="62" y="402.33" text-anchor="end" class="axis">10</text>
+<path d="M69 330.67H299" class="grid"/><text x="62" y="335.67" text-anchor="end" class="axis">20</text>
+<path d="M69 264.00H299" class="grid"/><text x="62" y="269.00" text-anchor="end" class="axis">30</text>
+<path d="M69.00 264V464" class="grid"/><text x="69.00" y="483" text-anchor="middle" class="axis">0</text>
+<path d="M184.00 264V464" class="grid"/><text x="184.00" y="483" text-anchor="middle" class="axis">50</text>
+<path d="M299.00 264V464" class="grid"/><text x="299.00" y="483" text-anchor="middle" class="axis">100</text>
+<text x="299" y="504" text-anchor="end" class="axis-title">Suggestions / 100</text>
+<path d="M101.83 406.03H299.00V319.07H299" class="frontier"/>
+<path d="M299.00 319.07L320 273" class="leader"/>
+<text x="325" y="277" class="label">All PER suggestions</text>
+<text x="325" y="295" class="counts">265 correct · 954</text>
+<text x="325" y="313" class="counts">unmatched</text>
+<text x="325" y="331" class="counts">1,219 suggestions ·</text>
+<text x="325" y="349" class="counts">100.0% recall</text>
+<path d="M101.83 406.03L320 373" class="leader"/>
+<text x="325" y="377" class="label">After i or fra</text>
+<text x="325" y="395" class="counts">106 correct · 68</text>
+<text x="325" y="413" class="counts">unmatched</text>
+<text x="325" y="431" class="counts">174 suggestions · 40.0%</text>
+<text x="325" y="449" class="counts">recall</text>
+<g><title>All PER suggestions · 265 correct · 954 unmatched</title><circle cx="299.00" cy="319.07" r="4.5" class="optimal"/></g>
+<g><title>After i or fra · 106 correct · 68 unmatched</title><circle cx="101.83" cy="406.03" r="4.5" class="optimal"/></g>
+<path d="M18 525H542" class="rule"/>
+<text x="18" y="551" class="cohort">Nynorsk test</text>
+<text x="18" y="574" class="scope">945 PER suggestions · 182 gold</text>
+<text x="69" y="605" class="axis-title">Correct / 100</text>
+<path d="M69 819.00H299" class="grid"/><text x="62" y="824.00" text-anchor="end" class="axis">0</text>
+<path d="M69 752.33H299" class="grid"/><text x="62" y="757.33" text-anchor="end" class="axis">10</text>
+<path d="M69 685.67H299" class="grid"/><text x="62" y="690.67" text-anchor="end" class="axis">20</text>
+<path d="M69 619.00H299" class="grid"/><text x="62" y="624.00" text-anchor="end" class="axis">30</text>
+<path d="M69.00 619V819" class="grid"/><text x="69.00" y="838" text-anchor="middle" class="axis">0</text>
+<path d="M184.00 619V819" class="grid"/><text x="184.00" y="838" text-anchor="middle" class="axis">50</text>
+<path d="M299.00 619V819" class="grid"/><text x="299.00" y="838" text-anchor="middle" class="axis">100</text>
+<text x="299" y="859" text-anchor="end" class="axis-title">Suggestions / 100</text>
+<path d="M107.70 747.04H299.00V690.60H299" class="frontier"/>
+<path d="M299.00 690.60L320 628" class="leader"/>
+<text x="325" y="632" class="label">All PER suggestions</text>
+<text x="325" y="650" class="counts">182 correct · 763</text>
+<text x="325" y="668" class="counts">unmatched</text>
+<text x="325" y="686" class="counts">945 suggestions · 100.0%</text>
+<text x="325" y="704" class="counts">recall</text>
+<path d="M107.70 747.04L320 728" class="leader"/>
+<text x="325" y="732" class="label">After i or fra</text>
+<text x="325" y="750" class="counts">102 correct · 57</text>
+<text x="325" y="768" class="counts">unmatched</text>
+<text x="325" y="786" class="counts">159 suggestions · 56.0%</text>
+<text x="325" y="804" class="counts">recall</text>
+<g><title>All PER suggestions · 182 correct · 763 unmatched</title><circle cx="299.00" cy="690.60" r="4.5" class="optimal"/></g>
+<g><title>After i or fra · 102 correct · 57 unmatched</title><circle cx="107.70" cy="747.04" r="4.5" class="optimal"/></g>
+</svg>
+<div class="scroll"><section class="operating-points"><header class="mobile-intro"><h1>How many mislabeled places does a NorNE review find?</h1><p>Horizontal position counts all suggestions sent to review. Filled points identify the greatest correct count observed at or below that budget.</p></header><table><caption>Bokmål test <span>· 1,219 PER suggestions · 265 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">After i or fra</th><td data-label="Suggestions">174</td><td data-label="Correct">106</td><td data-label="Unmatched">68</td><td data-label="Correct / 100">8.696</td><td data-label="Unmatched / 100">5.578</td><td data-label="Recall">40.0%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">All PER suggestions</th><td data-label="Suggestions">1,219</td><td data-label="Correct">265</td><td data-label="Unmatched">954</td><td data-label="Correct / 100">21.739</td><td data-label="Unmatched / 100">78.261</td><td data-label="Recall">100.0%</td><td data-label="On frontier">Yes</td></tr></tbody></table><table><caption>Nynorsk test <span>· 945 PER suggestions · 182 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">After i or fra</th><td data-label="Suggestions">159</td><td data-label="Correct">102</td><td data-label="Unmatched">57</td><td data-label="Correct / 100">10.794</td><td data-label="Unmatched / 100">6.032</td><td data-label="Recall">56.0%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">All PER suggestions</th><td data-label="Suggestions">945</td><td data-label="Correct">182</td><td data-label="Unmatched">763</td><td data-label="Correct / 100">19.259</td><td data-label="Unmatched / 100">80.741</td><td data-label="Recall">100.0%</td><td data-label="On frontier">Yes</td></tr></tbody></table></section></div></main></body></html>

@@ -7,7 +7,7 @@ pub(super) struct TradeoffArgs {
     #[command(flatten)]
     render: RenderArgs,
 
-    /// Horizontal axis for SVG or HTML (default unmatched). Suggestions counts all review items.
+    /// Override the report's horizontal axis. Suggestions counts all review items.
     #[arg(long, value_enum)]
     x_axis: Option<Axis>,
 }
@@ -25,16 +25,15 @@ impl TradeoffArgs {
             if let Some(title) = title {
                 study.title = title.to_owned();
             }
-            let axis = match self.x_axis.unwrap_or(Axis::Unmatched) {
-                Axis::Unmatched => TradeoffAxis::Unmatched,
-                Axis::Suggestions => TradeoffAxis::Suggestions,
-            };
+            if let Some(axis) = self.x_axis {
+                study.x_axis = Some(match axis {
+                    Axis::Unmatched => TradeoffAxis::Unmatched,
+                    Axis::Suggestions => TradeoffAxis::Suggestions,
+                });
+            }
             match format {
-                VizFormat::Svg => study.render_svg_with_axis(axis),
-                VizFormat::Html => study.render_html_with_axis(axis),
-                VizFormat::Json if self.x_axis.is_some() => {
-                    Err("--x-axis selects a rendered axis. Use SVG or HTML output.".into())
-                }
+                VizFormat::Svg => study.render_svg(),
+                VizFormat::Html => study.render_html(),
                 VizFormat::Json => study.to_json(),
             }
         })

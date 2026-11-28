@@ -87,10 +87,7 @@ impl Record {
                 AnnotatedToken { text, ner_tag }
             })
             .collect();
-        AnnotatedSentence {
-            tokens,
-            source_dataset: id,
-        }
+        AnnotatedSentence::from_tokens(id, tokens)
     }
 
     pub(super) fn document(self) -> RelationDocument {

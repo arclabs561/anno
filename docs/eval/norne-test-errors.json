@@ -1,0 +1,188 @@
+{
+  "schema": "anno.errors/v1",
+  "reports": 3450,
+  "metric": "entity",
+  "prediction_source": {
+    "kind": "model",
+    "name": "heuristic"
+  },
+  "title": "Which Norwegian place names does the heuristic mistype?",
+  "entities": {
+    "gold_count": 2393,
+    "predicted_count": 2540,
+    "exact": 669,
+    "same_span_wrong_label": 1046,
+    "partial_overlap": 369,
+    "missed_gold": 309,
+    "extra_predictions": 456
+  },
+  "same_span_label_confusions": [
+    {
+      "gold": "GPE_LOC",
+      "predicted": "PER",
+      "pairs": 319
+    },
+    {
+      "gold": "ORG",
+      "predicted": "PER",
+      "pairs": 266
+    },
+    {
+      "gold": "LOC",
+      "predicted": "PER",
+      "pairs": 128
+    },
+    {
+      "gold": "PROD",
+      "predicted": "PER",
+      "pairs": 72
+    },
+    {
+      "gold": "PER",
+      "predicted": "ORG",
+      "pairs": 58
+    },
+    {
+      "gold": "DRV",
+      "predicted": "PER",
+      "pairs": 54
+    },
+    {
+      "gold": "GPE_ORG",
+      "predicted": "PER",
+      "pairs": 26
+    },
+    {
+      "gold": "PER",
+      "predicted": "LOC",
+      "pairs": 26
+    },
+    {
+      "gold": "GPE_LOC",
+      "predicted": "LOC",
+      "pairs": 24
+    },
+    {
+      "gold": "GPE_ORG",
+      "predicted": "ORG",
+      "pairs": 15
+    },
+    {
+      "gold": "ORG",
+      "predicted": "LOC",
+      "pairs": 14
+    },
+    {
+      "gold": "EVT",
+      "predicted": "PER",
+      "pairs": 10
+    },
+    {
+      "gold": "MISC",
+      "predicted": "PER",
+      "pairs": 8
+    },
+    {
+      "gold": "PROD",
+      "predicted": "ORG",
+      "pairs": 8
+    },
+    {
+      "gold": "GPE_ORG",
+      "predicted": "LOC",
+      "pairs": 5
+    },
+    {
+      "gold": "PROD",
+      "predicted": "LOC",
+      "pairs": 5
+    },
+    {
+      "gold": "GPE_LOC",
+      "predicted": "ORG",
+      "pairs": 2
+    },
+    {
+      "gold": "LOC",
+      "predicted": "ORG",
+      "pairs": 2
+    },
+    {
+      "gold": "MISC",
+      "predicted": "ORG",
+      "pairs": 2
+    },
+    {
+      "gold": "DRV",
+      "predicted": "LOC",
+      "pairs": 1
+    },
+    {
+      "gold": "EVT",
+      "predicted": "ORG",
+      "pairs": 1
+    }
+  ],
+  "label_outcomes": {
+    "by_gold_label": {
+      "DRV": {
+        "exact": 0,
+        "same_span_wrong_label": 55,
+        "partial_overlap": 16,
+        "missed": 7
+      },
+      "EVT": {
+        "exact": 0,
+        "same_span_wrong_label": 11,
+        "partial_overlap": 2,
+        "missed": 1
+      },
+      "GPE_LOC": {
+        "exact": 0,
+        "same_span_wrong_label": 345,
+        "partial_overlap": 50,
+        "missed": 33
+      },
+      "GPE_ORG": {
+        "exact": 0,
+        "same_span_wrong_label": 46,
+        "partial_overlap": 8,
+        "missed": 7
+      },
+      "LOC": {
+        "exact": 1,
+        "same_span_wrong_label": 130,
+        "partial_overlap": 45,
+        "missed": 9
+      },
+      "MISC": {
+        "exact": 0,
+        "same_span_wrong_label": 10,
+        "partial_overlap": 3,
+        "missed": 1
+      },
+      "ORG": {
+        "exact": 66,
+        "same_span_wrong_label": 280,
+        "partial_overlap": 104,
+        "missed": 71
+      },
+      "PER": {
+        "exact": 602,
+        "same_span_wrong_label": 84,
+        "partial_overlap": 108,
+        "missed": 167
+      },
+      "PROD": {
+        "exact": 0,
+        "same_span_wrong_label": 85,
+        "partial_overlap": 33,
+        "missed": 13
+      }
+    },
+    "partial_labels": {
+      "same": 85,
+      "different": 284
+    }
+  }
+}
