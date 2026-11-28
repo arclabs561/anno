@@ -1,0 +1,90 @@
+name: Installed wheel and CLI worker checkpoints
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/worker-checkpoint-replay.yml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/anno/Cargo.toml'
+      - 'crates/anno/src/backends/glinerel/**'
+      - 'crates/anno/src/backends/otter/**'
+      - 'crates/anno/src/backends/kniv*'
+      - 'crates/anno/src/backends/python_worker.rs'
+      - 'crates/anno/src/backends/mod.rs'
+      - 'crates/anno/src/lib.rs'
+      - 'crates/anno-cli/Cargo.toml'
+      - 'crates/anno-cli/src/cli/**'
+      - 'crates/anno-py/**'
+      - 'scripts/_prepare_snapshot.py'
+      - 'scripts/download_kniv.py'
+      - 'scripts/prepare_otter.py'
+      - 'scripts/qa/ner_language_length.py'
+      - 'scripts/qa/prepare_worker_checkpoints.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-checkpoint-replay-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-wheel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        with:
+          toolchain: stable
+      - name: Cache pinned worker checkpoints
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/worker-checkpoints
+          key: worker-checkpoints-v1-${{ hashFiles('crates/anno/src/backends/otter/models.json', 'crates/anno/src/backends/kniv_worker.py', 'scripts/qa/ner_language_length.py', 'scripts/qa/prepare_worker_checkpoints.py') }}
+      - name: Install CPU worker runtimes
+        run: |
+          python -m pip install 'maturin==1.16.0' 'huggingface-hub==0.36.2'
+          python -m venv "$RUNNER_TEMP/torch-worker"
+          "$RUNNER_TEMP/torch-worker/bin/pip" install --index-url https://download.pytorch.org/whl/cpu 'torch==2.8.0'
+          "$RUNNER_TEMP/torch-worker/bin/pip" install 'numpy==1.26.4' 'transformers==4.48.3' 'tokenizers==0.21.4' 'glinerel-fast==0.1.1'
+          python -m venv "$RUNNER_TEMP/kniv-worker"
+          "$RUNNER_TEMP/kniv-worker/bin/pip" install 'numpy==2.3.5' 'onnxruntime==1.32.0' 'tokenizers==0.23.3'
+      - name: Verify cached content and prepare missing release files
+        run: python scripts/qa/prepare_worker_checkpoints.py "$RUNNER_TEMP/worker-checkpoints"
+      - name: Build the CLI and install the distribution in a fresh environment
+        run: |
+          cargo build --locked -p anno-cli --no-default-features --features extractor-html2text --bin anno
+          (cd crates/anno-py && maturin build --locked --out "$RUNNER_TEMP/wheels")
+          python -m venv "$RUNNER_TEMP/installed"
+          "$RUNNER_TEMP/installed/bin/pip" install "$RUNNER_TEMP"/wheels/*.whl pytest
+      - name: Verify the four offline worker selectors through the installed wheel and CLI
+        env:
+          ANNO_PY_TEST_MODELS: '1'
+          ANNO_NO_DOWNLOADS: '1'
+          HF_HUB_OFFLINE: '1'
+          HF_HOME: ${{ runner.temp }}/hf-offline
+          ANNO_PY_TEST_CLI: ${{ github.workspace }}/target/debug/anno
+          ANNO_OTTER_PYTHON: ${{ runner.temp }}/torch-worker/bin/python
+          ANNO_GLINEREL_PYTHON: ${{ runner.temp }}/torch-worker/bin/python
+          KNIV_PYTHON: ${{ runner.temp }}/kniv-worker/bin/python
+          OTTER_CROSS_MODEL_DIR: ${{ runner.temp }}/worker-checkpoints/otter-cross
+          OTTER_BI_MODEL_DIR: ${{ runner.temp }}/worker-checkpoints/otter-bi
+          ANNO_GLINEREL_MODEL_DIR: ${{ runner.temp }}/worker-checkpoints/glinerel-72m
+          KNIV_MODEL_DIR: ${{ runner.temp }}/worker-checkpoints/kniv
+        run: |
+          "$RUNNER_TEMP/installed/bin/python" -I -m pytest -q -rs \
+            crates/anno-py/tests/test_local_checkpoints.py -k 'otter or glinerel or kniv'

@@ -47,6 +47,23 @@ cd crates/anno-py
 uv venv && maturin develop --uv
 ```
 
+To test the installed wheel from a fresh checkout, run the following from the repository root. The wheel and test environment are created outside the source tree.
+
+```sh
+work=$(mktemp -d)
+(cd crates/anno-py && maturin build --locked --out "$work/wheels")
+python3 -m venv "$work/venv"
+"$work/venv/bin/python" -m pip install "$work"/wheels/*.whl pytest
+"$work/venv/bin/python" -I -m pytest -q crates/anno-py/tests
+```
+
+To exercise ONNX and Fastino together, configure ONNX Runtime for the build and add `--features extension-module,onnx,fastino` to the Maturin command. With local checkpoints and worker interpreters configured as described below, the following test opens each supplied model, extracts twice, and checks the resulting Unicode source spans. Set `ANNO_PY_TEST_BERT_DIR` to include a local BERT NER ONNX checkpoint. Set `ANNO_PY_TEST_GLINER_EDGE=knowledgator/gliner-pii-edge-v1.0` to include a cached GLiNER PII Edge checkpoint. Set `ANNO_PY_TEST_CLI` to an Anno executable to compare its worker results with the installed wheel. The worker-checkpoint CI job verifies the two Otter snapshots, GLiNEREL and Kniv’s fixed-label NER assets before running that comparison offline. [CI workflow](../../.github/workflows/worker-checkpoint-replay.yml)
+
+```sh
+ANNO_PY_TEST_MODELS=1 "$work/venv/bin/python" -I -m pytest -q \
+  crates/anno-py/tests/test_local_checkpoints.py
+```
+
 ## Usage
 
 ```python
