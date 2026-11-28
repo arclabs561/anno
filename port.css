@@ -41,3 +41,9 @@ h1{font:bold 19px/1.1 Georgia,serif}.console nav{padding-top:36px}
 @media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}#ship-rail{display:none}}
 @media(max-width:650px){.console,.shop-body{grid-template-columns:1fr 1fr}.console nav{padding-top:8px}#inventory{grid-template-columns:repeat(2,minmax(0,1fr))}.tile .sprite{width:48px}}
 @media(min-width:761px){main{width:min(100%,880px)}.console{min-height:250px}#content,.details{font-size:13px;line-height:1.36}.details h3{margin:3px 0 8px}#outfitter{width:min(820px,96vw)}#ship-rail dl{flex:1;display:grid;grid-template-rows:auto 1fr auto 1fr auto 1fr}#ship-rail dd{border-bottom:4px ridge #56524d}}
+#preview{border-top:1px solid #514d48;padding-top:6px}
+.bench-label{display:block;font:12px monospace;color:#d5cdb1;letter-spacing:.04em}
+.bench-switches{display:flex;gap:2px;margin:5px 0}.bench-switches button,.paper-source{padding:3px 5px;font-size:11px}
+.bench-switches button[aria-pressed=true]{border-style:inset;color:#f2d795;background:#3b3126}
+.paper-source{float:right;margin-left:4px}.bench-copy{font:12px/1.5 monospace;color:#b4d6ae}
+@media(min-width:651px){#outfitter .shop-body{min-height:204px;grid-template-columns:38% 37% 25%}#outfitter .details,#outfitter .stats{padding:6px}.tile{min-height:62px}.tile .sprite{width:40px}.details p{margin:6px 0}.actions{padding:4px 6px}.stats .sprite{width:min(100%,128px)}}
