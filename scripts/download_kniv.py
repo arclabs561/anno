@@ -18,7 +18,13 @@ REVISION = "44e6d50774a22ada4fd825e1c48663afb5fd7dc0"
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, help="destination for KNIV_MODEL_DIR")
-    directory = parser.parse_args().directory
+    parser.add_argument(
+        "--ner-only",
+        action="store_true",
+        help="Prepare the runtime and graphs used for fixed-label NER",
+    )
+    args = parser.parse_args()
+    directory = args.directory
     worker = runpy.run_path(
         str(
             Path(__file__).resolve().parents[1]
@@ -29,6 +35,18 @@ def main():
         **worker["FILES"],
         **{f"kniv_v7/{name}": digest for name, digest in worker["SOURCES"].items()},
     }
+    if args.ner_only:
+        # The upstream window method also decodes coreference, dependency and
+        # semantic-role heads while returning the fixed BIO predictions.
+        ner_graphs = {
+            f"onnx/{head}-int8.onnx"
+            for head in ("plain", "dep_rel", "srl_roles", "coref_spans")
+        }
+        files = {
+            name: digest
+            for name, digest in files.items()
+            if not name.endswith(".onnx") or name in ner_graphs
+        }
     prepare(
         directory,
         REPO,
