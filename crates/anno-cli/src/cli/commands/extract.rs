@@ -1065,11 +1065,14 @@ fn extract_with_custom_types(
                     .map(|entities| (entities, anno::Model::runtime_name(&model)))
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
-            ModelBackend::Nuner => {
+            ModelBackend::Nuner | ModelBackend::GlinerPii => {
                 let model = backend.create_model().map_err(CliError::from)?;
-                let ner = model
-                    .as_zero_shot()
-                    .ok_or_else(|| CliError::from("NuNER does not expose zero-shot extraction"))?;
+                let ner = model.as_zero_shot().ok_or_else(|| {
+                    CliError::from(format!(
+                        "{} does not expose zero-shot extraction",
+                        model.runtime_name()
+                    ))
+                })?;
                 return ner
                     .extract_with_types(text, &type_refs, threshold)
                     .map(|entities| (entities, model.runtime_name()))

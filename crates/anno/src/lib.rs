@@ -818,6 +818,8 @@ pub mod models {
     pub const GLINER: &str = "onnx-community/gliner_small-v2.1";
     /// GLiNER multi-task ONNX model (HuggingFace).
     pub const GLINER_MULTITASK: &str = "onnx-community/gliner-multitask-large-v0.5";
+    /// GLiNER2 multi-v1 ONNX export used by the Fastino backend.
+    pub const GLINER2_FASTINO_ONNX: &str = "jugaadsrl/gliner2-multi-v1-onnx";
     /// BERT Candle model (HuggingFace).
     pub const CANDLE: &str = "dslim/bert-base-NER";
     /// GLiNER Candle model (HuggingFace, BERT-based).

@@ -116,19 +116,15 @@ pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<Path
          Error: {} \
          Output: {} \
          \
-         Recommended solutions (in order of preference): \
-         1. Use GLiNEROnnx (ONNX backend) - works with all GLiNER models, no conversion needed \
-         2. Use a model that already has safetensors format (e.g., knowledgator/modern-gliner-bi-large-v1.0) \
-         3. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh \
-         4. Manual conversion: uv run --script scripts/convert_pytorch_to_safetensors.py \"{}\" \"{}\" \
-         \
-         Note: Pure Rust conversion would require parsing PyTorch pickle format (torch._utils._rebuild_tensor_v2) \
-         which is complex. Python's torch.load handles this automatically.",
+         Supply Candle-compatible safetensors or run the converter directly: \
+         uv run --script scripts/convert_pytorch_to_safetensors.py \"{}\" \"{}\". \
+         The ONNX backend accepts the {} export.",
         script_path,
         error_msg,
         stdout_msg,
         pytorch_path.display(),
-        safetensors_path.display()
+        safetensors_path.display(),
+        crate::models::GLINER,
     )))
 }
 
@@ -174,8 +170,7 @@ impl GLiNERCandle {
                 |e| {
                     Error::Retrieval(format!(
                         "tokenizer.json not found. GLiNER Candle requires tokenizer.json. \
-                 Try using knowledgator/modern-gliner-bi-large-v1.0 (has safetensors) \
-                 or GLiNEROnnx instead. Original error: {}",
+                 Supply tokenizer.json for this checkpoint. Original error: {}",
                         e
                     ))
                 },
@@ -198,10 +193,8 @@ impl GLiNERCandle {
             })
             .map_err(|e| Error::Retrieval(format!(
                 "safetensors weights not found and conversion failed. GLiNER Candle requires safetensors format. \
-                 Most GLiNER models (urchade/, knowledgator/) only provide pytorch_model.bin. \
-                 Attempted automatic conversion but it failed. \
-                 Please use GLiNEROnnx (ONNX version) instead, which works with all GLiNER models. \
-                 Original error: {}",
+                 For the ONNX backend, use the {} export. Original error: {}",
+                crate::models::GLINER,
                 e
             )))?;
         // GLiNER models use gliner_config.json instead of standard config.json

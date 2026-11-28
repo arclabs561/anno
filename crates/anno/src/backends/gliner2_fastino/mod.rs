@@ -113,7 +113,7 @@ pub mod schema;
 pub(crate) mod sessions;
 
 /// Verified GLiNER2 ONNX export used by the evaluation backend.
-pub const SUPPORTED_GLINER2_FASTINO_MODEL: &str = "jugaadsrl/gliner2-multi-v1-onnx";
+pub const SUPPORTED_GLINER2_FASTINO_MODEL: &str = crate::models::GLINER2_FASTINO_ONNX;
 
 /// Immutable Hugging Face revision for [`SUPPORTED_GLINER2_FASTINO_MODEL`].
 pub const SUPPORTED_GLINER2_FASTINO_REVISION: &str = "4241d7c66b648e618c89c150bf4cf418d2f83159";

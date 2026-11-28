@@ -181,8 +181,10 @@ pub(crate) fn decode_token_logits_4d(
     };
 
     let mut spans = Vec::new();
-    for class_idx in 0..num_classes {
-        for start in 0..words {
+    // Reference TokenDecoder enumerates starts, then classes and ends.
+    // The flat decoder retains this order for equal-confidence overlaps.
+    for start in 0..words {
+        for class_idx in 0..num_classes {
             let Some(p_start) = prob(start, class_idx, 0).filter(|&p| p > threshold) else {
                 continue;
             };

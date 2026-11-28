@@ -89,7 +89,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: false,
         gpu_support: false,
-        description: "Stacked NER (pattern + heuristic; default no-ML baseline)",
+        description: "Default stack adds available ONNX models to the pattern and heuristic layers",
         recommended_models: &[],
     },
     BackendInfo {
@@ -152,7 +152,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "UniversalNER (LLM-backed zero-shot via OpenRouter/Anthropic/Groq/Ollama; configurable model)",
+        description: "UniversalNER via a configurable chat endpoint, OpenRouter, Anthropic, Groq, Gemini or Ollama",
         recommended_models: &[
             "google/gemini-2.5-flash-lite",
             "anthropic/claude-haiku-4.5",
@@ -238,12 +238,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
-        recommended_models: &[
-            crate::models::GLINER_CANDLE,
-            crate::models::GLINER_BI_BASE,
-            crate::models::GLINER_BI_LARGE,
-        ],
+        description: "Experimental GLiNER via Candle, requires a compatible BERT tensor layout",
+        recommended_models: &[crate::models::GLINER_CANDLE],
     },
     BackendInfo {
         name: "nuner",
@@ -251,12 +247,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: true,
         gpu_support: true,
-        description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        // First entry is the source PyTorch repo; the runtime loader uses
-        // crate::models::NUNER (deepanwa/NuNerZero_onnx), a community ONNX
-        // export of the same weights.
+        description: "NuNER Zero label-conditioned NER (word or span scoring, depending on checkpoint)",
+        // The first entry is the default ONNX export. The other checkpoints
+        // require compatible ONNX artifacts.
         recommended_models: &[
-            crate::models::NUNER_ZERO,
+            crate::models::NUNER,
             crate::models::NUNER_ZERO_4K,
             crate::models::NUNER_ZERO_SPAN,
         ],
@@ -308,11 +303,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "fastino-ai GLiNER2 (NER + classification + structure extraction; IoBinding mode opt-in) — experimental, issue #18",
-        recommended_models: &[
-            "fastino/gliner2-multi-v1",
-            "fastino/gliner2-large-v1",
-            "fastino/gliner2-base-v1",
-        ],
+        recommended_models: &[crate::models::GLINER2_FASTINO_ONNX],
     },
     BackendInfo {
         name: "gliner2_fastino_candle",
@@ -321,11 +312,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "fastino-ai GLiNER2 with PEFT LoRA adapter merge-at-load (Candle backend, multi-domain inference) — experimental, issue #18 / Phase 4",
-        recommended_models: &[
-            "fastino/gliner2-multi-v1",
-            "fastino/gliner2-large-v1",
-            "fastino/gliner2-base-v1",
-        ],
+        recommended_models: &["fastino/gliner2-multi-v1"],
     },
     BackendInfo {
         name: "gliner_pii",
@@ -481,7 +468,7 @@ mod tests {
             ("deberta_v3", crate::models::DEBERTA_V3),
             ("biomedical", crate::models::BIOMEDICAL),
             ("gliner_candle", crate::models::GLINER_CANDLE),
-            ("nuner", crate::models::NUNER_ZERO),
+            ("nuner", crate::models::NUNER),
             ("candle_ner", crate::models::CANDLE),
             ("gliner_poly", crate::models::GLINER_POLY),
             ("gliner_pii", crate::models::GLINER_PII),
@@ -557,6 +544,6 @@ mod tests {
         assert!(entry.zero_shot);
         assert!(entry
             .recommended_models
-            .contains(&"fastino/gliner2-multi-v1"));
+            .contains(&crate::backends::gliner2_fastino::SUPPORTED_GLINER2_FASTINO_MODEL));
     }
 }

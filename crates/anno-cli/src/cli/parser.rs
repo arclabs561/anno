@@ -260,7 +260,7 @@ pub enum ModelBackend {
     Minimal,
     /// Automatic backend selection (currently stacked)
     Auto,
-    /// Stacked: Pattern + Heuristic (default)
+    /// Default stack combines pattern and heuristic layers with available ONNX models
     #[default]
     Stacked,
     /// CRF sequence labeling (classical ML)
@@ -554,11 +554,9 @@ impl ModelBackend {
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!(
                         "GLiNER-Candle model unavailable: {}\n\n\
-                         GLiNER Candle is experimental and has compatibility issues with\n\
-                         most GLiNER models due to non-standard weight formats.\n\n\
-                         Recommended: Use --model gliner (ONNX version) instead.\n\
-                         It works with all GLiNER models and provides better performance.",
-                        e
+                         The experimental Candle backend requires a compatible BERT tensor layout.\n  \
+                         For ONNX inference, build with the onnx feature and select --model gliner ({}).",
+                        e, anno::models::GLINER
                     )),
                 #[cfg(feature = "candle")]
                 Self::CandleNer => anno::backends::candle::CandleNER::from_pretrained(anno::DEFAULT_CANDLE_MODEL)

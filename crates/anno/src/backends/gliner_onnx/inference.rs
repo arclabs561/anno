@@ -226,9 +226,12 @@ impl GLiNEROnnx {
         // Token-level classifiers (e.g., gliner-pii-edge) don't have these.
         let has_span_inputs = session.inputs().iter().any(|i| i.name() == "span_idx");
 
-        if !has_span_inputs {
-            log::info!("[GLiNER] Token-level model detected (no span_idx input)");
-        }
+        let token_head = !has_span_inputs
+            && encoder_mode == config::EncoderMode::Uni
+            && session.outputs().first().is_some_and(|output| {
+                matches!(output.dtype(), ort::value::ValueType::Tensor { shape, .. }
+                    if shape.len() == 4 && shape[3] == 3)
+            });
 
         // For bi-encoder models, try to load the separate label encoder ONNX session.
         // The export script produces `label_encoder.onnx` alongside `model.onnx`.
@@ -331,6 +334,7 @@ impl GLiNEROnnx {
             token_ent,
             token_sep,
             has_span_inputs,
+            token_head,
             label_cache: Mutex::new(HashMap::new()),
             label_encoder_session,
             label_tokenizer,
@@ -728,8 +732,11 @@ impl GLiNEROnnx {
                 .extract_joint(text, entity_types, &[], threshold)?
                 .entities);
         }
-        // Split text into words (this implementation uses whitespace splitting)
-        let text_words: Vec<&str> = text.split_whitespace().collect();
+        let text_words = if self.token_head {
+            crate::backends::inference::span::gliner_words(text)
+        } else {
+            text.split_whitespace().collect()
+        };
         let num_text_words = text_words.len();
 
         if num_text_words == 0 {
@@ -839,15 +846,12 @@ impl GLiNEROnnx {
         hasher.finish()
     }
 
-    /// Hash entity types for cache key (sorted for consistency).
+    /// Prompt order determines the class axis of the model output.
     fn hash_entity_types(entity_types: &[&str]) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
-        // Sort entity types for consistent hashing regardless of input order
-        let mut sorted: Vec<&str> = entity_types.to_vec();
-        sorted.sort();
-        sorted.hash(&mut hasher);
+        entity_types.hash(&mut hasher);
         hasher.finish()
     }
 
@@ -940,6 +944,57 @@ impl GLiNEROnnx {
         text_words: &[&str],
         entity_types: &[&str],
     ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>, i64, usize)> {
+        // Older exports may omit the tokenizer post-processor. They use the
+        // legacy word-by-word prompt below, including its explicit boundaries.
+        if self.token_head && self.tokenizer.get_post_processor().is_some() {
+            let marker = |id| {
+                self.tokenizer.id_to_token(id).ok_or_else(|| {
+                    Error::Parse(format!("GLiNER prompt marker {id} missing from tokenizer"))
+                })
+            };
+            let entity_marker = marker(self.token_ent)?;
+            let mut prompt = Vec::with_capacity(entity_types.len() * 2 + text_words.len() + 1);
+            for label in entity_types {
+                prompt.push(entity_marker.clone());
+                prompt.push(expand_ner_label(label));
+            }
+            prompt.push(marker(self.token_sep)?);
+            let prompt_len = prompt.len();
+            prompt.extend(text_words.iter().map(|word| (*word).to_owned()));
+            // Let the checkpoint's tokenizer add its own CLS/SEP and pool the
+            // first subtoken of each source word, as in GLiNER's TokenProcessor.
+            let encoding = self
+                .tokenizer
+                .encode(prompt, true)
+                .map_err(|e| Error::Parse(format!("Tokenizer error: {e}")))?;
+            let word_ids = encoding.get_word_ids();
+            let word_mask = word_ids
+                .iter()
+                .enumerate()
+                .map(|(idx, &id)| match id {
+                    Some(id)
+                        if id as usize >= prompt_len
+                            && (idx == 0 || word_ids[idx - 1] != Some(id)) =>
+                    {
+                        id as i64 - prompt_len as i64 + 1
+                    }
+                    _ => 0,
+                })
+                .collect();
+            return Ok((
+                encoding.get_ids().iter().copied().map(i64::from).collect(),
+                encoding
+                    .get_attention_mask()
+                    .iter()
+                    .copied()
+                    .map(i64::from)
+                    .collect(),
+                word_mask,
+                text_words.len() as i64,
+                entity_types.len(),
+            ));
+        }
+
         // Build token sequence word by word
         let mut input_ids: Vec<i64> = Vec::new();
         let mut word_mask: Vec<i64> = Vec::new();
@@ -1237,6 +1292,12 @@ impl GLiNEROnnx {
                 char_end,
                 span.score as f64,
             ));
+        }
+
+        if self.token_head {
+            // TokenDecoder keeps the first equal-confidence candidate and
+            // preserves scored punctuation (e.g. "+" at the start of a phone).
+            return Ok(remove_overlapping_spans(entities));
         }
 
         // Performance: Use unstable sort (we don't need stable sort here)
@@ -1661,6 +1722,53 @@ pub(super) const DEFAULT_GLINER_LABELS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_key_preserves_label_order() {
+        assert_ne!(
+            GLiNEROnnx::hash_entity_types(&["email address", "phone number"]),
+            GLiNEROnnx::hash_entity_types(&["phone number", "email address"])
+        );
+    }
+
+    #[test]
+    #[ignore = "requires cached knowledgator/gliner-pii-edge-v1.0 FP32 graph and tokenizer"]
+    fn pii_edge_token_head_matches_reference() -> Result<()> {
+        let model = GLiNEROnnx::with_config(
+            crate::models::GLINER_PII,
+            GLiNERConfig {
+                prefer_quantized: false,
+                ..Default::default()
+            },
+        )?;
+        let text = "Élodie: Email john.smith@acme.com or call +1 415 555 0199.";
+        let labels = ["email address", "phone number"];
+        let words = crate::backends::inference::span::gliner_words(text);
+        let (ids, _, mask, n, _) = model.encode_prompt_cached(&words, &labels)?;
+        assert_eq!(
+            (ids.first(), ids.last(), n),
+            (Some(&50281), Some(&50282), 18)
+        );
+        assert_eq!(mask.iter().filter(|&&word| word > 0).count(), 18);
+        let reversed = [labels[1], labels[0]];
+        assert_eq!(
+            model.encode_prompt_cached(&words, &reversed)?,
+            model.encode_prompt(&words, &reversed)?
+        );
+        let entities = model.extract(text, &labels, 0.3)?;
+        assert_eq!(entities.len(), 2);
+        for (entity, (label, start, end, score)) in entities
+            .iter()
+            .zip([(labels[0], 14, 33, 0.600117), (labels[1], 42, 57, 0.966879)])
+        {
+            assert_eq!(
+                (entity.entity_type.as_label(), entity.start(), entity.end()),
+                (label, start, end)
+            );
+            assert!((entity.confidence - score).abs() < 0.0001);
+        }
+        Ok(())
+    }
 
     #[test]
     fn malformed_gliner_config_is_an_error() {

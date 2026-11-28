@@ -40,8 +40,8 @@ pub enum ModelsAction {
     ///
     /// Notes:
     /// - If `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` is set, downloads will likely fail.
-    /// - For some backends (e.g. `deberta-v3`, `albert`) you must provide local ONNX exports
-    ///   via env vars (`DEBERTA_MODEL_PATH`, `ALBERT_MODEL_PATH`).
+    /// - For some backends (e.g. `deberta-v3`, `biomedical`) you must provide local ONNX exports
+    ///   via env vars (`DEBERTA_MODEL_PATH`, `BIOMEDICAL_MODEL_PATH`).
     #[command(visible_alias = "dl")]
     Download {
         /// One or more model backends to download (e.g., gliner, gliner_multitask, bert-onnx).

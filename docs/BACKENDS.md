@@ -34,6 +34,12 @@ For overlapping or nested mentions, inspect W2NER’s word-grid output and the s
 
 The extraction default `stacked` combines rules and available models. Its ONNX configuration attempts BERT and NuNER, then tries GLiNER if neither loads. Its rule layers can still extract entities without a neural model. For a deterministic rule-only run, select `pattern` explicitly. `ANNO_NO_DOWNLOADS=1` permits cached weights. Evaluation IDs can differ from CLI names, for example `bert_onnx` and `gliner_onnx` in evaluations versus `--model bert-onnx` and `--model gliner` in extraction. [Evaluation panels](../scripts/qa/core-panel.json) · [CLI model selectors](../crates/anno-cli/src/cli/parser.rs)
 
+Rust `anno::extract` also constructs the default stack. The Python
+`anno_py.extract` convenience function and `Extractor()` explicitly construct
+pattern and heuristic layers, including in ONNX builds. Python callers select
+`Extractor(backend="bert")` or `Extractor(backend="gliner")` to run a neural
+NER backend in an ONNX-enabled wheel. [Python bindings](../crates/anno-py/README.md)
+
 ### Which mentions should coreference use?
 
 | Resolver | Input → output | Calling and interpreting it |
@@ -86,8 +92,9 @@ For a reproducible comparison, use the tracked QA procedure with fixed example b
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | WIP | `knowledgator/gliner-bi-large-v1.0` (also: `gliner-bi-small-v1.0`, `modern-gliner-bi-large-v1.0`, `modern-gliner-bi-base-v1.0`; the `gliner-poly-*-v1.0` repos are model cards only with no weights) |
 | `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
 | `gliner_relex` | Span NER and directed pair scoring from a local joint export | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
-| `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
-| `albert` | ALBERT NER (local export) | No | WIP | -- |
+| `deberta_v3` | DeBERTa-v3 NER (local export) | No | beta | Export `ficsort/deberta-v3-base-conll2003-ner` |
+| `biomedical` | Biomedical NER (local export) | No | beta | Export `d4data/biomedical-ner-all` |
+| `albert` (evaluation factory only) | ALBERT NER (local export) | No | WIP | -- |
 
 In the Rust backend factory, `gliner` is a smart-default alias. Under `--features onnx` it
 resolves to `anno::GLiNEROnnx`; under `--features candle` only (no
@@ -95,6 +102,16 @@ resolves to `anno::GLiNEROnnx`; under `--features candle` only (no
 want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
 or `gliner_candle` explicitly to select a runtime. The extraction CLI exposes
 `--model gliner` with `onnx`. [CLI selectors](../crates/anno-cli/src/cli/parser.rs)
+
+For contact PII, provide the labels and threshold when selecting PII Edge:
+
+```sh
+anno extract --model gliner-pii --extract-types 'email address,phone number' \
+  --threshold 0.3 --text 'Email jane@example.org or call +1 415 555 0199.'
+```
+
+The checkpoint scores the supplied schema. Without `--extract-types`, the
+extractor uses Anno's general GLiNER labels, which omit email and phone.
 
 #### Selecting NER checkpoints
 
@@ -427,7 +444,7 @@ use `onnx_cuda_smoke`, `onnx_coreml_smoke`, and the provider probes for that.
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Gemini/Ollama) | Yes | beta | `google/gemini-2.5-flash-lite` |
+| `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Gemini/Ollama) | Yes | beta | Provider-specific, e.g. `google/gemini-2.5-flash-lite` on OpenRouter |
 
 Select a chat-completions endpoint for the CLI or evaluation with
 `ANNO_LLM_ENDPOINT` (the full request URL) and `ANNO_LLM_MODEL` (the model ID
@@ -437,6 +454,11 @@ explicit route. With a custom endpoint, leaving the key unset sends an
 unauthenticated request. An explicitly configured Rust `LlmConfig` takes
 precedence over these three variables. Without an endpoint override Anno uses
 its existing provider discovery.
+
+Direct Gemini defaults to `gemini-2.5-flash-lite`. Google limits access to
+2.5 models to prior users. For a new project, select the direct Gemini endpoint
+and set `ANNO_LLM_MODEL` to a model enabled for that project.
+[Google API model availability](https://ai.google.dev/gemini-api/docs/deprecations)
 
 #### Test UniversalNER with Codex CLI
 
@@ -632,7 +654,7 @@ manually for that one backend.
 | `gliner_pii` | yes | `--` | hf-hub cache | `--` |
 | `gliner_relex` | local ONNX export; relations require `--joint` | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
 | `nuner` | yes (script needed only for unsupported variants) | `export_nuner_to_onnx.py` (uses GLiNER’s shared-encoder exporter for NuNER Zero variants) | hf-hub cache | `NUNER_MODEL_PATH` (CLI) |
-| `gliner_poly` | no | `export_gliner_poly_onnx.py` | `~/.cache/anno/models/gliner-poly/` | (cache probe) |
+| `gliner_poly` | no | `export_gliner_poly_onnx.py` | `~/.cache/anno/models/gliner-poly/` | `GLINER_POLY_MODEL_PATH` |
 | `glirel` | no | `export_glirel_onnx.py` | `~/.cache/anno/models/glirel/` | (cache probe) |
 | `deberta_v3` | no | `export_deberta_ner_to_onnx.py` | `~/.cache/huggingface/hub/models--deberta-v3-ner/onnx/` | `DEBERTA_MODEL_PATH` |
 | `biomedical` | no | `export_biomedical_ner_to_onnx.py` | `~/.cache/anno/models/biomedical-ner/` | `BIOMEDICAL_MODEL_PATH` |
