@@ -488,9 +488,9 @@ download-datasets:
 clean:
     cargo clean
 
-# Check MSRV 1.91 (matches workspace and CI) against the locked dependency graph.
+# Check MSRV 1.95 (matches workspace and CI) against the locked dependency graph.
 msrv:
-    cargo +1.91.0 check --workspace --locked
+    cargo +1.95.0 check --workspace --locked
 
 # Run property tests with more cases
 proptest:

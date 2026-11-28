@@ -600,11 +600,10 @@ jobs:
   # ==========================================================================
   # Minimum supported Rust version
   # ==========================================================================
-  # `deformat` 0.15.3, which the CLI ships by default, requires Rust 1.91.
   # Test the declared floor directly so a dependency or feature change cannot
   # silently raise the supported compiler version.
   minimal-build:
-    name: MSRV (Rust 1.91)
+    name: MSRV (Rust 1.95)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -612,7 +611,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
-          toolchain: "1.91"
+          toolchain: "1.95.0"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
