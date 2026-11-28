@@ -17,6 +17,8 @@ The [backend error analysis](eval/backend-residuals.md) counts missing and extra
 
 Use `anno models list` to see extraction backends and their build status. A “compiled” entry can still require local weights or a Python environment. To choose a checkpoint, run `anno models checkpoints`. This offline inventory covers extraction backends and task-specific commands. For example, `anno models checkpoints relik` prints the reader's source, preparation script, and guide. `anno models info otter-bi` shows both the backend capabilities and checkpoint setup.
 
+To see which model an invocation would try, run `anno models explain extract --extract-types city --json` or `anno models explain privacy --types CONTACT`. The explanation checks the build features, profile and local checkpoint files without downloading weights or starting inference.
+
 Use `anno models checkpoints --json` to read the inventory programmatically. Preparation and guide paths are relative to the repository root. Each recipe points to the script or manifest that owns the preparation details when one exists. The [backend catalog](../crates/anno/src/backends/catalog.rs) supplies build metadata, and the [checkpoint replay manifest](../scripts/qa/checkpoint_replay/models.json) pins files and expected predictions for selected checkpoints.
 
 When preparing a checkpoint inside this checkout, use the ignored top-level `models/` directory for the whole snapshot, including tokenizer files. Track the preparation recipe, upstream revision and verification data alongside the integration. Write local evaluation inputs and prediction files under `.generated/` or outside the checkout.

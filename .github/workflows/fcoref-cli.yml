@@ -64,7 +64,16 @@ jobs:
         run: |
           python -m pip install 'playwright==1.62.0'
           python crates/anno/examples/caption_links/test_playback.py "$(command -v google-chrome)"
+      - name: Restore the pinned FCoref export
+        id: fcoref
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ env.FCOREF_MODEL_PATH }}
+          key: fcoref-cpu-fp32-v1-${{ env.MODEL_REVISION }}-${{ hashFiles('scripts/export_fcoref.py', '.github/workflows/fcoref-cli.yml') }}
+      - name: Install the inference runtime
+        run: python -m pip install 'onnxruntime==1.24.2'
       - name: Export the pinned CPU model
+        if: steps.fcoref.outputs.cache-hit != 'true'
         run: |
           python -m pip install 'torch @ https://download.pytorch.org/whl/cpu/torch-2.6.0%2Bcpu-cp312-cp312-linux_x86_64.whl' \
             'transformers==4.51.3' 'tokenizers==0.21.4' 'onnx==1.17.0' 'onnxruntime==1.24.2' 'safetensors==0.8.0'

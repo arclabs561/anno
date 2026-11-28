@@ -28,6 +28,7 @@ def verify_assets(directory, spec, fetch):
     directory.mkdir(parents=True, exist_ok=True)
     for filename, item in spec["files"].items():
         target = directory / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists() and digest(target) == item["sha256"]:
             continue
         if not fetch:
@@ -130,7 +131,9 @@ def main():
             with tempfile.TemporaryDirectory(prefix="anno-verified-") as model_dir:
                 verified = Path(model_dir)
                 for filename in spec["files"]:
-                    (verified / filename).symlink_to(directory / filename)
+                    link = verified / filename
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.symlink_to(directory / filename)
                 for case in spec["cases"]:
                     observed = check_case(binary, verified, spec, case)
                     if args.aggregate:
