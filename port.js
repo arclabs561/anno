@@ -78,14 +78,16 @@ function annotated(text,entities) {
   part.append(legend,detail);
   return part;
 }
-function analyze(text) {
-  if(experiment==='compare') {
-    return {experiment,readers:Object.fromEntries(readers.map(id=>[id,read(text,id)]))};
+let readerModule;
+let labWorker = null;
+let pending = false;
+
+function cancelAnalysis() {
+  if(pending){
+    labWorker.terminate();
+    labWorker=null;
+    pending=false;
   }
-  if(experiment==='mentions') return {experiment,entities:read(text)};
-  const value=inspect(text,state.reader,state.vessels,experiment);
-  if(experiment==='brat'||experiment==='conll') return {experiment,manifest:value};
-  return experiment==='redact'?{experiment,redacted:value}:{experiment,groups:JSON.parse(value)};
 }
 
 function showAnalysis(result,text,report){
@@ -109,7 +111,7 @@ function showAnalysis(result,text,report){
       result.append(el('p',links?'No repeated mentions linked.':'No matching relation found.'));
       if(state.reader!=='registry'){
         result.append(action('Fit port gazetteer and rerun',()=>{
-          state.reader='registry';save();draw();$('#heading').focus();
+          state.reader='registry';labResult=null;save();draw(true);$('#heading').focus();
           $('#signal').textContent='Anno WebAssembly · '+catalog.registry[0];
         }));
       }
@@ -119,13 +121,15 @@ function showAnalysis(result,text,report){
     }
   }
 }
-function draw() {
+function draw(rerun=false) {
+  cancelAnalysis();
   const content=$('#content');content.replaceChildren();
   $('#port').hidden=state.away;$('#orbit').hidden=!state.away;
   $('#harbor-call').textContent = {open:'Mail road flooded · use west berth', accepted:'West berth · Kestrel awaiting dispatch', delivered:'Channel clear · Kestrel outbound'}[state.mission];
   $('#orbit-message').textContent=state.mission==='delivered'?'The Kestrel clears the flats with the corrected tide tables.':'A lamp burns above the mail shed. The port is accepting arrivals.';
   $('#heading').textContent=({log:'Saltglass Reach',lab:'Reader lab',board:'Mission BBS'})[screen];
   document.querySelectorAll('[data-screen]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.screen===screen)));
+  $('#export').onclick=exportPortLog;
   $('#export').disabled=!ready || (screen==='board' && state.mission!=='accepted');
   const formatLabel = {brat:'Download .ann',conll:'Download BIO'};
   $('#export').textContent=screen==='board'?'Export dispatch':(screen==='lab' && formatLabel[experiment])||'Export log';
@@ -156,28 +160,58 @@ function draw() {
     const input=el('textarea');input.id='sample';input.rows=5;input.maxLength=6000;input.value=state.sample;
     const caption=el('label','Local text · '+catalog[state.reader][0]);caption.htmlFor=input.id;
     const result=el('div');result.setAttribute('aria-live','polite');
-    const run=()=>{
-      try {
-        const measured=analyze(input.value);
-        labResult=measured;
-        showAnalysis(result,input.value,measured);
-      } catch(error) {labResult=null;result.textContent=String(error);}
+    const exporter=$('#export');
+    const reset=()=>{
+      cancelAnalysis();labResult=null;result.replaceChildren();
+      scan.disabled=!ready;exporter.disabled=!ready;
     };
-    input.oninput=()=>{state.sample=input.value;labResult=null;result.replaceChildren();save();};
-    const scan=action('Run Anno',run);scan.disabled=!ready;
+    const run=(download=false)=>{
+      if(pending)return;
+      const text=input.value;
+      if(labResult){
+        if(download)saveReport(labResult,text);
+        else showAnalysis(result,text,labResult);
+        return;
+      }
+      const fail=message=>{
+        cancelAnalysis();result.textContent=message;scan.disabled=false;exporter.disabled=false;
+      };
+      try {
+        const module = labWorker ? undefined : readerModule;
+        labWorker ??= new Worker(new URL('./reader-worker.js',import.meta.url),{type:'module'});
+        const worker=labWorker;
+        pending=true;scan.disabled=true;exporter.disabled=true;
+        result.textContent='Reading manifest…';
+        worker.onmessage=({data})=>{
+          if(worker!==labWorker || !pending)return;
+          if(data.error){fail(data.error);return;}
+          pending=false;scan.disabled=false;exporter.disabled=false;
+          labResult=data.report;
+          showAnalysis(result,text,labResult);
+          if(download)saveReport(labResult,text);
+        };
+        worker.onerror=()=>{
+          if(worker===labWorker)fail('Reader interrupted. Run Anno to retry.');
+        };
+        worker.postMessage({module,text,experiment,reader:state.reader,vessels:state.vessels,readers});
+      } catch(error){fail(String(error));}
+    };
+    input.oninput=()=>{state.sample=input.value;reset();};
+    const scan=action('Run Anno',()=>run());scan.disabled=!ready;
+    exporter.onclick=()=>run(true);
     const selector=el('select');
     selector.id='experiment';
     for(const [value,[name]] of Object.entries(experiments)){
       const option=el('option',name);option.value=value;selector.append(option);
     }
     selector.value=experiment;
-    selector.onchange=()=>{experiment=selector.value;$('#export').textContent=formatLabel[experiment]||'Export log';labResult=null;result.replaceChildren();};
+    selector.onchange=()=>{experiment=selector.value;$('#export').textContent=formatLabel[experiment]||'Export log';reset();};
     const mode=el('label','Experiment ');mode.append(selector);
     const example=action('Load example',()=>{
       input.value=experiments[experiment][1]; input.oninput(); if(ready)run();
     });
     content.append(mode,caption,input,scan,example,result);
-    if(ready && labResult!==null) run();
+    if(ready && !state.away && (rerun || labResult)) run();
   }
   if(screen==='board') {
     content.append(el('h3','Mail run · corrected tide tables'));
@@ -221,17 +255,22 @@ $('#done').onclick=()=>$('#outfitter').close();
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>{screen=b.dataset.screen;draw();$('#heading').focus();});
 $('#leave').onclick=()=>{state.away=true;save();draw();$('#land').focus();};
 $('#land').onclick=()=>{state.away=false;screen='log';save();draw();$('#heading').focus();};
-$('#export').onclick=()=>{
-  const text=screen==='lab'?state.sample:screen==='board'?dispatch:log;
-  let report;
-  try {
-    report=screen==='lab'?analyze(text):{entities:read(text)};
-  } catch(error) {$('#signal').textContent=String(error);return;}
-  if(screen!=='lab'||experiment!=='redact')report.text=text;
+function exportPortLog(){
+  const text=screen==='board'?dispatch:log;
+  saveReport({entities:read(text)},text);
+}
+function saveReport(report,text){
+  const source=report.experiment==='redact'?{}:{text};
   const manifest='manifest' in report;
-  const blob=new Blob([manifest?report.manifest:JSON.stringify({reader:state.reader,vessel_register:state.vessels,...report},null,2)],{type:manifest?'text/plain':'application/json'});
+  const blob=new Blob([manifest?report.manifest:JSON.stringify({reader:state.reader,vessel_register:state.vessels,...report,...source},null,2)],{type:manifest?'text/plain':'application/json'});
   const a=el('a');a.href=URL.createObjectURL(blob);a.download=manifest?(experiment==='brat'?'saltglass.ann':'saltglass.bio'):'saltglass-log.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 draw();
-try {await init();ready=true;draw();$('#signal').textContent='Anno WebAssembly · '+catalog[state.reader][0];}
+try {
+  const response=await fetch(new URL('./engine/pkg/saltglass_reader_bg.wasm',import.meta.url));
+  if(!response.ok)throw new Error('Reader download failed');
+  readerModule=WebAssembly.compileStreaming && response.headers.get('Content-Type')?.split(';')[0]==='application/wasm'
+    ? await WebAssembly.compileStreaming(response)
+    : await WebAssembly.compile(await response.arrayBuffer());
+  await init({module_or_path:readerModule});ready=true;draw();$('#signal').textContent='Anno WebAssembly · '+catalog[state.reader][0];}
 catch {$('#signal').textContent='Reader unavailable. Reload to retry.';}
