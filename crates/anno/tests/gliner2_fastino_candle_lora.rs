@@ -142,7 +142,7 @@ fn write_synthetic_adapter_inner(
         })
         .collect();
 
-    let serialized = safetensors::serialize(views, &None).expect("synthetic adapter serialize");
+    let serialized = safetensors::serialize(views, None).expect("synthetic adapter serialize");
     let mut sf = std::fs::File::create(dir.join("adapter_model.safetensors"))?;
     sf.write_all(&serialized)?;
     Ok(())

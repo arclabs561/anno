@@ -8,6 +8,8 @@
 
 ### Rust and grounded JSON migration
 
+- Model and dataset downloads now use `hf-hub` 1.0. Pass a typed blocking repository handle to `anno::download_model_file`. To pin a branch or commit, use `anno::download_model_file_at_revision(&repo, Some(revision), candidates)`. Both helpers honor `ANNO_NO_DOWNLOADS` and read existing Hub snapshots.
+
 - Building the workspace now requires Rust 1.95 or newer.
 
 - In `anno-eval`, complete `TaskEvalConfig` literals need `relation_schema: None` to keep the previous per-document prompt behavior. Existing serialized configurations load with that default. Use `TaskEvalConfigBuilder::with_relation_schema` for a fixed label inventory.

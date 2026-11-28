@@ -83,7 +83,7 @@ impl GLiREL {
     /// call [`GLiREL::from_local`].
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
         let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;

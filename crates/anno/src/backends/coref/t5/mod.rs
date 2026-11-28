@@ -208,7 +208,7 @@ impl T5Coref {
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let encoder_path = hf_loader::download_model_file(
             &repo,

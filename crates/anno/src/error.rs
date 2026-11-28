@@ -132,8 +132,8 @@ impl From<crate::core::error::Error> for Error {
 /// Convert HuggingFace API errors to our Error type.
 /// Only available when hf-hub is in the dependency tree (onnx or candle features).
 #[cfg(all(any(feature = "onnx", feature = "candle"), not(target_arch = "wasm32")))]
-impl From<hf_hub::api::sync::ApiError> for Error {
-    fn from(err: hf_hub::api::sync::ApiError) -> Self {
+impl From<hf_hub::HFError> for Error {
+    fn from(err: hf_hub::HFError) -> Self {
         Error::Retrieval(format!("{}", err))
     }
 }

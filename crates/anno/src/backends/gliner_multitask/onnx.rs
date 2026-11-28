@@ -48,7 +48,7 @@ impl GLiNERMultitaskOnnx {
         super::check_model_id_is_supported(model_id)?;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
         let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;

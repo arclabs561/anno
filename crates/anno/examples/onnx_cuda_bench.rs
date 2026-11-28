@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Instant;
 
     use anno::{create_onnx_session, OnnxSessionConfig};
-    use hf_hub::api::sync::Api;
+    use hf_hub::HFClientSync;
     use ort::session::Session;
     use ort::value::{DynValue, Tensor, TensorElementType, ValueType};
 
@@ -67,9 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const N_RUNS: usize = 20;
 
     eprintln!("[bench] downloading {}/{}", MODEL_REPO, MODEL_FILE);
-    let api = Api::new()?;
-    let repo = api.model(MODEL_REPO.to_string());
-    let model_path = repo.get(MODEL_FILE)?;
+    let api = HFClientSync::new()?;
+    let (owner, name) = hf_hub::split_id(MODEL_REPO);
+    let repo = api.model(owner, name);
+    let model_path = repo.download_file().filename(MODEL_FILE).send()?;
     eprintln!("[bench] model at {}", model_path.display());
 
     // Concrete dims for the model's dynamic dimensions. Heuristic: the first

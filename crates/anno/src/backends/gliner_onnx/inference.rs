@@ -14,9 +14,10 @@ struct RelexEntityExport {
 }
 
 impl RelexEntityExport {
-    fn find(cache: &hf_hub::Cache, prefer_quantized: bool) -> Option<Self> {
-        let repo = hf_hub::Repo::model(crate::models::GLINER_RELEX.into());
-        let exported = cache.path().join(repo.folder_name()).join("onnx");
+    fn find(cache: &std::path::Path, prefer_quantized: bool) -> Option<Self> {
+        let model_dir =
+            crate::backends::hf_loader::model_cache_dir(cache, crate::models::GLINER_RELEX);
+        let exported = model_dir.join("onnx");
         let installed = exported.join("joint");
         let joint = std::fs::read_to_string(installed.join("current"))
             .ok()
@@ -41,9 +42,7 @@ impl RelexEntityExport {
         }
         // The standalone exporter keeps the three files together. Also support
         // existing HF snapshots with a graph at the root or under onnx/.
-        let snapshot = cache
-            .repo(repo)
-            .get("tokenizer.json")
+        let snapshot = crate::backends::hf_loader::cached_main_file(&model_dir, "tokenizer.json")
             .and_then(|p| p.parent().map(std::path::Path::to_owned));
         for dir in std::iter::once(exported).chain(snapshot) {
             let tokenizer = dir.join("tokenizer.json");
@@ -78,7 +77,7 @@ impl GLiNEROnnx {
     /// are present. Graph validity is checked by ONNX Runtime at construction.
     pub fn relex_entity_export_available() -> bool {
         RelexEntityExport::find(
-            &hf_hub::Cache::from_env(),
+            &crate::backends::hf_loader::hub_cache_dir(),
             GLiNERConfig::default().prefer_quantized,
         )
         .is_some()
@@ -86,7 +85,7 @@ impl GLiNEROnnx {
 
     /// Whether the selected export was validated by the joint Relex exporter.
     pub fn relex_joint_export_available() -> bool {
-        RelexEntityExport::find(&hf_hub::Cache::from_env(), true)
+        RelexEntityExport::find(&crate::backends::hf_loader::hub_cache_dir(), true)
             .is_some_and(|export| export.graph.with_file_name("joint-relex-v1").is_file())
     }
 
@@ -134,12 +133,12 @@ impl GLiNEROnnx {
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_name.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         let (model_path, is_quantized, tokenizer_path, local_config) = if model_name
             == crate::models::GLINER_RELEX
         {
-            let export = RelexEntityExport::find(&hf_hub::Cache::from_env(), config.prefer_quantized)
+            let export = RelexEntityExport::find(&crate::backends::hf_loader::hub_cache_dir(), config.prefer_quantized)
                 .ok_or_else(|| Error::FeatureNotAvailable(
                     "GLiNER-RelEx NER requires a local ONNX entity export with tokenizer.json and gliner_config.json. Run uv run scripts/export_gliner_relex_onnx.py".into(),
                 ))?;
@@ -1511,7 +1510,7 @@ fn detect_encoder_mode(session: &ort::session::Session) -> config::EncoderMode {
 #[cfg(feature = "onnx")]
 fn export_pytorch_to_onnx(
     model_name: &str,
-    repo: &hf_hub::api::sync::ApiRepo,
+    repo: &hf_hub::HFRepositorySync<hf_hub::RepoTypeModel>,
     prefer_quantized: bool,
 ) -> Result<(std::path::PathBuf, bool)> {
     use std::path::Path;
@@ -1774,35 +1773,36 @@ mod relex_export_tests {
     #[test]
     fn relex_requires_a_graph_and_both_sidecars_from_one_export() {
         let temp = tempfile::tempdir().unwrap();
-        let cache = hf_hub::Cache::new(temp.path().into());
-        let repo = hf_hub::Repo::model(crate::models::GLINER_RELEX.into());
-        let standalone = cache.path().join(repo.folder_name()).join("onnx");
-        let snapshot = cache.repo(repo);
-        snapshot.create_ref("fixture").unwrap();
-        let root = snapshot.pointer_path("fixture");
+        let cache = temp.path();
+        let repo = crate::models::GLINER_RELEX;
+        let standalone = crate::backends::hf_loader::model_cache_dir(cache, repo).join("onnx");
+        let snapshot = crate::backends::hf_loader::model_cache_dir(cache, repo);
+        fs::create_dir_all(snapshot.join("refs")).unwrap();
+        fs::write(snapshot.join("refs/main"), "fixture").unwrap();
+        let root = snapshot.join("snapshots/fixture");
         fs::create_dir_all(root.join("onnx")).unwrap();
         fs::write(root.join("model.safetensors"), b"PyTorch only").unwrap();
         fs::write(root.join("tokenizer.json"), b"{}").unwrap();
         fs::write(root.join("gliner_config.json"), b"{}").unwrap();
-        assert!(RelexEntityExport::find(&cache, true).is_none());
+        assert!(RelexEntityExport::find(cache, true).is_none());
 
         fs::create_dir_all(&standalone).unwrap();
         fs::write(standalone.join("model.onnx"), b"graph").unwrap();
         // Incomplete standalone exports cannot borrow unrelated snapshot sidecars.
-        assert!(RelexEntityExport::find(&cache, true).is_none());
+        assert!(RelexEntityExport::find(cache, true).is_none());
         fs::write(root.join("onnx/model.onnx"), b"snapshot graph").unwrap();
-        let files = RelexEntityExport::find(&cache, true).unwrap();
+        let files = RelexEntityExport::find(cache, true).unwrap();
         assert_eq!(files.graph, root.join("onnx/model.onnx"));
         assert_eq!(files.config, root.join("gliner_config.json"));
 
         fs::write(standalone.join("tokenizer.json"), b"{}").unwrap();
         fs::write(standalone.join("gliner_config.json"), b"{}").unwrap();
         fs::write(standalone.join("model_quantized.onnx"), b"quantized").unwrap();
-        let files = RelexEntityExport::find(&cache, true).unwrap();
+        let files = RelexEntityExport::find(cache, true).unwrap();
         assert_eq!(files.graph, standalone.join("model_quantized.onnx"));
         assert_eq!(files.tokenizer, standalone.join("tokenizer.json"));
         assert!(files.quantized);
-        let files = RelexEntityExport::find(&cache, false).unwrap();
+        let files = RelexEntityExport::find(cache, false).unwrap();
         assert_eq!(files.graph, standalone.join("model.onnx"));
         assert!(!files.quantized);
 
@@ -1820,11 +1820,11 @@ mod relex_export_tests {
         }
         // Staged generations do not take precedence until fully published.
         assert_eq!(
-            RelexEntityExport::find(&cache, true).unwrap().graph,
+            RelexEntityExport::find(cache, true).unwrap().graph,
             standalone.join("model_quantized.onnx")
         );
         fs::write(installed.join("current"), digest).unwrap();
-        let files = RelexEntityExport::find(&cache, true).unwrap();
+        let files = RelexEntityExport::find(cache, true).unwrap();
         assert_eq!(files.graph, joint.join("model.onnx"));
         assert_eq!(files.tokenizer, joint.join("tokenizer.json"));
     }

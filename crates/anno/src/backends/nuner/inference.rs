@@ -80,12 +80,14 @@ impl NuNER {
         if let Some(path) = std::env::var_os("NUNER_4K_MODEL_PATH").filter(|p| !p.is_empty()) {
             return assets(Path::new(&path));
         }
-        let cache = hf_hub::Cache::from_env();
-        let repo = hf_hub::Repo::model(crate::models::NUNER_ZERO_4K.to_owned());
+        let cache = crate::backends::hf_loader::hub_cache_dir();
+        let model_dir =
+            crate::backends::hf_loader::model_cache_dir(&cache, crate::models::NUNER_ZERO_4K);
         // The export script writes beside the Hub snapshots. Recognize a prepared
         // snapshot as well for existing offline installations.
-        assets(&cache.path().join(repo.folder_name()).join("onnx")).or_else(|| {
-            let tokenizer = cache.repo(repo).get("tokenizer.json")?;
+        assets(&model_dir.join("onnx")).or_else(|| {
+            let tokenizer =
+                crate::backends::hf_loader::cached_main_file(&model_dir, "tokenizer.json")?;
             assets(tokenizer.parent()?)
         })
     }
@@ -158,7 +160,7 @@ impl NuNER {
             )
         } else {
             let api = hf_loader::hf_api()?;
-            let repo = api.model(model_id.to_string());
+            let repo = crate::backends::hf_loader::hub_model(&api, model_id);
             (
                 hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?,
                 hf_loader::download_model_file(&repo, &["tokenizer.json"])?,

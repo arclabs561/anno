@@ -49,7 +49,7 @@ fn main() {
 #[cfg(all(feature = "onnx", feature = "onnx-cuda"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use anno::{create_onnx_session_with_provider, OnnxExecutionProvider, OnnxSessionConfig};
-    use hf_hub::api::sync::Api;
+    use hf_hub::HFClientSync;
 
     // Same model anno's gliner_onnx backend exercises -- if this loads, the
     // real backend's path works too.
@@ -79,9 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         (None, _) => {
             eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
-            let api = Api::new()?;
-            let repo = api.model(MODEL_REPO.to_string());
-            repo.get(MODEL_FILE)?
+            let api = HFClientSync::new()?;
+            let (owner, name) = hf_hub::split_id(MODEL_REPO);
+            let repo = api.model(owner, name);
+            repo.download_file().filename(MODEL_FILE).send()?
         }
     };
     eprintln!("[smoke] model at {}", model_path.display());
