@@ -1,7 +1,8 @@
 //! NER Backend Catalog
 //!
-//! This module is documentation-only: it describes the set of backends that live
-//! under `crate::backends` and gives a few “where to start” pointers.
+//! The `anno models` CLI and [`crate::available_backends`] use this metadata
+//! to describe extraction backends. Runtime constructors resolve checkpoints
+//! and prepared assets separately.
 //!
 //! Keep in mind:
 //! - Many backends are **feature-gated** (`onnx`, `candle`, etc.).
@@ -65,6 +66,60 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
     // =========================================================================
     // Implemented Backends
     // =========================================================================
+    BackendInfo {
+        name: "otter_cross",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "Otter cross-encoder for prompted multilingual NER",
+        recommended_models: &["whoisjones/otter-cross-mmbert"],
+    },
+    BackendInfo {
+        name: "otter_bi",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "Otter bi-encoder for prompted multilingual NER",
+        recommended_models: &["whoisjones/otter-bi-mmbert"],
+    },
+    BackendInfo {
+        name: "kniv",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: false,
+        gpu_support: false,
+        description: "Kniv English named entities and within-window facts",
+        recommended_models: &["dragonscale-ai/kniv-v7-large-en"],
+    },
+    BackendInfo {
+        name: "glinerel_72m",
+        feature: None,
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "GLiNEREL multilingual entity and relation extraction",
+        recommended_models: &["VAGOsolutions/SauerkrautLM-GLiNEREL-72m"],
+    },
+    BackendInfo {
+        name: "adaptner",
+        feature: Some("onnx"),
+        status: BackendStatus::Beta,
+        zero_shot: false,
+        gpu_support: false,
+        description: "AdaptNER Arabic nested entities (Wojood label inventory)",
+        recommended_models: &["NAMAA-Space/KnowledgeGraphEval-2026-AdaptNER-AraBERTv02-Nested"],
+    },
+    BackendInfo {
+        name: "gliner2_pii",
+        feature: Some("gliner2-fastino"),
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: false,
+        description: "GLiNER2 multilingual PII extraction with the Fastino ONNX backend",
+        recommended_models: &["jugaadsrl/gliner2-privacy-filter-PII-multi-onnx"],
+    },
     BackendInfo {
         name: "pattern",
         feature: None,

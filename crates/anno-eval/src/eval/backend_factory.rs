@@ -231,8 +231,16 @@ impl BackendFactory {
                 Ok((Box::new(model), receipt))
             }
             #[cfg(feature = "gliner2-fastino")]
-            "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
-                let model = Self::load_gliner2_fastino()?;
+            name @ ("gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" | "gliner2_pii"
+            | "gliner2-pii") => {
+                let (kind, model) = if matches!(name, "gliner2_pii" | "gliner2-pii") {
+                    (
+                        "gliner2_pii",
+                        anno::backends::gliner2_fastino::GLiNER2Fastino::from_pii()?,
+                    )
+                } else {
+                    ("gliner2_fastino", Self::load_gliner2_fastino()?)
+                };
                 let paths = model.artifact_paths();
                 let mut files = vec![("tokenizer".to_string(), paths.tokenizer)];
                 if let Some(config) = paths.config {
@@ -240,7 +248,7 @@ impl BackendFactory {
                 }
                 files.extend(paths.graphs);
                 let receipt = artifact_receipt_from_paths(
-                    "gliner2_fastino",
+                    kind,
                     model.model_id(),
                     model.model_revision(),
                     files,
@@ -292,6 +300,14 @@ impl BackendFactory {
     /// ```
     pub fn create(backend_name: &str) -> Result<Box<dyn Model>> {
         match backend_name.to_lowercase().as_str() {
+            "otter-cross" | "otter_cross" => Ok(Box::new(anno::backends::otter::Otter::from_env(anno::backends::otter::OtterVariant::Cross)?)),
+            "otter-bi" | "otter_bi" => Ok(Box::new(anno::backends::otter::Otter::from_env(anno::backends::otter::OtterVariant::Bi)?)),
+            "kniv" => Ok(Box::new(anno::backends::kniv::Kniv::from_env()?)),
+            "glinerel-72m" | "glinerel_72m" => Ok(Box::new(anno::backends::glinerel::GLiNEREL::from_env()?)),
+            #[cfg(feature = "onnx")]
+            "adaptner" => Ok(Box::new(anno::backends::adaptner::AdaptNer::from_env()?)),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2-pii" | "gliner2_pii" => Ok(Box::new(anno::backends::gliner2_fastino::GLiNER2Fastino::from_pii()?)),
             // Always available backends
             "pattern" | "patternner" | "regex" | "regexner" => Ok(Box::new(anno::RegexNER::new())),
             "heuristic" | "heuristicner" => Ok(Box::new(anno::HeuristicNER::new())),
@@ -686,10 +702,81 @@ impl BackendFactory {
         std::env::var("NUNER_MODEL_PATH").unwrap_or_else(|_| crate::DEFAULT_NUNER_MODEL.to_owned())
     }
 
+    // Cheap preflight for optional local runtimes. Constructors still validate the
+    // snapshot, graph and interpreter when the backend is explicitly requested.
+    fn optional_model_files_available(name: &str) -> Option<bool> {
+        let contains_files =
+            |dir: &Path, names: &[&str]| names.iter().all(|file| dir.join(file).is_file());
+        match name {
+            "otter_cross" => {
+                Some(anno::backends::otter::OtterVariant::Cross.model_files_available())
+            }
+            "otter_bi" => Some(anno::backends::otter::OtterVariant::Bi.model_files_available()),
+            "kniv" => Some(std::env::var_os("KNIV_MODEL_DIR").is_some_and(|dir| {
+                contains_files(
+                    Path::new(&dir),
+                    &[
+                        "calibration.json",
+                        "label_bank.json",
+                        "tokenizer.json",
+                        "onnx/onnx_meta.json",
+                        "onnx/attr-int8.onnx",
+                        "onnx/coref_spans-int8.onnx",
+                        "onnx/dep_rel-int8.onnx",
+                        "onnx/marker-int8.onnx",
+                        "onnx/plain-int8.onnx",
+                        "onnx/span-int8.onnx",
+                        "onnx/srl_roles-int8.onnx",
+                        "onnx/label.onnx",
+                        "kniv_v7/__init__.py",
+                        "kniv_v7/entities.py",
+                        "kniv_v7/runtime.py",
+                        "kniv_v7/windows.py",
+                    ],
+                )
+            })),
+            "glinerel_72m" => {
+                let directory = std::env::var_os("ANNO_GLINEREL_MODEL_DIR").map(PathBuf::from).or_else(|| {
+                    let hub = std::env::var_os("HF_HUB_CACHE").or_else(|| std::env::var_os("HUGGINGFACE_HUB_CACHE")).map(PathBuf::from)
+                        .or_else(|| std::env::var_os("HF_HOME").map(|home| Path::new(&home).join("hub")))
+                        .or_else(|| dirs::cache_dir().map(|dir| dir.join("huggingface/hub")))?;
+                    Some(hub.join("models--VAGOsolutions--SauerkrautLM-GLiNEREL-72m/snapshots/34c024bb2ea85326526f6c5d150b9afe8bbe4808"))
+                });
+                Some(directory.is_some_and(|dir| {
+                    contains_files(
+                        &dir,
+                        &[
+                            "config.json",
+                            "encoder_config/config.json",
+                            "tokenizer.json",
+                            "model.safetensors",
+                        ],
+                    )
+                }))
+            }
+            #[cfg(feature = "onnx")]
+            "adaptner" => Some(std::env::var_os("ADAPTNER_MODEL_DIR").is_some_and(|dir| {
+                anno::backends::adaptner::AdaptNer::model_files_available(Path::new(&dir))
+            })),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_pii" => {
+                Some(anno::backends::gliner2_fastino::GLiNER2Fastino::pii_assets_available())
+            }
+            #[cfg(not(feature = "gliner2-fastino"))]
+            "gliner2_pii" => Some(false),
+            #[cfg(not(feature = "onnx"))]
+            "adaptner" => Some(false),
+            _ => None,
+        }
+    }
+
     /// Check model file prerequisites for automatic sampling. Built-ins and
     /// composites with working local fallbacks remain available on an empty cache.
     #[cfg(feature = "eval")]
     pub(crate) fn automatic_files_available(name: &str, has_hf_token: bool) -> bool {
+        if let Some(ready) = Self::optional_model_files_available(&name.replace('-', "_")) {
+            return ready;
+        }
         match name {
             #[cfg(feature = "onnx")]
             "bert_onnx" => anno::BertNEROnnx::model_files_available(anno::DEFAULT_BERT_ONNX_MODEL),
@@ -765,6 +852,19 @@ impl BackendFactory {
             "heuristic_crf",
             "tplinker",
         ];
+
+        for name in [
+            "otter_cross",
+            "otter_bi",
+            "kniv",
+            "glinerel_72m",
+            "adaptner",
+            "gliner2_pii",
+        ] {
+            if Self::optional_model_files_available(name) == Some(true) {
+                backends.push(name);
+            }
+        }
 
         #[cfg(feature = "llm")]
         {
@@ -843,7 +943,8 @@ impl BackendFactory {
     /// Check if a backend is available (feature-enabled).
     #[must_use]
     pub fn is_available(backend_name: &str) -> bool {
-        Self::available_backends().contains(&backend_name.to_lowercase().as_str())
+        Self::available_backends()
+            .contains(&backend_name.to_ascii_lowercase().replace('-', "_").as_str())
     }
 }
 

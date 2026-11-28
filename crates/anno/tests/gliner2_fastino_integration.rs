@@ -467,3 +467,37 @@ fn smoke_iobinding_cuda() {
         "CUDA + IoBinding produced no entities; expected at least one for {text:?}"
     );
 }
+
+#[test]
+#[ignore = "requires the GLiNER2-PII ONNX export"]
+fn pii_checkpoint_extracts_contacts_and_honors_a_narrower_schema() {
+    use anno::Model;
+
+    let text = "Élodie: Email john.smith@acme.com or call +1 415 555 0199.";
+    let model = GLiNER2Fastino::from_pii().expect("load GLiNER2-PII");
+    assert!(GLiNER2Fastino::pii_assets_available());
+    assert_eq!(model.default_types(), &["email", "phone_number"]);
+    assert_eq!(model.runtime_name(), "GLiNER2-PII");
+
+    let mut contacts: Vec<_> = model
+        .extract_entities(text, None)
+        .unwrap()
+        .into_iter()
+        .map(|entity| {
+            (
+                entity.start(),
+                entity.end(),
+                entity.entity_type.as_label().to_owned(),
+            )
+        })
+        .collect();
+    contacts.sort();
+    assert_eq!(
+        contacts,
+        vec![(14, 33, "EMAIL".into()), (42, 57, "PHONE_NUMBER".into())]
+    );
+
+    let emails = model.extract_with_types(text, &["email"], 0.5).unwrap();
+    assert_eq!(emails.len(), 1);
+    assert_eq!(emails[0].text, "john.smith@acme.com");
+}

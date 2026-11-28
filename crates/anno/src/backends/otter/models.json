@@ -1,0 +1,98 @@
+{
+  "cross": {
+    "repo": "whoisjones/otter-cross-mmbert",
+    "revision": "8729188e4f5fc7948d0e9dfd7d7e6d36c2e7270d",
+    "files": {
+      "config.json": {
+        "size": 3365,
+        "git_blob": "afd97b28b55e2fe863d045751bf934c648ab4a63"
+      },
+      "configuration_otter.py": {
+        "size": 4431,
+        "git_blob": "d7c64384078bc85f16bb1fecfa74149ab123d520"
+      },
+      "loss.py": {
+        "size": 4933,
+        "git_blob": "13ca8320d0ecaf181ddc577a71e488303ae9e507"
+      },
+      "masks.py": {
+        "size": 10423,
+        "git_blob": "d69c9b39097bf13cc7c2a548470b28fd00413d2e"
+      },
+      "metrics.py": {
+        "size": 4390,
+        "git_blob": "51aa2d61d62cc305123494b8ee26abffd5a668ee"
+      },
+      "model.safetensors": {
+        "size": 1235084300,
+        "sha256": "8987080bfc3e6672a75fb19ffe904d39e79ad804eabfda8247a62c347fb024b2"
+      },
+      "modeling_otter.py": {
+        "size": 24361,
+        "git_blob": "d3bb872662abdaa5b255f9f9c44030028caa6e92"
+      },
+      "special_tokens_map.json": {
+        "size": 1051,
+        "git_blob": "be4ad795f49075ac5e56d8108ef63be314a1e967"
+      },
+      "tokenizer.json": {
+        "size": 34363565,
+        "sha256": "1cd61f03e5def45b8097b3ec02a89b3f5aff7c40b44b87bf0583765e2a112d6d"
+      },
+      "tokenizer_config.json": {
+        "size": 46822,
+        "git_blob": "27f8dc925c1589273b671cfa291849fbc3a6d0d4"
+      }
+    }
+  },
+  "bi": {
+    "repo": "whoisjones/otter-bi-mmbert",
+    "revision": "53e10a09bc71a2e45980a7a257233a28305a5777",
+    "files": {
+      "config.json": {
+        "size": 4608,
+        "git_blob": "de394ddb5b3e1ec06e745971542d798fecec7d25"
+      },
+      "configuration_otter.py": {
+        "size": 4431,
+        "git_blob": "d7c64384078bc85f16bb1fecfa74149ab123d520"
+      },
+      "loss.py": {
+        "size": 4933,
+        "git_blob": "13ca8320d0ecaf181ddc577a71e488303ae9e507"
+      },
+      "masks.py": {
+        "size": 10423,
+        "git_blob": "d69c9b39097bf13cc7c2a548470b28fd00413d2e"
+      },
+      "metrics.py": {
+        "size": 4390,
+        "git_blob": "51aa2d61d62cc305123494b8ee26abffd5a668ee"
+      },
+      "model.safetensors": {
+        "size": 1906302124,
+        "sha256": "05c4f718fb9e5871d66b8eb68fc40e17d0d8611c5b8e6252e371662bc0f78c91"
+      },
+      "modeling_otter.py": {
+        "size": 24361,
+        "git_blob": "d3bb872662abdaa5b255f9f9c44030028caa6e92"
+      },
+      "token_tokenizer/tokenizer.json": {
+        "size": 34363188,
+        "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f"
+      },
+      "token_tokenizer/tokenizer_config.json": {
+        "size": 574,
+        "git_blob": "4a835ec4c4feccf7462f2f8c590b5f3ce08e1eb3"
+      },
+      "type_tokenizer/tokenizer.json": {
+        "size": 2563370,
+        "git_blob": "24ce57bee78a391706c443e2417f3339a842438f"
+      },
+      "type_tokenizer/tokenizer_config.json": {
+        "size": 351,
+        "git_blob": "fb1d5b6a92c4b6a1cc83ebf75d012bfa57d7e994"
+      }
+    }
+  }
+}

@@ -118,6 +118,12 @@ pub const SUPPORTED_GLINER2_FASTINO_MODEL: &str = crate::models::GLINER2_FASTINO
 /// Immutable Hugging Face revision for [`SUPPORTED_GLINER2_FASTINO_MODEL`].
 pub const SUPPORTED_GLINER2_FASTINO_REVISION: &str = "4241d7c66b648e618c89c150bf4cf418d2f83159";
 
+/// Fragmented ONNX export of the Fastino multilingual PII checkpoint.
+pub const GLINER2_PII_MODEL: &str = "jugaadsrl/gliner2-privacy-filter-PII-multi-onnx";
+/// CPU FP32 export validated against Fastino's original PyTorch checkpoint.
+pub const GLINER2_PII_REVISION: &str = "e594898629d452e8311796f5f329c7edbeda907c";
+const PII_DEFAULT_TYPES: &[&str] = &["email", "phone_number"];
+
 const HUB_TOKENIZERS: [&str; 3] = [
     "fp32_v2/tokenizer.json",
     "fp16_v2/tokenizer.json",
@@ -141,6 +147,29 @@ fn snapshot_assets_available(snapshot: &Path) -> bool {
                 .any(|file| snapshot.join(file).is_file())
         })
     {
+        return false;
+    }
+    local_assets_available(snapshot)
+}
+
+fn cached_assets_available(model_id: &str, revision: &str) -> bool {
+    let repo = hf_hub::Repo::with_revision(
+        model_id.to_owned(),
+        hf_hub::RepoType::Model,
+        revision.to_owned(),
+    );
+    let cache = hf_hub::Cache::from_env().repo(repo);
+    snapshot_assets_available(&cache.pointer_path(revision))
+}
+
+fn pii_model_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("GLINER2_PII_MODEL_DIR")
+        .filter(|path| !path.is_empty())
+        .map(std::path::PathBuf::from)
+}
+
+fn local_assets_available(snapshot: &Path) -> bool {
+    if snapshot.join("adapter_config.json").exists() {
         return false;
     }
     // The local loader opens all sessions from the first complete layout.
@@ -263,6 +292,7 @@ pub struct GLiNER2Fastino {
     pub(crate) sessions: sessions::Sessions,
     pub(crate) model_id: String,
     model_revision: Option<String>,
+    pii: bool,
     pub(crate) execution_mode: ExecutionMode,
     tokenizer_path: std::path::PathBuf,
     config_path: Option<std::path::PathBuf>,
@@ -298,13 +328,20 @@ impl GLiNER2Fastino {
         if !crate::backends::hf_loader::no_downloads() {
             return true;
         }
-        let repo = hf_hub::Repo::with_revision(
-            SUPPORTED_GLINER2_FASTINO_MODEL.to_owned(),
-            hf_hub::RepoType::Model,
-            SUPPORTED_GLINER2_FASTINO_REVISION.to_owned(),
-        );
-        let cache = hf_hub::Cache::from_env().repo(repo);
-        snapshot_assets_available(&cache.pointer_path(SUPPORTED_GLINER2_FASTINO_REVISION))
+        cached_assets_available(
+            SUPPORTED_GLINER2_FASTINO_MODEL,
+            SUPPORTED_GLINER2_FASTINO_REVISION,
+        )
+    }
+
+    /// Whether a complete PII export is already available at the configured
+    /// path or in the pinned Hugging Face cache. Performs no network requests.
+    #[must_use]
+    pub fn pii_assets_available() -> bool {
+        match pii_model_dir() {
+            Some(path) => local_assets_available(&path),
+            None => cached_assets_available(GLINER2_PII_MODEL, GLINER2_PII_REVISION),
+        }
     }
 
     /// Load with full configuration including execution mode.
@@ -373,6 +410,7 @@ impl GLiNER2Fastino {
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "gliner2_fastino_local".to_string()),
             model_revision: cfg.model_revision.clone(),
+            pii: false,
             execution_mode: cfg.execution_mode,
             tokenizer_path,
             config_path: config_path.exists().then_some(config_path),
@@ -450,6 +488,24 @@ impl GLiNER2Fastino {
         Ok(entities)
     }
 
+    /// Load the multilingual PII specialist. When `GLINER2_PII_MODEL_DIR` is set,
+    /// it must point to a complete local eight-graph export. Otherwise, load the
+    /// pinned Hub export, honoring Anno's cache-only mode. Plain extraction
+    /// requests email and phone spans. Supply other labels through `ZeroShotNER`.
+    pub fn from_pii() -> crate::Result<Self> {
+        if let Some(dir) = pii_model_dir() {
+            return Self::from_pii_local(&dir);
+        }
+        Self::from_pretrained(GLINER2_PII_MODEL)
+    }
+
+    /// Open a prepared PII export with the contact schema and PII runtime identity.
+    pub fn from_pii_local(model_dir: &Path) -> crate::Result<Self> {
+        let mut model = Self::from_local(model_dir)?;
+        model.pii = true;
+        Ok(model)
+    }
+
     /// Load a fastino GLiNER2 model by Hugging Face model id.
     ///
     /// Downloads `tokenizer.json`, `config.json`, and the 8 v2 ONNX graphs
@@ -469,16 +525,18 @@ impl GLiNER2Fastino {
     /// is on disk.
     pub fn from_pretrained_with_config(
         model_id: &str,
-        cfg: GLiNER2FastinoConfig,
+        mut cfg: GLiNER2FastinoConfig,
     ) -> crate::Result<Self> {
         let api = crate::backends::hf_loader::hf_api()
             .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: hf_api: {e}")))?;
-        // The public, supported model is always reproducible by default.
-        // Other model IDs remain floating unless the caller opts into a revision.
-        let revision = cfg.model_revision.as_deref().or_else(|| {
-            (model_id == SUPPORTED_GLINER2_FASTINO_MODEL)
-                .then_some(SUPPORTED_GLINER2_FASTINO_REVISION)
-        });
+        if cfg.model_revision.is_none() {
+            cfg.model_revision = match model_id {
+                SUPPORTED_GLINER2_FASTINO_MODEL => Some(SUPPORTED_GLINER2_FASTINO_REVISION.into()),
+                GLINER2_PII_MODEL => Some(GLINER2_PII_REVISION.into()),
+                _ => None,
+            };
+        }
+        let revision = cfg.model_revision.as_deref();
         let repo = match revision {
             Some(revision) => api.repo(hf_hub::Repo::with_revision(
                 model_id.to_string(),
@@ -533,6 +591,7 @@ impl GLiNER2Fastino {
         }
         let mut model = Self::from_local_with_config(snapshot_dir, cfg)?;
         model.model_id = model_id.to_string();
+        model.pii = model_id == GLINER2_PII_MODEL;
         Ok(model)
     }
 
@@ -618,10 +677,21 @@ impl crate::Model for GLiNER2Fastino {
         text: &str,
         _language: Option<Language>,
     ) -> crate::Result<Vec<crate::Entity>> {
-        self.extract_ner(text, &["person", "organization", "location", "date"], 0.5)
+        let types = if self.pii {
+            PII_DEFAULT_TYPES
+        } else {
+            &["person", "organization", "location", "date"]
+        };
+        self.extract_ner(text, types, 0.5)
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
+        if self.pii {
+            return PII_DEFAULT_TYPES
+                .iter()
+                .map(|label| crate::schema::map_to_canonical(label, None))
+                .collect();
+        }
         vec![
             EntityType::Person,
             EntityType::Organization,
@@ -636,11 +706,19 @@ impl crate::Model for GLiNER2Fastino {
     }
 
     fn name(&self) -> &'static str {
-        "GLiNER2Fastino"
+        if self.pii {
+            "GLiNER2-PII"
+        } else {
+            "GLiNER2Fastino"
+        }
     }
 
     fn description(&self) -> &'static str {
-        "fastino-ai GLiNER2 (NER + classification, ONNX, experimental)"
+        if self.pii {
+            "Fastino GLiNER2 multilingual PII extraction (ONNX)"
+        } else {
+            "fastino-ai GLiNER2 (NER + classification, ONNX, experimental)"
+        }
     }
 
     fn as_zero_shot(&self) -> Option<&dyn ZeroShotNER> {
@@ -650,7 +728,11 @@ impl crate::Model for GLiNER2Fastino {
 
 impl ZeroShotNER for GLiNER2Fastino {
     fn default_types(&self) -> &[&'static str] {
-        &["person", "organization", "location", "date", "event"]
+        if self.pii {
+            PII_DEFAULT_TYPES
+        } else {
+            &["person", "organization", "location", "date", "event"]
+        }
     }
 
     fn extract_with_types(

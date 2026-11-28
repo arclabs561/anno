@@ -12,13 +12,17 @@ use std::sync::OnceLock;
 
 #[cfg(feature = "fastino")]
 use anno::backends::gliner2_fastino::{GLiNER2Fastino, SUPPORTED_GLINER2_FASTINO_MODEL};
-#[cfg(feature = "fastino")]
 use anno::backends::inference::ZeroShotNER;
+use anno::backends::otter::{Otter, OtterVariant};
 #[cfg(feature = "onnx")]
 use anno::{BertNEROnnx, GLiNEROnnx};
 use anno::{HeuristicNER, Model, RegexNER, StackedNER};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use std::ffi::OsString;
+#[cfg(feature = "fastino")]
+use std::path::Path;
+use std::path::PathBuf;
 
 /// Convert an `anno::Error` into the closest Python exception.
 ///
@@ -236,7 +240,11 @@ fn convert_fastino_classifications(
 }
 
 /// Run Model extraction with the GIL released and convert the results.
-fn run_model_extract<M: Model>(py: Python<'_>, model: &M, text: &str) -> PyResult<Vec<Entity>> {
+fn run_model_extract<M: Model + ?Sized>(
+    py: Python<'_>,
+    model: &M,
+    text: &str,
+) -> PyResult<Vec<Entity>> {
     let entities = py
         .detach(|| model.extract_entities(text, None))
         .map_err(to_py_err)?;
@@ -256,12 +264,9 @@ fn offline_stack() -> StackedNER {
 }
 
 enum ExtractorBackend {
-    Offline(StackedNER),
-    #[cfg(feature = "onnx")]
-    Bert(BertNEROnnx),
-    #[cfg(feature = "onnx")]
-    Gliner {
-        model: Box<GLiNEROnnx>,
+    Fixed(Box<dyn Model>),
+    Prompted {
+        model: Box<dyn ZeroShotNER>,
         labels: Vec<String>,
         threshold: f32,
     },
@@ -377,27 +382,47 @@ impl FastinoExtractor {
     }
 }
 
-/// Entity extractor with an explicitly selected backend.
-///
-/// `backend="offline"` is the default pattern + heuristic stack and makes no
-/// model downloads. Model-backed backends require a wheel built with the
-/// optional `onnx` feature. Construct once and reuse; `extract` releases the
-/// GIL while running.
+/// Entity extractor with a selected backend. The default constructs the offline
+/// pattern and heuristic stack. Model construction and extraction release the GIL.
 #[pyclass(frozen, module = "anno_py")]
 pub struct Extractor {
     backend: ExtractorBackend,
 }
 
+/// A named Python worker uses the caller's interpreter unless overridden.
+fn interpreter(py: Python<'_>, key: &str) -> PyResult<OsString> {
+    if let Some(path) = std::env::var_os(key) {
+        return Ok(path);
+    }
+    let path: PathBuf = py.import("sys")?.getattr("executable")?.extract()?;
+    Ok(path.into_os_string())
+}
+
+fn local_checkpoint(model: Option<&str>, variable: &str) -> PyResult<PathBuf> {
+    model
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os(variable).map(PathBuf::from))
+        .ok_or_else(|| {
+            PyRuntimeError::new_err(format!(
+                "supply model or set {variable} to the local checkpoint directory"
+            ))
+        })
+}
+
+#[cfg(not(feature = "onnx"))]
+fn onnx_required(backend: &str) -> PyErr {
+    PyRuntimeError::new_err(format!(
+        "backend='{backend}' requires an ONNX-enabled wheel; rebuild with maturin --features extension-module,onnx"
+    ))
+}
+
 #[pymethods]
 impl Extractor {
-    /// Create an extractor.
-    ///
-    /// `backend` is one of `"offline"`, `"bert"`, or `"gliner"`.
-    /// `model` is a HuggingFace model ID or a local model directory for BERT;
-    /// omit it to use the backend's documented default model. `labels` and
-    /// `threshold` apply only to GLiNER and replace its default entity types.
-    /// Invalid combinations raise `ValueError`; a model backend in a wheel
-    /// without ONNX support raises `RuntimeError` rather than falling back.
+    /// Select offline, bert, gliner, otter-cross, otter-bi, glinerel-72m,
+    /// kniv, adaptner, or gliner2-pii. For the named specialists, model selects
+    /// a prepared local directory and overrides the backend's environment setting.
+    /// Prompted models accept labels and threshold. Fixed-label models keep
+    /// their checkpoint schema.
     #[new]
     #[pyo3(signature = (backend="offline", model=None, labels=None, threshold=None))]
     fn new(
@@ -407,106 +432,133 @@ impl Extractor {
         labels: Option<Vec<String>>,
         threshold: Option<f32>,
     ) -> PyResult<Self> {
-        #[cfg(not(feature = "onnx"))]
-        let _ = py;
-        match backend {
-            "offline" => {
-                if model.is_some() || labels.is_some() || threshold.is_some() {
-                    return Err(PyValueError::new_err(
-                        "backend='offline' does not accept model, labels, or threshold",
-                    ));
-                }
-                Ok(Self {
-                    backend: ExtractorBackend::Offline(offline_stack()),
-                })
+        let model = model.as_deref();
+        if backend == "offline" {
+            if model.is_some() || labels.is_some() || threshold.is_some() {
+                return Err(PyValueError::new_err(
+                    "backend='offline' does not accept model, labels, or threshold",
+                ));
             }
-            "bert" => {
-                if labels.is_some() || threshold.is_some() {
-                    return Err(PyValueError::new_err(
-                        "backend='bert' does not support zero-shot labels or threshold",
-                    ));
-                }
-                let model = model.unwrap_or_else(|| anno::models::BERT_ONNX.to_owned());
-                if model.trim().is_empty() {
-                    return Err(PyValueError::new_err("model must not be empty"));
-                }
-                #[cfg(feature = "onnx")]
-                {
-                    let backend = py.detach(|| BertNEROnnx::new(&model)).map_err(to_py_err)?;
-                    Ok(Self {
-                        backend: ExtractorBackend::Bert(backend),
-                    })
-                }
-                #[cfg(not(feature = "onnx"))]
-                {
-                    let _ = model;
-                    Err(PyRuntimeError::new_err(
-                        "backend='bert' requires an ONNX-enabled wheel; rebuild with maturin --features extension-module,onnx",
-                    ))
-                }
-            }
-            "gliner" => {
-                let threshold = threshold.unwrap_or(0.5);
-                if !(0.0..=1.0).contains(&threshold) {
-                    return Err(PyValueError::new_err(
-                        "threshold must be between 0.0 and 1.0",
-                    ));
-                }
-                let model = model.unwrap_or_else(|| anno::models::GLINER.to_owned());
-                if model.trim().is_empty() {
-                    return Err(PyValueError::new_err("model must not be empty"));
-                }
-                let labels = labels.unwrap_or_else(|| {
-                    vec!["person".into(), "organization".into(), "location".into()]
-                });
-                if labels.is_empty() || labels.iter().any(|label| label.trim().is_empty()) {
-                    return Err(PyValueError::new_err(
-                        "labels must contain at least one non-empty label",
-                    ));
-                }
-                #[cfg(feature = "onnx")]
-                {
-                    let backend = py.detach(|| GLiNEROnnx::new(&model)).map_err(to_py_err)?;
-                    Ok(Self {
-                        backend: ExtractorBackend::Gliner {
-                            model: Box::new(backend),
-                            labels,
-                            threshold,
-                        },
-                    })
-                }
-                #[cfg(not(feature = "onnx"))]
-                {
-                    let _ = (model, labels);
-                    Err(PyRuntimeError::new_err(
-                        "backend='gliner' requires an ONNX-enabled wheel; rebuild with maturin --features extension-module,onnx",
-                    ))
-                }
-            }
-            _ => Err(PyValueError::new_err(
-                "backend must be one of: 'offline', 'bert', 'gliner'",
-            )),
+            return Ok(Self {
+                backend: ExtractorBackend::Fixed(Box::new(offline_stack())),
+            });
         }
+        if model.is_some_and(|path| path.trim().is_empty()) {
+            return Err(PyValueError::new_err("model must not be empty"));
+        }
+        if matches!(backend, "bert" | "kniv" | "adaptner") {
+            if labels.is_some() || threshold.is_some() {
+                return Err(PyValueError::new_err(format!(
+                    "backend='{backend}' does not support zero-shot labels or threshold"
+                )));
+            }
+            let fixed: Box<dyn Model> = match backend {
+                "kniv" => {
+                    let path = local_checkpoint(model, "KNIV_MODEL_DIR")?;
+                    let python = interpreter(py, "KNIV_PYTHON")?;
+                    let kniv = py.detach(|| anno::backends::kniv::Kniv::new(python, path));
+                    Box::new(kniv.map_err(to_py_err)?)
+                }
+                #[cfg(feature = "onnx")]
+                "bert" => {
+                    let checkpoint = model.unwrap_or(anno::models::BERT_ONNX);
+                    Box::new(
+                        py.detach(|| BertNEROnnx::new(checkpoint))
+                            .map_err(to_py_err)?,
+                    )
+                }
+                #[cfg(feature = "onnx")]
+                "adaptner" => {
+                    let path = local_checkpoint(model, "ADAPTNER_MODEL_DIR")?;
+                    let arabic = py.detach(|| anno::backends::adaptner::AdaptNer::from_path(&path));
+                    Box::new(arabic.map_err(to_py_err)?)
+                }
+                #[cfg(not(feature = "onnx"))]
+                _ => return Err(onnx_required(backend)),
+                #[cfg(feature = "onnx")]
+                _ => unreachable!(),
+            };
+            return Ok(Self {
+                backend: ExtractorBackend::Fixed(fixed),
+            });
+        }
+
+        let threshold = threshold.map(validate_threshold).transpose()?;
+        let labels = labels.map(validate_labels).transpose()?;
+        let prompted: Box<dyn ZeroShotNER> = match backend {
+            "otter-cross" | "otter-bi" => {
+                let (variant, variable) = match backend {
+                    "otter-cross" => (OtterVariant::Cross, "OTTER_CROSS_MODEL_DIR"),
+                    _ => (OtterVariant::Bi, "OTTER_BI_MODEL_DIR"),
+                };
+                let path = local_checkpoint(model, variable)?;
+                let python = interpreter(py, "ANNO_OTTER_PYTHON")?;
+                Box::new(py.detach(|| Otter::new(python, path, variant)).map_err(to_py_err)?)
+            }
+            "glinerel-72m" => {
+                let path = model.map(PathBuf::from).or_else(|| {
+                    std::env::var_os("ANNO_GLINEREL_MODEL_DIR").map(PathBuf::from)
+                });
+                let python = interpreter(py, "ANNO_GLINEREL_PYTHON")?;
+                let glinerel = py.detach(|| {
+                    anno::backends::glinerel::GLiNEREL::new(python, path.as_deref())
+                });
+                Box::new(glinerel.map_err(to_py_err)?)
+            }
+            #[cfg(feature = "fastino")]
+            "gliner2-pii" => {
+                let pii = py.detach(|| match model {
+                    Some(dir) => GLiNER2Fastino::from_pii_local(Path::new(dir)),
+                    None => GLiNER2Fastino::from_pii(),
+                });
+                Box::new(pii.map_err(to_py_err)?)
+            }
+            #[cfg(not(feature = "fastino"))]
+            "gliner2-pii" => return Err(PyRuntimeError::new_err(
+                "backend='gliner2-pii' requires a Fastino-enabled source build; rebuild with maturin --features extension-module,fastino",
+            )),
+            #[cfg(feature = "onnx")]
+            "gliner" => {
+                let checkpoint = model.unwrap_or(anno::models::GLINER);
+                Box::new(py.detach(|| GLiNEROnnx::new(checkpoint)).map_err(to_py_err)?)
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner" => return Err(onnx_required(backend)),
+            _ => return Err(PyValueError::new_err(
+                "backend must be one of: 'offline', 'bert', 'gliner', 'otter-cross', 'otter-bi', 'glinerel-72m', 'kniv', 'adaptner', 'gliner2-pii'",
+            )),
+        };
+        let threshold = threshold.unwrap_or_else(|| prompted.default_threshold());
+        let labels = labels.unwrap_or_else(|| {
+            // Preserve the original Python GLiNER default schema.
+            let defaults = if backend == "gliner" {
+                &["person", "organization", "location"][..]
+            } else {
+                prompted.default_types()
+            };
+            defaults.iter().map(|s| (*s).to_owned()).collect()
+        });
+        Ok(Self {
+            backend: ExtractorBackend::Prompted {
+                model: prompted,
+                labels,
+                threshold,
+            },
+        })
     }
 
-    /// Extract entities from `text`.
-    ///
-    /// Returns entities with end-exclusive character offsets into `text`.
-    /// Each entity’s `segments` identify its source pieces.
+    /// Return entities with end-exclusive character offsets into text.
     fn extract(&self, py: Python<'_>, text: &str) -> PyResult<Vec<Entity>> {
         match &self.backend {
-            ExtractorBackend::Offline(model) => run_model_extract(py, model, text),
-            #[cfg(feature = "onnx")]
-            ExtractorBackend::Bert(model) => run_model_extract(py, model, text),
-            #[cfg(feature = "onnx")]
-            ExtractorBackend::Gliner {
+            ExtractorBackend::Fixed(model) => run_model_extract(py, model.as_ref(), text),
+            ExtractorBackend::Prompted {
                 model,
                 labels,
                 threshold,
             } => {
                 let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
                 let entities = py
-                    .detach(|| model.extract(text, &labels, *threshold))
+                    .detach(|| model.extract_with_types(text, &labels, *threshold))
                     .map_err(to_py_err)?;
                 Ok(entities.into_iter().map(Entity::from).collect())
             }

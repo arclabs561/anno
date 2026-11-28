@@ -137,6 +137,13 @@ pub(crate) mod hf_loader;
 /// Coreference resolution backends (trait, neural, heuristic).
 pub mod coref;
 
+/// SauerkrautLM-GLiNEREL-72m joint extraction with a persistent CPU worker.
+pub mod glinerel;
+
+pub mod otter;
+
+pub(crate) mod python_worker;
+
 // Always available (zero deps beyond std)
 /// CRF sequence labeling with heuristic emission features.
 ///
@@ -144,6 +151,8 @@ pub mod coref;
 /// emission features. Renamed from `bilstm_crf` for honest naming.
 pub mod heuristic_crf;
 
+#[cfg(feature = "onnx")]
+pub mod adaptner;
 pub mod catalog;
 pub mod crf;
 pub mod heuristic;
@@ -449,3 +458,6 @@ pub use chunking::{deduplicate_overlapping, ChunkConfig, OverlapStrategy};
 // Simple rule-based coreference resolvers.
 #[cfg(feature = "analysis")]
 pub use coref::simple::{CorefConfig, SimpleCorefResolver};
+
+/// Local Kniv English extraction using its upstream ONNX runtime.
+pub mod kniv;

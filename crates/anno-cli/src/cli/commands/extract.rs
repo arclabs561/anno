@@ -375,22 +375,6 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
     // path so entity/relation indices remain consistent.
-    let standard_extraction = || {
-        if let Some(ref custom_types) = extract_types {
-            return extract_with_custom_types(
-                &model,
-                &text,
-                custom_types,
-                args.threshold,
-                args.quiet,
-            );
-        }
-        let backend = model.create_model().map_err(CliError::from)?;
-        let entities = backend
-            .extract_entities(&text, None)
-            .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
-        Ok((entities, backend.runtime_name()))
-    };
     let mut ran_joint = false;
     let mut relation_provenance = None;
     let (mut entities, mut relation_triples, runtime_model) = if args.extract_relations {
@@ -415,28 +399,25 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             if matches!(model, ModelBackend::GlinerRelex) {
                 return Err(CliError::from("GLiNER-Relex relations require the joint export. Run uv run scripts/export_gliner_relex_onnx.py --joint"));
             }
-            let entities = match (extract_types.as_ref(), backend.as_zero_shot()) {
-                (Some(_), Some(extractor)) => extractor.extract_with_types(
-                    &text,
-                    &entity_schema,
-                    args.threshold.unwrap_or(0.5) as f32,
-                ),
-                _ => {
-                    if extract_types.is_some() && !args.quiet {
-                        eprintln!(
-                            "{} This backend ignores custom entity types.",
-                            color("33", "warning:")
-                        );
-                    }
-                    backend.extract_entities(&text, None)
-                }
-            }
-            .map_err(|e| CliError::from(format!("Extraction failed: {e}")))?;
+            let entities = extract_mentions(
+                backend.as_ref(),
+                &text,
+                extract_types.as_deref(),
+                args.threshold,
+                args.quiet,
+            )?;
             (entities, Vec::new(), backend.runtime_name())
         }
     } else {
-        let (entities, runtime) = standard_extraction()?;
-        (entities, Vec::new(), runtime)
+        let backend = model.create_model().map_err(CliError::from)?;
+        let entities = extract_mentions(
+            backend.as_ref(),
+            &text,
+            extract_types.as_deref(),
+            args.threshold,
+            args.quiet,
+        )?;
+        (entities, Vec::new(), backend.runtime_name())
     };
 
     let elapsed = start.elapsed();
@@ -456,7 +437,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     if args.threshold.is_some() || !type_filters.is_empty() {
         let normalized: std::collections::HashSet<String> = type_filters
             .iter()
-            .map(|t| anno::EntityType::from_label(t).as_label().to_string())
+            .map(|t| resolve_output_label(t, &entities))
             .collect();
         retain_endpoints(&mut entities, &mut relation_triples, |_, entity| {
             args.threshold
@@ -489,17 +470,13 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
 
         if !expected.is_empty() {
-            let present: std::collections::HashSet<String> = entities
+            let present: std::collections::HashSet<&str> = entities
                 .iter()
-                .map(|e| e.entity_type.as_label().to_string())
+                .map(|entity| entity.entity_type.as_label())
                 .collect();
-
             let mut missing: Vec<String> = expected
-                .iter()
-                .filter_map(|t| {
-                    let normalized = anno::EntityType::from_label(t).as_label().to_string();
-                    (!present.contains(&normalized)).then_some(normalized)
-                })
+                .into_iter()
+                .filter(|label| !present.contains(resolve_output_label(label, &entities).as_str()))
                 .collect();
 
             missing.sort();
@@ -998,103 +975,54 @@ fn validate_confidence_threshold(flag: &str, value: Option<f64>) -> Result<(), C
     Ok(())
 }
 
-/// Extract entities using zero-shot models with custom entity types.
-fn extract_with_custom_types(
-    backend: &super::super::parser::ModelBackend,
+/// Preserve the model's label inventory (for example, GPE alongside LOC).
+/// Fall back to legacy aliases when the model returned no literal match.
+fn resolve_output_label(requested: &str, entities: &[anno::Entity]) -> String {
+    entities
+        .iter()
+        .map(|entity| entity.entity_type.as_label())
+        .find(|label| label.eq_ignore_ascii_case(requested))
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            anno::EntityType::from_label(requested)
+                .as_label()
+                .to_owned()
+        })
+}
+
+/// Apply caller-supplied labels and thresholds at inference time when supported.
+fn extract_mentions(
+    model: &dyn anno::Model,
     text: &str,
-    custom_types: &[String],
+    custom_types: Option<&[String]>,
     threshold: Option<f64>,
     quiet: bool,
-) -> Result<(Vec<anno::Entity>, &'static str), CliError> {
-    use super::super::output::color;
-
-    // When ONNX is not enabled, `--extract-types` is unsupported and these become unused.
-    #[cfg(not(feature = "onnx"))]
-    let _ = (custom_types, threshold);
-
-    // Try to use zero-shot capable backends
-    #[cfg(feature = "onnx")]
-    {
-        use super::super::parser::ModelBackend;
-        use anno::backends::inference::ZeroShotNER;
-
-        let threshold = threshold.unwrap_or(0.5) as f32;
-        let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
-
-        match backend {
-            #[cfg(feature = "gliner2-fastino")]
-            ModelBackend::Gliner25 => {
-                let model = anno::backends::gliner25::GLiNER25::from_env()
-                    .map_err(|e| CliError::from(e.to_string()))?;
-                return model
-                    .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
-                    .map_err(|e| CliError::from(e.to_string()));
-            }
-            ModelBackend::GlinerPoly => {
-                let model =
-                    anno::backends::gliner_poly::GLiNERPoly::new(anno::DEFAULT_GLINER_POLY_MODEL)
-                        .map_err(|e| CliError::from(format!("Failed to create GLiNER Poly: {e}")))?;
-                return model
-                    .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
-                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {e}")));
-            }
-            ModelBackend::Gliner | ModelBackend::GlinerRelex => {
-                let id = if matches!(backend, ModelBackend::GlinerRelex) {
-                    anno::models::GLINER_RELEX
-                } else {
-                    anno::DEFAULT_GLINER_MODEL
-                };
-                let model = anno::GLiNEROnnx::new(id)
-                    .map_err(|e| CliError::from(format!("Failed to create GLiNER model: {}", e)))?;
-                return model
-                    .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
-                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
-            }
-            ModelBackend::GlinerMultitask => {
-                let model = anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
-                    anno::DEFAULT_GLINER_MULTITASK_MODEL,
+) -> Result<Vec<anno::Entity>, CliError> {
+    if let Some(extractor) = model.as_zero_shot() {
+        if custom_types.is_some() || threshold.is_some() {
+            let labels =
+                custom_types.map(|types| types.iter().map(String::as_str).collect::<Vec<_>>());
+            return extractor
+                .extract_with_types(
+                    text,
+                    labels
+                        .as_deref()
+                        .unwrap_or_else(|| extractor.default_types()),
+                    threshold
+                        .map(|value| value as f32)
+                        .unwrap_or_else(|| extractor.default_threshold()),
                 )
-                .map_err(|e| {
-                    CliError::from(format!("Failed to create GLiNER multi-task model: {}", e))
-                })?;
-                return model
-                    .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, anno::Model::runtime_name(&model)))
-                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
-            }
-            ModelBackend::Nuner | ModelBackend::GlinerPii => {
-                let model = backend.create_model().map_err(CliError::from)?;
-                let ner = model.as_zero_shot().ok_or_else(|| {
-                    CliError::from(format!(
-                        "{} does not expose zero-shot extraction",
-                        model.runtime_name()
-                    ))
-                })?;
-                return ner
-                    .extract_with_types(text, &type_refs, threshold)
-                    .map(|entities| (entities, model.runtime_name()))
-                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
-            }
-            _ => {}
+                .map_err(|error| CliError::from(format!("Zero-shot extraction failed: {error}")));
         }
-    }
-
-    // Fallback: warn and use standard extraction
-    if !quiet {
+    } else if custom_types.is_some() && !quiet {
         eprintln!(
-            "{} --extract-types requires a zero-shot extraction backend such as gliner or gliner-poly. Ignoring custom types.",
-            color("33", "warning:")
+            "warning: {} ignores custom entity types.",
+            model.runtime_name()
         );
     }
-
-    let model = backend.create_model().map_err(CliError::from)?;
     model
         .extract_entities(text, None)
-        .map(|entities| (entities, model.runtime_name()))
-        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))
+        .map_err(|error| CliError::from(format!("Extraction failed: {error}")))
 }
 
 fn get_context_window(text: &str, start: usize, end: usize, window: usize) -> (String, String) {
@@ -1420,6 +1348,18 @@ fn propagate_quantifiers_across_lists(text: &str, signals: &mut [Signal]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn literal_output_label_precedes_legacy_alias() {
+        let loc = anno::EntityType::Location;
+        let gpe = anno::EntityType::custom("GPE", loc.category());
+        let entities = [
+            anno::Entity::new("A", loc, 0, 1, 1.0),
+            anno::Entity::new("B", gpe, 2, 3, 1.0),
+        ];
+        assert_eq!(resolve_output_label("gpe", &entities), "GPE");
+        assert_eq!(resolve_output_label("gpe", &entities[..1]), "LOC");
+    }
 
     #[test]
     fn flat_output_keeps_discontinuous_analyzed_byte_ranges() {

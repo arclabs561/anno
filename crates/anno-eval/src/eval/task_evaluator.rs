@@ -471,7 +471,7 @@ pub struct TaskEvaluator {
 
 // The task registry lists one canonical entry per backend so that an automatic
 // evaluation runs it once. Explicit coreference requests may use factory aliases.
-fn canonical_coref_name(task: Task, name: &str) -> &str {
+fn canonical_task_backend_name(task: Task, name: &str) -> &str {
     if matches!(task, Task::IntraDocCoref | Task::AbstractAnaphora) {
         match name.to_ascii_lowercase().as_str() {
             "fcoref" | "f-coref" | "fastcoref" => return "fcoref",
@@ -480,7 +480,16 @@ fn canonical_coref_name(task: Task, name: &str) -> &str {
             _ => {}
         }
     }
-    name
+    BackendName::try_parse(name)
+        .map(|name| name.as_str())
+        .unwrap_or(name)
+}
+
+fn uses_runtime_ner_schema(name: &str) -> bool {
+    matches!(
+        name,
+        "otter_cross" | "otter_bi" | "glinerel_72m" | "gliner2_pii"
+    )
 }
 
 impl TaskEvaluator {
@@ -1051,6 +1060,14 @@ impl TaskEvaluator {
         ) {
             return NerInferenceProvenance::default();
         }
+        if task == Task::NER && uses_runtime_ner_schema(backend_name) {
+            return NerInferenceProvenance {
+                threshold: InferenceSettingProvenance::Known {
+                    value: serde_json::json!(if backend_name == "otter_bi" { 0.2 } else { 0.5 }),
+                },
+                ..Default::default()
+            };
+        }
         let uses_evaluator_threshold = matches!(
             backend_name,
             "nuner"
@@ -1126,7 +1143,7 @@ impl TaskEvaluator {
                 }
                 let allowed = get_task_backends(*task);
                 let supports_task =
-                    |name: &str| allowed.contains(&canonical_coref_name(*task, name));
+                    |name: &str| allowed.contains(&canonical_task_backend_name(*task, name));
                 let backends: Vec<String> = if config.backends.is_empty() {
                     allowed.iter().map(|s| s.to_string()).collect()
                 } else {
@@ -1444,7 +1461,7 @@ impl TaskEvaluator {
         }
 
         // Validate task-backend compatibility
-        if !get_task_backends(task).contains(&canonical_coref_name(task, backend_name)) {
+        if !get_task_backends(task).contains(&canonical_task_backend_name(task, backend_name)) {
             return Err(crate::Error::InvalidInput(format!(
                 "Backend '{}' does not support task {:?}",
                 backend_name, task
@@ -1681,6 +1698,25 @@ impl TaskEvaluator {
                 | "universal_ner"
         );
 
+        let use_runtime_schema = uses_runtime_ner_schema(backend_name) && !mapped_labels.is_empty();
+        let label_refs: Vec<&str> = mapped_labels.iter().map(String::as_str).collect();
+        let extract_with_loaded_model = |text: &str| {
+            let model = backend.ok_or_else(|| {
+                crate::Error::InvalidInput(format!(
+                    "Zero-shot backend '{backend_name}' requires dataset labels"
+                ))
+            })?;
+            if use_runtime_schema {
+                let ner = model.as_zero_shot().ok_or_else(|| {
+                    crate::Error::InvalidInput(format!(
+                        "Backend '{backend_name}' does not implement requested-schema extraction"
+                    ))
+                })?;
+                return ner.extract_with_types(text, &label_refs, ner.default_threshold());
+            }
+            model.extract_entities(text, None)
+        };
+
         // Process sentences (parallel if rayon is available, sequential otherwise)
         let total_sentences = dataset_data.sentences.len();
         let mut zero_shot_construction_receipt = BackendConstructionReceipt::default();
@@ -1780,13 +1816,7 @@ impl TaskEvaluator {
                             }
                         })
                     } else {
-                        backend
-                            .map(|backend| backend.extract_entities(&text, None))
-                            .unwrap_or_else(|| {
-                                Err(crate::Error::InvalidInput(format!(
-                                    "Zero-shot backend '{backend_name}' requires dataset labels"
-                                )))
-                            })
+                        extract_with_loaded_model(&text)
                     };
 
                     // Update progress with time estimates
@@ -1971,13 +2001,7 @@ impl TaskEvaluator {
                             &mapped_labels,
                         )
                     } else {
-                        backend
-                            .ok_or_else(|| {
-                                crate::Error::InvalidInput(format!(
-                                    "Zero-shot backend '{backend_name}' requires dataset labels"
-                                ))
-                            })?
-                            .extract_entities(&text, None)
+                        extract_with_loaded_model(&text)
                     };
                     let _ = inference_start; // reserved for future profiling
                     result
@@ -2151,7 +2175,7 @@ impl TaskEvaluator {
 
         Ok(NerEvaluationReceipt {
             metrics,
-            configured_labels: is_zero_shot.then_some(mapped_labels),
+            configured_labels: (is_zero_shot || use_runtime_schema).then_some(mapped_labels),
             label_policy: NerLabelPolicyReport {
                 primary_policy:
                     "strict span-and-type micro score over all emitted entities; no label filtering"
@@ -2180,6 +2204,13 @@ impl TaskEvaluator {
     /// Public for testing purposes.
     pub fn map_dataset_labels_to_model(dataset_labels: &[&str], backend_name: &str) -> Vec<String> {
         let backend_lower = backend_name.to_lowercase();
+
+        if uses_runtime_ner_schema(&backend_lower) {
+            return dataset_labels
+                .iter()
+                .map(|label| label.to_string())
+                .collect();
+        }
 
         // NuNER has a limitation - it fails with GatherElements errors when using more than
         // its default 3 labels. Always use the exact default labels in the exact order.
@@ -2895,7 +2926,7 @@ impl TaskEvaluator {
             Text(Box<dyn anno::CorefBackend>),
             Entities(std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver>),
         }
-        let name = canonical_coref_name(task, backend_name);
+        let name = canonical_task_backend_name(task, backend_name);
         let supplement_pronouns =
             config.coref_predicted_mentions == CorefPredictedMentions::NerWithEnglishPronouns;
         if supplement_pronouns && config.coref_use_gold_mentions {
@@ -5830,6 +5861,78 @@ mod tests {
             .threshold,
             InferenceSettingProvenance::Unknown { .. }
         ));
+    }
+
+    #[test]
+    fn optional_checkpoint_routes_preserve_schemas_and_thresholds() {
+        for (backend, threshold) in [
+            ("otter-cross", 0.5),
+            ("otter-bi", 0.2),
+            ("glinerel-72m", 0.5),
+            ("gliner2-pii", 0.5),
+        ] {
+            let canonical = backend.replace('-', "_");
+            assert!(get_task_backends(Task::NER).contains(&canonical.as_str()));
+            assert_eq!(
+                TaskEvaluator::map_dataset_labels_to_model(&["Actor", "Director"], &canonical),
+                ["Actor", "Director"]
+            );
+            assert!(
+                matches!(TaskEvaluator::ner_inference_provenance(Task::NER, &canonical).threshold,
+                InferenceSettingProvenance::Known { value } if value == serde_json::json!(threshold))
+            );
+        }
+        for backend in ["kniv", "glinerel-72m"] {
+            let canonical = canonical_task_backend_name(Task::RelationExtraction, backend);
+            assert!(get_task_backends(Task::RelationExtraction).contains(&canonical));
+        }
+    }
+
+    #[test]
+    #[ignore = "requires the pinned Otter Bi snapshot and Python runtime"]
+    fn pinned_otter_evaluator_uses_dataset_schema() {
+        use crate::eval::loader::{
+            AnnotatedSentence, AnnotatedToken, DataSource, DatasetMetadata, LoadedDataset,
+        };
+        let id = DatasetId::MitMovie;
+        let fixture = LoadedDataset {
+            id,
+            sentences: vec![AnnotatedSentence {
+                source_dataset: id,
+                tokens: [
+                    ("movies", "O"),
+                    ("directed", "O"),
+                    ("by", "O"),
+                    ("Steven", "B-Director"),
+                    ("Spielberg", "I-Director"),
+                ]
+                .into_iter()
+                .map(|(text, tag)| AnnotatedToken {
+                    text: text.into(),
+                    ner_tag: tag.into(),
+                })
+                .collect(),
+            }],
+            loaded_at: "test".into(),
+            source_url: "fixture".into(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+        let canonical = canonical_task_backend_name(Task::NER, "otter-bi");
+        let receipt = TaskEvaluator::new()
+            .unwrap()
+            .try_evaluate_backend(
+                Task::NER,
+                id,
+                canonical,
+                &fixture,
+                &TaskEvalConfig::default(),
+            )
+            .unwrap();
+        assert_eq!(receipt.configured_labels.unwrap(), id.entity_types());
+        assert!(receipt.metrics["num_predicted"] >= 1.0);
+        assert_eq!(receipt.metrics["recall"], 1.0);
     }
 
     #[test]

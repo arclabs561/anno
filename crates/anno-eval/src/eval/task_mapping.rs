@@ -420,6 +420,10 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "ensemble" | "EnsembleNER" => &[Task::NER],
         "heuristic_crf" | "heuristic-crf" | "HeuristicCrfNER" => &[Task::NER],
 
+        "otter_cross" | "otter-cross" | "otter_bi" | "otter-bi" | "adaptner" | "gliner2_pii"
+        | "gliner2-pii" => &[Task::NER],
+        "kniv" | "glinerel_72m" | "glinerel-72m" => &[Task::NER, Task::RelationExtraction],
+
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
         "candle_ner" | "CandleNER" => &[Task::NER],
@@ -550,6 +554,12 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // but it still advertises NER capability via `backend_tasks` and can be enabled by callers.
         // "pattern",
         // ML backends
+        "otter_cross",
+        "otter_bi",
+        "kniv",
+        "glinerel_72m",
+        "adaptner",
+        "gliner2_pii",
         "bert_onnx",
         "candle_ner",
         "nuner",
@@ -630,6 +640,12 @@ impl TaskMapping {
             "hmm",
             "ensemble",
             "heuristic_crf",
+            "otter_cross",
+            "otter_bi",
+            "kniv",
+            "glinerel_72m",
+            "adaptner",
+            "gliner2_pii",
             "bert_onnx",
             "candle_ner",
             "nuner",

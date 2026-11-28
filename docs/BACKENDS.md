@@ -13,6 +13,23 @@ The [backend error analysis](eval/backend-residuals.md) counts missing and extra
 | Rank candidate directed relations with a fixed budget | [JointIE argument and ranking trial](eval/jointie-role-trial.md) |
 | Separate a clustering error from a relation threshold or annotation gap | [JEREX controls on two annotation editions](eval/jerex-controls.md) |
 
+### Additional model runtimes
+
+Use `anno models list` to see extraction backends and their build status. `anno models info <name>` shows capabilities and recommended checkpoints. A “compiled” entry can still require local weights or a Python environment. The [backend catalog](../crates/anno/src/backends/catalog.rs) supplies the CLI metadata. The [checkpoint replay manifest](../scripts/qa/checkpoint_replay/models.json) pins exact files and expected predictions for a subset of checkpoints. Task-specific commands and preparation recipes are listed below.
+
+| Entry point | Suitable inputs and outputs | Model preparation |
+|---|---|---|
+| `anno extract --model otter-cross` or `otter-bi` | Multilingual entity labels supplied by the caller | Pinned Transformers checkpoints and a local Python worker. [Otter](models/otter.md) |
+| `anno extract --model kniv` | English named entities and directed, within-window facts | Published INT8 ONNX files and the pinned decoder. [Kniv](models/kniv.md) |
+| `anno extract --model glinerel-72m` | Multilingual entities and schema-directed relations | Original safetensors and a persistent glinerel-fast worker. [GLiNEREL](models/glinerel-72m.md) |
+| `anno extract --model adaptner` | Arabic entities, including overlaps across Wojood types | Export FP32 ONNX once and load the local directory. [AdaptNER](models/adaptner.md) |
+| `anno extract --model gliner2-pii` | Multilingual PII spans with a caller-selected schema | Load the pinned eight-graph ONNX export or regenerate it from PyTorch. [GLiNER2-PII](models/gliner2-pii.md) |
+| `anno corpipe` | Multilingual within-document mention clusters or predicted CorefUD | Supply the one-stage checkpoint, predictor and a tokenizer for the input language. [CorPipe](models/corpipe.md) |
+| `anno relik` | English mention spans and IDs from a supplied candidate catalog | Pinned AIDA reader and caller-supplied IDs and titles. [ReLiK](models/relik.md) |
+| `anno mhel` | Wikidata candidates or links for mentions with known boundaries | Separate WikiBELA retrieval, local chat reranking and prediction import. [MHEL-LLaMo](models/mhel.md) |
+
+To review label definitions offline, use the authors' DiZiNER disagreement analyzer on an unlabeled development sample. [Schema-review pilot](models/diziner.md)
+
 ### Which inputs do you have?
 
 | You have | You need | Route to try | What controls the result |
