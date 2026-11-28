@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let api = HFClientSync::new()?;
             let (owner, name) = hf_hub::split_id(MODEL_REPO);
             let repo = api.model(owner, name);
-            repo.download_file().filename(MODEL_FILE).send()?
+            anno::download_model_file(&repo, &[MODEL_FILE])?
         }
     };
     eprintln!("[smoke] model at {}", model_path.display());

@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api = HFClientSync::new()?;
     let (owner, name) = hf_hub::split_id(MODEL_REPO);
     let repo = api.model(owner, name);
-    let model_path = repo.download_file().filename(MODEL_FILE).send()?;
+    let model_path = anno::download_model_file(&repo, &[MODEL_FILE])?;
     eprintln!("[bench] model at {}", model_path.display());
 
     // Concrete dims for the model's dynamic dimensions. Heuristic: the first
