@@ -1,0 +1,95 @@
+name: WikiBELA full candidate lookup
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/wikibela-retrieval.yml'
+      - 'scripts/qa/wikibela/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wikibela-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lookup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      PIP_NO_CACHE_DIR: '1'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.10'
+      - name: Make room on the disposable hosted image
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          df -h "$RUNNER_TEMP"
+          # Unused preinstalled SDKs only. The Python, Rust and runner tools stay available.
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/chromium /opt/google/chrome
+          mkdir -p "$RUNNER_TEMP/wikibela"
+          df -h "$RUNNER_TEMP"
+      - name: Build the CLI and remove this job's temporary build objects
+        env:
+          CARGO_INCREMENTAL: '0'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/wikibela-build"
+          cargo build --locked -p anno-cli --no-default-features --bin anno
+          install -m 755 "$CARGO_TARGET_DIR/debug/anno" "$RUNNER_TEMP/wikibela/anno"
+          rm -rf -- "$CARGO_TARGET_DIR"
+      - name: Install the pinned upstream CPU retriever
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/wikibela"
+          git clone --quiet --no-checkout --filter=blob:none https://github.com/sntcristian/MHEL-LLAMO "$work/mhel"
+          git -C "$work/mhel" sparse-checkout init --cone
+          git -C "$work/mhel" sparse-checkout set bela src
+          git -C "$work/mhel" checkout --quiet --detach b262dfb77285ea00993af8d453387fd7bf81228b
+          python -m venv "$work/venv"
+          py="$work/venv/bin/python"
+          "$py" -m pip install --upgrade 'pip<26' 'setuptools<81' wheel
+          "$py" -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          # The published environment includes CUDA wheels. CPU FAISS reads the same IndexFlatIP file.
+          sed -E '/^(nvidia-|faiss-gpu-cu12==|triton==)/d' "$work/mhel/requirements_bela.txt" > "$work/requirements-cpu.txt"
+          "$py" -m pip install --no-build-isolation -r "$work/requirements-cpu.txt" faiss-cpu==1.11.0.post1
+          PYTHONPATH="$work/mhel" "$py" -c 'from src.retriever import load_disambiguator; from bela.task.joint_el_task import JointELTask'
+      - name: Check disk and memory before fetching weights
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/wikibela"
+          swap_gib="$(python scripts/qa/wikibela/smoke.py budget "$work")"
+          if (( swap_gib > 0 )); then
+            sudo fallocate -l "${swap_gib}G" "$work/swapfile"
+            sudo chmod 600 "$work/swapfile"
+            sudo mkswap "$work/swapfile"
+            sudo swapon "$work/swapfile"
+          fi
+          test "$(python scripts/qa/wikibela/smoke.py budget "$work")" -eq 0
+          free -h
+          df -h "$work"
+      - name: Retrieve five candidates using the complete released index
+        env:
+          HF_HUB_OFFLINE: '1'
+          TOKENIZERS_PARALLELISM: 'false'
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/wikibela"
+          "$work/venv/bin/python" scripts/qa/wikibela/smoke.py lookup "$work" --anno "$work/anno"
+          cat "$work/receipt.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wikibela-full-lookup
+          path: ${{ runner.temp }}/wikibela/receipt.json
+          if-no-files-found: error
