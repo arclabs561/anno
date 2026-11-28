@@ -57,4 +57,8 @@ python3 scripts/qa/native_gap_multiword.py "$GAP" "$trial/stock" "$trial/candida
 cmp "$trial/result.json" docs/eval/native-gap-multiword.json
 ```
 
+The scorer prints the correct and wrong links gained and lost on each split. For an adoption check, add `--require-gate`. It writes the evidence before returning a failing status if any split misses the frozen rule. A plain reproduction run can succeed for a rejected candidate.
+
+Pass `--local-details /tmp/gap-link-changes.json` to the scorer to inspect each changed A/B decision. The file records the article URL, excerpt ID and digest, half-open character ranges and surface text for both occurrences, the gold label, and the stock and candidate outcomes. For the arm that linked the pair, `linking_edges` follows the path from pronoun to name. Each edge identifies the later mention, its selected antecedent, the score and the applied threshold. Group by gold label and direction of change to reconcile the four link-change counts above. Keep this file with the local GAP inputs.
+
 The separate literary comparison scores exact proper-person boundaries against annotations in 27 books and tracks what happens to existing single-word spans after overlap removal. [LitBank boundary transfer](litbank-name-boundaries.md)

@@ -32,7 +32,10 @@ Compact extraction JSON omits the complete source text. Grounded JSON retains
 it, so conversion can reproduce whitespace and character offsets. Pipeline
 JSONL contains one grounded document per line in document mode. With multiple
 saved documents in one file, export numbers artifacts in input order starting
-at one. Graph CSV preserves an empty recorded edge set. Exporting raw text can
+at one. Entity JSONL rows and graph CSV rows carry the same record number in
+their source label, for example `documents.jsonl#record=2`. Offsets refer to
+the analyzed text of that record. When combining graph tables, join each edge
+endpoint to a node using both its source and its node ID. Graph CSV preserves an empty recorded edge set. Exporting raw text can
 generate co-occurrence edges when extraction yields no semantic relations.
 
 ### Review overlapping highlights
