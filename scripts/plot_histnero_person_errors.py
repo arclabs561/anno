@@ -96,7 +96,7 @@ def draw(report):
     text(
         12,
         10,
-        f"HistNERo  ·  {backend}  ·  gold PERS scored as PER",
+        f"HistNERo  ·  {backend}  ·  PERS → PER",
         color=MUTED,
         bold=True,
     )
