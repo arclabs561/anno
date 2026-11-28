@@ -68,11 +68,12 @@ def reflexive_panel(infinitive=False):
         for a, b in (names, names[::-1]):
             for action in actions:
                 pair = f"clause-{a}-{b}-{action}"
-                passages = (f"Yesterday {a}, who saw {b}, had {action} {pronoun}.",
-                            f"Yesterday {a} said how {b} once {action} {pronoun}.")
                 if infinitive:
                     passages = (f"Today {a}, beside {b}, {action} {pronoun}.",
                                 f"Today {a} advised {b} to {action.removesuffix('ed')} {pronoun}.")
+                else:
+                    passages = (f"Yesterday {a}, who saw {b}, had {action} {pronoun}.",
+                                f"Yesterday {a} said how {b} once {action} {pronoun}.")
                 for gold_name, text in zip("AB", passages, strict=True):
                     rows.append({"ID": f"{pair}-{gold_name}", "pair": pair, "family": family,
                                  "Text": text, "Pronoun": pronoun, "Pronoun-offset": text.index(pronoun),

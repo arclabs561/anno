@@ -27,6 +27,55 @@
         }
       }
     },
+    "maverick-raw": {
+      "backend": "maverick",
+      "by_family": {
+        "reflexive_clause": {
+          "candidate_missing": 12,
+          "correct": 12
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "e12af0176a5def530311153020c60b8a33d6dc1c3c9a05e5d214f9c68e2ebdd7",
+      "paired_unique_decisions": {
+        "reflexive_clause": {
+          "incomplete_unique_choices": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_clause": {
+          "100": 12,
+          "101": 12
+        }
+      },
+      "source_span_diagnostics": {
+        "reflexive_clause": {
+          "exact_query_linked_to_outer_phrase_headed_by_A": 12
+        }
+      }
+    },
+    "maverick-supplied": {
+      "backend": "maverick",
+      "by_family": {
+        "reflexive_clause": {
+          "correct": 24
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "2e5bc9abf51c89d2a34ca8adcac940d3774b10ed4f8da1bead3e33334b4a4d75",
+      "paired_unique_decisions": {
+        "reflexive_clause": {
+          "both_correct": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_clause": {
+          "101": 12,
+          "110": 12
+        }
+      },
+      "source_span_diagnostics": {}
+    },
     "native-entities": {
       "backend": "mention-ranking",
       "by_family": {

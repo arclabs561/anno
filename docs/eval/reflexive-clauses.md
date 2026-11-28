@@ -13,8 +13,12 @@ After inspecting the first panel, we froze a second one with new names and verbs
 | Native, supplied entities | 0 | 0 | 0 | 0 |
 | Native, raw text | 0 | 0 | 12 | 0 |
 | FCoref, raw text | 12 | 0 | 20 | 8 |
+| Maverick, raw text | 12 | 0 | 24 | 12 |
+| Maverick, supplied spans and text | 24 | 12 | 24 | 12 |
 
 On the second panel native raw text selected the later name in all 24 sentences. FCoref returned the correct exact name in all 12 infinitives and eight parentheticals. On one other parenthetical it returned the full phrase beginning with the correct name. The three remaining outputs omitted the exact reflexive. Those three shared a name order across the three verbs. Counts of missing endpoints describe the public cluster output, which also omits unlinked mentions.
+
+Maverick’s raw-text output also contained the full relative phrase on all 12 relative-clause passages. Supplying the exact mention spans let Maverick resolve all 12 pairs on that panel. Its raw-text arm already resolved all 12 pairs on the infinitive panel. The [literary transfer study](litbank-pronoun-transfer.md#how-often-is-the-nearer-name-correct-for-a-literary-reflexive) measures these backends on 52 reflexives from 25 books, including cases where neither offered name is correct.
 
 ## Replay
 
@@ -30,3 +34,5 @@ done
 ```
 
 The check compares the panel hash, the outcome counts and a digest of each arm’s per-passage outputs. A nearer-name-only control exercises the difference between getting one sentence right and solving a pair. A separate test feeds the scorer a cluster containing the reflexive and a span covering both names. It verifies that the two exact-name links remain absent. [Scoring controls](../../scripts/qa/test_signer_roles.py)
+
+Relevant pull requests replay the native and FCoref arms. The manually dispatched Maverick real-weights job checks both Maverick arms against the same receipts. The literary replay requires a local copy of the pinned corpus. [Native workflow](../../.github/workflows/bench-coref.yml) · [Maverick workflow](../../.github/workflows/maverick-coref.yml)

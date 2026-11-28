@@ -31,6 +31,50 @@
         }
       }
     },
+    "maverick-raw": {
+      "backend": "maverick",
+      "by_family": {
+        "reflexive_infinitive": {
+          "correct": 24
+        }
+      },
+      "mode": "predicted",
+      "observations_sha256": "175aae3dd3d762e09d3cdfa4a13e3beb57716db249010ed1128bedaaacc2e11d",
+      "paired_unique_decisions": {
+        "reflexive_infinitive": {
+          "both_correct": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_infinitive": {
+          "101": 12,
+          "110": 12
+        }
+      },
+      "source_span_diagnostics": {}
+    },
+    "maverick-supplied": {
+      "backend": "maverick",
+      "by_family": {
+        "reflexive_infinitive": {
+          "correct": 24
+        }
+      },
+      "mode": "supplied",
+      "observations_sha256": "175aae3dd3d762e09d3cdfa4a13e3beb57716db249010ed1128bedaaacc2e11d",
+      "paired_unique_decisions": {
+        "reflexive_infinitive": {
+          "both_correct": 12
+        }
+      },
+      "returned_query_A_B_by_family": {
+        "reflexive_infinitive": {
+          "101": 12,
+          "110": 12
+        }
+      },
+      "source_span_diagnostics": {}
+    },
     "native-entities": {
       "backend": "mention-ranking",
       "by_family": {

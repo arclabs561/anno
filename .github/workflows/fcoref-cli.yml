@@ -28,6 +28,8 @@ on:
       - 'crates/anno-cli/tests/pipeline_coref_backend.rs'
       - 'scripts/export_fcoref.py'
       - 'scripts/qa/signer_roles.py'
+      - 'scripts/qa/coref_gap.py'
+      - 'scripts/qa/audit_gap_decisions.py'
       - 'crates/anno/examples/coref_gap_panel.rs'
       - 'docs/eval/reflexive*.json'
       - 'scripts/qa/fcoref_cgroup/**'
