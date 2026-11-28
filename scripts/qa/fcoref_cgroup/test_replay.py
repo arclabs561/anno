@@ -103,6 +103,39 @@ class CgroupReplayTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     replay.verify(row, 3)
 
+    def test_caller_limit_checks_coordinates_and_exact_refusal(self):
+        self.assertEqual(replay.CALLER_CASES, [(521, 521), (4097, 4096), (4096, 4096)])
+        for size in (4096, 4097):
+            row = copy.deepcopy(self.row)
+            row.update(tokens=size, budget=4096)
+            m = row["measurement"]
+            text = "\xa0" + "x " * (size - 19) + SUFFIX
+            m.update(encoded_tokens=size, budget=4096, text=text)
+            if size > 4096:
+                m["predictions"] = {"error": "Invalid input: coreference document has 4097 tokens, exceeding max_doc_tokens 4096"}
+                replay.verify(row, 3)
+                m["predictions"] = {"mentions": [], "clusters": []}
+                with self.assertRaisesRegex(RuntimeError, "budget rejection"):
+                    replay.verify(row, 3)
+                continue
+            start = text.index("Alice")
+            end = start + len("Alice")
+            mention = [start, end, "Alice", 0.5]
+            # At this length there is no hand-labeled reference partition.
+            m["predictions"] = {"mentions": [mention], "clusters": []}
+            replay.verify(row, 3)
+            for invalid in [
+                # Reporting UTF-8 byte offsets instead of scalar offsets shifts Alice by one.
+                {"mentions": [[start + 1, end + 1, "Alice", 0.5]], "clusters": []},
+                {"mentions": [[start, end - 1, "Alic", 0.5]], "clusters": []},
+                {"mentions": [mention, mention], "clusters": []},
+                {"mentions": [mention], "clusters": [[[start, end], [1, 2]]]},
+                {"mentions": [mention], "clusters": [[[start, end], [start, end]]]},
+            ]:
+                with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
+                    m["predictions"] = invalid
+                    replay.verify(row, 3)
+
     def test_nonfinite_or_nonpositive_timing_is_rejected(self):
         for key in ("warm_ms", "first_call_ms", "load_ms", "wall_seconds"):
             for value in (float("nan"), float("inf"), 0, -1, True):

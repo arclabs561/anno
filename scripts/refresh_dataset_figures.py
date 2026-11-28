@@ -1,16 +1,18 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["matplotlib==3.10.8", "numpy==2.3.5", "pillow==13.0.0"]
+# dependencies = ["matplotlib==3.10.8", "numpy==2.3.5", "pillow==13.0.0", "resvg-py==0.5.0"]
 # ///
 """Build the dataset figures embedded in Anno's documentation from checked-in evidence."""
 
 import argparse
 import filecmp
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from importlib.metadata import distribution
 from pathlib import Path
 from figure_coverage_report import coverage_text
 
@@ -18,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 EVAL = ROOT / "docs" / "eval"
 FIGURES = ROOT / "docs" / "figures"
+NATIVE_VIEWS = ("tradeoff", "overlap", "errors")
 SUMMARIES = (
     "dataset-coverage.csv",
     "dataset-coverage-by-domain.csv",
@@ -27,7 +30,71 @@ SUMMARIES = (
 )
 
 
-def render(directory, config):
+def build_anno():
+    command = [
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "anno-cli",
+        "--bin",
+        "anno",
+        "--no-default-features",
+        "--features",
+        "extractor-html2text",
+        "--message-format=json-render-diagnostics",
+    ]
+    messages = subprocess.check_output(command, cwd=ROOT, text=True)
+    for line in messages.splitlines():
+        record = json.loads(line)
+        if (
+            record.get("reason") == "compiler-artifact"
+            and record["target"]["name"] == "anno"
+            and record["target"]["kind"] == ["bin"]
+            and record.get("executable")
+        ):
+            return Path(record["executable"])
+    raise RuntimeError("Cargo did not report the anno executable.")
+
+
+def native_paths(directory, extension):
+    return sorted(
+        path
+        for view in NATIVE_VIEWS
+        for path in directory.glob(f"*-{view}.{extension}")
+    )
+
+
+def render_native(inputs, directory, anno):
+    """The final name component identifies the public anno viz command."""
+    from resvg_py import svg_to_bytes
+
+    executable = anno.resolve() if anno else build_anno()
+    font_dir = distribution("matplotlib").locate_file("matplotlib/mpl-data/fonts/ttf")
+    fonts = [
+        str(font_dir / f"DejaVuSans{style}.ttf")
+        for style in ("", "-Bold", "-Oblique", "-BoldOblique")
+    ]
+    for source in inputs:
+        svg = directory / source.with_suffix(".svg").name
+        png = svg.with_suffix(".png")
+        if svg.exists() or png.exists():
+            raise ValueError(f"More than one figure has the name {source.stem!r}.")
+        view = source.stem.rsplit("-", 1)[1]
+        subprocess.run([executable, "viz", view, source, "--output", svg], check=True)
+        png.write_bytes(
+            svg_to_bytes(
+                svg_path=str(svg),
+                skip_system_fonts=True,
+                font_files=fonts,
+                font_family="DejaVu Sans",
+                sans_serif_family="DejaVu Sans",
+            )
+        )
+        shutil.copyfile(source, directory / source.name)
+
+
+def render(directory, config, anno):
     inventory = EVAL / "dataset-figure-inventory.csv"
     hub = EVAL / "dataset-hf-splits.csv"
     sources = [
@@ -89,6 +156,10 @@ def render(directory, config):
         subprocess.run(
             [sys.executable, SCRIPTS / script, *args], check=True, env=env, cwd=ROOT
         )
+    native = native_paths(EVAL, "json")
+    if native:
+        render_native(native, directory, anno)
+    return [directory / source.with_suffix(".svg").name for source in native]
 
 
 def same_result(built, published):
@@ -96,10 +167,13 @@ def same_result(built, published):
         return False
     if filecmp.cmp(built, published, shallow=False):
         return True
-    if built.suffix in {".csv", ".md"}:
-        return built.read_text(encoding="utf-8") == published.read_text(
-            encoding="utf-8"
-        )
+    if built.suffix in {".csv", ".md", ".svg"}:
+        try:
+            return built.read_text(encoding="utf-8") == published.read_text(
+                encoding="utf-8"
+            )
+        except UnicodeDecodeError:
+            return False
     if built.suffix == ".png":
         # Encoder metadata and compression can differ without a visible change.
         from PIL import Image
@@ -134,7 +208,12 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        help="Export PNGs, SVGs and derived CSVs to this directory.",
+        help="Export PNGs, SVGs, native chart JSON and derived CSVs to this directory.",
+    )
+    parser.add_argument(
+        "--anno",
+        type=Path,
+        help="Use a prebuilt anno executable for native figures. By default, build this checkout.",
     )
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument(
@@ -151,13 +230,14 @@ def main():
 
     with tempfile.TemporaryDirectory() as work:
         directory = Path(work) / "figures"
-        render(directory, Path(work) / "matplotlib")
+        native_svgs = render(directory, Path(work) / "matplotlib", args.anno)
         pngs = sorted(directory.glob("*.png"))
         if not pngs or {p.stem for p in pngs} != {
             p.stem for p in directory.glob("*.svg")
         }:
             parser.exit(1, "Every figure must render both PNG and SVG.\n")
         results = {p: FIGURES / p.name for p in pngs}
+        results.update({p: FIGURES / p.name for p in native_svgs})
         results.update({directory / name: EVAL / name for name in SUMMARIES})
         if any(not built.is_file() for built in results):
             parser.exit(1, "The generators did not produce every derived CSV.\n")
@@ -173,15 +253,20 @@ def main():
             for path in sorted(directory.iterdir()):
                 publish(path, output / path.name)
             print(
-                f"Wrote {len(pngs)} PNG/SVG pairs and {len(SUMMARIES)} CSVs to {output}"
+                f"Wrote {len(pngs)} PNG/SVG pairs, {len(native_svgs)} native chart inputs and {len(SUMMARIES)} CSVs to {output}"
             )
             if not (args.update or args.check):
                 return
 
-        missing = sorted(set(FIGURES.glob("*.png")) - set(results.values()))
+        published_images = set(FIGURES.glob("*.png")) | set(
+            native_paths(FIGURES, "svg")
+        )
+        missing = sorted(published_images - set(results.values()))
         if missing:
             names = ", ".join(p.name for p in missing)
-            parser.exit(1, f"Published PNGs without a rendered counterpart: {names}\n")
+            parser.exit(
+                1, f"Published figures without a rendered counterpart: {names}\n"
+            )
         changed = [(a, b) for a, b in results.items() if not same_result(a, b)]
         for built, destination in changed:
             if args.update:
@@ -194,7 +279,7 @@ def main():
                 1, "Run the figure generator with --update to refresh the docs.\n"
             )
         print(
-            f"Verified {len(pngs)} published PNGs, {len(SUMMARIES)} derived CSVs and the coverage guide's counts."
+            f"Verified {len(pngs)} published PNGs, {len(native_svgs)} native SVGs, {len(SUMMARIES)} derived CSVs and the coverage guide's counts."
         )
 
 

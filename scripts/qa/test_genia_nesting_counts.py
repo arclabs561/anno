@@ -1,7 +1,5 @@
 """Check that the offline GENIA figure stays bound to its measured source splits."""
 
-import csv
-import importlib.util
 import json
 import sys
 import tempfile
@@ -9,24 +7,18 @@ import unittest
 from pathlib import Path
 
 
-@unittest.skipUnless(
-    importlib.util.find_spec("matplotlib"), "GENIA figure requires Matplotlib"
-)
 class GeniaAggregateReplayTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         try:
+            import genia_grounded_overlap
             import plot_genia_nesting
         finally:
             sys.path.pop(0)
         cls.generator = plot_genia_nesting
-        with plot_genia_nesting.LEDGER.open(newline="") as source:
-            cls.selected = {
-                row["split"]: row
-                for row in csv.DictReader(source)
-                if row["id"] == "GENIANested"
-            }
+        cls.overlap = genia_grounded_overlap
+        cls.selected = plot_genia_nesting.release_files()
         cls.snapshot = plot_genia_nesting.LEDGER.with_name("genia-nesting-counts.json")
 
     def test_aggregate_roundtrip_preserves_all_measurements(self):
@@ -117,6 +109,37 @@ class GeniaAggregateReplayTest(unittest.TestCase):
             )
         empty = {"sentence": 2, "html": "&lt;&amp;&gt;", "jsonl": ""}
         self.assertEqual(self.generator.verify_export(2, ["<&>"], [], empty), (0, 0, 0))
+
+    def test_grounded_adapter_retains_unicode_occurrences_and_negative_sentences(self):
+        doc = self.overlap.grounded_sentence(
+            "test-1",
+            ["🐈", "Café", "&", "Café"],
+            [(1, 3, "DNA"), (1, 2, "protein"), (3, 4, "protein")],
+        )
+        rows = [
+            (s["location"]["Text"], s["surface"], s["label"]) for s in doc["signals"]
+        ]
+        self.assertEqual(
+            rows,
+            [
+                ({"start": 2, "end": 8}, "Café &", "DNA"),
+                ({"start": 2, "end": 6}, "Café", "protein"),
+                ({"start": 9, "end": 13}, "Café", "protein"),
+            ],
+        )
+        self.assertEqual([s["id"] for s in doc["signals"]], [0, 1, 2])
+        no_gold = self.overlap.grounded_sentence("test-2", ["unmarked", "text"], [])
+        self.assertEqual((no_gold["text"], no_gold["signals"]), ("unmarked text", []))
+
+    def test_overlap_chart_agrees_with_the_independent_native_export_receipt(self):
+        report = json.loads(
+            self.snapshot.with_name("genia-span-overlap.json").read_text()
+        )
+        native = json.loads(self.overlap.REFERENCE.read_text())
+        self.overlap.verify_totals(report, native)
+        for field in ("documents", "signals", "documents_with_overlap", "characters"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.overlap.verify_totals({**report, field: report[field] - 1}, native)
 
 
 if __name__ == "__main__":

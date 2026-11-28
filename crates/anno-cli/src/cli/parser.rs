@@ -142,6 +142,9 @@ pub enum Commands {
     #[command(visible_alias = "d")]
     Debug(commands::DebugArgs),
 
+    /// Visualize signal overlap, evaluation errors and operating-point comparisons
+    Viz(commands::viz::VizArgs),
+
     /// Evaluate predictions against gold annotations
     #[command(visible_alias = "e")]
     Eval(commands::EvalArgs),
@@ -758,16 +761,16 @@ mod tests {
         let ner = StackedNER::default();
         let stats = ner.stats();
 
-        // With onnx AND model available: 3 layers (ML + regex + heuristic)
+        // With onnx AND model available: 3 or 4 layers (loaded ML backends + regex + heuristic)
         // With onnx but offline/no model: 2 layers (regex + heuristic)
-        if stats.layer_count == 3 {
+        if stats.layer_count >= 3 {
             let has_ml = stats.layer_names.iter().any(|name| {
                 let n = name.to_lowercase();
-                n.contains("bert") || n.contains("gliner")
+                n.contains("bert") || n.contains("gliner") || n.contains("nuner")
             });
             assert!(
                 has_ml,
-                "Default stacked with 3 layers should include ML backend. Layers: {:?}",
+                "Default stacked with extra layers should include an ML backend. Layers: {:?}",
                 stats.layer_names
             );
         }

@@ -21,7 +21,10 @@ def read_rows(path):
         return list(csv.DictReader(f, delimiter="\t"))
 
 
-def score(executable, docs, temp):
+def run_trace(executable, docs, temp):
+    (temp / "input.jsonl").write_text(
+        "".join(json.dumps(dict(id=i, text=t)) + "\n" for i, t, *_ in docs)
+    )
     raw = temp / "trace.jsonl"
     raw.unlink(missing_ok=True)
     subprocess.run(
@@ -33,7 +36,11 @@ def score(executable, docs, temp):
             "ANNO_GAP_TRACE_OUTPUT": str(raw),
         },
     )
-    traces = [json.loads(line) for line in raw.read_text().splitlines()]
+    with raw.open(encoding="utf-8") as stream:
+        return [json.loads(line) for line in stream]
+
+
+def score(docs, traces):
     pred = [
         dict(id=t["id"], producer="mention-ranking", clusters=t["clusters"])
         for t in traces
@@ -86,11 +93,8 @@ def main():
         )
     with tempfile.TemporaryDirectory() as d:
         temp = Path(d)
-        (temp / "input.jsonl").write_text(
-            "".join(json.dumps(dict(id=i, text=t)) + "\n" for i, t, *_ in docs)
-        )
-        before, bp = score(a.baseline_test, docs, temp)
-        after, ap = score(a.candidate_test, docs, temp)
+        before, bp = score(docs, run_trace(a.baseline_test, docs, temp))
+        after, ap = score(docs, run_trace(a.candidate_test, docs, temp))
     results = []
     for (i, text, _, _), x, y, s, t in zip(
         docs, bp, ap, before.pop("per_id"), after.pop("per_id"), strict=True

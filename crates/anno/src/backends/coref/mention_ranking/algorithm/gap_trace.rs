@@ -41,12 +41,15 @@ fn trace_native_gap() {
         for mention in &mut mentions {
             model.extract_features(mention);
         }
-        let decisions: Vec<_> = (0..mentions.len())
-            .map(|i| {
+        let decisions: Vec<_> = model
+            .antecedent_windows(&mentions)
+            .map(|window| {
+                let i = window.end;
                 let mut candidates = Vec::new();
-                let selected = model.best_left_antecedent(i, &mentions, &doc.text, |j, s, t| {
-                    candidates.push((j, s, t))
-                });
+                let selected =
+                    model.best_left_antecedent(window, &mentions, &doc.text, |j, s, t| {
+                        candidates.push((j, s, t))
+                    });
                 Decision {
                     max_antecedents: model
                         .config

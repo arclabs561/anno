@@ -33,6 +33,7 @@ pub mod privacy;
 pub mod query;
 pub mod singleton;
 pub mod validate;
+pub mod viz;
 pub mod watch;
 
 pub(super) fn parse_similarity_threshold(raw: &str) -> Result<f64, String> {

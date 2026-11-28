@@ -20,17 +20,23 @@ from dataclasses import dataclass, field
 from itertools import combinations, zip_longest
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 from survey_repo_files import file_contents
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs/eval/dataset-repo-files.csv"
 SPLITS = ("train", "dev", "test")
 LABELS = {"DNA", "RNA", "cell_line", "cell_type", "protein"}
+
+
+def release_files():
+    with LEDGER.open(newline="") as file:
+        release = [row for row in csv.DictReader(file) if row["id"] == "GENIANested"]
+    selected = {row["split"]: row for row in release}
+    if set(selected) != set(SPLITS) or len(release) != len(SPLITS):
+        raise ValueError(
+            "Expected exactly one GENIANested ledger file per train/dev/test split"
+        )
+    return selected
 
 
 def extract_spans(tags):
@@ -133,7 +139,7 @@ def read_html(fragment):
     return "".join(parts), marks
 
 
-def verify_export(number, tokens, token_spans, record):
+def character_spans(tokens, token_spans):
     text = " ".join(tokens)
     # The IOB2 files carry tokens. Offsets refer to the one-space sentence,
     # with one index per Unicode scalar, including punctuation and whitespace.
@@ -146,6 +152,11 @@ def verify_export(number, tokens, token_spans, record):
         (starts[a], starts[b - 1] + len(tokens[b - 1]), tag)
         for a, b, tag in token_spans
     ]
+    return text, gold
+
+
+def verify_export(number, tokens, token_spans, record):
+    text, gold = character_spans(tokens, token_spans)
     if record["sentence"] != number:
         raise ValueError(f"Native output is out of order at sentence {number}")
     rendered_text, marks = read_html(record["html"])
@@ -331,6 +342,11 @@ def read_counts(path, selected):
 
 
 def plot(by_split, output):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     depths = sum((counts.depths for counts in by_split.values()), Counter())
     pairs = sum((counts.pairs for counts in by_split.values()), Counter())
     mentions = sum(c.mentions for c in by_split.values())
@@ -439,13 +455,7 @@ def main():
     args = parser.parse_args()
     if args.native_export and (args.input or args.from_counts):
         parser.error("--native-export requires all three original publisher splits")
-    with LEDGER.open(newline="") as file:
-        release = [row for row in csv.DictReader(file) if row["id"] == "GENIANested"]
-    selected = {row["split"]: row for row in release}
-    if set(selected) != set(SPLITS) or len(release) != len(SPLITS):
-        raise ValueError(
-            "Expected exactly one GENIANested ledger file per train/dev/test split"
-        )
+    selected = release_files()
     if args.from_counts:
         by_split = read_counts(args.from_counts, selected)
     else:

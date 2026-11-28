@@ -24,7 +24,7 @@ Counting distinct intervals within each sentence gives 26,925 annotated entity s
 
 The first-loss count includes an edge as soon as either endpoint is suppressed. We replayed the same 32 AI test sentences and inspected the trained predicate score for each of those 16 edges in its annotated direction. Both exact endpoints could coexist in all 16. Only **three** correct predicate scores exceeded 0.50. The other 13 were at or below the gate. Even with gold boundaries to guide the selection, changing span order alone could take the exact count from 17/90 to at most 20/90 on this panel. The stock export reproduced upstream predictions on all 32 sentences. [Paired score counts](../../scripts/qa/joint_baseline/receipts/relex_ai32_suppressed.json) · [Replay](../../scripts/qa/joint_baseline/relex_roles.py)
 
-Inspect predicate ranking first. Across the 73 misses, the trained head scored the exact directed pair but assigned its reference predicate at most 0.50 in 62 cases, including 49 with both endpoints retained. Compare the reference score with the strongest unannotated predicate for the same pair and with its score in the reverse direction, accounting for pairs with multiple valid annotations. This separates correct low-confidence rankings from cases where the model prefers a different label or direction. Test any scoring change on fresh documents and count exact directed edges gained and lost, plus new unmatched outputs. The native decoder exposes the required pair scores before suppressing overlapping mentions. [Native decoder](../../crates/anno/src/backends/gliner_onnx/relex.rs)
+Across the 73 misses, the trained head scored the exact directed pair but gave its reference predicate at most 0.50 in 62 cases. The follow-up found that a different, unannotated predicate outranked the reference on 39 of those 62 pairs. The reference predicate ranked first in the other 23. Only four ranked higher in the unannotated reverse direction, all with a stronger wrong label as well. The six-domain trial measures what those scores can recover at a fixed review budget. [Six-domain predicate ranking trial](crossre-predicate-ranking.md) · [Native decoder](../../crates/anno/src/backends/gliner_onnx/relex.rs)
 
 ## Predicate-only threshold trial
 
@@ -35,7 +35,9 @@ We froze a lower predicate gate of 0.40 and tested it on the next 32 source sent
 | Stock 0.50 | 24 / 85 | 28.2% | 31.2% | 29.6% |
 | Experimental 0.40 | 29 / 112 | 25.9% | 37.7% | 30.7% |
 
-The lower gate recovered five gold edges, retained all previous matches and added 22 unmatched predictions. A caller that reviews suggestions can evaluate whether those five extra matches justify reviewing 27 additional outputs. A high-precision caller has a different cost. This English AI-domain result does not establish a multilingual default. The experiment ran the pinned PyTorch source and trained export module on CPU, checking parity with the public upstream API. The native Rust ONNX observer was exercised separately on a controlled Unicode overlap fixture.
+The lower gate recovered five gold edges, retained all previous matches and added 22 unmatched predictions. A caller that reviews suggestions can evaluate whether those five extra matches justify reviewing 27 additional outputs. A high-precision caller has a different cost. This English AI-domain result does not establish a multilingual default. On these same 32 sentences, the stock Rust CLI matched all 252 upstream mentions and all 85 directed edges. The maximum absolute score differences were 0.00000227 for mentions and 0.00000191 for edges. The replay also checked each grounded edge after reloading the export.
+
+We repeated the predicate-only comparison on indices 128–159, another 32 distinct sentences with no text in common with the first 128. Of 93 annotated relations, the stock gate recovered 10 among 63 predictions. The lower gate recovered 12 among 88 predictions, retaining the original matches and adding 23 unmatched outputs for two additional matches. Both panels support leaving the default threshold in place. Candidate ranking on retained endpoints remains the larger opportunity. On the replication panel, 66 misses had both endpoints but a predicate score below the gate. [Replication counts](relex-predicate-replication.json)
 
 ## Reproduce
 
@@ -44,4 +46,17 @@ Use the pinned local `knowledgator/gliner-relex-large-v1.0` checkpoint at revisi
 ```sh
 python scripts/qa/joint_baseline/relex_roles.py "$test" "$relex" --first-index 64 --documents 32
 python scripts/qa/joint_baseline/relex_roles.py "$test" "$relex" --first-index 96 --documents 32 --predicate-threshold 0.40
+python scripts/qa/joint_baseline/relex_roles.py "$test" "$relex" --first-index 128 --documents 32 --predicate-threshold 0.40
+```
+
+The held-out CI replay checks the fixed 32-sentence panel against the saved counts and a digest of every stock mention and directed edge in its original sentence. It exports the trained joint graph, runs the stock Rust CLI on each sentence, and compares every mention and directed relation with upstream PyTorch, including confidence and grounded reloads. The native CLI uses a shared mention and predicate threshold of 0.50. The predicate-only 0.40 comparison uses the original 0.50 mention list in Python. [Workflow](../../.github/workflows/relex-crossre.yml) · [Frozen counts](relex-predicate-heldout.json)
+
+With the joint export installed and the native CLI built, run both sides locally. The temporary case file contains the publisher text and reference predictions.
+
+```sh
+trial_dir=$(mktemp -d)
+python scripts/qa/joint_baseline/relex_roles.py "$test" "$relex" --first-index 96 --documents 32 \
+  --predicate-threshold 0.40 --native-cases "$trial_dir/cases.json" > "$trial_dir/counts.json"
+python scripts/qa/check_gliner_relex_cli.py --anno target/debug/anno \
+  --crossre-cases "$trial_dir/cases.json" --receipt "$trial_dir/native.json"
 ```

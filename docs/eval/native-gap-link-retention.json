@@ -1,0 +1,1268 @@
+{
+  "anno_revision": "01370e52ba97d5a094c3a3a0e9d3b038ef7063f9",
+  "gap_revision": "83135f26025cdd705c04f77e940d0c9201116b80",
+  "gap_sha256": {
+    "development": "b9a01434fcf58d8c2f9bc762480c27e58ce466cf1ffe8b09cfecbc7a20d2d634",
+    "test": "1c35e36d5b14f6313ec3f6cd67b275de282595dd59e59390e00cfff9897a6819",
+    "validation": "2d784f66b390404f554704b9aef6dcde8845e79dda9886b8391cf7e9a24fdb98"
+  },
+  "winogender_publisher": "https://github.com/rudinger/winogender-schemas/blob/1c7f8b481ad8a234b41e9f76a424d6e856e13f7f",
+  "winogender_sha256": {
+    "templates.tsv": "496f2e2dc77296bcebcdd8865a8dc5715ce22b772de9abb5f531d5b3114c48a0",
+    "all_sentences.tsv": "bd69da16bf228cb8df63fd0843aec2d8b5c36a7f21bf8c7b168bcc83932556c8"
+  },
+  "winogender_templates": 120,
+  "development_true_link_retention": 0.8,
+  "selected_development_margins": {
+    "rival": 0.15,
+    "threshold": 0.025
+  },
+  "checked_native_margin_grid": [
+    0.0,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.15,
+    0.2,
+    0.3
+  ],
+  "panels": {
+    "GAP development": {
+      "rows": 2000,
+      "diagnostic": {
+        "target_eligible_name_counts": {
+          "2": 911,
+          "0": 467,
+          "1": 622
+        },
+        "target_inferred_kind": {
+          "pronominal": 1612,
+          "proper": 388
+        },
+        "gold_links": 1799,
+        "missed_gold_by_target_search": {
+          "prior_gold_at_or_below_gate": 938,
+          "name_after_target": 353,
+          "prior_name_outside_window": 382,
+          "prior_gold_above_gate_other_won": 3
+        },
+        "wrong_links_by_target_search": {
+          "direct_no_scored_rival": 42,
+          "direct_scored_rival": 96
+        }
+      },
+      "operating_points": {
+        "Stock": {
+          "tp": 9,
+          "fp": 8,
+          "fn": 1790,
+          "tn": 2193
+        },
+        "Neutral type": {
+          "tp": 123,
+          "fp": 138,
+          "fn": 1676,
+          "tn": 2063
+        },
+        "Rival margin": {
+          "tp": 102,
+          "fp": 117,
+          "fn": 1697,
+          "tn": 2084
+        },
+        "Threshold margin": {
+          "tp": 103,
+          "fp": 103,
+          "fn": 1696,
+          "tn": 2098
+        },
+        "Classified mentions": {
+          "tp": 143,
+          "fp": 230,
+          "fn": 1656,
+          "tn": 1971
+        }
+      },
+      "paired_vs_neutral": {
+        "Stock": {
+          "correct_gained": 0,
+          "correct_lost": 114,
+          "incorrect_added": 0,
+          "incorrect_removed": 130,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 118,
+          "incorrect_removed_when_neither_gold": 12,
+          "changed_documents": 244
+        },
+        "Rival margin": {
+          "correct_gained": 0,
+          "correct_lost": 21,
+          "incorrect_added": 0,
+          "incorrect_removed": 21,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 18,
+          "incorrect_removed_when_neither_gold": 3,
+          "changed_documents": 42
+        },
+        "Threshold margin": {
+          "correct_gained": 0,
+          "correct_lost": 20,
+          "incorrect_added": 0,
+          "incorrect_removed": 35,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 28,
+          "incorrect_removed_when_neither_gold": 7,
+          "changed_documents": 55
+        },
+        "Classified mentions": {
+          "correct_gained": 20,
+          "correct_lost": 0,
+          "incorrect_added": 92,
+          "incorrect_removed": 0,
+          "incorrect_added_to_distractor": 74,
+          "incorrect_added_when_neither_gold": 18,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 112
+        }
+      },
+      "sweeps": {
+        "rival": [
+          {
+            "margin": 0.0,
+            "tp": 123,
+            "fp": 138,
+            "fn": 1676,
+            "tn": 2063
+          },
+          {
+            "margin": 0.025,
+            "tp": 122,
+            "fp": 137,
+            "fn": 1677,
+            "tn": 2064
+          },
+          {
+            "margin": 0.05,
+            "tp": 122,
+            "fp": 135,
+            "fn": 1677,
+            "tn": 2066
+          },
+          {
+            "margin": 0.075,
+            "tp": 121,
+            "fp": 133,
+            "fn": 1678,
+            "tn": 2068
+          },
+          {
+            "margin": 0.1,
+            "tp": 119,
+            "fp": 132,
+            "fn": 1680,
+            "tn": 2069
+          },
+          {
+            "margin": 0.15,
+            "tp": 102,
+            "fp": 117,
+            "fn": 1697,
+            "tn": 2084
+          },
+          {
+            "margin": 0.2,
+            "tp": 85,
+            "fp": 97,
+            "fn": 1714,
+            "tn": 2104
+          },
+          {
+            "margin": 0.3,
+            "tp": 40,
+            "fp": 63,
+            "fn": 1759,
+            "tn": 2138
+          }
+        ],
+        "threshold": [
+          {
+            "margin": 0.0,
+            "tp": 123,
+            "fp": 138,
+            "fn": 1676,
+            "tn": 2063
+          },
+          {
+            "margin": 0.025,
+            "tp": 103,
+            "fp": 103,
+            "fn": 1696,
+            "tn": 2098
+          },
+          {
+            "margin": 0.05,
+            "tp": 82,
+            "fp": 71,
+            "fn": 1717,
+            "tn": 2130
+          },
+          {
+            "margin": 0.075,
+            "tp": 63,
+            "fp": 55,
+            "fn": 1736,
+            "tn": 2146
+          },
+          {
+            "margin": 0.1,
+            "tp": 50,
+            "fp": 42,
+            "fn": 1749,
+            "tn": 2159
+          },
+          {
+            "margin": 0.15,
+            "tp": 9,
+            "fp": 8,
+            "fn": 1790,
+            "tn": 2193
+          },
+          {
+            "margin": 0.2,
+            "tp": 3,
+            "fp": 4,
+            "fn": 1796,
+            "tn": 2197
+          },
+          {
+            "margin": 0.3,
+            "tp": 0,
+            "fp": 2,
+            "fn": 1799,
+            "tn": 2199
+          }
+        ]
+      },
+      "native_partitions_sha256": {
+        "stock": "3cfb374f46b920c4fe37550879de475cf609bb377e83e1de6f1c3bc76f969d1f",
+        "neutral": "332d10fda233fb5f18b8161ae539aa46f68b858a5b42591ba85474d2894d5efa",
+        "classified": "7f76d8c29c6625ddeba77e97931bd37d8925fe643ac247e081f1a9ae6dc3d773"
+      },
+      "checked_native_margin_partitions_sha256": {
+        "rival": [
+          "332d10fda233fb5f18b8161ae539aa46f68b858a5b42591ba85474d2894d5efa",
+          "299e1325d8dd4421bf04608afdb1fbc0fa064414a12e76a9bca3070e4bee0bc4",
+          "24f223e2f17658d70b41dd8aa6929048615e910c7c1f595475be29d9125d335b",
+          "cf8162e4706ed35af224fc2e435f45841640b422f24406c7556d7f8e3b8d9bb5",
+          "afc8be612b0e7feaaa519ef96a4f44c2844510fad9b44554fb4d15d363727778",
+          "93f6025c8a1b798f01bd9be8bec5612d749c88e5893b98d087345742b1c14f80",
+          "0decb2a0049fe3cf1d5943a43126e85858e19ce173bf7c46a2dca8f995307868",
+          "d9be4fe293f54f5ead9ec8fcbd84770dbeff1273d47dac269bfbf85683dc4f36"
+        ],
+        "threshold": [
+          "332d10fda233fb5f18b8161ae539aa46f68b858a5b42591ba85474d2894d5efa",
+          "2e94536efd004dc7a9c13afbf9945da5322da726b3e493da7f269f2bf12ebe72",
+          "156a17a336c6a321d25dae95cee9ec6fd346acaa85a74d9fd16e569ff03006e6",
+          "ddc9a17c7c160cfc74e0d8595f46bb62202c0504f5466334c5ec7c055cd3cf6c",
+          "6ea8663391bc0aa9282a1c91b73e286f2b66ec84bc382dbe78505fa3feff334d",
+          "3cfb374f46b920c4fe37550879de475cf609bb377e83e1de6f1c3bc76f969d1f",
+          "7c92b68ae461058fa14947ca77aeab30d6ba3dc2d7f45a8a616bc4ed63613fdc",
+          "4f71e0e494cd9444d12e502e3b50bd641970b42966ca8df40cfd9f28bb343c67"
+        ]
+      }
+    },
+    "GAP validation": {
+      "rows": 454,
+      "diagnostic": {
+        "target_eligible_name_counts": {
+          "2": 212,
+          "1": 130,
+          "0": 112
+        },
+        "target_inferred_kind": {
+          "pronominal": 389,
+          "proper": 65
+        },
+        "gold_links": 392,
+        "missed_gold_by_target_search": {
+          "prior_gold_at_or_below_gate": 210,
+          "name_after_target": 80,
+          "prior_name_outside_window": 65
+        },
+        "wrong_links_by_target_search": {
+          "direct_scored_rival": 28,
+          "direct_no_scored_rival": 11
+        }
+      },
+      "operating_points": {
+        "Stock": {
+          "tp": 0,
+          "fp": 6,
+          "fn": 392,
+          "tn": 510
+        },
+        "Neutral type": {
+          "tp": 37,
+          "fp": 39,
+          "fn": 355,
+          "tn": 477
+        },
+        "Rival margin": {
+          "tp": 32,
+          "fp": 38,
+          "fn": 360,
+          "tn": 478
+        },
+        "Threshold margin": {
+          "tp": 23,
+          "fp": 34,
+          "fn": 369,
+          "tn": 482
+        },
+        "Classified mentions": {
+          "tp": 39,
+          "fp": 59,
+          "fn": 353,
+          "tn": 457
+        }
+      },
+      "paired_vs_neutral": {
+        "Stock": {
+          "correct_gained": 0,
+          "correct_lost": 37,
+          "incorrect_added": 0,
+          "incorrect_removed": 33,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 29,
+          "incorrect_removed_when_neither_gold": 4,
+          "changed_documents": 70
+        },
+        "Rival margin": {
+          "correct_gained": 0,
+          "correct_lost": 5,
+          "incorrect_added": 0,
+          "incorrect_removed": 1,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 1,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 6
+        },
+        "Threshold margin": {
+          "correct_gained": 0,
+          "correct_lost": 14,
+          "incorrect_added": 0,
+          "incorrect_removed": 5,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 3,
+          "incorrect_removed_when_neither_gold": 2,
+          "changed_documents": 19
+        },
+        "Classified mentions": {
+          "correct_gained": 2,
+          "correct_lost": 0,
+          "incorrect_added": 20,
+          "incorrect_removed": 0,
+          "incorrect_added_to_distractor": 15,
+          "incorrect_added_when_neither_gold": 5,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 22
+        }
+      },
+      "sweeps": {
+        "rival": [
+          {
+            "margin": 0.0,
+            "tp": 37,
+            "fp": 39,
+            "fn": 355,
+            "tn": 477
+          },
+          {
+            "margin": 0.025,
+            "tp": 37,
+            "fp": 39,
+            "fn": 355,
+            "tn": 477
+          },
+          {
+            "margin": 0.05,
+            "tp": 37,
+            "fp": 39,
+            "fn": 355,
+            "tn": 477
+          },
+          {
+            "margin": 0.075,
+            "tp": 36,
+            "fp": 39,
+            "fn": 356,
+            "tn": 477
+          },
+          {
+            "margin": 0.1,
+            "tp": 35,
+            "fp": 38,
+            "fn": 357,
+            "tn": 478
+          },
+          {
+            "margin": 0.15,
+            "tp": 32,
+            "fp": 38,
+            "fn": 360,
+            "tn": 478
+          },
+          {
+            "margin": 0.2,
+            "tp": 24,
+            "fp": 30,
+            "fn": 368,
+            "tn": 486
+          },
+          {
+            "margin": 0.3,
+            "tp": 11,
+            "fp": 17,
+            "fn": 381,
+            "tn": 499
+          }
+        ],
+        "threshold": [
+          {
+            "margin": 0.0,
+            "tp": 37,
+            "fp": 39,
+            "fn": 355,
+            "tn": 477
+          },
+          {
+            "margin": 0.025,
+            "tp": 23,
+            "fp": 34,
+            "fn": 369,
+            "tn": 482
+          },
+          {
+            "margin": 0.05,
+            "tp": 19,
+            "fp": 22,
+            "fn": 373,
+            "tn": 494
+          },
+          {
+            "margin": 0.075,
+            "tp": 16,
+            "fp": 19,
+            "fn": 376,
+            "tn": 497
+          },
+          {
+            "margin": 0.1,
+            "tp": 12,
+            "fp": 14,
+            "fn": 380,
+            "tn": 502
+          },
+          {
+            "margin": 0.15,
+            "tp": 0,
+            "fp": 6,
+            "fn": 392,
+            "tn": 510
+          },
+          {
+            "margin": 0.2,
+            "tp": 0,
+            "fp": 1,
+            "fn": 392,
+            "tn": 515
+          },
+          {
+            "margin": 0.3,
+            "tp": 0,
+            "fp": 0,
+            "fn": 392,
+            "tn": 516
+          }
+        ]
+      },
+      "native_partitions_sha256": {
+        "stock": "3f20e695dca93c2a3e850c2149147ac23985cd3b19b742d7c1316f80e520e9d3",
+        "neutral": "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+        "classified": "9ad4714730be269cc7ba5d8b3df7f3dba91dd126d2a95d935aaa15eb4ac07c1b"
+      },
+      "checked_native_margin_partitions_sha256": {
+        "rival": [
+          "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+          "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+          "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+          "11a7519ee1069e3f2a5c63c2eb2232bdee13c83a635009e5ed63572b984efcdb",
+          "bf79df52bbc8717c5248308607b32679623a370c32d773f8fc0875245c654956",
+          "0b9a4151b83c9dbddf6a0c02926ed9a209f9bc081a9d3ba4618a41fecff31441",
+          "792b72579547d5ee1ff86e84887751cb8170e753c7629fdd5d837c7ac099917e",
+          "3090d477257800f16f73077b7261843073c73e4fe30e3195afe433e1ac63831f"
+        ],
+        "threshold": [
+          "748a743098e80546d3c6b44f8c669d01fe82960c73af8889f49fcd4657ded7e4",
+          "f49f915418ea1a34eb757102a3e82f47bf8066d4c3f801f27cd7872ec2eef56a",
+          "16d3a572c5796b607cc65c2f99b8a05233f941b0bbf4afa8dd34f52846c06cc5",
+          "d4c4db726eef6f51c5d8de9ab1c65ff922c123911201f10dd05fe01b7dcb37ab",
+          "175dfb61f01ece2b892ef82dbe84071372f16fd20a8ae8a94e08b87410599f31",
+          "3f20e695dca93c2a3e850c2149147ac23985cd3b19b742d7c1316f80e520e9d3",
+          "ad715a24c14f815c4afe22558ff0bb3ada61cae1bf94316a60c105a50153ca6a",
+          "312af5b96c7f98c57d8690dd528df3632a218fc8739d6b4f4c40efc65a6a0b87"
+        ]
+      }
+    },
+    "GAP test": {
+      "rows": 2000,
+      "diagnostic": {
+        "target_eligible_name_counts": {
+          "2": 912,
+          "0": 491,
+          "1": 597
+        },
+        "target_inferred_kind": {
+          "proper": 351,
+          "pronominal": 1649
+        },
+        "gold_links": 1773,
+        "missed_gold_by_target_search": {
+          "prior_gold_at_or_below_gate": 902,
+          "name_after_target": 334,
+          "prior_name_outside_window": 406
+        },
+        "wrong_links_by_target_search": {
+          "direct_scored_rival": 106,
+          "direct_no_scored_rival": 35
+        }
+      },
+      "operating_points": {
+        "Stock": {
+          "tp": 3,
+          "fp": 14,
+          "fn": 1770,
+          "tn": 2213
+        },
+        "Neutral type": {
+          "tp": 131,
+          "fp": 141,
+          "fn": 1642,
+          "tn": 2086
+        },
+        "Rival margin": {
+          "tp": 106,
+          "fp": 128,
+          "fn": 1667,
+          "tn": 2099
+        },
+        "Threshold margin": {
+          "tp": 108,
+          "fp": 108,
+          "fn": 1665,
+          "tn": 2119
+        },
+        "Classified mentions": {
+          "tp": 142,
+          "fp": 218,
+          "fn": 1631,
+          "tn": 2009
+        }
+      },
+      "paired_vs_neutral": {
+        "Stock": {
+          "correct_gained": 0,
+          "correct_lost": 128,
+          "incorrect_added": 0,
+          "incorrect_removed": 127,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 111,
+          "incorrect_removed_when_neither_gold": 16,
+          "changed_documents": 255
+        },
+        "Rival margin": {
+          "correct_gained": 0,
+          "correct_lost": 25,
+          "incorrect_added": 0,
+          "incorrect_removed": 13,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 9,
+          "incorrect_removed_when_neither_gold": 4,
+          "changed_documents": 38
+        },
+        "Threshold margin": {
+          "correct_gained": 0,
+          "correct_lost": 23,
+          "incorrect_added": 0,
+          "incorrect_removed": 33,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 28,
+          "incorrect_removed_when_neither_gold": 5,
+          "changed_documents": 56
+        },
+        "Classified mentions": {
+          "correct_gained": 12,
+          "correct_lost": 1,
+          "incorrect_added": 77,
+          "incorrect_removed": 0,
+          "incorrect_added_to_distractor": 65,
+          "incorrect_added_when_neither_gold": 12,
+          "incorrect_removed_from_distractor": 0,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 90
+        }
+      },
+      "sweeps": {
+        "rival": [
+          {
+            "margin": 0.0,
+            "tp": 131,
+            "fp": 141,
+            "fn": 1642,
+            "tn": 2086
+          },
+          {
+            "margin": 0.025,
+            "tp": 130,
+            "fp": 140,
+            "fn": 1643,
+            "tn": 2087
+          },
+          {
+            "margin": 0.05,
+            "tp": 130,
+            "fp": 140,
+            "fn": 1643,
+            "tn": 2087
+          },
+          {
+            "margin": 0.075,
+            "tp": 129,
+            "fp": 139,
+            "fn": 1644,
+            "tn": 2088
+          },
+          {
+            "margin": 0.1,
+            "tp": 128,
+            "fp": 138,
+            "fn": 1645,
+            "tn": 2089
+          },
+          {
+            "margin": 0.15,
+            "tp": 106,
+            "fp": 128,
+            "fn": 1667,
+            "tn": 2099
+          },
+          {
+            "margin": 0.2,
+            "tp": 94,
+            "fp": 111,
+            "fn": 1679,
+            "tn": 2116
+          },
+          {
+            "margin": 0.3,
+            "tp": 47,
+            "fp": 59,
+            "fn": 1726,
+            "tn": 2168
+          }
+        ],
+        "threshold": [
+          {
+            "margin": 0.0,
+            "tp": 131,
+            "fp": 141,
+            "fn": 1642,
+            "tn": 2086
+          },
+          {
+            "margin": 0.025,
+            "tp": 108,
+            "fp": 108,
+            "fn": 1665,
+            "tn": 2119
+          },
+          {
+            "margin": 0.05,
+            "tp": 85,
+            "fp": 77,
+            "fn": 1688,
+            "tn": 2150
+          },
+          {
+            "margin": 0.075,
+            "tp": 67,
+            "fp": 61,
+            "fn": 1706,
+            "tn": 2166
+          },
+          {
+            "margin": 0.1,
+            "tp": 44,
+            "fp": 37,
+            "fn": 1729,
+            "tn": 2190
+          },
+          {
+            "margin": 0.15,
+            "tp": 3,
+            "fp": 14,
+            "fn": 1770,
+            "tn": 2213
+          },
+          {
+            "margin": 0.2,
+            "tp": 2,
+            "fp": 2,
+            "fn": 1771,
+            "tn": 2225
+          },
+          {
+            "margin": 0.3,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1773,
+            "tn": 2227
+          }
+        ]
+      },
+      "native_partitions_sha256": {
+        "stock": "58e09ee6cca1715254619cc1de1802bc00d537312d77bba90e6dd0d89ba9cf2d",
+        "neutral": "baaf0a9d97b19c632c907a873ff687ea54982b0303ee354ba70bcccb1d0fa46f",
+        "classified": "333f6d4a27864ee3c6487c129d978e25c797a2b2ba5f72bc4cecacf65d4c1ddf"
+      },
+      "checked_native_margin_partitions_sha256": {
+        "rival": [
+          "baaf0a9d97b19c632c907a873ff687ea54982b0303ee354ba70bcccb1d0fa46f",
+          "d63b1e469a382085542cd98ddfe47bac582a687c404b95f3ae4a71881ce36dfc",
+          "d63b1e469a382085542cd98ddfe47bac582a687c404b95f3ae4a71881ce36dfc",
+          "deb908093cd14160065d051cc599be2d12fec51f5a6ea0cf70ebedad80fdb0cd",
+          "233652a660fb2e4feb86e4ae0bcfbae19e583f134de702ad4a345f7df1821aef",
+          "d6a294ac827b2e9078a870cf0c4eddb3ac476dc6ca0ff80d22156191f13779f9",
+          "fc7e30ee4b03560d2e226e62374aaf0cb1db7d127463f79057110a5e69401b92",
+          "b37d5d217b10bdf4e03d7708211b2ca0eba2f62b6d4e430912b49b34fcc559a6"
+        ],
+        "threshold": [
+          "baaf0a9d97b19c632c907a873ff687ea54982b0303ee354ba70bcccb1d0fa46f",
+          "d3943dbaba9f6c250118ce488f9ed32664b6d2963689f98e4b0a994d135e436d",
+          "ac429b97fd3ae30ad3841ff471f3a067abce903cb35751421ea6a9e99502b378",
+          "ef243dc2de31207efb7b3da04d7a8194cf8277fdf918f72ccb3090815acd230e",
+          "db2a62709ab5b68e5bfd3cfff6c163c9a421d7f1f84aae2fb99c9f2553ee3f7f",
+          "58e09ee6cca1715254619cc1de1802bc00d537312d77bba90e6dd0d89ba9cf2d",
+          "c06b0b2fe532814983d832371844c649641ce8151d83a389c023480d98e44d26",
+          "12e76e7b6b8064b60395c544ac1642302f1e16f61e430104ef9362adc75d757a"
+        ]
+      }
+    },
+    "Winogender phrases": {
+      "rows": 720,
+      "diagnostic": {
+        "target_eligible_name_counts": {
+          "2": 720
+        },
+        "target_inferred_kind": {
+          "pronominal": 720
+        },
+        "gold_links": 720,
+        "missed_gold_by_target_search": {
+          "prior_gold_at_or_below_gate": 651,
+          "prior_gold_above_gate_other_won": 4
+        },
+        "wrong_links_by_target_search": {
+          "direct_scored_rival": 40,
+          "incoming_or_transitive": 17
+        }
+      },
+      "operating_points": {
+        "Stock": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 720,
+          "tn": 720
+        },
+        "Neutral type": {
+          "tp": 65,
+          "fp": 57,
+          "fn": 655,
+          "tn": 663
+        },
+        "Rival margin": {
+          "tp": 35,
+          "fp": 33,
+          "fn": 685,
+          "tn": 687
+        },
+        "Threshold margin": {
+          "tp": 52,
+          "fp": 48,
+          "fn": 668,
+          "tn": 672
+        },
+        "Classified mentions": {
+          "tp": 9,
+          "fp": 7,
+          "fn": 711,
+          "tn": 713
+        }
+      },
+      "paired_vs_neutral": {
+        "Stock": {
+          "correct_gained": 0,
+          "correct_lost": 65,
+          "incorrect_added": 0,
+          "incorrect_removed": 57,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 57,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 90
+        },
+        "Rival margin": {
+          "correct_gained": 0,
+          "correct_lost": 30,
+          "incorrect_added": 0,
+          "incorrect_removed": 24,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 24,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 54
+        },
+        "Threshold margin": {
+          "correct_gained": 0,
+          "correct_lost": 13,
+          "incorrect_added": 0,
+          "incorrect_removed": 9,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 9,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 20
+        },
+        "Classified mentions": {
+          "correct_gained": 4,
+          "correct_lost": 60,
+          "incorrect_added": 3,
+          "incorrect_removed": 53,
+          "incorrect_added_to_distractor": 3,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 53,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 81
+        }
+      },
+      "sweeps": {
+        "rival": [
+          {
+            "margin": 0.0,
+            "tp": 65,
+            "fp": 57,
+            "fn": 655,
+            "tn": 663
+          },
+          {
+            "margin": 0.025,
+            "tp": 62,
+            "fp": 55,
+            "fn": 658,
+            "tn": 665
+          },
+          {
+            "margin": 0.05,
+            "tp": 57,
+            "fp": 51,
+            "fn": 663,
+            "tn": 669
+          },
+          {
+            "margin": 0.075,
+            "tp": 52,
+            "fp": 48,
+            "fn": 668,
+            "tn": 672
+          },
+          {
+            "margin": 0.1,
+            "tp": 42,
+            "fp": 38,
+            "fn": 678,
+            "tn": 682
+          },
+          {
+            "margin": 0.15,
+            "tp": 35,
+            "fp": 33,
+            "fn": 685,
+            "tn": 687
+          },
+          {
+            "margin": 0.2,
+            "tp": 34,
+            "fp": 33,
+            "fn": 686,
+            "tn": 687
+          },
+          {
+            "margin": 0.3,
+            "tp": 2,
+            "fp": 2,
+            "fn": 718,
+            "tn": 718
+          }
+        ],
+        "threshold": [
+          {
+            "margin": 0.0,
+            "tp": 65,
+            "fp": 57,
+            "fn": 655,
+            "tn": 663
+          },
+          {
+            "margin": 0.025,
+            "tp": 52,
+            "fp": 48,
+            "fn": 668,
+            "tn": 672
+          },
+          {
+            "margin": 0.05,
+            "tp": 34,
+            "fp": 32,
+            "fn": 686,
+            "tn": 688
+          },
+          {
+            "margin": 0.075,
+            "tp": 21,
+            "fp": 20,
+            "fn": 699,
+            "tn": 700
+          },
+          {
+            "margin": 0.1,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.15,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.2,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.3,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          }
+        ]
+      },
+      "native_partitions_sha256": {
+        "stock": "003eec7a06d06887c06a60560de834dc8a37561bc9f5b7fb3b44ea6b1b74e67c",
+        "neutral": "925320dcccf8b400cea514802db0de640fd7517628a9d777ceedd9f4fb0936c1",
+        "classified": "e02615c760ee7d374af695c4716bbe84cdf56e00809bb056b9d5b73e4042f9d5"
+      },
+      "checked_native_margin_partitions_sha256": {
+        "rival": [
+          "925320dcccf8b400cea514802db0de640fd7517628a9d777ceedd9f4fb0936c1",
+          "dc26812545a8963a75908ab9eba7c73070c0e07cec09711fee155270b2ade575",
+          "6aff67f9cf6becceef5ed1c897587b6d3e74394967271b3eb5ebf9fe67ac33dd",
+          "00237cadcde5b9396376e0b3d3acc1c449cfd88ccfc2c295fbe1437f9be790ae",
+          "3f14283ec78c7a2786054a6cf1facbe4d6c09081c7affad272a4d24ccb90f1c8",
+          "be4244ec7dced320951fa2bea361d7060749407522f0925fe87cc83c460c5bb4",
+          "2d819cc8f2d8286bfd2a8330c12cfd555c217cb16d70cc3c8fe7b1e266eab502",
+          "aea8ee976c22b85a9b6a3bf0bf24782fae79229726cf1254f5ec58c6cd0f32b9"
+        ],
+        "threshold": [
+          "925320dcccf8b400cea514802db0de640fd7517628a9d777ceedd9f4fb0936c1",
+          "cd3feef1ea8eba77154669ec5dffdf7fde3923ef7f991b51cf4a27687f4c1029",
+          "76f7dc5e4456abde814ab319337392b34f347b531bad90fad7dd08baa7ce2ce1",
+          "7d1f0a9ce93250cc7414ce70cc9db853c6845f7d8066bb63313bd5293e2a87b1",
+          "0c45d50f24bb9e5de46473fa425cb2393186a8608848d65c7afe1bbf42978ded",
+          "0c45d50f24bb9e5de46473fa425cb2393186a8608848d65c7afe1bbf42978ded",
+          "0c45d50f24bb9e5de46473fa425cb2393186a8608848d65c7afe1bbf42978ded",
+          "0c45d50f24bb9e5de46473fa425cb2393186a8608848d65c7afe1bbf42978ded"
+        ]
+      }
+    },
+    "Winogender heads": {
+      "rows": 720,
+      "diagnostic": {
+        "target_eligible_name_counts": {
+          "2": 720
+        },
+        "target_inferred_kind": {
+          "pronominal": 720
+        },
+        "gold_links": 720,
+        "missed_gold_by_target_search": {
+          "prior_gold_at_or_below_gate": 717
+        },
+        "wrong_links_by_target_search": {
+          "direct_scored_rival": 2,
+          "incoming_or_transitive": 1
+        }
+      },
+      "operating_points": {
+        "Stock": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 720,
+          "tn": 720
+        },
+        "Neutral type": {
+          "tp": 3,
+          "fp": 3,
+          "fn": 717,
+          "tn": 717
+        },
+        "Rival margin": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 719,
+          "tn": 719
+        },
+        "Threshold margin": {
+          "tp": 2,
+          "fp": 2,
+          "fn": 718,
+          "tn": 718
+        },
+        "Classified mentions": {
+          "tp": 2,
+          "fp": 2,
+          "fn": 718,
+          "tn": 718
+        }
+      },
+      "paired_vs_neutral": {
+        "Stock": {
+          "correct_gained": 0,
+          "correct_lost": 3,
+          "incorrect_added": 0,
+          "incorrect_removed": 3,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 3,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 4
+        },
+        "Rival margin": {
+          "correct_gained": 0,
+          "correct_lost": 2,
+          "incorrect_added": 0,
+          "incorrect_removed": 2,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 2,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 2
+        },
+        "Threshold margin": {
+          "correct_gained": 0,
+          "correct_lost": 1,
+          "incorrect_added": 0,
+          "incorrect_removed": 1,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 1,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 2
+        },
+        "Classified mentions": {
+          "correct_gained": 0,
+          "correct_lost": 1,
+          "incorrect_added": 0,
+          "incorrect_removed": 1,
+          "incorrect_added_to_distractor": 0,
+          "incorrect_added_when_neither_gold": 0,
+          "incorrect_removed_from_distractor": 1,
+          "incorrect_removed_when_neither_gold": 0,
+          "changed_documents": 2
+        }
+      },
+      "sweeps": {
+        "rival": [
+          {
+            "margin": 0.0,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.025,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.05,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.075,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.1,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.15,
+            "tp": 1,
+            "fp": 1,
+            "fn": 719,
+            "tn": 719
+          },
+          {
+            "margin": 0.2,
+            "tp": 1,
+            "fp": 1,
+            "fn": 719,
+            "tn": 719
+          },
+          {
+            "margin": 0.3,
+            "tp": 1,
+            "fp": 1,
+            "fn": 719,
+            "tn": 719
+          }
+        ],
+        "threshold": [
+          {
+            "margin": 0.0,
+            "tp": 3,
+            "fp": 3,
+            "fn": 717,
+            "tn": 717
+          },
+          {
+            "margin": 0.025,
+            "tp": 2,
+            "fp": 2,
+            "fn": 718,
+            "tn": 718
+          },
+          {
+            "margin": 0.05,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.075,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.1,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.15,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.2,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          },
+          {
+            "margin": 0.3,
+            "tp": 0,
+            "fp": 0,
+            "fn": 720,
+            "tn": 720
+          }
+        ]
+      },
+      "native_partitions_sha256": {
+        "stock": "7e0425ca9c415f37b9dab01d95e0fc005cddc81dbac4e13c050a91343571c1f7",
+        "neutral": "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+        "classified": "ee395c388d60ab121a7ef10c04c1a02be41adfc214f4d02adee8d36a568c036a"
+      },
+      "checked_native_margin_partitions_sha256": {
+        "rival": [
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "7d86668167197c85e5022f1876fb5c3791d4372877c511148c17b79c8009fc2f",
+          "7d86668167197c85e5022f1876fb5c3791d4372877c511148c17b79c8009fc2f",
+          "7d86668167197c85e5022f1876fb5c3791d4372877c511148c17b79c8009fc2f"
+        ],
+        "threshold": [
+          "f3b8ab04f39983f1870a23aed0e939ffe46a6cb540e3a1f710016667687114a6",
+          "ee395c388d60ab121a7ef10c04c1a02be41adfc214f4d02adee8d36a568c036a",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141",
+          "6e57f5629cce2928068ccd53dd1ba8d0b2df99aae43da44677f416e68b803141"
+        ]
+      }
+    }
+  },
+  "patches_sha256": {
+    "native-gap-neutral-mention.patch": "ba2fbc90af391f22f7716c42ccaac41b76dc0c1f1200395a3e41dcfbf04b8b8d",
+    "native-gap-score-margin.patch": "732fa2d7e33e30b6c9673e89b0205c1d01e66c7a66269e922c4c0a8db326dc21"
+  },
+  "workers_sha256": {
+    "stock": "3eaf04ec35457273731b62170557713f1151c8d8b9d3d1e1ac51a3390c525c35",
+    "neutral": "91665d795c01bfc714dcf561ac70fa52da77c48b0cf72fc4e73da49a8cb63a49",
+    "margin": "f3a8077217acad1ec3da6a4b3a451abd30798bd4839679a8cd7ffd72fde927ce"
+  }
+}

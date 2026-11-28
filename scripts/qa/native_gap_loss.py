@@ -114,11 +114,23 @@ def audit(docs, traces, published):
         "mention-ranking/predicted"
     ]:
         raise ValueError("native outputs differ from published decisions or counts")
+    return dict(
+        data_sha256=published["sha256"],
+        revision=published["revision"],
+        split=published["split"],
+        output_errors=output_errors(published),
+        **stage_details(docs, traces),
+    )
+
+
+def stage_details(docs, traces):
     counts, combinations, relations = Counter(), Counter(), Counter()
     rows = []
     false_links = []
     names = Counter()
     for (doc_id, text, targets, labels), trace in zip(docs, traces, strict=True):
+        if trace["id"] != doc_id:
+            raise ValueError("trace and source document IDs differ")
         proposed = set(map(tuple, trace["proposed"]))
         retained = list(map(tuple, trace["retained"]))
         groups = [set(map(tuple, c)) for c in trace["clusters"]]
@@ -214,9 +226,6 @@ def audit(docs, traces, published):
             combinations[" / ".join(statuses)] += 1
             rows.append(row)
     return dict(
-        data_sha256=published["sha256"],
-        revision=published["revision"],
-        split=published["split"],
         documents=len(docs),
         gold_pairs=len(rows),
         name_boundary_observations=dict(sorted(names.items())),
@@ -224,9 +233,38 @@ def audit(docs, traces, published):
         endpoint_status_pairs=dict(sorted(combinations.items())),
         direct_pair_when_retained=dict(sorted(relations.items())),
         false_links=false_links,
-        output_errors=output_errors(published),
         rows=rows,
     )
+
+
+def trace_documents(docs, *, test_binary=None):
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.TemporaryDirectory() as tmp:
+        source, trace = Path(tmp) / "input.jsonl", Path(tmp) / "trace.jsonl"
+        source.write_text(
+            "".join(json.dumps(dict(id=i, text=t)) + "\n" for i, t, *_ in docs)
+        )
+        test_name = "gap_trace::trace_native_gap"
+        command = (
+            [test_binary.resolve(), test_name, "--ignored"]
+            if test_binary is not None
+            else [
+                "cargo", "test", "--locked", "-p", "anno", "--no-default-features",
+                "--lib", test_name, "--", "--ignored",
+            ]
+        )
+        subprocess.run(
+            command,
+            cwd=root,
+            env={
+                **os.environ,
+                "ANNO_GAP_TRACE_INPUT": str(source),
+                "ANNO_GAP_TRACE_OUTPUT": str(trace),
+            },
+            check=True,
+        )
+        with trace.open() as stream:
+            return [json.loads(line) for line in stream]
 
 
 def main():
@@ -237,33 +275,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     docs = panel(args.tsv)
-    with tempfile.TemporaryDirectory() as tmp:
-        source, trace = Path(tmp) / "input.jsonl", Path(tmp) / "trace.jsonl"
-        source.write_text(
-            "".join(json.dumps(dict(id=i, text=t)) + "\n" for i, t, *_ in docs)
-        )
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "anno",
-                "--no-default-features",
-                "--lib",
-                "gap_trace::trace_native_gap",
-                "--",
-                "--ignored",
-            ],
-            cwd=root,
-            env={
-                **os.environ,
-                "ANNO_GAP_TRACE_INPUT": str(source),
-                "ANNO_GAP_TRACE_OUTPUT": str(trace),
-            },
-            check=True,
-        )
-        traces = [json.loads(line) for line in trace.read_text().splitlines()]
+    traces = trace_documents(docs)
     published = json.loads((root / "docs/eval/coref-panels.json").read_text())["gap"]
     result = audit(docs, traces, published)
     gap_receipts.write(args.output, gap_receipts.stages(result), result, args.local_details)

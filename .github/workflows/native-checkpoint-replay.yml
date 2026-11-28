@@ -9,6 +9,12 @@ on:
       - 'crates/anno/src/backends/hf_loader.rs'
       - 'crates/anno/src/backends/onnx.rs'
       - 'crates/anno/src/backends/nuner/**'
+      - 'crates/anno/src/backends/stacked/**'
+      - 'crates/anno/src/backends/heuristic/**'
+      - 'crates/anno/src/backends/regex/**'
+      - 'crates/anno/src/lib.rs'
+      - 'crates/anno/examples/stacked_nuner_routing.rs'
+      - 'scripts/qa/nuner_fallback_routing.py'
       - 'crates/anno/src/backends/gliner25.rs'
       - 'crates/anno/src/backends/gliner2_fastino/processor.rs'
       - 'crates/anno-cli/src/cli/commands/extract.rs'
@@ -59,8 +65,20 @@ jobs:
             --setenv="LD_LIBRARY_PATH=$LD_LIBRARY_PATH" \
             "$(command -v python)" scripts/qa/checkpoint_replay/run.py --fetch \
             --models "$RUNNER_TEMP/anno-models" --binary target/debug/anno --receipt checkpoint-receipt.json
+      - name: Build the default-stack layer observer
+        run: cargo build --locked -p anno --no-default-features --features onnx --example stacked_nuner_routing
+      - name: Replay the default CLI and stock routing with and without BERT
+        run: |
+          sudo systemd-run --pipe --wait --collect --uid="$(id -un)" --working-directory="$PWD" \
+            -p MemoryMax=6G -p MemorySwapMax=0 -p CPUQuota=200% \
+            --setenv="LD_LIBRARY_PATH=$LD_LIBRARY_PATH" \
+            "$(command -v python)" scripts/qa/checkpoint_replay/stacked.py --fetch \
+            --cli target/debug/anno --worker target/debug/examples/stacked_nuner_routing \
+            --models "$RUNNER_TEMP/anno-models" --receipt stacked-receipt.json
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: native-checkpoint-receipt
-          path: checkpoint-receipt.json
+          path: |
+            checkpoint-receipt.json
+            stacked-receipt.json

@@ -1,0 +1,37 @@
+{
+  "schema": "anno.overlap/v1",
+  "title": "GENIA gold span overlap across train, dev and test",
+  "documents": 18546,
+  "documents_with_overlap": 3816,
+  "signals": 55740,
+  "signals_with_overlap": 9652,
+  "characters": 3103238,
+  "coverage": {
+    "zero": 2357839,
+    "one": 697721,
+    "two": 46823,
+    "three_or_more": 855
+  },
+  "labels": {
+    "DNA": {
+      "signals": 9933,
+      "signals_with_overlap": 2219
+    },
+    "RNA": {
+      "signals": 933,
+      "signals_with_overlap": 418
+    },
+    "cell_line": {
+      "signals": 3790,
+      "signals_with_overlap": 447
+    },
+    "cell_type": {
+      "signals": 6987,
+      "signals_with_overlap": 830
+    },
+    "protein": {
+      "signals": 34097,
+      "signals_with_overlap": 5738
+    }
+  }
+}

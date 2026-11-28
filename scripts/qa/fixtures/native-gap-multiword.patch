@@ -1,0 +1,80 @@
+diff --git a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+index 6f7e66f..0d308f3 100644
+--- a/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
++++ b/crates/anno/src/backends/coref/mention_ranking/algorithm/mod.rs
+@@ -390,6 +390,7 @@ impl MentionRankingCoref {
+             "our",
+             "ours",
+         ];
++        let fallback_start = mentions.len();
+         for word in text.split_whitespace() {
+             // Byte offset of this occurrence (`word` is a subslice of `text`).
+             let abs_byte_pos = word.as_ptr() as usize - text.as_ptr() as usize;
+@@ -435,6 +436,30 @@ impl MentionRankingCoref {
+             }
+         }
+ 
++        if self.ner.is_none() && self.config.language == "en" {
++            // Consider only the fallback's own titlecase tokens in source order.
++            let simple: Vec<_> = mentions[fallback_start..]
++                .iter()
++                .filter(|m| {
++                    let mut chars = m.text.chars();
++                    chars.next().is_some_and(char::is_uppercase)
++                        && chars.all(|c| c.is_alphabetic() && c.is_lowercase())
++                })
++                .collect();
++            let mut pairs = Vec::new();
++            for run in simple.chunk_by(|left, right| {
++                right.start == left.end + 1 && text_chars.get(left.end) == Some(&' ')
++            }) {
++                if let [left, right] = run {
++                    let mut pair = (*right).clone();
++                    pair.start = left.start;
++                    pair.text = format!("{} {}", left.text, right.text);
++                    pairs.push(pair);
++                }
++            }
++            mentions.extend(pairs);
++        }
++
+         // Detect nominal adjectives (J2N: arXiv:2409.14374)
+         // Phrases like "the poor", "the elderly" function as plural noun phrases.
+         //
+@@ -3906,6 +3931,36 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn fallback_titlecase_pair_control() {
++        let coref = MentionRankingCoref::new();
++        let text = "we saw Léonie Márquez, Uma Inez Rae, Jo and Max, Jay  Kim, Al; Wu. He left.";
++        let proposals = coref.propose_mentions(text).unwrap();
++        let pairs: Vec<_> = proposals
++            .iter()
++            .filter(|m| m.mention_type == MentionType::Proper && m.text.contains(' '))
++            .collect();
++        assert_eq!(pairs.len(), 1);
++        let pair = pairs[0];
++        assert_eq!(
++            (pair.text.as_str(), pair.head.as_str()),
++            ("Léonie Márquez", "Márquez")
++        );
++        assert_eq!(
++            text.chars()
++                .skip(pair.start)
++                .take(pair.end - pair.start)
++                .collect::<String>(),
++            pair.text
++        );
++        for token in ["Léonie", "Márquez"] {
++            assert!(proposals.iter().any(|m| m.text == token));
++        }
++        let retained = MentionRankingCoref::deduplicate_mentions(proposals);
++        assert!(retained.iter().any(|m| m.text == "Léonie Márquez"));
++        assert!(!retained.iter().any(|m| m.text == "Márquez"));
++    }
++
+     /// Pronouns must not be detected as Proper mentions (would miss the lower
+     /// pronoun linking threshold).
+     #[test]

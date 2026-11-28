@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 class CaptionLinks(unittest.TestCase):
     binary = None
     model = None
+    browser = None
 
     def test_model_round_trip(self):
         if self.binary is None:
@@ -43,6 +44,14 @@ class CaptionLinks(unittest.TestCase):
                 self.assertEqual(mention["cues"], [
                     {"id": "cue-18", "start_ms": 14900, "end_ms": 17600, "chars": [0, 3]}
                 ])
+                if prefix and self.browser:
+                    from test_playback import check_playback
+
+                    retimed = [dict(cues[0], start_ms=12800), cues[1]]
+                    check_playback(self.browser, receipt, "Émilie Durand", [
+                        ("real FCoref after cue retiming", retimed,
+                         [["cue-17", "Émilie Durand", 12.8, 14.6]]),
+                    ])
                 by_id = {c["id"]: c for c in cues}
                 bases = {"cue-17": 0, "cue-18": len(cues[0]["text"]) + 1}
                 for member in (m for cluster in clusters for m in cluster):
@@ -79,6 +88,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary")
     parser.add_argument("model")
+    parser.add_argument("--browser", help="also seek the revised FP32 suggestion in Chrome or Chromium")
     args = parser.parse_args()
     CaptionLinks.binary, CaptionLinks.model = args.binary, args.model
+    CaptionLinks.browser = args.browser
     unittest.main(argv=[sys.argv[0]])

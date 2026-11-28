@@ -1,0 +1,87 @@
+{
+  "gold_links": 1296,
+  "max_distance_100": {
+    "diagnostics": {
+      "eligible_names": {
+        "0": 806,
+        "1": 750,
+        "2": 234
+      },
+      "gold_stage": {
+        "gold_first_below_or_at_threshold": 546,
+        "gold_outscored": 57,
+        "gold_outside_distance": 686,
+        "gold_selected_directly": 7,
+        "neither_gold": 494
+      },
+      "group_links": {
+        "0": 1769,
+        "1": 21
+      },
+      "unique_link_without_direct_edge": 0
+    },
+    "gold_eligible": 610,
+    "gold_selected_directly": 7,
+    "returned": {
+      "abstained": 1769,
+      "correct": 7,
+      "wrong": 14,
+      "wrong_distractor": 10,
+      "wrong_when_neither": 4
+    },
+    "scored_pronoun_name_pairs": 1218
+  },
+  "max_distance_500": {
+    "diagnostics": {
+      "eligible_names": {
+        "2": 1790
+      },
+      "gold_stage": {
+        "gold_first_below_or_at_threshold": 909,
+        "gold_outscored": 380,
+        "gold_selected_directly": 7,
+        "neither_gold": 494
+      },
+      "group_links": {
+        "0": 1769,
+        "1": 21
+      },
+      "unique_link_without_direct_edge": 0
+    },
+    "gold_eligible": 1296,
+    "gold_selected_directly": 7,
+    "returned": {
+      "abstained": 1769,
+      "correct": 7,
+      "wrong": 14,
+      "wrong_distractor": 10,
+      "wrong_when_neither": 4
+    },
+    "scored_pronoun_name_pairs": 3580
+  },
+  "newly_eligible_gold": {
+    "gold_first_below_or_at_threshold": 371,
+    "gold_outscored": 315
+  },
+  "paired": {
+    "changed_issued_target": 0,
+    "queries": {
+      "abstain_to_abstain": 1769,
+      "correct_to_correct": 7,
+      "wrong_to_wrong": 14
+    },
+    "works": {
+      "correct": {
+        "equal": 62
+      },
+      "wrong": {
+        "equal": 62
+      }
+    }
+  },
+  "panel_sha256": "6242423aad72a180252da886d0f7c21d390137a30ac22806ac0a17aeeed064c2",
+  "rows": 1790,
+  "stock_binary_sha256": "a50f06ffbbe3ac8da2306a775c7044ded7058f52f3a9257b9a04225031d3d449",
+  "works": 62,
+  "works_with_changed_target": 0
+}

@@ -12,6 +12,9 @@ import sys
 from jointie_coverage import SCHEMA, TEST_SHA
 
 SCRIPTS = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SCRIPTS / "qa"))
+from check_gliner_relex_cli import reference_predictions, stock_decision_digest
+
 SOURCE_SHA = "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a"
 
 
@@ -83,12 +86,23 @@ def suppressed_edge_scores(reference, kept, predicates, pair_scores, threshold):
     return counts
 
 
-def measure(model, wrapper, doc, schema, threshold, predicate_gate):
+def decode(pair_scores, kept, predicates, gate):
+    return Counter((head, label, tail) for (head, tail), row in pair_scores.items()
+                   if head in kept and tail in kept
+                   for label, score in zip(predicates, row, strict=True) if score > gate)
+
+
+def score_document(model, wrapper, doc, schema, threshold, native_cases=None):
+    """Expose pre-suppression directed scores after checking the stock public predictions."""
     from export_gliner_relex_joint import prepare
 
     text = " ".join(doc["sentence"])
     predicates = schema["relation_types"]
     feed, (entities, relations) = prepare(model, text, schema["entity_types"], predicates, threshold)
+    if native_cases is not None:
+        native_cases.append({"text": text, "entity_labels": schema["entity_types"],
+                             "relation_labels": predicates, "threshold": threshold,
+                             **reference_predictions(entities, relations)})
     logits, pair_slots, scores = wrapper(*feed)
     words = list(model.data_processor.words_splitter(text))
     spans = feed[4][0].tolist()
@@ -103,14 +117,17 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
     pair_scores = dict(zip(pairs, scores.tolist(), strict=True))
     if len(pair_scores) != len(pairs):
         raise ValueError("trained export returned a duplicate directed span pair")
-    def decode(gate):
-        return Counter((h, r, t) for (h, t), row in pair_scores.items()
-                       if h in kept and t in kept for r, score in zip(predicates, row, strict=True) if score > gate)
-    graph = decode(threshold)
+    graph = decode(pair_scores, kept, predicates, threshold)
     expected = Counter(((r["head"]["start"], r["head"]["end"]), r["relation"],
                         (r["tail"]["start"], r["tail"]["end"])) for r in relations)
     if expected != graph:
         raise ValueError("trained export path disagrees with upstream predict_relations")
+    return grid, proposed, kept, pair_scores, graph
+
+
+def measure(model, wrapper, doc, schema, threshold, predicate_gate, native_cases=None):
+    predicates = schema["relation_types"]
+    grid, proposed, kept, pair_scores, graph = score_document(model, wrapper, doc, schema, threshold, native_cases)
     reference = gold(doc)
     matched = (graph & reference).total()
     missed = classify(reference, graph, predicates, grid, proposed, pair_scores, kept)
@@ -121,14 +138,14 @@ def measure(model, wrapper, doc, schema, threshold, predicate_gate):
         raise ValueError("suppressed predicate scores do not reconcile to the first-loss count")
     comparison = Counter()
     if predicate_gate is not None:
-        alternate = decode(predicate_gate)
+        alternate = decode(pair_scores, kept, predicates, predicate_gate)
         for name, delta, previously_matched in (("added", alternate - graph, reference - graph),
                                                  ("removed", graph - alternate, reference - alternate)):
             correct = (delta & previously_matched).total()
             comparison[name + "_matched"] = correct
             comparison[name + "_unmatched"] = delta.total() - correct
         comparison.update(predicted=alternate.total(), matched=(reference & alternate).total())
-    totals = Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pairs))
+    totals = Counter(gold=reference.total(), matched=matched, predicted=graph.total(), directed_pairs=len(pair_scores))
     return totals, missed, comparison, suppressed
 
 
@@ -139,6 +156,8 @@ def main():
     cli.add_argument("--first-index", type=int, default=64)
     cli.add_argument("--documents", type=int, default=32)
     cli.add_argument("--predicate-threshold", type=float, help="Re-decode with only this predicate gate changed")
+    cli.add_argument("--native-cases", type=Path,
+                     help="Write upstream predictions and input text for local native CLI parity")
     args = cli.parse_args()
     if args.predicate_threshold is not None and not 0 <= args.predicate_threshold <= 1:
         cli.error("predicate threshold must be in [0, 1]")
@@ -159,18 +178,27 @@ def main():
     wrapper = JointRelex(model.model).eval()
     totals, missed, comparison, suppressed = Counter(), Counter(), Counter(), Counter()
     schema = json.loads(SCHEMA.read_bytes())
+    native_cases = [] if args.native_cases else None
     with torch.inference_mode():
         for line in lines[args.first_index:args.first_index + args.documents]:
-            counts, losses, paired, eligible = measure(model, wrapper, json.loads(line), schema, 0.5, args.predicate_threshold)
+            counts, losses, paired, eligible = measure(
+                model, wrapper, json.loads(line), schema, 0.5, args.predicate_threshold, native_cases
+            )
             comparison.update(paired)
             totals.update(counts)
             missed.update(losses)
             suppressed.update(eligible)
+    if native_cases is not None:
+        for index, case in enumerate(native_cases, args.first_index):
+            case["name"] = f"crossre-ai-test-{index}"
+        args.native_cases.write_text(json.dumps(native_cases))
     result = {"source_sha256": TEST_SHA, "weights_sha256": SOURCE_SHA,
                       "schema_sha256": hashlib.sha256(SCHEMA.read_bytes()).hexdigest(),
                       "first_index": args.first_index, "documents": args.documents,
                       "threshold": 0.5, "totals": totals, "missed": missed,
                       "suppressed_at_stock_threshold": suppressed}
+    if native_cases is not None:
+        result["stock_decisions_sha256"] = stock_decision_digest(native_cases)
     if args.predicate_threshold is not None:
         result.update(alternative_predicate_threshold=args.predicate_threshold, comparison=comparison)
     print(json.dumps(result, indent=2))

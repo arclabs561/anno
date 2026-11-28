@@ -84,8 +84,8 @@ pub struct MentionRankingConfig {
     /// Default: 300.
     pub nominal_max_antecedents: usize,
 
-    /// Legacy uniform max distance (in characters). Used as fallback.
-    /// Prefer type-specific limits for better accuracy.
+    /// Inclusive scalar gap from the prior mention's end to the current start.
+    /// Both clustering strategies apply it alongside the type-specific candidate count.
     pub max_distance: usize,
 
     // =========================================================================
@@ -139,9 +139,10 @@ pub struct MentionRankingConfig {
     // =========================================================================
     // i2b2-inspired rule-based features (Chen et al. 2011)
     // =========================================================================
-    /// Enable "be phrase" detection for identity linking.
-    /// Patterns like "X is Y" or "resolution of X is Y" strongly indicate coreference.
-    /// From i2b2 clinical coref: achieved high precision on medical texts.
+    /// Add a score bonus for linking phrases such as "is" or "also known as"
+    /// between two mentions. A bare denial such as "X is not Y" receives no
+    /// bonus. Other uses of "is", including "X is helping Y", can still fire.
+    /// This lexical heuristic is inspired by Chen et al. (2011).
     pub enable_be_phrase_detection: bool,
 
     /// Weight for be-phrase identity signal.
@@ -234,7 +235,7 @@ impl Default for MentionRankingConfig {
             proper_max_antecedents: 300,  // Can span 1700+ mentions
             nominal_max_antecedents: 300, // Similar to proper nouns
 
-            // Legacy uniform limit (fallback)
+            // Uniform Unicode-scalar gap cap
             max_distance: 100,
 
             // Global proper noun coreference

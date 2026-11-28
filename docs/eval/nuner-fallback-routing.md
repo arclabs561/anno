@@ -11,9 +11,24 @@ The default stack tries BERT and NuNER independently. When NuNER loads, Anno can
 | Test | Unavailable | 295 | 82 | 2 | 186 | 46 | 1.5 → 327.3 ms |
 | Test | Available | 295 | 14 | 0 | 126 | 7 | 112.4 → 478.4 ms |
 
-Keep the fast path when BERT succeeds. On test, running NuNER anyway recovered 14 exact mentions for 119 net extra unmatched predictions. Full-split projected F1 fell from 37.0% to 36.2%. Without BERT, the extra calls recovered 82 exact mentions, lost two and produced 140 net extra unmatched predictions. Full-split projected F1 rose from 35.2% to 38.0%. That second configuration is a candidate for a caller-selectable high-recall fallback. Before enabling it by default, measure review load and latency on a second domain that actually runs without BERT.
+Keep the fast path when BERT succeeds. On test, running NuNER anyway recovered 14 exact mentions for 119 net extra unmatched predictions. Full-split projected F1 fell from 37.0% to 36.2%. Without BERT, the extra calls recovered 82 exact mentions, lost two and produced 140 net extra unmatched predictions. Full-split projected F1 rose from 35.2% to 38.0%. Rust callers can enable the fallback when BERT is unavailable. The WikiGold comparison below tests that configuration on encyclopedia text. An independent two-stack study measures how the tradeoff changes when BERT loads successfully. [WikiGold counts, warm timings and routing figure](wikigold-nuner-routing.md)
 
 What should developers inspect next? Without BERT, 132 of the 186 newly unmatched test outputs did not overlap any annotated name. Of the other 54, 27 had the right boundary and wrong type, and 27 overlapped with a different boundary. A boundary-only fix could address a minority of these outputs. Of the 82 exact gains, 75 were names unseen in training. With BERT, 107 of 126 newly unmatched outputs had no reference overlap. Human review of a sample from that group can distinguish spurious suggestions from legitimate unannotated names.
+
+## Does the fallback help on encyclopedia text?
+
+On WikiGold, the stock gate skipped NuNER on 313 of 1,696 sentences. With BERT unavailable, both arms used the production default constructor with the pinned NuNER graph in an isolated, offline model cache. The guarded candidate recovered 220 exact mentions and lost 16 across the 731 annotated mentions on those sentences. Exact recall on the skipped subset rose from 31.6% (231/731) to 59.5% (435/731). In-schema unmatched predictions fell from 307 to 274, with 115 added and 148 removed. Both arms emitted 102 predictions outside the annotation inventory. Unlike the WNUT result, recovering more mentions here also reduced the total number of unmatched predictions. Human review time was not measured. [WikiGold publication](https://aclanthology.org/W09-3302/) · [Aggregate receipt](nuner-fallback-wikigold.json)
+
+All 16 already-routed controls, selected by sentence digest, retained their ordered predictions. Warm p95 on the 313 skipped inputs rose from 1.56 ms to 1.72 s. This Linux development build used two CPUs on a shared host. Rust callers can select this behavior using `StackedNER::default().with_nuner_fallback()` or `builder.build().with_nuner_fallback()`. The setting applies per input. A successful BERT inference returning zero entities counts as a success. Strict extraction continues to report a failed BERT inference even when NuNER recovers entities. These timings do not establish a production latency budget, and deliberately withholding BERT does not measure how often a deployment lacks it.
+
+For reproduction on current code, build the stock worker using the first build in the recipe below. The scorer runs the stock and opt-in settings on that binary. To reproduce the original two-binary receipt, use commit `4f4e9e12` and supply `--candidate "$trial/guarded"`. Both historical workers used the production backend sources from `89c5acc2`, with the routing patch applied only to the candidate. Put the three pinned NuNER files in `$models/NuNerZero_onnx/`, set `LD_LIBRARY_PATH` to the pinned ONNX Runtime 1.24.2 CPU library, then run the commands below. The scorer reconstructs the publisher's blank-line-delimited sentences with single spaces, joins adjacent identical I-tags, and scores exact character boundaries and types over PER, ORG, LOC and MISC. [Scorer](../../scripts/qa/checkpoint_replay/wikigold_routing.py) · [Pinned corpus](https://github.com/juand-r/entity-recognition-datasets/blob/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt)
+
+```sh
+ANNO_CACHE_DIR="$trial" bash scripts/qa/prepare_matrix_wikigold.sh
+python3 scripts/qa/checkpoint_replay/wikigold_routing.py \
+  --data "$trial/datasets/WikiGold.cache" --models "$models" \
+  --stock "$trial/stock" --output "$trial/wikigold.json"
+```
 
 ## Which names should NuNER recognize?
 

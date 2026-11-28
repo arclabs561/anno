@@ -1,0 +1,118 @@
+{
+  "schema": "anno.tradeoff/v1",
+  "series": [
+    {
+      "gold": 435,
+      "label": "Original test panel · gold missed by stock",
+      "observations": 192,
+      "points": [
+        {
+          "correct": 0,
+          "label": "Stock only",
+          "unmatched": 0
+        },
+        {
+          "correct": 20,
+          "label": "Confidence",
+          "unmatched": 140
+        },
+        {
+          "correct": 24,
+          "label": "Label margin",
+          "unmatched": 136
+        },
+        {
+          "correct": 20,
+          "label": "Direction margin",
+          "unmatched": 140
+        },
+        {
+          "correct": 24,
+          "label": "Both margins",
+          "unmatched": 136
+        },
+        {
+          "correct": 23,
+          "label": "All above 0.40",
+          "unmatched": 206
+        }
+      ]
+    },
+    {
+      "gold": 5404,
+      "label": "Additional content-disjoint test texts · gold missed by stock",
+      "observations": 2047,
+      "points": [
+        {
+          "correct": 0,
+          "label": "Stock only",
+          "unmatched": 0
+        },
+        {
+          "correct": 196,
+          "label": "Confidence",
+          "unmatched": 1517
+        },
+        {
+          "correct": 188,
+          "label": "Label margin",
+          "unmatched": 1525
+        },
+        {
+          "correct": 198,
+          "label": "Direction margin",
+          "unmatched": 1515
+        },
+        {
+          "correct": 194,
+          "label": "Both margins",
+          "unmatched": 1519
+        },
+        {
+          "correct": 386,
+          "label": "All above 0.40",
+          "unmatched": 2694
+        }
+      ]
+    },
+    {
+      "gold": 6281,
+      "label": "All official test occurrences · gold missed by stock",
+      "observations": 2446,
+      "points": [
+        {
+          "correct": 0,
+          "label": "Stock only",
+          "unmatched": 0
+        },
+        {
+          "correct": 234,
+          "label": "Confidence",
+          "unmatched": 1788
+        },
+        {
+          "correct": 232,
+          "label": "Label margin",
+          "unmatched": 1790
+        },
+        {
+          "correct": 236,
+          "label": "Direction margin",
+          "unmatched": 1786
+        },
+        {
+          "correct": 238,
+          "label": "Both margins",
+          "unmatched": 1784
+        },
+        {
+          "correct": 436,
+          "label": "All above 0.40",
+          "unmatched": 3107
+        }
+      ]
+    }
+  ],
+  "title": "Which extra CrossRE relations are worth reviewing?",
+  "unit": "sentences"
+}

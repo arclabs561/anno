@@ -614,6 +614,43 @@ pub fn entities_to_chains(entities: &[Entity]) -> Vec<CorefChain> {
 /// For integration with `GroundedDocument`, use backends that produce
 /// `Signal` + `Track` directly (e.g., `anno::backends::MentionRankingCoref`).
 ///
+/// # Evidence available to an entity-only resolver
+///
+/// Consider two reports that identify the signer by role. The pilot is Ada and
+/// the medic is Béa. Passing just the two names and the pronoun gives the native
+/// ranker identical inputs in both reports, even though the signer changes.
+/// Keep the source text when a caller needs to resolve this distinction.
+/// Backends that implement [`CorefBackend::resolve_mentions`](crate::CorefBackend::resolve_mentions)
+/// can receive the text and the caller's marked spans together.
+///
+/// ```rust
+/// use anno::{CoreferenceResolver, Entity, EntityCategory, EntityType};
+/// use anno::backends::coref::mention_ranking::MentionRankingCoref;
+///
+/// fn names_linked_to_she(passage: &str) -> Vec<String> {
+///     let mentions: Vec<_> = [(0, 3), (18, 21), (42, 45)]
+///         .into_iter()
+///         .map(|(start, end)| {
+///             let surface: String = passage.chars().skip(start).take(end - start).collect();
+///             let kind = EntityType::custom("mention", EntityCategory::Misc);
+///             Entity::new(surface, kind, start, end, 1.0)
+///         })
+///         .collect();
+///     let words: Vec<_> = mentions.iter().map(|e| e.text.as_str()).collect();
+///     assert_eq!(words, ["Ada", "Béa", "she"]);
+///     let resolved = CoreferenceResolver::resolve(&MentionRankingCoref::new(), &mentions);
+///     let pronoun = resolved.iter().find(|e| e.text == "she").unwrap();
+///     resolved.iter()
+///         .filter(|e| e.text != "she" && e.canonical_id.is_some() && e.canonical_id == pronoun.canonical_id)
+///         .map(|e| e.text.clone())
+///         .collect()
+/// }
+///
+/// let pilot = "Ada is the pilot. Béa is the medic. Today she, the pilot, signed.";
+/// let medic = "Ada is the pilot. Béa is the medic. Today she, the medic, signed.";
+/// assert_eq!(names_linked_to_she(pilot), names_linked_to_she(medic));
+/// ```
+///
 /// # Example Implementation
 ///
 /// ```rust

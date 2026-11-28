@@ -1,7 +1,14 @@
 name: FCoref CLI with real weights
 
 on:
+  schedule:
+    - cron: '37 5 * * 3'
   workflow_dispatch:
+    inputs:
+      caller_budget:
+        description: Replay the 4096-token caller limit and one-token overflow
+        type: boolean
+        default: false
   pull_request:
     paths:
       - '.github/workflows/fcoref-cli.yml'
@@ -9,6 +16,9 @@ on:
       - 'Cargo.toml'
       - 'crates/anno/Cargo.toml'
       - 'crates/anno-cli/Cargo.toml'
+      - 'crates/anno/src/lib.rs'
+      - 'crates/anno/src/backends/mod.rs'
+      - 'crates/anno/src/backends/coref/mod.rs'
       - 'crates/anno/src/backends/coref/fcoref/**'
       - 'crates/anno/tests/fcoref_word_budget.rs'
       - 'crates/anno/tests/fixtures/fcoref_word_budget.json'
@@ -17,7 +27,13 @@ on:
       - 'crates/anno-cli/src/cli/utils.rs'
       - 'crates/anno-cli/tests/pipeline_coref_backend.rs'
       - 'scripts/export_fcoref.py'
+      - 'scripts/qa/signer_roles.py'
+      - 'scripts/qa/coref_gap.py'
+      - 'scripts/qa/audit_gap_decisions.py'
+      - 'crates/anno/examples/coref_gap_panel.rs'
+      - 'docs/eval/reflexive*.json'
       - 'scripts/qa/fcoref_cgroup/**'
+      - 'scripts/qa/aurelius/**'
       - 'crates/anno/examples/fcoref_resource_profile.rs'
       - 'crates/anno/examples/fcoref_word_spans.rs'
       - 'crates/anno/examples/caption_links/**'
@@ -26,7 +42,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fcoref-cli-${{ github.ref }}
+  group: fcoref-cli-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,6 +60,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+      - name: Reopen saved caption links in the browser
+        run: |
+          python -m pip install 'playwright==1.62.0'
+          python crates/anno/examples/caption_links/test_playback.py "$(command -v google-chrome)"
       - name: Export the pinned CPU model
         run: |
           python -m pip install 'torch @ https://download.pytorch.org/whl/cpu/torch-2.6.0%2Bcpu-cp312-cp312-linux_x86_64.whl' \
@@ -60,6 +80,17 @@ jobs:
           5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1  tokenizer.json
           12361347b196a78de4fad99045cd127c19baa55590fc7885f84a89a7a785bfbf  config.json
           SUMS
+      - name: Replay exact reflexive links and source phrases
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+        run: |
+          cargo build --locked -p anno --no-default-features --features onnx,ort/load-dynamic --example coref_gap_panel
+          ORT_DYLIB_PATH=$(python -c 'from pathlib import Path; import onnxruntime as ort; print(next((Path(ort.__file__).parent / "capi").glob("libonnxruntime.so.*")))')
+          export ORT_DYLIB_PATH
+          for panel in reflexive reflexive-infinitive; do
+            python3 scripts/qa/signer_roles.py target/debug/examples/coref_gap_panel "$RUNNER_TEMP/$panel-fcoref.json" \
+              --panel "$panel" --arm fcoref-raw --check "docs/eval/$panel.json"
+          done
       - name: Run the FCoref model contracts
         env:
           ANNO_NO_DOWNLOADS: '1'
@@ -97,10 +128,11 @@ jobs:
           ANNO_NO_DOWNLOADS: '1'
         run: >-
           python3 crates/anno/examples/caption_links/test_caption_links.py
-          target/release/examples/fcoref_word_spans "$FCOREF_MODEL_PATH"
+          target/release/examples/fcoref_word_spans "$FCOREF_MODEL_PATH" --browser "$(command -v google-chrome)"
       - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
         id: replay
         env:
+          CALLER_BUDGET: ${{ github.event_name == 'schedule' || inputs.caller_budget }}
           RUNTIME_IMAGE: ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
           ORT_LIBRARY: ${{ steps.ort.outputs.library }}
         run: |
@@ -108,7 +140,9 @@ jobs:
           echo "receipt=$receipt_dir/fcoref-cgroup.json" >> "$GITHUB_OUTPUT"
           docker pull "$RUNTIME_IMAGE"
           cpu=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
-          python3 scripts/qa/fcoref_cgroup/replay.py \
+          matrix=()
+          if [[ "$CALLER_BUDGET" == true ]]; then matrix+=(--caller-budget --repeats 1); fi
+          python3 scripts/qa/fcoref_cgroup/replay.py "${matrix[@]}" \
             --binary target/release/examples/fcoref_resource_profile --model "$FCOREF_MODEL_PATH" \
             --ort "$ORT_LIBRARY" --image "$RUNTIME_IMAGE" --cpu "$cpu" --output "$receipt_dir/fcoref-cgroup.json"
       - name: Upload the container resource receipt
@@ -117,3 +151,9 @@ jobs:
         with:
           name: fcoref-cgroup
           path: ${{ steps.replay.outputs.receipt }}
+      - name: Test the pinned Aurelius caller and document budget migration
+        if: "${{ !cancelled() && steps.ort.outcome == 'success' }}"
+        env:
+          ORT_DYLIB_PATH: ${{ steps.ort.outputs.library }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash scripts/qa/aurelius/check.sh

@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Caption playback replay</title>
+<audio preload="auto"></audio>
+<pre id="result">pending</pre>
+<script src="playback.js"></script>
+<script>
+(async () => {
+    const {cues, quote} = await (await fetch("request.json")).json();
+    const receipt = await (await fetch("receipt.json")).json();
+    const member = receipt.suggested_clusters.flat().find(candidate => candidate.quote === quote);
+    const targets = await resolvePlaybackTargets(cues, receipt, member);
+    const audio = document.querySelector("audio");
+    audio.src = URL.createObjectURL(await (await fetch("recording.wav")).blob());
+    if (audio.readyState === 0) await new Promise(resolve => audio.addEventListener("loadedmetadata", resolve, {once: true}));
+    const observed = [];
+    for (const target of targets) {
+        const cue = cues.find(item => item.id === target.id);
+        const node = document.body.appendChild(document.createTextNode(cue.text));
+        const range = document.createRange();
+        range.setStart(node, target.selectionStart);
+        range.setEnd(node, target.selectionEnd);
+        const seeked = new Promise(resolve => audio.addEventListener("seeked", resolve, {once: true}));
+        audio.currentTime = target.startTime;
+        await seeked;
+        observed.push([target.id, range.toString(), audio.currentTime, target.endTime]);
+    }
+    document.querySelector("#result").textContent = JSON.stringify(observed);
+})().catch(error => { document.querySelector("#result").textContent = error.message; });
+</script>

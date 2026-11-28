@@ -106,12 +106,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The PR merge commit and its base are enough for the proof path check.
+          fetch-depth: 2
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: "stable"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Check for changes to span proofs or their inputs
+        id: span-proof-inputs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Manual/scheduled runs and unavailable push bases run all span proofs.
+          if [[ -n "$BASE_SHA" ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null &&
+             git diff --quiet "$BASE_SHA" HEAD -- \
+               .github/workflows/ci.yml scripts/verification/check_spans.sh \
+               crates/anno/src/core/coref.rs crates/anno/src/core/coref \
+               crates/anno/src/pii.rs crates/anno/src/pii \
+               verification/mention_spans verification/pii; then
+            echo "Span proof inputs are unchanged."
+            echo "required=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "required=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify span operations
+        if: steps.span-proof-inputs.outputs.required == 'true'
+        env:
+          ELAN_TOOLCHAIN: leanprover/lean4:v4.19.0
+        run: |
+          cargo install --locked kani-verifier --version 0.68.0
+          cargo kani setup
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends elan
+          elan toolchain install "$ELAN_TOOLCHAIN"
+          elan run "$ELAN_TOOLCHAIN" bash scripts/verification/check_spans.sh
       - name: Run portable check command
         run: ./scripts/ci-portable.sh check
       - name: Upload portable check receipts

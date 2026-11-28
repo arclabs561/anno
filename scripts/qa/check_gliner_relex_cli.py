@@ -21,7 +21,8 @@ import sys
 import tempfile
 
 FIXTURE = Path(__file__).resolve().parents[2] / "testdata/grounded/gliner_relex_reference.json"
-LABELS = {"person": "PER", "organization": "ORG", "company": "ORG", "city": "city"}
+LABELS = {"person": "PER", "organization": "ORG", "company": "ORG", "product": "PRODUCT",
+          "misc": "MISC", "location": "LOC"}
 
 
 def digest(path):
@@ -45,15 +46,36 @@ def refresh(spec):
     for case in spec["cases"]:
         entities, relations = model.predict_relations(case["text"], case["entity_labels"],
             case["relation_labels"], threshold=case["threshold"])
-        case["entities"] = [
-            {"start": e["start"], "end": e["end"], "text": e["text"],
-             "type": LABELS[e["label"]], "confidence": e["score"]} for e in entities
-        ]
-        case["relations"] = [
-            {"head": [r["head"]["start"], r["head"]["end"]], "tail": [r["tail"]["start"], r["tail"]["end"]],
-             "type": r["relation"], "confidence": r["score"]} for r in relations
-        ]
+        case.update(reference_predictions(entities, relations))
     FIXTURE.write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n")
+
+
+def reference_predictions(entities, relations):
+    """Translate the pinned prompt labels to the CLI's public entity type strings."""
+    return {
+        "entities": [{"start": e["start"], "end": e["end"], "text": e["text"],
+                      "type": LABELS.get(e["label"], e["label"]), "confidence": e["score"]}
+                     for e in entities],
+        "relations": [{"head": [r["head"]["start"], r["head"]["end"]],
+                       "tail": [r["tail"]["start"], r["tail"]["end"]],
+                       "type": r["relation"], "confidence": r["score"]} for r in relations],
+    }
+
+
+def stock_decision_digest(cases):
+    """Bind model decisions to their document, ignoring within-document order and score noise."""
+    decisions = []
+    for case in cases:
+        mentions = sorted((e["start"], e["end"], e["type"]) for e in case["entities"])
+        edges = sorted((e["head"], e["type"], e["tail"]) for e in case["relations"])
+        decisions.append([case["name"], mentions, edges])
+    return hashlib.sha256(json.dumps(decisions, separators=(",", ":")).encode()).hexdigest()
+
+
+def check_producer(producer, generation):
+    if (producer["source"], producer["method"], producer["model_version"]) != (
+            "knowledgator/gliner-relex-large-v1.0", "Neural", "sha256:" + generation):
+        raise ValueError(f"Incorrect relation producer: {producer}")
 
 
 def native_runtime(binary, explicit):
@@ -106,6 +128,12 @@ def check_case(binary, case, generation, export):
                "--relation-types", ",".join(case["relation_labels"]), "--relation-threshold",
                str(case["threshold"]), "--format", "json", "--export", str(export), "--quiet"]
     output = json.loads(subprocess.check_output(command))
+    provenance = output["provenance"]
+    if (provenance["model"], provenance["runtime_model"]) != ("gliner-relex", "GLiNER-ONNX"):
+        raise ValueError(f"Unexpected Relex runtime: {provenance}")
+    check_producer(provenance["relation_producer"], generation)
+    for edge in output["relations"]:
+        check_producer(edge["provenance"], generation)
     def mention(e):
         return (e["start"], e["end"], e["type"], e["text"])
     def flat_edge(e):
@@ -136,10 +164,7 @@ def check_case(binary, case, generation, export):
         if key in scored:
             raise ValueError(f"Duplicate grounded relation {key}")
         scored[key] = item["relation"]["confidence"]
-        producer = item["provenance"]
-        if (producer["source"], producer["method"], producer["model_version"]) != (
-                "knowledgator/gliner-relex-large-v1.0", "Neural", "sha256:" + generation):
-            raise ValueError(f"Incorrect relation producer: {producer}")
+        check_producer(item["provenance"], generation)
     parity(scored, target)
     return {"name": case["name"], "mentions": len(output["entities"]), "directed_edges": len(target),
             "max_mention_score_difference": entity_delta, "max_edge_score_difference": edge_delta}
@@ -149,6 +174,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--anno", type=Path)
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--crossre-cases", type=Path, help="Additional upstream cases from relex_roles.py")
     parser.add_argument("--ort-library", type=Path)
     parser.add_argument("--refresh-reference", action="store_true")
     args = parser.parse_args()
@@ -174,9 +200,20 @@ def main():
             raise ValueError(f"Export {field} differs from the pinned reference")
     receipt = {"source": producer, "generation": generation, "binary_sha256": digest(binary),
                "native_ort": native_runtime(binary, args.ort_library), "reference_sha256": digest(FIXTURE)}
+    cases = spec["cases"]
+    if args.crossre_cases:
+        cases = cases + json.loads(args.crossre_cases.read_bytes())
+        receipt["crossre_cases_sha256"] = digest(args.crossre_cases)
     with tempfile.TemporaryDirectory() as directory:
-        receipt["cases"] = [check_case(binary, case, generation, Path(directory) / "grounded.json")
-                            for case in spec["cases"]]
+        receipt["cases"] = []
+        for index, case in enumerate(cases):
+            try:
+                result = check_case(binary, case, generation, Path(directory) / f"{index}.json")
+            except (ValueError, KeyError, subprocess.CalledProcessError) as error:
+                raise ValueError(f'{case["name"]}: {error}') from error
+            receipt["cases"].append(result)
+            print(f'{result["name"]}: {result["mentions"]} mentions, {result["directed_edges"]} directed edges',
+                  file=sys.stderr, flush=True)
     report = json.dumps(receipt, indent=2) + "\n"
     if args.receipt:
         args.receipt.write_text(report)

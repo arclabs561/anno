@@ -1,12 +1,9 @@
 # anno
 
-[![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
-[![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
+Information extraction for Rust. Find named entities, link mentions, and
+extract relations. Keep the words behind each result.
 
-Anno finds names in text and records where each one appears. It can also
-link mentions of the same person, place, or thing across sentences.
-
-[Rust](#find-mentions-in-rust) · [Command line](docs/QUICKSTART.md#install) · [Python](#compare-two-notices-in-python)
+[Rust](#find-mentions-in-rust) · [CLI](docs/QUICKSTART.md#install) · [Python](#compare-two-notices-in-python) · [API](https://docs.rs/anno)
 
 ## Find mentions in Rust
 
@@ -40,6 +37,19 @@ IBM [ORG] 22..25
 Ranges count Unicode scalar values from zero. The end is exclusive.
 [Using these ranges in Rust](docs/CONTRACT.md#source-text-and-offsets)
 
+## Same text, different source
+
+Two addresses on a page both read `alice@example.org`. Select the `@` in
+each one. Where should an editor put the cursor in the original HTML?
+
+| On screen | In the HTML file | UTF-8 bytes |
+| --- | --- | --- |
+| First `@` | `&#64;` | `20..25` |
+| Second `@` | `@` | `48..49` |
+
+The checkout CLI can save the source map with the annotations and look up
+either occurrence after cleaning the page. [Replay both lookups](docs/EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
+
 ## Follow a pronoun across captions
 
 > **Émilie Durand** inspected *the east gate*.\
@@ -71,21 +81,23 @@ for the dates whose counts changed:
 Applications stay open three days longer. The drawing is still on December 9.
 [Compare your own notices](crates/anno-py/README.md#compare-dates-in-two-bulletins)
 
-## Would supplying the missing names recover a pronoun link?
+## What survives an export?
 
-In an earlier test, FCoref missed 44 true pronoun links. In 41 of those cases,
-at least one of the two mentions was absent at its exact range in the output.
+Give two exporters the same annotations for *cyclophilin gene*. One mention
+covers the whole phrase. Another covers just *cyclophilin*. Anno’s HTML
+preview highlights the longer span once. Its JSONL export keeps both records.
 
-On a separate set of 256 GAP development passages, the researchers gave FCoref
-the locations of the pronouns and candidate names. They reserved space for
-those spans without increasing the total number of candidates the model could
-consider. **186 additional annotated spans made the cut. None of the 512
-labeled link decisions changed.**
-[Original observation](docs/eval/coref-panels.md#gap-pronoun-decisions) ·
-[Experiment and replay](docs/eval/fcoref-marked-rescue.md)
+On the GENIA corpus, HTML displayed **50,709 of 55,740** supplied mentions.
+JSONL preserved **all 55,740**. Both exporters received the reference
+annotations directly, so the difference measures what a reviewer can see.
+[Inspect the overlaps and replay the exports](docs/EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
 
 ## More examples
 
+- [Save annotations once and export them again](docs/EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations). Keep the source text in grounded JSON, then write BRAT annotations or graph CSV without rerunning extraction.
+- [Compare relation extraction on CrossRE](docs/eval/crossre-full-prompt-comparison.md). See how much the score changes when the model receives the labels from each test sentence.
+- [Test whether supplying missing mentions recovers pronoun links](docs/eval/fcoref-marked-rescue.md). On 256 GAP passages, 186 annotated spans entered the candidate set. None of the 512 labeled decisions changed.
+- [Visualize evaluation results](docs/QUICKSTART.md#visualize-evaluation-results). Compare overlapping labels, extraction errors, and fallback predictions.
 - [Choose your own entity types](docs/QUICKSTART.md#cli-extract-entities). Give GLiNER labels such as `DRUG` and `SYMPTOM` to look for in a passage.
 - [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.
 - [Use your own tokenizer](crates/anno/examples/fcoref_word_spans.rs) or [process a directory of documents](docs/QUICKSTART.md#cli-batch-processing).

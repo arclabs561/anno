@@ -1,0 +1,59 @@
+{
+  "schema": "anno.tradeoff/v1",
+  "title": "Choosing when to link a pronoun on GAP",
+  "unit": "excerpts",
+  "series": [
+    {
+      "label": "GAP test, supplied mentions",
+      "observations": 2000,
+      "gold": 1773,
+      "points": [
+        {
+          "label": "Stock",
+          "correct": 3,
+          "unmatched": 14
+        },
+        {
+          "label": "Neutral type",
+          "correct": 131,
+          "unmatched": 141
+        },
+        {
+          "label": "Classified mentions",
+          "correct": 142,
+          "unmatched": 218
+        },
+        {
+          "label": "Rival 0.15 (dev choice)",
+          "correct": 106,
+          "unmatched": 128
+        },
+        {
+          "label": "Rival 0.1",
+          "correct": 128,
+          "unmatched": 138
+        },
+        {
+          "label": "Rival 0.3",
+          "correct": 47,
+          "unmatched": 59
+        },
+        {
+          "label": "Threshold 0.025 (dev choice)",
+          "correct": 108,
+          "unmatched": 108
+        },
+        {
+          "label": "Threshold 0.1",
+          "correct": 44,
+          "unmatched": 37
+        },
+        {
+          "label": "Threshold 0.3",
+          "correct": 0,
+          "unmatched": 0
+        }
+      ]
+    }
+  ]
+}
