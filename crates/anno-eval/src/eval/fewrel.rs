@@ -93,10 +93,7 @@ impl Example {
                 token.ner_tag = format!("{}-{role}", if i == 0 { "B" } else { "I" });
             }
         }
-        AnnotatedSentence {
-            tokens,
-            source_dataset: DatasetId::FewRel,
-        }
+        AnnotatedSentence::from_tokens(DatasetId::FewRel, tokens)
     }
 
     pub(super) fn into_document(self) -> RelationDocument {

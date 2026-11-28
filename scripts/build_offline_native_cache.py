@@ -210,6 +210,8 @@ def native_bytes(kind, original):
         return (
             json.dumps(cache, ensure_ascii=False, separators=(",", ":")) + "\n"
         ).encode()
+    # Keep the projection reproducible for dated indexes. Current NorNE profiles
+    # store the original CoNLL-U bytes, including SpaceAfter and the source text.
     if kind == "norne-bio":
         for line in text.splitlines():
             if not line.strip():
