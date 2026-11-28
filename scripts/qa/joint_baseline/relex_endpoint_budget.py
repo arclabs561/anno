@@ -6,7 +6,9 @@ from collections import Counter
 from dataclasses import dataclass
 from importlib.metadata import version
 import json
+from math import ceil
 from pathlib import Path
+from random import Random
 
 import relex_full_test as full
 import relex_predicate_ranking as study
@@ -166,6 +168,58 @@ def compare(cases, baseline, candidate, percent):
             "domains": {d: dict(c) for d, c in by_domain.items()}}
 
 
+def resampled_hits(ranking, copies, slots):
+    """Walk the sorted nominees, filling a fresh global queue with sampled copies."""
+    hits = 0
+    for index, correct in ranking:
+        taken = min(copies[index], slots)
+        if correct:
+            hits += taken
+        slots -= taken
+        if slots == 0:
+            break
+    if slots:
+        raise ValueError("The resampled nominees could not fill the review budget")
+    return hits
+
+
+def queue_interval(cases, baseline, candidate, slots, *, replicates=10_000, seed=20261128):
+    """Paired percentile interval conditional on each domain's eligible sentence count."""
+    eligible = [c for c in cases if c.candidates]
+    lookup = {c.location: i for i, c in enumerate(eligible)}
+    strata = {d: [] for d in study.DOMAINS}
+    for i, case in enumerate(eligible):
+        strata[case.domain].append(i)
+    if (not 0 <= slots <= len(eligible) or replicates < 1 or len(lookup) != len(eligible)
+            or any(len(ranking) != len(eligible) or {loc for loc, _ in ranking} != lookup.keys()
+                   for ranking in (baseline, candidate))):
+        raise ValueError("Paired resampling requires the same eligible sentences and a feasible budget")
+
+    def indexed(ranking):
+        return [(lookup[loc], edge in eligible[lookup[loc]].reference) for loc, edge in ranking]
+
+    left, right = indexed(baseline), indexed(candidate)
+    rng = Random(seed)
+    differences = []
+    for _ in range(replicates):
+        copies = [0] * len(eligible)
+        for stratum in strata.values():
+            for index in rng.choices(stratum, k=len(stratum)):
+                copies[index] += 1
+        # A multiplicity is shared by the two arms. Each fills all slots in its own
+        # ranking order, so the sentence at the budget boundary can change every draw.
+        differences.append(resampled_hits(right, copies, slots) - resampled_hits(left, copies, slots))
+    differences.sort()
+    return {
+        "lower": differences[ceil(.025 * replicates) - 1],
+        "upper": differences[ceil(.975 * replicates) - 1],
+        "method": "95% paired bootstrap with both global review queues reselected",
+        "replicates": replicates, "seed": seed, "fixed_review_slots": slots,
+        "eligible_sentences_by_domain": {d: len(s) for d, s in strata.items()},
+        "sampling": "Eligible sentences sampled with replacement within each domain at its observed count; both arms share each draw; empirical inverse-CDF percentiles of candidate minus baseline exact matches.",
+    }
+
+
 def corpus_scope(cases):
     gold_count = sum(c.reference.total() for c in cases)
     matched = sum((c.stock & c.reference).total() for c in cases)
@@ -199,11 +253,14 @@ def select(cases, pins):
     }
 
 
-def measure(cases, weight):
+def measure(cases, weight, *, primary_interval=False):
     baseline = nominees(cases, 0)
     candidate = nominees(cases, weight)
-    return {"scope": corpus_scope(cases),
-            "budgets": {str(p): compare(cases, baseline, candidate, p) for p in BUDGETS}}
+    budgets = {str(p): compare(cases, baseline, candidate, p) for p in BUDGETS}
+    if primary_interval:
+        primary = budgets[str(PRIMARY_BUDGET)]
+        primary["net_match_interval"] = queue_interval(cases, baseline, candidate, primary["review_slots"])
+    return {"scope": corpus_scope(cases), "budgets": budgets}
 
 
 def check_prior(measured, prior):
@@ -223,7 +280,7 @@ def measure_part(data, groups, cache, selected, part):
     panels = {"calibration": measure(observations(data, groups["calibration"], cache), weight)}
     check_prior(panels["calibration"], json.loads(full.BASELINE.read_text())["panels"]["dev"])
     if part == "confirmation":
-        panels[part] = measure(observations(data, groups[part], cache), weight)
+        panels[part] = measure(observations(data, groups[part], cache), weight, primary_interval=True)
     else:
         official = []
         prior = json.loads((full.BASELINE.parent / "crossre-full-test.json").read_text())["panels"]
@@ -265,13 +322,17 @@ def endpoint_chart(receipt):
         ("full_official_test", "Complete official test release", "Includes the official test subsets"),
     ):
         panel = panels[name]
-        counts = panel["budgets"][str(PRIMARY_BUDGET)]["counts"]
-        rows.append({
+        budget = panel["budgets"][str(PRIMARY_BUDGET)]
+        counts = budget["counts"]
+        row = {
             "label": label, "role": role, "observations": panel["scope"]["sentences"],
             "baseline": {"correct": counts.get("confidence_correct", 0), "unmatched": counts.get("confidence_unmatched", 0)},
             "candidate": {"correct": counts.get("endpoint_correct", 0), "unmatched": counts.get("endpoint_unmatched", 0)},
             "gained": counts.get("gained_correct_relations", 0), "lost": counts.get("lost_correct_relations", 0),
-        })
+        }
+        if interval := budget.get("net_match_interval"):
+            row["interval"] = {key: interval[key] for key in ("lower", "upper", "method")}
+        rows.append(row)
     return {"schema": "anno.paired/v1", "title": "CrossRE reviews with a half-size queue", "unit": "sentences",
             "baseline": "Predicate confidence", "candidate": "Endpoint-weighted confidence", "rows": rows}
 
