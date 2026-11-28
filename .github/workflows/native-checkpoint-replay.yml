@@ -41,6 +41,8 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
+      - name: Check cold downloads, offline hits and corrupt caches
+        run: python -m unittest discover -s scripts/qa/checkpoint_replay -p test_cache.py
       - name: Compute keys from the pinned model files
         id: pins
         run: |

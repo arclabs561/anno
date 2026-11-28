@@ -41,7 +41,9 @@ def offline_stack(models, *, bert, fetch=False):
             (root / "refs/main").write_text(revision)
             for name in spec["files"]:
                 (snapshot / name).symlink_to((directory / name).resolve())
-        yield {**os.environ, "HF_HOME": home, "ANNO_NO_DOWNLOADS": "1",
+        hub = str(Path(home) / "hub")
+        yield {**os.environ, "HF_HOME": home, "HF_HUB_CACHE": hub,
+               "HUGGINGFACE_HUB_CACHE": hub, "ANNO_NO_DOWNLOADS": "1",
                "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"}
 
 

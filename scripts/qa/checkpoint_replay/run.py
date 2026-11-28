@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import tempfile
 import time
+from http.client import IncompleteRead
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
@@ -22,6 +24,22 @@ SCORE_TOLERANCE = 0.001
 def digest(path):
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def download_file(url, path):
+    for attempt in range(3):
+        try:
+            # Open in write mode on each attempt so a partial transfer cannot be appended.
+            with urlopen(url, timeout=180) as source, path.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            return
+        except HTTPError as error:
+            if error.code not in (408, 429, 500, 502, 503, 504) or attempt == 2:
+                raise
+        except (URLError, TimeoutError, ConnectionError, IncompleteRead):
+            if attempt == 2:
+                raise
+        time.sleep(2 ** attempt)
 
 
 def verify_assets(directory, spec, fetch):
@@ -37,8 +55,7 @@ def verify_assets(directory, spec, fetch):
         with tempfile.NamedTemporaryFile(dir=directory, delete=False) as download:
             temporary = Path(download.name)
         try:
-            with temporary.open("wb") as download, urlopen(url, timeout=180) as source:
-                shutil.copyfileobj(source, download)
+            download_file(url, temporary)
             if digest(temporary) != item["sha256"]:
                 raise ValueError(f"Artifact hash mismatch for {url}")
             os.replace(temporary, target)
