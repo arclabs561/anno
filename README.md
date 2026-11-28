@@ -3,7 +3,7 @@
 Information extraction for Rust. Find named entities, link mentions, and
 extract relations. Keep the words behind each result.
 
-[Rust](#find-mentions-in-rust) · [CLI](docs/QUICKSTART.md#install) · [Python](#compare-two-notices-in-python) · [API](https://docs.rs/anno)
+[Rust](#find-mentions-in-rust) · [CLI](#extract-a-directory) · [Python](#compare-two-notices-in-python) · [Models](#choose-what-to-extract) · [API](https://docs.rs/anno)
 
 ## Find mentions in Rust
 
@@ -37,6 +37,40 @@ IBM [ORG] 22..25
 Count from zero: the letters in `IBM` occupy positions 22, 23, and 24.
 The range ends just before the period. Anno counts Unicode scalar values.
 [Using these ranges in Rust](docs/CONTRACT.md#source-text-and-offsets)
+
+## Extract a directory
+
+Install the CLI with `cargo install anno-cli --locked`. Put your text or
+Markdown files in `notes/` and run:
+
+```sh
+anno batch --model heuristic \
+  --dir notes --output results
+```
+
+`notes/bio.txt` becomes `results/bio.json`. Open it to see the original text,
+the extracted mentions, and the source range for each one. This run needs no model weights.
+For a stream of documents, pass one JSON object per line on standard input.
+[Batch options and JSONL input](docs/QUICKSTART.md#cli-batch-processing)
+
+## Choose what to extract
+
+Give GLiNER2.5 the labels
+`person`, `organization`, and `location`. In Anno’s pinned checkpoint replay,
+it picks out *Mario Rossi*, *Apple*, and *Cupertino* from a sentence. To try the same input,
+build the checkout CLI with `gliner2-fastino` and point `GLINER25_MODEL_DIR`
+at the FP32 ONNX export:
+
+```sh
+anno extract --model gliner25 \
+  --extract-types person,organization,location \
+  --text 'Mario Rossi works at Apple in Cupertino'
+```
+
+For a directed edge such as `person → works_for → organization`, the
+separate `anno joint` command accepts a relation schema and a local PyTorch
+checkpoint. [Model setup and examples](docs/BACKENDS.md#fastino-gliner25) ·
+[Checkpoint replay](scripts/qa/checkpoint_replay/README.md)
 
 ## Same text, different source
 
@@ -100,15 +134,12 @@ JSONL preserved **all 55,740**. Both exporters received the reference
 annotations directly, so the difference measures what a reviewer can see.
 [Inspect the overlaps and replay the exports](docs/EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
 
-## More examples
+## What else can you do with a mention?
 
-- [Save annotations once and export them again](docs/EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations). Keep the source text in grounded JSON, then write BRAT annotations or graph CSV without rerunning extraction.
-- [Compare relation extraction on CrossRE](docs/eval/crossre-full-prompt-comparison.md). See how much the score changes when the model receives the labels from each test sentence.
-- [Test whether supplying missing mentions recovers pronoun links](docs/eval/fcoref-marked-rescue.md). On 256 GAP passages, 186 annotated spans entered the candidate set. None of the 512 labeled decisions changed.
-- [Visualize evaluation results](docs/QUICKSTART.md#visualize-evaluation-results). Compare overlapping labels, extraction errors, and fallback predictions.
-- [Choose your own entity types](docs/QUICKSTART.md#cli-extract-entities). Give GLiNER labels such as `DRUG` and `SYMPTOM` to look for in a passage.
-- [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.
-- [Use your own tokenizer](crates/anno/examples/fcoref_word_spans.rs) or [process a directory of documents](docs/QUICKSTART.md#cli-batch-processing).
+- **Correct a namesake.** Two entries in a quay log say “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician. [Review one occurrence](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention)
+- **Hand annotations to another tool.** Save a grounded document once. Write BRAT annotations for an editor or graph CSV for analysis without rerunning the extractor. [Convert saved annotations](docs/EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations)
+- **Find out what a stronger model buys.** Compare recovered labels with the extra predictions someone must review, or inspect where two labels overlap. [Visualize evaluation results](docs/QUICKSTART.md#visualize-evaluation-results)
+- **Check what the benchmark gave the model.** On CrossRE, giving the same checkpoint each test sentence’s annotated labels raised strict relation F1 from 29.5% to 58.2%. [Inspect the paired comparison](docs/eval/crossre-full-prompt-comparison.md)
 
 <details>
 <summary>Cargo dependency for the 0.16 release line</summary>
