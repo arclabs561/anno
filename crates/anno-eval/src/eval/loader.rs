@@ -1439,16 +1439,17 @@ impl std::fmt::Display for DatasetStats {
 ///    bucket using the AWS CLI credential chain.
 /// 3. On a cache miss, the loader tries the configured source when permitted.
 ///
-////// # Environment Variables
+/// # Environment Variables
 ///
 /// - `ANNO_CACHE_DIR`: Override default cache location
 /// - `ANNO_S3_CACHE`: Set to "1" to enable S3 fallback (requires AWS credentials)
-/// - `ANNO_S3_BUCKET`: Override S3 bucket name (default: `arc-anno-data`)
+/// - `ANNO_S3_BUCKET`: Bucket you are authorized to read. S3 reads require this setting.
 ///
 /// # Example
 ///
 /// ```bash
-/// # Enable S3 caching
+/// # Enable reads from your configured storage
+/// export ANNO_S3_BUCKET=your-cache-bucket
 /// export ANNO_S3_CACHE=1
 /// export AWS_PROFILE=anno-reader  # use a profile authorized to read this bucket
 ///
@@ -1529,7 +1530,7 @@ impl DatasetLoader {
     /// Default location: `~/.cache/anno/datasets` (platform cache via `dirs` crate)
     /// Falls back to `.anno/datasets` in current directory if `dirs` crate unavailable.
     ///
-    /// S3 fallback is enabled if `ANNO_S3_CACHE=1` environment variable is set.
+    /// S3 reads require both `ANNO_S3_CACHE=1` and an explicit `ANNO_S3_BUCKET`.
     pub fn new() -> Result<Self> {
         // Load workspace `.env` (idempotent, does not override existing env vars).
         // This keeps eval tooling usable without manual exporting of env vars.
@@ -1543,24 +1544,7 @@ impl DatasetLoader {
             base_dir.join("anno").join("datasets")
         };
 
-        // Check for S3 caching
-        let s3_bucket = if std::env::var("ANNO_S3_CACHE").unwrap_or_default() == "1" {
-            Some(std::env::var("ANNO_S3_BUCKET").unwrap_or_else(|_| "arc-anno-data".to_string()))
-        } else {
-            None
-        };
-
-        fs::create_dir_all(&cache_dir).map_err(|e| {
-            Error::InvalidInput(format!("Failed to create cache dir {:?}: {}", cache_dir, e))
-        })?;
-
-        let manifest = CacheManifest::load(&cache_dir)?;
-
-        Ok(Self {
-            cache_dir,
-            s3_bucket,
-            manifest: std::sync::RwLock::new(manifest),
-        })
+        Self::with_cache_dir(cache_dir)
     }
 
     /// Update the cache manifest with a new entry and save it.
@@ -1578,11 +1562,10 @@ impl DatasetLoader {
     /// Create a loader with a custom cache directory.
     pub fn with_cache_dir(cache_dir: impl Into<PathBuf>) -> Result<Self> {
         let cache_dir = cache_dir.into();
-        let s3_bucket = if std::env::var("ANNO_S3_CACHE").unwrap_or_default() == "1" {
-            Some(std::env::var("ANNO_S3_BUCKET").unwrap_or_else(|_| "arc-anno-data".to_string()))
-        } else {
-            None
-        };
+        let s3_bucket = Self::read_bucket(
+            std::env::var("ANNO_S3_CACHE").ok().as_deref(),
+            std::env::var("ANNO_S3_BUCKET").ok().as_deref(),
+        );
 
         fs::create_dir_all(&cache_dir).map_err(|e| {
             Error::InvalidInput(format!("Failed to create cache dir {:?}: {}", cache_dir, e))
@@ -1595,6 +1578,18 @@ impl DatasetLoader {
             s3_bucket,
             manifest: std::sync::RwLock::new(manifest),
         })
+    }
+
+    fn read_bucket(enabled: Option<&str>, bucket: Option<&str>) -> Option<String> {
+        if enabled != Some("1") {
+            return None;
+        }
+        let location = bucket?.trim();
+        let name = location
+            .strip_prefix("s3://")
+            .unwrap_or(location)
+            .trim_end_matches('/');
+        (!name.is_empty() && !name.starts_with('/')).then(|| name.to_owned())
     }
 
     /// Base directory for cached datasets.
@@ -1636,37 +1631,14 @@ impl DatasetLoader {
         Self::artifact_language(id, url)
     }
 
-    /// Upload a locally cached dataset (by `DatasetId`) to S3, using its manifest entry.
-    ///
-    /// This uses the same object layout as `load_or_download()`'s best-effort upload:
-    /// - `datasets/<cache_filename>` (legacy/mutable key)
-    /// - `datasets/by-sha256/<sha>/<cache_filename>` (immutable snapshot)
-    /// - `datasets/<cache_filename>.latest.json` (pointer)
-    /// - `datasets/<cache_filename>.manifest.json` (sidecar metadata)
+    /// Raw dataset caches have no reviewed publication package. An authorized read
+    /// can carry separate terms for the text and its annotations.
     #[cfg(feature = "eval")]
-    pub fn upload_cached_dataset_to_s3(&self, bucket: &str, id: DatasetId) -> Result<()> {
-        Self::check_shared_publication(id)?;
-        let key = id.cache_filename();
-        let entry = {
-            let guard = self
-                .manifest
-                .read()
-                .map_err(|_| Error::InvalidInput("cache manifest lock poisoned".to_string()))?;
-            guard
-                .get(key)
-                .cloned()
-                .ok_or_else(|| Error::InvalidInput(format!("No manifest entry for {}", key)))?
-        };
-        let path = self.cache_path_for(id);
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            Error::InvalidInput(format!(
-                "Failed to read cached dataset {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
-        Self::enforce_max_download_bytes(content.len(), "local cache (sync-s3)")?;
-        self.upload_to_s3(bucket, id, &content, &entry)
+    pub fn upload_cached_dataset_to_s3(&self, _bucket: &str, id: DatasetId) -> Result<()> {
+        Err(Error::InvalidInput(format!(
+            "{} is excluded from raw shared-cache publication: no reviewed artifact and notice package",
+            id.name()
+        )))
     }
 
     #[must_use]
@@ -1943,7 +1915,7 @@ impl DatasetLoader {
         }
         if publisher == PublisherFallback::Forbid {
             return Err(Error::InvalidInput(
-                "No matching local dataset; S3 is disabled and publisher fallback is forbidden"
+                "No matching local dataset; S3 is disabled and publisher fallback is forbidden. Set ANNO_S3_CACHE=1 and ANNO_S3_BUCKET to enable S3 reads."
                     .into(),
             ));
         }
@@ -1980,15 +1952,7 @@ impl DatasetLoader {
             entity_count: dataset.entity_count(),
             anno_version: env!("CARGO_PKG_VERSION").to_string(),
         };
-        let _ = self.update_manifest(entry.clone()); // Best effort
-
-        if let Some(bucket) = self
-            .s3_bucket
-            .as_ref()
-            .filter(|_| dataset_id.approved_for_shared_publication())
-        {
-            let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
-        }
+        let _ = self.update_manifest(entry); // Best effort, local provenance only.
 
         Ok(DatasetLoadReceipt::new(dataset, sha256, s3_fallback))
     }
@@ -2018,14 +1982,6 @@ impl DatasetLoader {
                 "{} raw data is excluded from shared caches; use an authorized local source",
                 id.name()
             )));
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "eval")]
-    fn check_shared_publication(id: DatasetId) -> Result<()> {
-        if !id.approved_for_shared_publication() {
-            return Err(Error::InvalidInput(format!("{} is excluded from raw shared-cache publication: no reviewed artifact and notice package",id.name())));
         }
         Ok(())
     }
@@ -2096,125 +2052,6 @@ impl DatasetLoader {
         }
         let manifest = self.download_manifest_entry_from_s3(bucket, id).ok();
         Ok((content, manifest))
-    }
-
-    /// Upload dataset to S3 cache bucket.
-    ///
-    /// Best effort - failures are logged but don't stop execution.
-    #[cfg(feature = "eval")]
-    fn upload_to_s3(
-        &self,
-        bucket: &str,
-        id: DatasetId,
-        content: &str,
-        manifest_entry: &CacheManifestEntry,
-    ) -> Result<()> {
-        use std::io::Write;
-        use std::process::{Command, Stdio};
-
-        Self::check_shared_publication(id)?;
-
-        let s3_key = format!("datasets/{}", id.cache_filename());
-        let s3_uri = format!("s3://{}/{}", bucket, s3_key);
-
-        // Use aws s3 cp to upload from stdin
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &s3_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(content.as_bytes());
-        }
-
-        let status = child
-            .wait()
-            .map_err(|e| Error::InvalidInput(format!("Failed to wait for aws s3 cp: {}", e)))?;
-
-        if !status.success() {
-            return Err(Error::InvalidInput("S3 upload failed".to_string()));
-        }
-
-        // Also upload a content-addressed snapshot. This supports the "durable mirror" use case:
-        // once uploaded, snapshots are stable even if upstream changes.
-        let by_sha_key = format!(
-            "datasets/by-sha256/{}/{}",
-            manifest_entry.sha256,
-            id.cache_filename()
-        );
-        let by_sha_uri = format!("s3://{}/{}", bucket, by_sha_key);
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &by_sha_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(content.as_bytes());
-        }
-
-        let _ = child.wait();
-
-        // Update a pointer file for the latest snapshot.
-        let pointer_key = format!("datasets/{}.latest.json", id.cache_filename());
-        let pointer_uri = format!("s3://{}/{}", bucket, pointer_key);
-        let pointer_json = serde_json::json!({
-            "dataset": id.cache_filename(),
-            "sha256": manifest_entry.sha256,
-            "updated_at": super::timestamp::now(),
-            "source_url": manifest_entry.source_url,
-            "resolved_url": manifest_entry.resolved_url,
-            "file_size": manifest_entry.file_size,
-        })
-        .to_string();
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &pointer_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(pointer_json.as_bytes());
-        }
-
-        let _ = child.wait();
-
-        // Upload a sidecar manifest entry (JSON). This makes the S3 cache self-describing.
-        let manifest_key = format!("datasets/{}.manifest.json", id.cache_filename());
-        let manifest_uri = format!("s3://{}/{}", bucket, manifest_key);
-        let json = serde_json::to_string_pretty(manifest_entry)
-            .map_err(|e| Error::InvalidInput(format!("Failed to serialize S3 manifest: {}", e)))?;
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &manifest_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(json.as_bytes());
-        }
-
-        let status = child
-            .wait()
-            .map_err(|e| Error::InvalidInput(format!("Failed to wait for aws s3 cp: {}", e)))?;
-
-        if status.success() {
-            Ok(())
-        } else {
-            Err(Error::InvalidInput("S3 manifest upload failed".to_string()))
-        }
     }
 
     /// Best-effort: download the sidecar manifest entry for a dataset from S3.
@@ -11465,6 +11302,24 @@ CEO,O
                 std::fs::write(&path, ann.replace("0 4", bad)).unwrap();
                 assert!(loader.load_litbank_from_path(&path).is_err());
             }
+        }
+
+        #[cfg(feature = "eval")]
+        #[test]
+        fn read_cache_requires_an_explicit_bucket_and_opt_in() {
+            for bucket in [None, Some(""), Some("  "), Some("s3://"), Some("/")] {
+                assert_eq!(DatasetLoader::read_bucket(Some("1"), bucket), None);
+            }
+            for enabled in [None, Some("0"), Some("false")] {
+                assert_eq!(
+                    DatasetLoader::read_bucket(enabled, Some("test-cache")),
+                    None
+                );
+            }
+            assert_eq!(
+                DatasetLoader::read_bucket(Some("1"), Some(" s3://test-cache/ ")).as_deref(),
+                Some("test-cache")
+            );
         }
 
         #[cfg(feature = "eval")]

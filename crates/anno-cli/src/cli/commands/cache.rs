@@ -45,8 +45,8 @@ pub enum CacheAction {
     /// Publish approved dataset packages to S3. Raw caches have no reviewed packages yet.
     #[cfg(feature = "eval")]
     SyncS3 {
-        /// S3 bucket name (defaults to `ANNO_S3_BUCKET` or `arc-anno-data`).
-        #[arg(long)]
+        /// Explicit destination for publication. A dry run can inspect eligibility locally.
+        #[arg(long, env = "ANNO_S3_BUCKET", hide_env_values = true)]
         bucket: Option<String>,
 
         /// Optional comma-separated list of dataset IDs to upload.
@@ -251,16 +251,14 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
             dry_run,
         } => {
             use anno_eval::eval::loader::{DatasetId, DatasetLoader};
-            use std::process::Command;
 
-            // Resolve bucket name (prefer explicit arg, then env, then default).
-            let bucket = bucket
-                .or_else(|| {
-                    std::env::var("ANNO_S3_BUCKET")
-                        .ok()
-                        .filter(|s| !s.trim().is_empty())
-                })
-                .unwrap_or_else(|| "arc-anno-data".to_string());
+            let destination = bucket
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty());
+            if !dry_run && destination.is_none() {
+                return Err("Set --bucket or ANNO_S3_BUCKET for an S3 destination, or use --dry-run to inspect the local cache.".into());
+            }
 
             // Loader owns the manifest + knows the dataset cache dir.
             // Note: it uses ANNO_CACHE_DIR if set; otherwise platform cache.
@@ -296,85 +294,45 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
                 entries.retain(|e| wanted_keys.contains(e.dataset_id.as_str()));
             }
 
-            entries.retain(|entry| {
-                if DatasetId::from_cache_filename(&entry.dataset_id)
-                    .is_some_and(|id| !id.approved_for_shared_publication())
-                {
-                    eprintln!(
-                        "Skip {}: no reviewed artifact and notice package for shared cache publication",
-                        entry.dataset_id
-                    );
-                    return false;
+            let eligible: Vec<_> = entries.iter().filter_map(|entry| {
+                match DatasetId::from_cache_filename(&entry.dataset_id) {
+                    Some(id) if id.approved_for_shared_publication() => Some(id),
+                    _ => {
+                        eprintln!(
+                            "Skip {}: no reviewed artifact and notice package for shared cache publication",
+                            entry.dataset_id
+                        );
+                        None
+                    }
                 }
-                true
-            });
-            if let Some(lim) = limit {
-                entries.truncate(lim);
-            }
+            }).take(limit.unwrap_or(usize::MAX)).collect();
 
-            if entries.is_empty() {
+            if eligible.is_empty() {
                 println!("No eligible cached datasets to upload.");
                 return Ok(());
             }
-
-            println!("S3 bucket: {}", bucket);
-            println!("Cached datasets in manifest: {}", entries.len());
             if dry_run {
-                println!("Dry run: true");
-            }
-
-            let mut ok = 0usize;
-            let mut skipped = 0usize;
-            let mut failed = 0usize;
-
-            if !dry_run {
-                // Fail fast on obviously-missing AWS credentials.
-                let out = Command::new("aws")
-                    .args(["sts", "get-caller-identity"])
-                    .output()
-                    .map_err(|e| format!("Failed to run aws sts get-caller-identity: {}", e))?;
-                if !out.status.success() {
-                    return Err(format!(
-                        "AWS credentials not available (aws sts get-caller-identity failed): {}",
-                        String::from_utf8_lossy(&out.stderr)
-                    ));
-                }
-            }
-
-            for e in entries {
-                let Some(id) = DatasetId::from_cache_filename(&e.dataset_id) else {
-                    skipped += 1;
-                    eprintln!(
-                        "Skip: cannot map cache filename to DatasetId: {}",
-                        e.dataset_id
-                    );
-                    continue;
-                };
-
-                if dry_run {
+                for id in eligible {
                     println!("Would upload: {}", id.cache_filename());
-                    ok += 1;
-                    continue;
                 }
+                return Ok(());
+            }
 
-                match loader.upload_cached_dataset_to_s3(&bucket, id) {
-                    Ok(()) => ok += 1,
+            let destination = destination.ok_or("Missing S3 destination")?;
+            let mut uploaded = 0;
+            let mut failed = 0;
+            for id in eligible {
+                match loader.upload_cached_dataset_to_s3(destination, id) {
+                    Ok(()) => uploaded += 1,
                     Err(err) => {
                         failed += 1;
                         eprintln!("Upload failed for {}: {}", id.cache_filename(), err);
                     }
                 }
             }
-
-            println!(
-                "{} Uploaded {} datasets (skipped {}, failed {})",
-                color("32", "✓"),
-                ok,
-                skipped,
-                failed
-            );
+            println!("Uploaded {uploaded} datasets, {failed} failed.");
             if failed > 0 {
-                return Err(format!("S3 sync had {} failures", failed));
+                return Err(format!("S3 sync had {failed} failures"));
             }
         }
     }
