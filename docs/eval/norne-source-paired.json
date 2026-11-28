@@ -1,0 +1,39 @@
+{
+  "schema": "anno.paired/v1",
+  "title": "How does source spacing change NorNE heuristic matches?",
+  "unit": "publisher sentences",
+  "baseline": "Space-joined tokens",
+  "candidate": "Original Norwegian text",
+  "rows": [
+    {
+      "label": "Bokmål test",
+      "role": "1,383 gold mentions · 476 with corrected offsets",
+      "observations": 1939,
+      "baseline": {
+        "correct": 400,
+        "unmatched": 1105
+      },
+      "candidate": {
+        "correct": 382,
+        "unmatched": 1056
+      },
+      "gained": 0,
+      "lost": 18
+    },
+    {
+      "label": "Nynorsk test",
+      "role": "1,010 gold mentions · 381 with corrected offsets",
+      "observations": 1511,
+      "baseline": {
+        "correct": 305,
+        "unmatched": 855
+      },
+      "candidate": {
+        "correct": 287,
+        "unmatched": 815
+      },
+      "gained": 0,
+      "lost": 18
+    }
+  ]
+}

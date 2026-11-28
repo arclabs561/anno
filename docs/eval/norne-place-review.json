@@ -1,0 +1,150 @@
+{
+  "schema": "anno.norne-place-review/v1",
+  "dataset": "NorNE",
+  "backend": "heuristic",
+  "source_revision": "0c0d133a0f9590d76b81078712261badd4b605e9",
+  "cue_tokens": [
+    "fra",
+    "i"
+  ],
+  "scope": "Complete development and test files for both written standards. Count every PER output with multiplicity.",
+  "rule": "Flag a PER suggestion starting at a publisher token boundary immediately after a case-folded cue. Include punctuation as a token. Judge a flagged or unflagged suggestion as an exact place only at the full boundary of a gold LOC or GPE_LOC.",
+  "splits": {
+    "nob-dev": {
+      "source_sha256": "dba752ca6dc0c628f7cf12e9131b2627be0dff082bd96311bafce40590c46f9c",
+      "sentences": 2410,
+      "sentences_without_gold": 1393,
+      "per_start_inside_token": 0,
+      "ordered_predictions_sha256": "b32c007128e00f5c37485a0ee5d7cf63611d926f7a1165469a621fc8b2211ab4",
+      "all": {
+        "suggestions": 1427,
+        "exact_places": 294,
+        "outcomes": {
+          "LOC": 87,
+          "GPE_LOC": 207,
+          "PER": 395,
+          "other_exact": 369,
+          "partial_overlap": 172,
+          "no_overlap": 197
+        }
+      },
+      "flagged": {
+        "suggestions": 184,
+        "exact_places": 108,
+        "outcomes": {
+          "LOC": 27,
+          "GPE_LOC": 81,
+          "PER": 10,
+          "other_exact": 40,
+          "partial_overlap": 24,
+          "no_overlap": 2
+        }
+      }
+    },
+    "nno-dev": {
+      "source_sha256": "6519a00c0ddc4f8ef2605d7c5326adcafb2dfa2df439e281c95e1a0ef218b928",
+      "sentences": 1890,
+      "sentences_without_gold": 1090,
+      "per_start_inside_token": 0,
+      "ordered_predictions_sha256": "1a41dfd4d7743e41abc1c65ac28504e32d3ca68b609a40929d0931d203ec69d0",
+      "all": {
+        "suggestions": 1127,
+        "exact_places": 229,
+        "outcomes": {
+          "LOC": 70,
+          "GPE_LOC": 159,
+          "PER": 309,
+          "other_exact": 263,
+          "partial_overlap": 129,
+          "no_overlap": 197
+        }
+      },
+      "flagged": {
+        "suggestions": 174,
+        "exact_places": 128,
+        "outcomes": {
+          "LOC": 25,
+          "GPE_LOC": 103,
+          "PER": 2,
+          "other_exact": 28,
+          "partial_overlap": 16,
+          "no_overlap": 0
+        }
+      }
+    },
+    "nob-test": {
+      "source_sha256": "ace6fa65758541333e6a64210fa8466145e024cbbab18a156e8757c8b21c103b",
+      "sentences": 1939,
+      "sentences_without_gold": 1058,
+      "per_start_inside_token": 0,
+      "ordered_predictions_sha256": "026e857600cde2fb147faa671f80428e1e7810bd125efa30a21ae139d637936c",
+      "all": {
+        "suggestions": 1219,
+        "exact_places": 265,
+        "outcomes": {
+          "LOC": 70,
+          "GPE_LOC": 195,
+          "PER": 350,
+          "other_exact": 259,
+          "partial_overlap": 143,
+          "no_overlap": 202
+        }
+      },
+      "flagged": {
+        "suggestions": 174,
+        "exact_places": 106,
+        "outcomes": {
+          "LOC": 23,
+          "GPE_LOC": 83,
+          "PER": 7,
+          "other_exact": 38,
+          "partial_overlap": 22,
+          "no_overlap": 1
+        }
+      },
+      "exact_text_seen_on_either_development_split": {
+        "sentences": 9,
+        "per_suggestions": 4,
+        "flagged_suggestions": 0,
+        "flagged_places": 0
+      }
+    },
+    "nno-test": {
+      "source_sha256": "6b99cafd7019ed6d1eea1b51a0707df89cad597fe588b5987b9f278ffd87588c",
+      "sentences": 1511,
+      "sentences_without_gold": 871,
+      "per_start_inside_token": 0,
+      "ordered_predictions_sha256": "0b3aaf0b0fbdc97de21c19ba227876496068315f5f8696e278c70008435424c8",
+      "all": {
+        "suggestions": 945,
+        "exact_places": 182,
+        "outcomes": {
+          "LOC": 58,
+          "GPE_LOC": 124,
+          "PER": 252,
+          "other_exact": 177,
+          "partial_overlap": 168,
+          "no_overlap": 166
+        }
+      },
+      "flagged": {
+        "suggestions": 159,
+        "exact_places": 102,
+        "outcomes": {
+          "LOC": 21,
+          "GPE_LOC": 81,
+          "PER": 4,
+          "other_exact": 21,
+          "partial_overlap": 32,
+          "no_overlap": 0
+        }
+      },
+      "exact_text_seen_on_either_development_split": {
+        "sentences": 7,
+        "per_suggestions": 0,
+        "flagged_suggestions": 0,
+        "flagged_places": 0
+      }
+    }
+  }
+}

@@ -5629,12 +5629,14 @@ mod tests {
             id: DatasetId::CoNLL2003Sample,
             sentences: [("Anna", "B-PER"), ("rain", "O")]
                 .into_iter()
-                .map(|(text, tag)| AnnotatedSentence {
-                    tokens: vec![AnnotatedToken {
-                        text: text.into(),
-                        ner_tag: tag.into(),
-                    }],
-                    source_dataset: DatasetId::CoNLL2003Sample,
+                .map(|(text, tag)| {
+                    AnnotatedSentence::from_tokens(
+                        DatasetId::CoNLL2003Sample,
+                        vec![AnnotatedToken {
+                            text: text.into(),
+                            ner_tag: tag.into(),
+                        }],
+                    )
                 })
                 .collect(),
             loaded_at: "test".into(),
@@ -5721,13 +5723,13 @@ mod tests {
         // One example with an "event type" label encoded as BIO, like the loader parsers do.
         let ds = LoadedDataset {
             id: DatasetId::MAVEN,
-            sentences: vec![AnnotatedSentence {
-                tokens: vec![AnnotatedToken {
+            sentences: vec![AnnotatedSentence::from_tokens(
+                DatasetId::MAVEN,
+                vec![AnnotatedToken {
                     text: "boom".to_string(),
                     ner_tag: "B-EventType".to_string(),
                 }],
-                source_dataset: DatasetId::MAVEN,
-            }],
+            )],
             loaded_at: "now".to_string(),
             source_url: "test".to_string(),
             data_source: DataSource::Embedded,
@@ -5767,8 +5769,9 @@ mod tests {
 
         let dataset = LoadedDataset {
             id: DatasetId::CoNLL2003Sample,
-            sentences: vec![AnnotatedSentence {
-                tokens: vec![
+            sentences: vec![AnnotatedSentence::from_tokens(
+                DatasetId::CoNLL2003Sample,
+                vec![
                     AnnotatedToken {
                         text: "Alice".into(),
                         ner_tag: "B-PER".into(),
@@ -5778,8 +5781,7 @@ mod tests {
                         ner_tag: "O".into(),
                     },
                 ],
-                source_dataset: DatasetId::CoNLL2003Sample,
-            }],
+            )],
             loaded_at: "test".to_string(),
             source_url: "fixture".to_string(),
             data_source: DataSource::Embedded,
@@ -5910,13 +5912,13 @@ mod tests {
         )];
         let dataset = LoadedDataset {
             id: DatasetId::CoNLL2003Sample,
-            sentences: vec![AnnotatedSentence {
-                tokens: vec![AnnotatedToken {
+            sentences: vec![AnnotatedSentence::from_tokens(
+                DatasetId::CoNLL2003Sample,
+                vec![AnnotatedToken {
                     text: "Asian".into(),
                     ner_tag: "B-MISC".into(),
                 }],
-                source_dataset: DatasetId::CoNLL2003Sample,
-            }],
+            )],
             loaded_at: "test".to_string(),
             source_url: "fixture".to_string(),
             data_source: DataSource::Embedded,

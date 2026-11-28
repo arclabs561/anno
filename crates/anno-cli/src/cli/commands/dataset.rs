@@ -392,6 +392,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             loader.load_or_download(loadable)
                         }
                         .map_err(|e| format!("Failed to load dataset: {e}"))?;
+                        if let Some(note) = ds.text_coordinate_note() {
+                            println!("  Text coordinates: {note}");
+                        }
                         if !id.is_ner() && (id.is_coreference() || id.is_relation_extraction()) {
                             println!(
                                 "{} Evaluating the entity annotations supplied by the {} reader.",
@@ -2909,6 +2912,9 @@ fn run_info(dataset: &str) -> Result<(), String> {
                                 println!("    Sentences: {}", stats.sentences);
                                 println!("    Tokens:    {}", stats.tokens);
                                 println!("    Entities:  {}", stats.entities);
+                                if let Some(note) = loaded.text_coordinate_note() {
+                                    println!("    Text coordinates: {note}");
+                                }
                                 if stats.sentences > 0 {
                                     println!(
                                         "    Avg entities/sentence: {:.2}",

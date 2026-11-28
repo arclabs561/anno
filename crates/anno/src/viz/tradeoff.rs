@@ -18,6 +18,13 @@ pub struct Tradeoff {
     pub title: String,
     /// Plural name of the observation unit, such as `sentences` or `documents`.
     pub unit: String,
+    /// Horizontal budget to display. Reports that omit the field count unmatched predictions.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "TradeoffAxis::read_present"
+    )]
+    pub x_axis: Option<TradeoffAxis>,
     /// Cohorts sharing a scoring unit and matching convention.
     pub series: Vec<TradeoffSeries>,
 }
@@ -53,7 +60,8 @@ const PLOT_RIGHT: i32 = 299;
 const LABEL_X: i32 = 325;
 
 /// Quantity on an operating-point chart's horizontal axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TradeoffAxis {
     /// Predictions without an exact reference match, known after evaluation.
     #[default]
@@ -63,6 +71,13 @@ pub enum TradeoffAxis {
 }
 
 impl TradeoffAxis {
+    // Omission preserves the old wire format. A present field is a string,
+    // including when parsing a generic JSON reader that accepts tagged enum objects.
+    fn read_present<'de, D: serde::Deserializer<'de>>(reader: D) -> Result<Option<Self>, D::Error> {
+        let name = String::deserialize(reader)?;
+        Self::deserialize(serde::de::value::StringDeserializer::new(name)).map(Some)
+    }
+
     fn count(self, correct: u64, unmatched: u64) -> u128 {
         match self {
             Self::Unmatched => u128::from(unmatched),
@@ -136,9 +151,9 @@ impl Tradeoff {
         Ok(format!("{json}\n"))
     }
 
-    /// Draw correct versus unmatched predictions per 100 inputs on shared axes.
+    /// Draw correct predictions against the report's horizontal budget, per 100 inputs.
     pub fn render_svg(&self) -> Result<String, String> {
-        self.render_svg_with_axis(TradeoffAxis::Unmatched)
+        self.render_svg_with_axis(self.x_axis.unwrap_or_default())
     }
 
     /// Compare settings at an observed error count or a total review budget.
@@ -223,7 +238,7 @@ impl Tradeoff {
 
     /// Render the chart, exact counts and rates as a self-contained HTML report.
     pub fn render_html(&self) -> Result<String, String> {
-        self.render_html_with_axis(TradeoffAxis::Unmatched)
+        self.render_html_with_axis(self.x_axis.unwrap_or_default())
     }
 
     /// Use the same horizontal quantity for the SVG and the frontier in the table.
@@ -549,6 +564,7 @@ mod tests {
             schema: TRADEOFF_SCHEMA.into(),
             title: "How much does a higher threshold cost?".into(),
             unit: "sentences".into(),
+            x_axis: None,
             series: vec![TradeoffSeries {
                 label: "Test".into(),
                 observations: 10,

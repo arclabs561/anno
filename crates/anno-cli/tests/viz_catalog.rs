@@ -36,7 +36,7 @@ fn success(result: Output) -> Vec<u8> {
 }
 
 fn trial() -> Value {
-    json!({"schema":"anno.tradeoff/v1","title":"Local study","unit":"rows","metadata":{"source_hash":"test-sha256"},
+    json!({"schema":"anno.tradeoff/v1","title":"Local study","unit":"rows","x_axis":"suggestions","metadata":{"source_hash":"test-sha256"},
         "series":[{"label":"Dev","observations":2,"gold":1,"points":[{"label":"Stock","correct":1,"unmatched":0}]}]})
 }
 
@@ -220,6 +220,17 @@ fn downloaded_catalog_file_precedence_and_safe_output() {
         Some("catalog.json"),
     ));
     assert_eq!(serde_json::from_slice::<Value>(&output).unwrap(), report);
+    for format in ["svg", "html"] {
+        let named = success(viz(
+            path,
+            &["render", "local.v1", "--format", format],
+            &[],
+            Some("catalog.json"),
+        ));
+        let from_report = success(viz(path, &["render", "--format", format], &output, None));
+        assert_eq!(named, from_report);
+        assert!(String::from_utf8_lossy(&named).contains("Suggestions / 100"));
+    }
 
     fs::write(path.join("figure-catalog.json"), catalog.to_string()).unwrap();
     assert_eq!(success(viz(path, &["list"], &[], None)), listed);

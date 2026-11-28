@@ -11019,7 +11019,116 @@
         "dev",
         "test"
       ],
-      "records": []
+      "records": [
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "dev",
+          "split_evidence": "study or execution receipt",
+          "scope": "Bokmål · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 2410,
+          "unit": "sentences",
+          "detail": "436 exact, 1689 predicted, 1688 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.25821735,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "dba752ca6dc0c628f7cf12e9131b2627be0dff082bd96311bafce40590c46f9c",
+          "panel_digest": "9187c2a9e48dfd63ced3ba15d71ca62e3c2e68d6eb8828b0fc071089efeddb08",
+          "source": "norne-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "dev",
+          "split_evidence": "study or execution receipt",
+          "scope": "Nynorsk · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 1890,
+          "unit": "sentences",
+          "detail": "352 exact, 1336 predicted, 1254 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.27181467,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "6519a00c0ddc4f8ef2605d7c5326adcafb2dfa2df439e281c95e1a0ef218b928",
+          "panel_digest": "de1b7075b37a386a76832ec1971d6dd6c7ddbff82e2de5bbc715a0e42d546896",
+          "source": "norne-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "Bokmål · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 1939,
+          "unit": "sentences",
+          "detail": "382 exact, 1438 predicted, 1383 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.27082595,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "ace6fa65758541333e6a64210fa8466145e024cbbab18a156e8757c8b21c103b",
+          "panel_digest": "1887ff0be9fd7e2dc3f65c59142ba84e8d62d01f0fce58526da3109432b8f041",
+          "source": "norne-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "test",
+          "split_evidence": "study or execution receipt",
+          "scope": "Nynorsk · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 1511,
+          "unit": "sentences",
+          "detail": "287 exact, 1102 predicted, 1010 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.2717803,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "6b99cafd7019ed6d1eea1b51a0707df89cad597fe588b5987b9f278ffd87588c",
+          "panel_digest": "6be1c079c13d6127589690d2274ffbf0b5329ee8107ede15b9c981de86af98c0",
+          "source": "norne-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "train",
+          "split_evidence": "study or execution receipt",
+          "scope": "Bokmål · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 15696,
+          "unit": "sentences",
+          "detail": "3108 exact, 11575 predicted, 11403 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.27051963,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "b17efd70034071f65ba5e3a15bc15f9a597f4c1dd3febb2ffec964906a9c1a98",
+          "panel_digest": "77a7a43d3fb1f40dbde7dbd96c908e73621b23901c4f81529227dedf5ab37a0b",
+          "source": "norne-source-replay.json"
+        },
+        {
+          "task": "ner",
+          "backend": "heuristic",
+          "reported_backend": "heuristic",
+          "split": "train",
+          "split_evidence": "study or execution receipt",
+          "scope": "Nynorsk · complete publisher split · original character offsets",
+          "status": "Scored",
+          "examples": 14174,
+          "unit": "sentences",
+          "detail": "3159 exact, 12156 predicted, 11668 gold",
+          "metric": "typed exact micro F1",
+          "metric_value": 0.26519476,
+          "read_source": "pinned NorNE CoNLL-U file",
+          "source_digest": "589564c68ab0763c2574ad90ea8928f029144c966e4af064e59a0865c53c5ef2",
+          "panel_digest": "fecc0ad04e4b8676d451e470e8e1729a355d4eb4f27a12d552fdb2254e5d9049",
+          "source": "norne-source-replay.json"
+        }
+      ]
     },
     {
       "id": "NovelCR",
@@ -15433,6 +15542,296 @@
             }
           }
         ]
+      }
+    },
+    {
+      "id": "norne-place-tradeoff",
+      "datasets": [
+        "NorNE"
+      ],
+      "guide": "docs/eval/norne-source-replay.md#which-person-suggestions-should-a-reviewer-inspect-first",
+      "report": {
+        "schema": "anno.tradeoff/v1",
+        "title": "How many mislabeled places does a NorNE review find?",
+        "unit": "PER suggestions",
+        "x_axis": "suggestions",
+        "series": [
+          {
+            "label": "Bokmål test",
+            "observations": 1219,
+            "gold": 265,
+            "points": [
+              {
+                "label": "After i or fra",
+                "correct": 106,
+                "unmatched": 68
+              },
+              {
+                "label": "All PER suggestions",
+                "correct": 265,
+                "unmatched": 954
+              }
+            ]
+          },
+          {
+            "label": "Nynorsk test",
+            "observations": 945,
+            "gold": 182,
+            "points": [
+              {
+                "label": "After i or fra",
+                "correct": 102,
+                "unmatched": 57
+              },
+              {
+                "label": "All PER suggestions",
+                "correct": 182,
+                "unmatched": 763
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "norne-source-paired",
+      "datasets": [
+        "NorNE"
+      ],
+      "guide": "docs/eval/norne-source-replay.md",
+      "report": {
+        "schema": "anno.paired/v1",
+        "title": "How does source spacing change NorNE heuristic matches?",
+        "unit": "publisher sentences",
+        "baseline": "Space-joined tokens",
+        "candidate": "Original Norwegian text",
+        "rows": [
+          {
+            "label": "Bokmål test",
+            "role": "1,383 gold mentions · 476 with corrected offsets",
+            "observations": 1939,
+            "baseline": {
+              "correct": 400,
+              "unmatched": 1105
+            },
+            "candidate": {
+              "correct": 382,
+              "unmatched": 1056
+            },
+            "gained": 0,
+            "lost": 18
+          },
+          {
+            "label": "Nynorsk test",
+            "role": "1,010 gold mentions · 381 with corrected offsets",
+            "observations": 1511,
+            "baseline": {
+              "correct": 305,
+              "unmatched": 855
+            },
+            "candidate": {
+              "correct": 287,
+              "unmatched": 815
+            },
+            "gained": 0,
+            "lost": 18
+          }
+        ]
+      }
+    },
+    {
+      "id": "norne-test-errors",
+      "datasets": [
+        "NorNE"
+      ],
+      "guide": "docs/eval/norne-source-replay.md",
+      "report": {
+        "schema": "anno.errors/v1",
+        "reports": 3450,
+        "metric": "entity",
+        "prediction_source": {
+          "kind": "model",
+          "name": "heuristic"
+        },
+        "title": "Which Norwegian place names does the heuristic mistype?",
+        "entities": {
+          "gold_count": 2393,
+          "predicted_count": 2540,
+          "exact": 669,
+          "same_span_wrong_label": 1046,
+          "partial_overlap": 369,
+          "missed_gold": 309,
+          "extra_predictions": 456
+        },
+        "same_span_label_confusions": [
+          {
+            "gold": "GPE_LOC",
+            "predicted": "PER",
+            "pairs": 319
+          },
+          {
+            "gold": "ORG",
+            "predicted": "PER",
+            "pairs": 266
+          },
+          {
+            "gold": "LOC",
+            "predicted": "PER",
+            "pairs": 128
+          },
+          {
+            "gold": "PROD",
+            "predicted": "PER",
+            "pairs": 72
+          },
+          {
+            "gold": "PER",
+            "predicted": "ORG",
+            "pairs": 58
+          },
+          {
+            "gold": "DRV",
+            "predicted": "PER",
+            "pairs": 54
+          },
+          {
+            "gold": "GPE_ORG",
+            "predicted": "PER",
+            "pairs": 26
+          },
+          {
+            "gold": "PER",
+            "predicted": "LOC",
+            "pairs": 26
+          },
+          {
+            "gold": "GPE_LOC",
+            "predicted": "LOC",
+            "pairs": 24
+          },
+          {
+            "gold": "GPE_ORG",
+            "predicted": "ORG",
+            "pairs": 15
+          },
+          {
+            "gold": "ORG",
+            "predicted": "LOC",
+            "pairs": 14
+          },
+          {
+            "gold": "EVT",
+            "predicted": "PER",
+            "pairs": 10
+          },
+          {
+            "gold": "MISC",
+            "predicted": "PER",
+            "pairs": 8
+          },
+          {
+            "gold": "PROD",
+            "predicted": "ORG",
+            "pairs": 8
+          },
+          {
+            "gold": "GPE_ORG",
+            "predicted": "LOC",
+            "pairs": 5
+          },
+          {
+            "gold": "PROD",
+            "predicted": "LOC",
+            "pairs": 5
+          },
+          {
+            "gold": "GPE_LOC",
+            "predicted": "ORG",
+            "pairs": 2
+          },
+          {
+            "gold": "LOC",
+            "predicted": "ORG",
+            "pairs": 2
+          },
+          {
+            "gold": "MISC",
+            "predicted": "ORG",
+            "pairs": 2
+          },
+          {
+            "gold": "DRV",
+            "predicted": "LOC",
+            "pairs": 1
+          },
+          {
+            "gold": "EVT",
+            "predicted": "ORG",
+            "pairs": 1
+          }
+        ],
+        "label_outcomes": {
+          "by_gold_label": {
+            "DRV": {
+              "exact": 0,
+              "same_span_wrong_label": 55,
+              "partial_overlap": 16,
+              "missed": 7
+            },
+            "EVT": {
+              "exact": 0,
+              "same_span_wrong_label": 11,
+              "partial_overlap": 2,
+              "missed": 1
+            },
+            "GPE_LOC": {
+              "exact": 0,
+              "same_span_wrong_label": 345,
+              "partial_overlap": 50,
+              "missed": 33
+            },
+            "GPE_ORG": {
+              "exact": 0,
+              "same_span_wrong_label": 46,
+              "partial_overlap": 8,
+              "missed": 7
+            },
+            "LOC": {
+              "exact": 1,
+              "same_span_wrong_label": 130,
+              "partial_overlap": 45,
+              "missed": 9
+            },
+            "MISC": {
+              "exact": 0,
+              "same_span_wrong_label": 10,
+              "partial_overlap": 3,
+              "missed": 1
+            },
+            "ORG": {
+              "exact": 66,
+              "same_span_wrong_label": 280,
+              "partial_overlap": 104,
+              "missed": 71
+            },
+            "PER": {
+              "exact": 602,
+              "same_span_wrong_label": 84,
+              "partial_overlap": 108,
+              "missed": 167
+            },
+            "PROD": {
+              "exact": 0,
+              "same_span_wrong_label": 85,
+              "partial_overlap": 33,
+              "missed": 13
+            }
+          },
+          "partial_labels": {
+            "same": 85,
+            "different": 284
+          }
+        }
       }
     },
     {

@@ -6,6 +6,7 @@
 
 import argparse
 import filecmp
+import hashlib
 import json
 import os
 import shutil
@@ -14,7 +15,7 @@ import sys
 import tempfile
 from importlib.metadata import distribution
 from pathlib import Path
-from figure_catalog import NAME as CATALOG_NAME, write_catalog
+from figure_catalog import NAME as CATALOG_NAME, registered_studies, write_catalog
 from figure_coverage_report import coverage_text
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,7 +70,51 @@ def native_paths(directory, extension):
     )
 
 
-def render_native(inputs, directory, anno):
+def public_report(source, metadata_sha256, executable):
+    """Keep the native aggregate and any explicitly reviewed study metadata."""
+
+    def unique_fields(pairs):
+        # The bundle preserves original bytes, including overwritten fields.
+        result = dict(pairs)
+        if len(result) != len(pairs):
+            raise ValueError(f"{source.name} contains a duplicate JSON field")
+        return result
+
+    raw = source.read_bytes()
+    report = json.loads(raw, object_pairs_hook=unique_fields)
+    view = source.stem.rsplit("-", 1)[-1]
+    if not isinstance(report, dict) or report.get("schema") != f"anno.{view}/v1":
+        raise ValueError(f"{source.name} requires a portable anno.{view}/v1 report")
+    digest = ""
+    if "metadata" in report:
+        metadata = json.dumps(
+            report["metadata"],
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        digest = hashlib.sha256(metadata).hexdigest()
+    if digest != metadata_sha256:
+        raise ValueError(f"{source.name} metadata differs from figure-studies.csv")
+
+    # The view-specific reader serializes its typed fields. Generic viz render
+    # deliberately preserves extensions for local callers. Keep rejected input
+    # values out of CI diagnostics as well as out of the exported JSON.
+    checked = subprocess.run(
+        [executable, "viz", view, "--format", "json"],
+        input=raw,
+        capture_output=True,
+    )
+    if checked.returncode or json.loads(checked.stdout) != report:
+        raise ValueError(
+            f"{source.name} must contain the native fields emitted by "
+            f"'anno viz {view} --format json'. Check the input locally."
+        )
+    return raw
+
+
+def render_native(studies, directory, anno):
     """Render each portable input through the same schema reader as a user's report."""
     from resvg_py import svg_to_bytes
 
@@ -79,14 +124,18 @@ def render_native(inputs, directory, anno):
         str(font_dir / f"DejaVuSans{style}.ttf")
         for style in ("", "-Bold", "-Oblique", "-BoldOblique")
     ]
-    for source in inputs:
+    for source, descriptor in studies.items():
         svg = directory / source.with_suffix(".svg").name
         png = svg.with_suffix(".png")
         html = svg.with_suffix(".html")
         if svg.exists() or png.exists() or html.exists():
             raise ValueError(f"More than one figure has the name {source.stem!r}.")
+        portable = directory / source.name
+        portable.write_bytes(
+            public_report(source, descriptor.get("metadata_sha256") or "", executable)
+        )
         for target in (svg, html):
-            subprocess.run([executable, "viz", "render", source, "--output", target], check=True)
+            subprocess.run([executable, "viz", "render", portable, "--output", target], check=True)
         png.write_bytes(
             svg_to_bytes(
                 svg_path=str(svg),
@@ -96,7 +145,6 @@ def render_native(inputs, directory, anno):
                 sans_serif_family="DejaVu Sans",
             )
         )
-        shutil.copyfile(source, directory / source.name)
 
 
 def render(directory, config, anno):
@@ -163,10 +211,10 @@ def render(directory, config, anno):
         subprocess.run(
             [sys.executable, SCRIPTS / script, *args], check=True, env=env, cwd=ROOT
         )
-    native = native_paths(EVAL, "json")
-    write_catalog(EVAL, directory, native)
+    native = registered_studies(EVAL, native_paths(EVAL, "json"))
     if native:
         render_native(native, directory, anno)
+    write_catalog(EVAL, directory, native)
     return [directory / source.with_suffix(".svg").name for source in native]
 
 

@@ -1,0 +1,1129 @@
+{
+  "anno_version": "anno 0.16.0",
+  "backend": "heuristic",
+  "baseline_revision": "136a7e7aea5c8abc6b722822c2b5f5473f5ede88",
+  "dataset": "NorNE",
+  "schema": "anno.norne-source-replay/v1",
+  "scoring": "Literal name types and exact Unicode character boundaries on each arm's text. Pair gold by source split, sentence and mention ordinal. Pair typed predictions after removing inserted inter-token spaces from the legacy coordinates.",
+  "source_revision": "0c0d133a0f9590d76b81078712261badd4b605e9",
+  "splits": {
+    "nno-dev": {
+      "after": {
+        "correct": 352,
+        "f1": 0.27181467,
+        "gold": 1254,
+        "ordered_predictions_sha256": "1a41dfd4d7743e41abc1c65ac28504e32d3ca68b609a40929d0931d203ec69d0",
+        "precision": 0.26347305,
+        "predicted": 1336,
+        "recall": 0.28070175
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 36,
+          "gold": 50,
+          "missed": {
+            "no_overlap": 5,
+            "other_overlap": 9,
+            "wrong_type_at_exact_boundary": 36
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "ORG": 2,
+            "PER": 33
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 7,
+          "gold": 7,
+          "missed": {
+            "wrong_type_at_exact_boundary": 7
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "ORG": 1,
+            "PER": 5
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 174,
+          "gold": 195,
+          "missed": {
+            "no_overlap": 3,
+            "other_overlap": 18,
+            "wrong_type_at_exact_boundary": 174
+          },
+          "types_at_exact_boundary": {
+            "LOC": 11,
+            "ORG": 4,
+            "PER": 159
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 48,
+          "gold": 66,
+          "missed": {
+            "no_overlap": 8,
+            "other_overlap": 10,
+            "wrong_type_at_exact_boundary": 48
+          },
+          "types_at_exact_boundary": {
+            "LOC": 3,
+            "ORG": 13,
+            "PER": 32
+          }
+        },
+        "LOC": {
+          "correct": 2,
+          "exact_boundary_any_type": 72,
+          "gold": 85,
+          "missed": {
+            "no_overlap": 1,
+            "other_overlap": 12,
+            "wrong_type_at_exact_boundary": 70
+          },
+          "types_at_exact_boundary": {
+            "LOC": 2,
+            "PER": 70
+          }
+        },
+        "ORG": {
+          "correct": 41,
+          "exact_boundary_any_type": 213,
+          "gold": 284,
+          "missed": {
+            "no_overlap": 17,
+            "other_overlap": 54,
+            "wrong_type_at_exact_boundary": 172
+          },
+          "types_at_exact_boundary": {
+            "LOC": 16,
+            "ORG": 41,
+            "PER": 156
+          }
+        },
+        "PER": {
+          "correct": 309,
+          "exact_boundary_any_type": 343,
+          "gold": 481,
+          "missed": {
+            "no_overlap": 71,
+            "other_overlap": 67,
+            "wrong_type_at_exact_boundary": 34
+          },
+          "types_at_exact_boundary": {
+            "LOC": 11,
+            "ORG": 23,
+            "PER": 309
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 46,
+          "gold": 86,
+          "missed": {
+            "no_overlap": 6,
+            "other_overlap": 34,
+            "wrong_type_at_exact_boundary": 46
+          },
+          "types_at_exact_boundary": {
+            "LOC": 2,
+            "ORG": 7,
+            "PER": 37
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 50,
+        "ORG": 159,
+        "PER": 1127
+      },
+      "after_seven_type": {
+        "correct": 376,
+        "f1": 0.29034749,
+        "gold": 1254,
+        "precision": 0.28143713,
+        "predicted": 1336,
+        "recall": 0.29984051
+      },
+      "artificial_spaces": 3181,
+      "before": {
+        "correct": 378,
+        "f1": 0.28582231,
+        "gold": 1254,
+        "ordered_predictions_sha256": "65d51c0a14267992ff3684629e659c306435fc83b2f9308088c8f2a1e3b5c974",
+        "precision": 0.27174694,
+        "predicted": 1391,
+        "recall": 0.30143541
+      },
+      "cases": 1890,
+      "cases_with_changed_suggestions": 55,
+      "gold": 1254,
+      "legacy_bio_sha256": "a4eebb9240376b27f0c163aa6327e5ed60f2b9d475cc2a93ac203fb3c3e37208",
+      "ordered_source_sha256": "de1b7075b37a386a76832ec1971d6dd6c7ddbff82e2de5bbc715a0e42d546896",
+      "paired_gold": {
+        "gained": 1,
+        "lost": 27,
+        "retained": 351
+      },
+      "paired_gold_loss_on_source": {
+        "no_overlap": 2,
+        "other_overlap": 25
+      },
+      "paired_predictions": {
+        "added": 36,
+        "removed": 91,
+        "retained_same_offsets": 861,
+        "retained_shifted_offsets": 439
+      },
+      "source_gold_exact_after": 1254,
+      "source_gold_exact_before": 774,
+      "source_sha256": "6519a00c0ddc4f8ef2605d7c5326adcafb2dfa2df439e281c95e1a0ef218b928",
+      "source_text_exact_after": 1890,
+      "source_text_exact_before": 170,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-dev.conllu",
+      "tokens": 31250
+    },
+    "nno-test": {
+      "after": {
+        "correct": 287,
+        "f1": 0.2717803,
+        "gold": 1010,
+        "ordered_predictions_sha256": "0b3aaf0b0fbdc97de21c19ba227876496068315f5f8696e278c70008435424c8",
+        "precision": 0.26043557,
+        "predicted": 1102,
+        "recall": 0.28415842
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 20,
+          "gold": 30,
+          "missed": {
+            "no_overlap": 2,
+            "other_overlap": 8,
+            "wrong_type_at_exact_boundary": 20
+          },
+          "types_at_exact_boundary": {
+            "PER": 20
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 6,
+          "gold": 9,
+          "missed": {
+            "no_overlap": 1,
+            "other_overlap": 2,
+            "wrong_type_at_exact_boundary": 6
+          },
+          "types_at_exact_boundary": {
+            "ORG": 1,
+            "PER": 5
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 134,
+          "gold": 171,
+          "missed": {
+            "no_overlap": 2,
+            "other_overlap": 35,
+            "wrong_type_at_exact_boundary": 134
+          },
+          "types_at_exact_boundary": {
+            "LOC": 9,
+            "ORG": 1,
+            "PER": 124
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 5,
+          "gold": 11,
+          "missed": {
+            "no_overlap": 2,
+            "other_overlap": 4,
+            "wrong_type_at_exact_boundary": 5
+          },
+          "types_at_exact_boundary": {
+            "PER": 5
+          }
+        },
+        "LOC": {
+          "correct": 1,
+          "exact_boundary_any_type": 60,
+          "gold": 82,
+          "missed": {
+            "no_overlap": 2,
+            "other_overlap": 20,
+            "wrong_type_at_exact_boundary": 59
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "ORG": 1,
+            "PER": 58
+          }
+        },
+        "MISC": {
+          "correct": 0,
+          "exact_boundary_any_type": 10,
+          "gold": 14,
+          "missed": {
+            "no_overlap": 1,
+            "other_overlap": 3,
+            "wrong_type_at_exact_boundary": 10
+          },
+          "types_at_exact_boundary": {
+            "ORG": 2,
+            "PER": 8
+          }
+        },
+        "ORG": {
+          "correct": 34,
+          "exact_boundary_any_type": 157,
+          "gold": 236,
+          "missed": {
+            "no_overlap": 13,
+            "other_overlap": 66,
+            "wrong_type_at_exact_boundary": 123
+          },
+          "types_at_exact_boundary": {
+            "LOC": 6,
+            "ORG": 34,
+            "PER": 117
+          }
+        },
+        "PER": {
+          "correct": 252,
+          "exact_boundary_any_type": 283,
+          "gold": 397,
+          "missed": {
+            "no_overlap": 53,
+            "other_overlap": 61,
+            "wrong_type_at_exact_boundary": 31
+          },
+          "types_at_exact_boundary": {
+            "LOC": 7,
+            "ORG": 24,
+            "PER": 252
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 27,
+          "gold": 60,
+          "missed": {
+            "no_overlap": 6,
+            "other_overlap": 27,
+            "wrong_type_at_exact_boundary": 27
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "ORG": 4,
+            "PER": 22
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 32,
+        "ORG": 125,
+        "PER": 945
+      },
+      "after_seven_type": {
+        "correct": 296,
+        "f1": 0.28030303,
+        "gold": 1010,
+        "precision": 0.26860254,
+        "predicted": 1102,
+        "recall": 0.29306931
+      },
+      "artificial_spaces": 2409,
+      "before": {
+        "correct": 305,
+        "f1": 0.28110599,
+        "gold": 1010,
+        "ordered_predictions_sha256": "2b90cdb553e728dcc16f136ff71af1edd3dc76f7342c0aa74ee90c7c798003e8",
+        "precision": 0.26293103,
+        "predicted": 1160,
+        "recall": 0.3019802
+      },
+      "cases": 1511,
+      "cases_with_changed_suggestions": 48,
+      "gold": 1010,
+      "legacy_bio_sha256": "bf45887d99570cca7e6a57bc2294a730a1e95f97a913f355d0fb5fc5d3efe385",
+      "ordered_source_sha256": "6be1c079c13d6127589690d2274ffbf0b5329ee8107ede15b9c981de86af98c0",
+      "paired_gold": {
+        "gained": 0,
+        "lost": 18,
+        "retained": 287
+      },
+      "paired_gold_loss_on_source": {
+        "no_overlap": 1,
+        "other_overlap": 17
+      },
+      "paired_predictions": {
+        "added": 34,
+        "removed": 92,
+        "retained_same_offsets": 723,
+        "retained_shifted_offsets": 345
+      },
+      "source_gold_exact_after": 1010,
+      "source_gold_exact_before": 629,
+      "source_sha256": "6b99cafd7019ed6d1eea1b51a0707df89cad597fe588b5987b9f278ffd87588c",
+      "source_text_exact_after": 1511,
+      "source_text_exact_before": 154,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-test.conllu",
+      "tokens": 24773
+    },
+    "nno-train": {
+      "after": {
+        "correct": 3159,
+        "f1": 0.26519476,
+        "gold": 11668,
+        "ordered_predictions_sha256": "cc0d40ff6263abfcdad09521fea81a01f68980fc1bc15984bd530ff4b7424c37",
+        "precision": 0.25987167,
+        "predicted": 12156,
+        "recall": 0.27074049
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 291,
+          "gold": 445,
+          "missed": {
+            "no_overlap": 44,
+            "other_overlap": 110,
+            "wrong_type_at_exact_boundary": 291
+          },
+          "types_at_exact_boundary": {
+            "LOC": 20,
+            "ORG": 3,
+            "PER": 268
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 81,
+          "gold": 141,
+          "missed": {
+            "no_overlap": 27,
+            "other_overlap": 33,
+            "wrong_type_at_exact_boundary": 81
+          },
+          "types_at_exact_boundary": {
+            "LOC": 3,
+            "ORG": 9,
+            "PER": 69
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 1718,
+          "gold": 2086,
+          "missed": {
+            "no_overlap": 64,
+            "other_overlap": 304,
+            "wrong_type_at_exact_boundary": 1718
+          },
+          "types_at_exact_boundary": {
+            "LOC": 164,
+            "ORG": 7,
+            "PER": 1547
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 276,
+          "gold": 367,
+          "missed": {
+            "no_overlap": 29,
+            "other_overlap": 62,
+            "wrong_type_at_exact_boundary": 276
+          },
+          "types_at_exact_boundary": {
+            "LOC": 82,
+            "ORG": 24,
+            "PER": 170
+          }
+        },
+        "LOC": {
+          "correct": 11,
+          "exact_boundary_any_type": 706,
+          "gold": 893,
+          "missed": {
+            "no_overlap": 36,
+            "other_overlap": 151,
+            "wrong_type_at_exact_boundary": 695
+          },
+          "types_at_exact_boundary": {
+            "LOC": 11,
+            "ORG": 7,
+            "PER": 688
+          }
+        },
+        "MISC": {
+          "correct": 0,
+          "exact_boundary_any_type": 6,
+          "gold": 6,
+          "missed": {
+            "wrong_type_at_exact_boundary": 6
+          },
+          "types_at_exact_boundary": {
+            "PER": 6
+          }
+        },
+        "ORG": {
+          "correct": 461,
+          "exact_boundary_any_type": 1897,
+          "gold": 2752,
+          "missed": {
+            "no_overlap": 212,
+            "other_overlap": 643,
+            "wrong_type_at_exact_boundary": 1436
+          },
+          "types_at_exact_boundary": {
+            "LOC": 130,
+            "ORG": 461,
+            "PER": 1306
+          }
+        },
+        "PER": {
+          "correct": 2687,
+          "exact_boundary_any_type": 3077,
+          "gold": 4250,
+          "missed": {
+            "no_overlap": 362,
+            "other_overlap": 811,
+            "wrong_type_at_exact_boundary": 390
+          },
+          "types_at_exact_boundary": {
+            "LOC": 102,
+            "ORG": 288,
+            "PER": 2687
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 362,
+          "gold": 728,
+          "missed": {
+            "no_overlap": 85,
+            "other_overlap": 281,
+            "wrong_type_at_exact_boundary": 362
+          },
+          "types_at_exact_boundary": {
+            "LOC": 13,
+            "ORG": 45,
+            "PER": 304
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 583,
+        "ORG": 1533,
+        "PER": 10040
+      },
+      "after_seven_type": {
+        "correct": 3347,
+        "f1": 0.28097717,
+        "gold": 11668,
+        "precision": 0.27533728,
+        "predicted": 12156,
+        "recall": 0.28685293
+      },
+      "artificial_spaces": 25079,
+      "before": {
+        "correct": 3421,
+        "f1": 0.28082417,
+        "gold": 11668,
+        "ordered_predictions_sha256": "7d0707cc1a87543154d3ceaa74a5f471fc4dba3e8c426563b6d3e77bfd6501d6",
+        "precision": 0.26945495,
+        "predicted": 12696,
+        "recall": 0.29319506
+      },
+      "cases": 14174,
+      "cases_with_changed_suggestions": 507,
+      "gold": 11668,
+      "legacy_bio_sha256": "a3c42fbc497a5b98f5f3cb3a8ae0e4df68c98b2a91f5e624b5fa2a5f093f1d0a",
+      "ordered_source_sha256": "fecc0ad04e4b8676d451e470e8e1729a355d4eb4f27a12d552fdb2254e5d9049",
+      "paired_gold": {
+        "gained": 0,
+        "lost": 262,
+        "retained": 3159
+      },
+      "paired_gold_loss_on_source": {
+        "no_overlap": 4,
+        "other_overlap": 252,
+        "wrong_type_at_exact_boundary": 6
+      },
+      "paired_predictions": {
+        "added": 396,
+        "removed": 936,
+        "retained_same_offsets": 7631,
+        "retained_shifted_offsets": 4129
+      },
+      "source_gold_exact_after": 11668,
+      "source_gold_exact_before": 6983,
+      "source_sha256": "589564c68ab0763c2574ad90ea8928f029144c966e4af064e59a0865c53c5ef2",
+      "source_text_exact_after": 14174,
+      "source_text_exact_before": 1284,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nno/no_nynorsk-ud-train.conllu",
+      "tokens": 245330
+    },
+    "nob-dev": {
+      "after": {
+        "correct": 436,
+        "f1": 0.25821735,
+        "gold": 1688,
+        "ordered_predictions_sha256": "b32c007128e00f5c37485a0ee5d7cf63611d926f7a1165469a621fc8b2211ab4",
+        "precision": 0.25814091,
+        "predicted": 1689,
+        "recall": 0.25829384
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 59,
+          "gold": 79,
+          "missed": {
+            "no_overlap": 3,
+            "other_overlap": 17,
+            "wrong_type_at_exact_boundary": 59
+          },
+          "types_at_exact_boundary": {
+            "LOC": 10,
+            "PER": 49
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 5,
+          "gold": 9,
+          "missed": {
+            "no_overlap": 3,
+            "other_overlap": 1,
+            "wrong_type_at_exact_boundary": 5
+          },
+          "types_at_exact_boundary": {
+            "PER": 5
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 224,
+          "gold": 259,
+          "missed": {
+            "no_overlap": 9,
+            "other_overlap": 26,
+            "wrong_type_at_exact_boundary": 224
+          },
+          "types_at_exact_boundary": {
+            "LOC": 17,
+            "PER": 207
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 42,
+          "gold": 55,
+          "missed": {
+            "no_overlap": 9,
+            "other_overlap": 4,
+            "wrong_type_at_exact_boundary": 42
+          },
+          "types_at_exact_boundary": {
+            "LOC": 13,
+            "ORG": 3,
+            "PER": 26
+          }
+        },
+        "LOC": {
+          "correct": 1,
+          "exact_boundary_any_type": 91,
+          "gold": 109,
+          "missed": {
+            "no_overlap": 2,
+            "other_overlap": 16,
+            "wrong_type_at_exact_boundary": 90
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "ORG": 3,
+            "PER": 87
+          }
+        },
+        "ORG": {
+          "correct": 40,
+          "exact_boundary_any_type": 287,
+          "gold": 404,
+          "missed": {
+            "no_overlap": 38,
+            "other_overlap": 79,
+            "wrong_type_at_exact_boundary": 247
+          },
+          "types_at_exact_boundary": {
+            "LOC": 20,
+            "ORG": 40,
+            "PER": 227
+          }
+        },
+        "PER": {
+          "correct": 395,
+          "exact_boundary_any_type": 449,
+          "gold": 611,
+          "missed": {
+            "no_overlap": 83,
+            "other_overlap": 79,
+            "wrong_type_at_exact_boundary": 54
+          },
+          "types_at_exact_boundary": {
+            "LOC": 23,
+            "ORG": 31,
+            "PER": 395
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 78,
+          "gold": 162,
+          "missed": {
+            "no_overlap": 20,
+            "other_overlap": 64,
+            "wrong_type_at_exact_boundary": 78
+          },
+          "types_at_exact_boundary": {
+            "LOC": 2,
+            "ORG": 14,
+            "PER": 62
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 92,
+        "ORG": 170,
+        "PER": 1427
+      },
+      "after_seven_type": {
+        "correct": 456,
+        "f1": 0.27006219,
+        "gold": 1688,
+        "precision": 0.26998224,
+        "predicted": 1689,
+        "recall": 0.27014218
+      },
+      "artificial_spaces": 4119,
+      "before": {
+        "correct": 468,
+        "f1": 0.27099016,
+        "gold": 1688,
+        "ordered_predictions_sha256": "339e01cfad5fa5219d7c18cfc33d70d6492c2efb6be25cf3e74dbba6109a6a21",
+        "precision": 0.26500566,
+        "predicted": 1766,
+        "recall": 0.27725118
+      },
+      "cases": 2410,
+      "cases_with_changed_suggestions": 81,
+      "gold": 1688,
+      "legacy_bio_sha256": "b90d5443362dd097dafc49763839e5e2c8a48d720bb5f7af65e2c45b0dfe437d",
+      "ordered_source_sha256": "9187c2a9e48dfd63ced3ba15d71ca62e3c2e68d6eb8828b0fc071089efeddb08",
+      "paired_gold": {
+        "gained": 0,
+        "lost": 32,
+        "retained": 436
+      },
+      "paired_gold_loss_on_source": {
+        "no_overlap": 1,
+        "other_overlap": 31
+      },
+      "paired_predictions": {
+        "added": 50,
+        "removed": 127,
+        "retained_same_offsets": 1086,
+        "retained_shifted_offsets": 553
+      },
+      "source_gold_exact_after": 1688,
+      "source_gold_exact_before": 1066,
+      "source_sha256": "dba752ca6dc0c628f7cf12e9131b2627be0dff082bd96311bafce40590c46f9c",
+      "source_text_exact_after": 2410,
+      "source_text_exact_before": 89,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-dev.conllu",
+      "tokens": 36369
+    },
+    "nob-test": {
+      "after": {
+        "correct": 382,
+        "f1": 0.27082595,
+        "gold": 1383,
+        "ordered_predictions_sha256": "026e857600cde2fb147faa671f80428e1e7810bd125efa30a21ae139d637936c",
+        "precision": 0.26564673,
+        "predicted": 1438,
+        "recall": 0.27621114
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 35,
+          "gold": 48,
+          "missed": {
+            "no_overlap": 5,
+            "other_overlap": 8,
+            "wrong_type_at_exact_boundary": 35
+          },
+          "types_at_exact_boundary": {
+            "LOC": 1,
+            "PER": 34
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 5,
+          "gold": 5,
+          "missed": {
+            "wrong_type_at_exact_boundary": 5
+          },
+          "types_at_exact_boundary": {
+            "PER": 5
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 211,
+          "gold": 257,
+          "missed": {
+            "no_overlap": 19,
+            "other_overlap": 27,
+            "wrong_type_at_exact_boundary": 211
+          },
+          "types_at_exact_boundary": {
+            "LOC": 15,
+            "ORG": 1,
+            "PER": 195
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 41,
+          "gold": 50,
+          "missed": {
+            "no_overlap": 3,
+            "other_overlap": 6,
+            "wrong_type_at_exact_boundary": 41
+          },
+          "types_at_exact_boundary": {
+            "LOC": 5,
+            "ORG": 15,
+            "PER": 21
+          }
+        },
+        "LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 71,
+          "gold": 103,
+          "missed": {
+            "no_overlap": 5,
+            "other_overlap": 27,
+            "wrong_type_at_exact_boundary": 71
+          },
+          "types_at_exact_boundary": {
+            "ORG": 1,
+            "PER": 70
+          }
+        },
+        "ORG": {
+          "correct": 32,
+          "exact_boundary_any_type": 189,
+          "gold": 285,
+          "missed": {
+            "no_overlap": 37,
+            "other_overlap": 59,
+            "wrong_type_at_exact_boundary": 157
+          },
+          "types_at_exact_boundary": {
+            "LOC": 8,
+            "ORG": 32,
+            "PER": 149
+          }
+        },
+        "PER": {
+          "correct": 350,
+          "exact_boundary_any_type": 403,
+          "gold": 564,
+          "missed": {
+            "no_overlap": 77,
+            "other_overlap": 84,
+            "wrong_type_at_exact_boundary": 53
+          },
+          "types_at_exact_boundary": {
+            "LOC": 19,
+            "ORG": 34,
+            "PER": 350
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 58,
+          "gold": 71,
+          "missed": {
+            "no_overlap": 7,
+            "other_overlap": 6,
+            "wrong_type_at_exact_boundary": 58
+          },
+          "types_at_exact_boundary": {
+            "LOC": 4,
+            "ORG": 4,
+            "PER": 50
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 62,
+        "ORG": 157,
+        "PER": 1219
+      },
+      "after_seven_type": {
+        "correct": 412,
+        "f1": 0.292095,
+        "gold": 1383,
+        "precision": 0.28650904,
+        "predicted": 1438,
+        "recall": 0.29790311
+      },
+      "artificial_spaces": 3256,
+      "before": {
+        "correct": 400,
+        "f1": 0.27700831,
+        "gold": 1383,
+        "ordered_predictions_sha256": "d5195dd586f32e2b8ee9dbed028e19352f055f46fa6856c3f9c7942459c9c449",
+        "precision": 0.26578073,
+        "predicted": 1505,
+        "recall": 0.28922632
+      },
+      "cases": 1939,
+      "cases_with_changed_suggestions": 69,
+      "gold": 1383,
+      "legacy_bio_sha256": "b0c03701f1e18cd8448074b518ff8410446959cbefc7d1ed836c0ee4721b8b20",
+      "ordered_source_sha256": "1887ff0be9fd7e2dc3f65c59142ba84e8d62d01f0fce58526da3109432b8f041",
+      "paired_gold": {
+        "gained": 0,
+        "lost": 18,
+        "retained": 382
+      },
+      "paired_gold_loss_on_source": {
+        "other_overlap": 18
+      },
+      "paired_predictions": {
+        "added": 37,
+        "removed": 104,
+        "retained_same_offsets": 972,
+        "retained_shifted_offsets": 429
+      },
+      "source_gold_exact_after": 1383,
+      "source_gold_exact_before": 907,
+      "source_sha256": "ace6fa65758541333e6a64210fa8466145e024cbbab18a156e8757c8b21c103b",
+      "source_text_exact_after": 1939,
+      "source_text_exact_before": 57,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-test.conllu",
+      "tokens": 29966
+    },
+    "nob-train": {
+      "after": {
+        "correct": 3108,
+        "f1": 0.27051963,
+        "gold": 11403,
+        "ordered_predictions_sha256": "2322bfef83fea6d70523efa91e53b0f50750a75b201840fa50d766223a109b30",
+        "precision": 0.26850972,
+        "predicted": 11575,
+        "recall": 0.27255985
+      },
+      "after_gold_by_type": {
+        "DRV": {
+          "correct": 0,
+          "exact_boundary_any_type": 335,
+          "gold": 524,
+          "missed": {
+            "no_overlap": 65,
+            "other_overlap": 124,
+            "wrong_type_at_exact_boundary": 335
+          },
+          "types_at_exact_boundary": {
+            "LOC": 30,
+            "ORG": 2,
+            "PER": 303
+          }
+        },
+        "EVT": {
+          "correct": 0,
+          "exact_boundary_any_type": 86,
+          "gold": 133,
+          "missed": {
+            "no_overlap": 37,
+            "other_overlap": 10,
+            "wrong_type_at_exact_boundary": 86
+          },
+          "types_at_exact_boundary": {
+            "LOC": 4,
+            "ORG": 4,
+            "PER": 78
+          }
+        },
+        "GPE_LOC": {
+          "correct": 0,
+          "exact_boundary_any_type": 1812,
+          "gold": 2136,
+          "missed": {
+            "no_overlap": 77,
+            "other_overlap": 247,
+            "wrong_type_at_exact_boundary": 1812
+          },
+          "types_at_exact_boundary": {
+            "LOC": 222,
+            "ORG": 8,
+            "PER": 1582
+          }
+        },
+        "GPE_ORG": {
+          "correct": 0,
+          "exact_boundary_any_type": 282,
+          "gold": 389,
+          "missed": {
+            "no_overlap": 51,
+            "other_overlap": 56,
+            "wrong_type_at_exact_boundary": 282
+          },
+          "types_at_exact_boundary": {
+            "LOC": 71,
+            "ORG": 21,
+            "PER": 190
+          }
+        },
+        "LOC": {
+          "correct": 6,
+          "exact_boundary_any_type": 449,
+          "gold": 618,
+          "missed": {
+            "no_overlap": 30,
+            "other_overlap": 139,
+            "wrong_type_at_exact_boundary": 443
+          },
+          "types_at_exact_boundary": {
+            "LOC": 6,
+            "ORG": 15,
+            "PER": 428
+          }
+        },
+        "MISC": {
+          "correct": 0,
+          "exact_boundary_any_type": 2,
+          "gold": 8,
+          "missed": {
+            "other_overlap": 6,
+            "wrong_type_at_exact_boundary": 2
+          },
+          "types_at_exact_boundary": {
+            "PER": 2
+          }
+        },
+        "ORG": {
+          "correct": 540,
+          "exact_boundary_any_type": 1902,
+          "gold": 2849,
+          "missed": {
+            "no_overlap": 292,
+            "other_overlap": 655,
+            "wrong_type_at_exact_boundary": 1362
+          },
+          "types_at_exact_boundary": {
+            "LOC": 119,
+            "ORG": 540,
+            "PER": 1243
+          }
+        },
+        "PER": {
+          "correct": 2562,
+          "exact_boundary_any_type": 2890,
+          "gold": 4070,
+          "missed": {
+            "no_overlap": 493,
+            "other_overlap": 687,
+            "wrong_type_at_exact_boundary": 328
+          },
+          "types_at_exact_boundary": {
+            "LOC": 123,
+            "ORG": 205,
+            "PER": 2562
+          }
+        },
+        "PROD": {
+          "correct": 0,
+          "exact_boundary_any_type": 399,
+          "gold": 676,
+          "missed": {
+            "no_overlap": 77,
+            "other_overlap": 200,
+            "wrong_type_at_exact_boundary": 399
+          },
+          "types_at_exact_boundary": {
+            "LOC": 17,
+            "ORG": 96,
+            "PER": 286
+          }
+        }
+      },
+      "after_predictions_by_type": {
+        "LOC": 684,
+        "ORG": 1537,
+        "PER": 9354
+      },
+      "after_seven_type": {
+        "correct": 3351,
+        "f1": 0.29167029,
+        "gold": 11403,
+        "precision": 0.28950324,
+        "predicted": 11575,
+        "recall": 0.29387003
+      },
+      "artificial_spaces": 27086,
+      "before": {
+        "correct": 3314,
+        "f1": 0.2809546,
+        "gold": 11403,
+        "ordered_predictions_sha256": "f3da148035a0028e29085423b57ddc95a2ed805287451258f9128f1c3682af6e",
+        "precision": 0.27190679,
+        "predicted": 12188,
+        "recall": 0.29062527
+      },
+      "cases": 15696,
+      "cases_with_changed_suggestions": 579,
+      "gold": 11403,
+      "legacy_bio_sha256": "4bfedd14a5947a7777500e07da98f99225389e5f7b39776877f2adc903a7acbe",
+      "ordered_source_sha256": "77a7a43d3fb1f40dbde7dbd96c908e73621b23901c4f81529227dedf5ab37a0b",
+      "paired_gold": {
+        "gained": 1,
+        "lost": 207,
+        "retained": 3107
+      },
+      "paired_gold_loss_on_source": {
+        "no_overlap": 13,
+        "other_overlap": 193,
+        "wrong_type_at_exact_boundary": 1
+      },
+      "paired_predictions": {
+        "added": 357,
+        "removed": 970,
+        "retained_same_offsets": 7328,
+        "retained_shifted_offsets": 3890
+      },
+      "source_gold_exact_after": 11403,
+      "source_gold_exact_before": 7028,
+      "source_sha256": "b17efd70034071f65ba5e3a15bc15f9a597f4c1dd3febb2ffec964906a9c1a98",
+      "source_text_exact_after": 15696,
+      "source_text_exact_before": 736,
+      "source_url": "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/nob/no_bokmaal-ud-train.conllu",
+      "tokens": 243887
+    }
+  }
+}

@@ -3341,7 +3341,7 @@
       "registry_url": "https://github.com/ltgoslo/norne",
       "attribution": "Fredrik Jørgensen, Tobias Aasmoe, Anne-Stine Ruud Husevåg, Lilja Øvrelid and Erik Velldal. The Norwegian Dependency Treebank is credited in the National Library of Norway source notices.",
       "license": "NorNE adopts the NDT license. Linguistic annotations are CC0. Third-party source works may not be republished as stand-alone texts. Keep the original annotated corpus, full NDT notice and original source lists together.",
-      "interpretation": "The native cache exposes the named-entity BIO attribute from the Norwegian Dependency Treebank with its word forms and sentence boundaries. The source contains the full original dependency annotations, source credits and metadata.",
+      "interpretation": "The native cache contains the publisher’s original CoNLL-U bytes. Anno reads the word forms, name= BIO tags and SpaceAfter markers, and verifies the resulting coordinates against each # text sentence. Older two-column NorNE caches use single spaces. Rebuild from the original files in those archives to recover the publisher’s spacing.",
       "notices": [
         {
           "name": "README.md",
@@ -3406,9 +3406,7 @@
             "sentences": 1890,
             "tokens": 31250,
             "native_labels": 1254
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "a4eebb9240376b27f0c163aa6327e5ed60f2b9d475cc2a93ac203fb3c3e37208"
+          }
         },
         {
           "variant": "nno-test",
@@ -3421,9 +3419,7 @@
             "sentences": 1511,
             "tokens": 24773,
             "native_labels": 1010
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "bf45887d99570cca7e6a57bc2294a730a1e95f97a913f355d0fb5fc5d3efe385"
+          }
         },
         {
           "variant": "nno-train",
@@ -3436,9 +3432,7 @@
             "sentences": 14174,
             "tokens": 245330,
             "native_labels": 11668
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "a3c42fbc497a5b98f5f3cb3a8ae0e4df68c98b2a91f5e624b5fa2a5f093f1d0a"
+          }
         },
         {
           "variant": "nob-dev",
@@ -3451,9 +3445,7 @@
             "sentences": 2410,
             "tokens": 36369,
             "native_labels": 1688
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "b90d5443362dd097dafc49763839e5e2c8a48d720bb5f7af65e2c45b0dfe437d"
+          }
         },
         {
           "variant": "nob-test",
@@ -3466,9 +3458,7 @@
             "sentences": 1939,
             "tokens": 29966,
             "native_labels": 1383
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "b0c03701f1e18cd8448074b518ff8410446959cbefc7d1ed836c0ee4721b8b20"
+          }
         },
         {
           "variant": "nob-train",
@@ -3481,9 +3471,7 @@
             "sentences": 15696,
             "tokens": 243887,
             "native_labels": 11403
-          },
-          "projection": "norne-bio",
-          "cache_sha256": "4bfedd14a5947a7777500e07da98f99225389e5f7b39776877f2adc903a7acbe"
+          }
         }
       ]
     },

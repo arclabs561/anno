@@ -263,10 +263,13 @@ It reads grounded documents directly and works without a gold reference.
 [Grounded extraction example and full GENIA replay](EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
 
 For a sweep over several operating points, plot correct matches against total
-suggestions with `--x-axis suggestions`. The default horizontal axis counts
-unmatched predictions after evaluation. A filled point yields the largest
-observed correct count at or below its horizontal budget. Axes use rates per
-100 input units. The named settings give exact counts and recall.
+suggestions by setting `"x_axis": "suggestions"` in the report. The saved axis
+applies when rendering the JSON file or opening the study by name. Omit the
+field to count unmatched predictions after evaluation. `--x-axis` overrides
+the saved choice and can write that choice to a new JSON report. A filled
+point yields the largest observed correct count at or below its horizontal
+budget. Axes use rates per 100 input units. The named settings give exact
+counts and recall.
 
 ```sh
 anno viz tradeoff docs/eval/crossre-full-test-tradeoff.json --x-axis suggestions -o queue.html

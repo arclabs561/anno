@@ -130,6 +130,10 @@ use std::path::PathBuf;
 ///
 pub use super::dataset_registry::DatasetId;
 
+mod norne;
+
+const NORNE_UD_URL: &str =
+    "https://raw.githubusercontent.com/ltgoslo/norne/0c0d133a0f9590d76b81078712261badd4b605e9/ud/";
 const AGCNER_TEST_URL: &str = "https://ndownloader.figshare.com/files/42188208";
 
 /// Dataset identifier guaranteed to be loadable by [`DatasetLoader`].
@@ -143,6 +147,7 @@ pub struct LoadableDatasetId(DatasetId);
 enum DatasetParsePlan {
     Conll,
     Agcner,
+    Norne,
     JsonlNer,
     WikiannJson,
     TweetNer7,
@@ -510,6 +515,9 @@ impl LoadableDatasetId {
         if id == DatasetId::AgCNER {
             return Some(DatasetParsePlan::Agcner);
         }
+        if id == DatasetId::NorNE {
+            return Some(DatasetParsePlan::Norne);
+        }
         if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
             return Some(DatasetParsePlan::Tacred);
         }
@@ -602,7 +610,6 @@ impl LoadableDatasetId {
                 | DatasetId::GermEvalDiscontinuous
                 | DatasetId::PubMedDiscontinuous
                 | DatasetId::IndicNER
-                | DatasetId::NorNE
                 | DatasetId::CHEMDNER
                 | DatasetId::GeoWebNews
                 | DatasetId::TASTEset
@@ -1059,48 +1066,120 @@ pub struct AnnotatedToken {
 
 /// Annotated sentence with tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "SentenceFields")]
 pub struct AnnotatedSentence {
     /// Tokens in the sentence
     pub tokens: Vec<AnnotatedToken>,
     /// Source dataset
     pub source_dataset: DatasetId,
+    /// Explicit inter-word spacing when supplied by the publisher.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    space_after: Vec<bool>,
+}
+
+#[derive(Deserialize)]
+struct SentenceFields {
+    tokens: Vec<AnnotatedToken>,
+    source_dataset: DatasetId,
+    space_after: Option<Vec<bool>>,
+}
+
+impl TryFrom<SentenceFields> for AnnotatedSentence {
+    type Error = Error;
+
+    fn try_from(fields: SentenceFields) -> Result<Self> {
+        match fields.space_after {
+            Some(flags) => {
+                Self::from_tokens_with_spacing(fields.source_dataset, fields.tokens, flags)
+            }
+            None => Ok(Self::from_tokens(fields.source_dataset, fields.tokens)),
+        }
+    }
 }
 
 impl AnnotatedSentence {
-    // AgCNER rows are successive characters of the original string. Explicit
-    // whitespace is already part of a token and must survive reconstruction.
-    fn token_separator(&self) -> &'static str {
-        if self.source_dataset == DatasetId::AgCNER {
-            ""
-        } else {
-            " "
+    /// Build a token sequence using the dataset's ordinary separators.
+    #[must_use]
+    pub fn from_tokens(source_dataset: DatasetId, tokens: Vec<AnnotatedToken>) -> Self {
+        Self {
+            tokens,
+            source_dataset,
+            space_after: Vec::new(),
         }
+    }
+
+    /// Build a sentence with one space-after flag for every source word.
+    /// The final flag is retained as source metadata and adds no trailing space.
+    ///
+    /// # Errors
+    /// Returns an error if the number of flags differs from the number of words.
+    pub fn from_tokens_with_spacing(
+        source_dataset: DatasetId,
+        tokens: Vec<AnnotatedToken>,
+        space_after: Vec<bool>,
+    ) -> Result<Self> {
+        if tokens.len() != space_after.len() {
+            return Err(Error::InvalidInput(format!(
+                "Expected one spacing flag per token, got {} flags for {} tokens",
+                space_after.len(),
+                tokens.len()
+            )));
+        }
+        Ok(Self {
+            source_dataset,
+            tokens,
+            space_after,
+        })
+    }
+
+    /// Explicit source spacing, or `None` when the dataset's ordinary separators apply.
+    #[must_use]
+    pub fn source_space_after(&self) -> Option<&[bool]> {
+        (!self.space_after.is_empty()).then_some(self.space_after.as_slice())
+    }
+
+    fn separator_after(&self, index: usize) -> &'static str {
+        // AgCNER tokens are successive source characters. NorNE annotates
+        // boundaries individually. Older word/BIO files use one space.
+        if self
+            .space_after
+            .get(index)
+            .copied()
+            .unwrap_or(self.source_dataset != DatasetId::AgCNER)
+        {
+            " "
+        } else {
+            ""
+        }
+    }
+
+    fn text_range(&self, start: usize, end: usize) -> String {
+        let mut result = String::new();
+        for index in start..end {
+            if index > start {
+                result.push_str(self.separator_after(index - 1));
+            }
+            result.push_str(&self.tokens[index].text);
+        }
+        result
     }
 
     /// Get text of the sentence.
     #[must_use]
     pub fn text(&self) -> String {
-        self.tokens
-            .iter()
-            .map(|t| t.text.as_str())
-            .collect::<Vec<_>>()
-            .join(self.token_separator())
+        self.text_range(0, self.tokens.len())
     }
 
     /// Get entities from this sentence.
     #[must_use]
     pub fn entities(&self) -> Vec<super::datasets::GoldEntity> {
-        // Use the same separator as the model input. All offsets count Unicode scalars.
-        let separator = self.token_separator();
-        let separator_chars = separator.chars().count();
-        let mut token_starts: Vec<usize> = Vec::with_capacity(self.tokens.len());
-        let mut pos: usize = 0;
+        // The separators are empty strings or single ASCII spaces. Token offsets
+        // count Unicode scalars, including explicit whitespace inside tokens.
+        let mut token_starts = Vec::with_capacity(self.tokens.len());
+        let mut pos = 0;
         for (i, tok) in self.tokens.iter().enumerate() {
             token_starts.push(pos);
-            pos += tok.text.chars().count();
-            if i + 1 < self.tokens.len() {
-                pos += separator_chars;
-            }
+            pos += tok.text.chars().count() + self.separator_after(i).len();
         }
 
         let mut entities = Vec::new();
@@ -1119,11 +1198,7 @@ impl AnnotatedSentence {
                 {
                     end += 1;
                 }
-                let entity_text: String = self.tokens[i..end]
-                    .iter()
-                    .map(|t| t.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(separator);
+                let entity_text = self.text_range(i, end);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -1152,11 +1227,7 @@ impl AnnotatedSentence {
                 while end < self.tokens.len() && self.tokens[end].ner_tag == *tag {
                     end += 1;
                 }
-                let entity_text: String = self.tokens[i..end]
-                    .iter()
-                    .map(|t| t.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(separator);
+                let entity_text = self.text_range(i, end);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -1374,6 +1445,19 @@ impl LoadedDataset {
             }
         }
         counts
+    }
+
+    /// Describe a coordinate convention that varies between releases of the same dataset.
+    #[must_use]
+    pub fn text_coordinate_note(&self) -> Option<&'static str> {
+        if self.id != DatasetId::NorNE {
+            return None;
+        }
+        Some(if self.sentences.first()?.space_after.is_empty() {
+            "Space-joined tokens from a legacy NorNE cache. Use the original CoNLL-U files for publisher offsets."
+        } else {
+            "Publisher CoNLL-U word spacing, checked against every sentence's # text."
+        })
     }
 
     /// Get statistics summary.
@@ -2136,13 +2220,14 @@ impl DatasetLoader {
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
-        // The AgCNER registry identifies its Figshare collection. The actual
-        // evaluation asset is the authors' immutable v1 test file.
+        // The registry entries describe whole collections. A cold evaluation
+        // selects one concrete publisher test file.
         let url = match id {
-            DatasetId::AgCNER => AGCNER_TEST_URL,
-            _ => id.download_url(),
+            DatasetId::AgCNER => AGCNER_TEST_URL.to_owned(),
+            DatasetId::NorNE => format!("{NORNE_UD_URL}nno/no_nynorsk-ud-test.conllu"),
+            _ => id.download_url().to_owned(),
         };
-        self.download_from_url(id, url.to_owned())
+        self.download_from_url(id, url)
     }
 
     #[cfg(feature = "eval")]
@@ -2511,6 +2596,9 @@ impl DatasetLoader {
     // These publishers use language tags for their dataset configs. Arbitrary HF config
     // names (such as "all", "pos" or a genre) do not identify a language.
     fn artifact_language(id: DatasetId, resolved_url: &str) -> Option<String> {
+        if id == DatasetId::NorNE {
+            return norne::profile(resolved_url).map(|(lang, _)| lang.to_owned());
+        }
         if id == DatasetId::MasakhaNER && resolved_url == id.download_url() {
             return Some("yo".into());
         }
@@ -2545,6 +2633,7 @@ impl DatasetLoader {
         dataset.metadata.split = entry.resolved_url.as_deref().and_then(|url| {
             // Figshare asset IDs identify splits even though their URLs omit filenames.
             match (dataset.id, url) {
+                (DatasetId::NorNE, url) => norne::profile(url).map(|(_, split)| split.to_owned()),
                 (DatasetId::AgCNER, AGCNER_TEST_URL) => Some("test".into()),
                 (DatasetId::AgCNER, "https://ndownloader.figshare.com/files/42188211") => {
                     Some("dev".into())
@@ -3395,7 +3484,7 @@ impl DatasetLoader {
         }
 
         let trimmed = content.trim_start();
-        if matches!(plan, DatasetParsePlan::Conll)
+        if matches!(plan, DatasetParsePlan::Conll | DatasetParsePlan::Norne)
             && (trimmed.starts_with('{') || trimmed.starts_with('['))
         {
             return Err(Error::InvalidInput(format!(
@@ -3407,6 +3496,7 @@ impl DatasetLoader {
         let mut result = match plan {
             DatasetParsePlan::Conll => self.parse_conll(content, id),
             DatasetParsePlan::Agcner => self.parse_agcner(content),
+            DatasetParsePlan::Norne => self.parse_norne(content),
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
@@ -3596,10 +3686,10 @@ impl DatasetLoader {
             }
             if line.is_empty() || conll04_marker {
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -3706,10 +3796,7 @@ impl DatasetLoader {
 
         // Don't forget last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         if sentences.is_empty() {
@@ -3726,6 +3813,33 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
+    fn parse_norne(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::NorNE;
+        // Preserve earlier word/BIO caches (including CoNLL-2003 columns).
+        // A CoNLL-U marker anywhere selects the strict reader, so a malformed
+        // mixture cannot silently score row indices as words.
+        let conllu = content.lines().any(|line| {
+            line.starts_with("# text = ") || line.starts_with("# sent_id = ") || {
+                let mut columns = line.split('\t');
+                columns.next().is_some_and(|id| id.parse::<usize>().is_ok())
+                    && columns.nth(7).is_some()
+            }
+        });
+        if !conllu {
+            return self.parse_conll(content, id);
+        }
+
+        Ok(LoadedDataset {
+            id,
+            sentences: norne::sentences(content)?,
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
             metadata: id.default_metadata(),
@@ -3750,10 +3864,10 @@ impl DatasetLoader {
         for (index, line) in content.lines().chain(std::iter::once("")).enumerate() {
             if line.trim().is_empty() {
                 if !tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        source_dataset: id,
-                        tokens: std::mem::take(&mut tokens),
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut tokens),
+                    ));
                 }
                 continue;
             }
@@ -3861,10 +3975,7 @@ impl DatasetLoader {
                     });
                     row_languages.insert(language.map(str::to_owned));
                 }
-                sentences.push(AnnotatedSentence {
-                    tokens: annotated_tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
             }
         }
 
@@ -4030,10 +4141,7 @@ impl DatasetLoader {
                 }
 
                 if !annotated_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: annotated_tokens,
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
                 }
                 continue;
             }
@@ -4157,10 +4265,7 @@ impl DatasetLoader {
                         annotated_tokens.push(AnnotatedToken { text: tok, ner_tag });
                     }
 
-                    sentences.push(AnnotatedSentence {
-                        tokens: annotated_tokens,
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
                     continue;
                 }
             }
@@ -4195,10 +4300,7 @@ impl DatasetLoader {
                         annotated_tokens.push(AnnotatedToken { text: tok, ner_tag });
                     }
 
-                    sentences.push(AnnotatedSentence {
-                        tokens: annotated_tokens,
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
                     continue;
                 }
             }
@@ -4270,13 +4372,13 @@ impl DatasetLoader {
                 continue;
             }
 
-            sentences.push(AnnotatedSentence {
-                tokens: vec![AnnotatedToken {
+            sentences.push(AnnotatedSentence::from_tokens(
+                id,
+                vec![AnnotatedToken {
                     text,
                     ner_tag: format!("B-{}", label),
                 }],
-                source_dataset: id,
-            });
+            ));
         }
 
         if sentences.is_empty() {
@@ -4515,10 +4617,7 @@ impl DatasetLoader {
             }
 
             if !annotated_tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens: annotated_tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
             }
         }
 
@@ -4560,10 +4659,10 @@ impl DatasetLoader {
             // Skip empty lines - they indicate sentence boundaries
             if line.is_empty() {
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -4578,10 +4677,10 @@ impl DatasetLoader {
             if line.starts_with("# ") || (line.starts_with('#') && !line.contains('\t')) {
                 // Document boundary comment can also serve as sentence boundary
                 if line.contains("document_id") && !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -4610,10 +4709,7 @@ impl DatasetLoader {
 
         // Don't forget the last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         if sentences.is_empty() {
@@ -4654,10 +4750,10 @@ impl DatasetLoader {
             // Empty lines indicate sentence boundaries
             if line.is_empty() {
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -4665,10 +4761,10 @@ impl DatasetLoader {
             // Handle -DOCSTART- markers (document boundary, also a sentence boundary)
             if line.starts_with("-DOCSTART-") {
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -4728,10 +4824,7 @@ impl DatasetLoader {
 
         // Don't forget the last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         if sentences.is_empty() {
@@ -4788,10 +4881,7 @@ impl DatasetLoader {
                 }
 
                 if !annotated_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: annotated_tokens,
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
                 }
             }
         }
@@ -4872,10 +4962,7 @@ impl DatasetLoader {
             }
 
             if !tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -4967,10 +5054,7 @@ impl DatasetLoader {
                 continue;
             }
 
-            sentences.push(AnnotatedSentence {
-                tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, tokens));
         }
 
         if sentences.is_empty() {
@@ -5124,10 +5208,7 @@ impl DatasetLoader {
             }
 
             if !tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -5297,10 +5378,7 @@ impl DatasetLoader {
             }
 
             if !annotated_tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens: annotated_tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, annotated_tokens));
             }
         }
 
@@ -5345,10 +5423,10 @@ impl DatasetLoader {
             if line.is_empty() {
                 // End of sentence
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -5385,10 +5463,7 @@ impl DatasetLoader {
 
         // Don't forget the last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         let now = super::timestamp::now();
@@ -5419,10 +5494,10 @@ impl DatasetLoader {
             if line.is_empty() {
                 // End of sentence
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -5442,10 +5517,7 @@ impl DatasetLoader {
 
         // Don't forget the last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         if sentences.is_empty() {
@@ -5498,10 +5570,7 @@ impl DatasetLoader {
                 .collect();
 
             if !tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -5544,10 +5613,7 @@ impl DatasetLoader {
                         ner_tag: "O".into(), // PreCo has no NER annotations.
                     })
                     .collect();
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
         if sentences.is_empty() {
@@ -5572,10 +5638,7 @@ impl DatasetLoader {
         let tokens = super::litbank::SourcePair::decode(content)?.ner_tokens()?;
         Ok(LoadedDataset {
             id,
-            sentences: vec![AnnotatedSentence {
-                tokens,
-                source_dataset: id,
-            }],
+            sentences: vec![AnnotatedSentence::from_tokens(id, tokens)],
             loaded_at: super::timestamp::now(),
             source_url: id.download_url().to_string(),
             data_source: DataSource::LocalCache,
@@ -6199,10 +6262,7 @@ impl DatasetLoader {
             }
 
             if !tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6408,10 +6468,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6503,10 +6560,7 @@ impl DatasetLoader {
                     }
 
                     if !tokens.is_empty() {
-                        sentences.push(AnnotatedSentence {
-                            tokens,
-                            source_dataset: id,
-                        });
+                        sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                     }
                 }
             }
@@ -6562,10 +6616,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", category),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6621,10 +6672,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", coarse_label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6676,10 +6724,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6747,10 +6792,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6816,10 +6858,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -6951,10 +6990,7 @@ impl DatasetLoader {
 
                     for tokens in doc_sentences.drain(..) {
                         if !tokens.is_empty() {
-                            sentences.push(AnnotatedSentence {
-                                tokens,
-                                source_dataset: id,
-                            });
+                            sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                         }
                     }
                 }
@@ -6976,10 +7012,7 @@ impl DatasetLoader {
                             ),
                         }];
 
-                        sentences.push(AnnotatedSentence {
-                            tokens,
-                            source_dataset: id,
-                        });
+                        sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                     }
                 }
             }
@@ -7069,10 +7102,7 @@ impl DatasetLoader {
                                     ner_tag: format!("B-{}", subtype),
                                 }];
 
-                                sentences.push(AnnotatedSentence {
-                                    tokens,
-                                    source_dataset: id,
-                                });
+                                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
 
                                 // Also extract arguments if present
                                 if let Some(args) = event.get("argument").and_then(|a| a.as_array())
@@ -7092,10 +7122,8 @@ impl DatasetLoader {
                                                 ner_tag: format!("B-ARG_{}", role),
                                             }];
 
-                                            sentences.push(AnnotatedSentence {
-                                                tokens,
-                                                source_dataset: id,
-                                            });
+                                            sentences
+                                                .push(AnnotatedSentence::from_tokens(id, tokens));
                                         }
                                     }
                                 }
@@ -7111,10 +7139,7 @@ impl DatasetLoader {
                         ner_tag: "O".to_string(),
                     }];
 
-                    sentences.push(AnnotatedSentence {
-                        tokens,
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                 }
             }
         }
@@ -7191,10 +7216,7 @@ impl DatasetLoader {
                                         ner_tag: format!("B-{}", event_type),
                                     }];
 
-                                    sentences.push(AnnotatedSentence {
-                                        tokens,
-                                        source_dataset: id,
-                                    });
+                                    sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                                 }
                             }
                         }
@@ -7214,10 +7236,9 @@ impl DatasetLoader {
                                                     ner_tag: format!("B-ARG_{}", role),
                                                 }];
 
-                                                sentences.push(AnnotatedSentence {
-                                                    tokens,
-                                                    source_dataset: id,
-                                                });
+                                                sentences.push(AnnotatedSentence::from_tokens(
+                                                    id, tokens,
+                                                ));
                                             }
                                         }
                                     }
@@ -7314,10 +7335,7 @@ impl DatasetLoader {
                                         ner_tag: format!("B-{}", event_type),
                                     }];
 
-                                    sentences.push(AnnotatedSentence {
-                                        tokens,
-                                        source_dataset: id,
-                                    });
+                                    sentences.push(AnnotatedSentence::from_tokens(id, tokens));
                                 }
                             }
                         }
@@ -7343,10 +7361,8 @@ impl DatasetLoader {
                                                 ner_tag: format!("B-ARG_{}", role),
                                             }];
 
-                                            sentences.push(AnnotatedSentence {
-                                                tokens,
-                                                source_dataset: id,
-                                            });
+                                            sentences
+                                                .push(AnnotatedSentence::from_tokens(id, tokens));
                                         }
                                     }
                                 }
@@ -7421,10 +7437,7 @@ impl DatasetLoader {
                     ner_tag: format!("B-{}", label),
                 }];
 
-                sentences.push(AnnotatedSentence {
-                    tokens,
-                    source_dataset: id,
-                });
+                sentences.push(AnnotatedSentence::from_tokens(id, tokens));
             }
         }
 
@@ -7470,10 +7483,10 @@ impl DatasetLoader {
             // Blank line marks end of sentence
             if line.is_empty() {
                 if !current_tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens: std::mem::take(&mut current_tokens),
-                        source_dataset: id,
-                    });
+                    sentences.push(AnnotatedSentence::from_tokens(
+                        id,
+                        std::mem::take(&mut current_tokens),
+                    ));
                 }
                 continue;
             }
@@ -7510,10 +7523,7 @@ impl DatasetLoader {
 
         // Don't forget last sentence
         if !current_tokens.is_empty() {
-            sentences.push(AnnotatedSentence {
-                tokens: current_tokens,
-                source_dataset: id,
-            });
+            sentences.push(AnnotatedSentence::from_tokens(id, current_tokens));
         }
 
         if sentences.is_empty() {
@@ -8429,8 +8439,9 @@ mod tests {
 
     #[test]
     fn test_annotated_sentence_text() {
-        let sentence = AnnotatedSentence {
-            tokens: vec![
+        let sentence = AnnotatedSentence::from_tokens(
+            DatasetId::WikiGold,
+            vec![
                 AnnotatedToken {
                     text: "John".into(),
                     ner_tag: "B-PER".into(),
@@ -8452,8 +8463,7 @@ mod tests {
                     ner_tag: "I-LOC".into(),
                 },
             ],
-            source_dataset: DatasetId::WikiGold,
-        };
+        );
 
         assert_eq!(sentence.text(), "John lives in New York");
     }
@@ -8556,8 +8566,9 @@ mod tests {
 
     #[test]
     fn test_annotated_sentence_entities() {
-        let sentence = AnnotatedSentence {
-            tokens: vec![
+        let sentence = AnnotatedSentence::from_tokens(
+            DatasetId::WikiGold,
+            vec![
                 AnnotatedToken {
                     text: "John".into(),
                     ner_tag: "B-PER".into(),
@@ -8579,8 +8590,7 @@ mod tests {
                     ner_tag: "B-ORG".into(),
                 },
             ],
-            source_dataset: DatasetId::WikiGold,
-        };
+        );
 
         let entities = sentence.entities();
         assert_eq!(entities.len(), 2);
@@ -9290,21 +9300,16 @@ Blackburn NNP I-NP I-PER
             let is_ner = ds.is_ner();
 
             if is_conllu && is_ner {
-                let hint = LoadableDatasetId::registry_hint_plan(ds);
-                assert!(
-                    hint.is_some(),
-                    "{:?} has format={} and is NER but no registry hint",
-                    ds,
-                    format
+                let expected = if ds == DatasetId::NorNE {
+                    DatasetParsePlan::Norne
+                } else {
+                    DatasetParsePlan::Conllu
+                };
+                assert_eq!(
+                    LoadableDatasetId::registry_hint_plan(ds),
+                    Some(expected),
+                    "{ds:?}"
                 );
-                if let Some(plan) = hint {
-                    assert_eq!(
-                        plan,
-                        DatasetParsePlan::Conllu,
-                        "{:?} should use Conllu parse plan",
-                        ds
-                    );
-                }
             }
         }
     }
