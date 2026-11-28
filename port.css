@@ -12,3 +12,11 @@ dialog{color:inherit;width:min(960px,96vw);padding:5px;box-shadow:0 10px 35px #0
 
 .span-detail{display:block;color:#e2dbc2;font-size:12px;margin:.5em 0}
 mark[role=button]{cursor:pointer}select{font:inherit}#content button+button{margin-left:6px}details{margin:7px 0}summary{cursor:pointer}
+
+/* Cast-metal service banks and the narrow radio above the reader glass. */
+.harbor-strip{display:flex;align-items:center;gap:12px;padding:4px 10px;border-block:2px ridge #716b61;background:#21221f;color:#c4c8a1;font:12px/1.4 monospace}
+.harbor-strip span:first-child{padding:0 5px;background:#afa58a;color:#212323;font:bold 11px/1.5 Arial;text-transform:uppercase;white-space:nowrap}
+.console nav{border:2px ridge #555450;padding:18px 9px 10px;gap:8px;background:radial-gradient(circle at 5px 5px,#100f10 1px,#888074 2px,transparent 3px),repeating-linear-gradient(174deg,transparent 0 28px,#8a878011 29px,transparent 30px 57px),linear-gradient(98deg,#444443,#292a29 83%,#44423f)}
+button:not(.tile){border-radius:3px;border:2px outset #796b68;background:linear-gradient(#74383f,#50262c 44%,#411d22 46%,#51262c);text-shadow:1px 1px #1d1617}
+nav button[aria-current=true]{border-style:inset;box-shadow:inset 3px 0 #d7c98e}
+@media(max-width:650px){.console nav{padding:8px;gap:6px}.harbor-strip{gap:7px;font-size:11px}}
