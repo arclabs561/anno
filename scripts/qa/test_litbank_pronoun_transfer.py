@@ -25,6 +25,16 @@ class TransferChoices(unittest.TestCase):
                               row["Pronoun-offset"]), ("Sol", sol, "Neri", neri, her))
             self.assertEqual((row["A-coref"], row["B-coref"]), (expected_a, expected_b))
 
+    def test_reflexive_slice_is_disjoint_from_the_original_target_forms(self):
+        text = "Ada greeted Béa. She congratulated herself."
+        mentions = [Mention((text.index(word), text.index(word) + len(word)), tag, chain)
+                    for word, tag, chain in [("Ada", "PROP_PER", "a"), ("Béa", "PROP_PER", "b"),
+                                             ("She", "PRON_PER", "a"), ("herself", "PRON_PER", "a")]]
+        original, = choices("w", text, mentions, Counter())
+        reflexive, = choices("w", text, mentions, Counter(), pronouns={"herself", "himself"})
+        self.assertEqual((original["Pronoun"], reflexive["Pronoun"]), ("She", "herself"))
+        self.assertEqual((reflexive["A"], reflexive["B"], reflexive["A-coref"]), ("Ada", "Béa", "TRUE"))
+
     def test_aliases_of_one_person_and_distant_candidates_are_excluded(self):
         text = "Ilo met Kai. She waited."
         mentions = [Mention((0, 3), "PROP_PER", "one"), Mention((8, 11), "PROP_PER", "one"),

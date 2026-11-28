@@ -57,6 +57,33 @@ def panel():
     return rows
 
 
+def reflexive_panel(infinitive=False):
+    """Contrast the subject of a matrix clause with the subject of a reported clause."""
+    rows = []
+    layouts = [(("Iris", "Léna"), "herself"), (("Omar", "Evan"), "himself")] if infinitive else [
+        (("Ada", "Béa"), "herself"), (("Leo", "Max"), "himself")]
+    actions = ("washed", "dressed", "defended") if infinitive else ("praised", "blamed", "introduced")
+    family = "reflexive_infinitive" if infinitive else "reflexive_clause"
+    for names, pronoun in layouts:
+        for a, b in (names, names[::-1]):
+            for action in actions:
+                pair = f"clause-{a}-{b}-{action}"
+                if infinitive:
+                    passages = (f"Today {a}, beside {b}, {action} {pronoun}.",
+                                f"Today {a} advised {b} to {action.removesuffix('ed')} {pronoun}.")
+                else:
+                    passages = (f"Yesterday {a}, who saw {b}, had {action} {pronoun}.",
+                                f"Yesterday {a} said how {b} once {action} {pronoun}.")
+                for gold_name, text in zip("AB", passages, strict=True):
+                    rows.append({"ID": f"{pair}-{gold_name}", "pair": pair, "family": family,
+                                 "Text": text, "Pronoun": pronoun, "Pronoun-offset": text.index(pronoun),
+                                 "A": a, "A-offset": text.index(a), "B": b, "B-offset": text.index(b),
+                                 "gold": gold_name})
+                if gap.spans(rows[-2]) != gap.spans(rows[-1]):
+                    raise ValueError(f"marked endpoints moved in {pair}")
+    return rows
+
+
 def observe(row, result, producer, mode):
     bits, status = gap.from_clusters(row, result, producer, mode)
     if bits is None:
@@ -98,6 +125,13 @@ def observe(row, result, producer, mode):
     elif outcome == "query_missing" and len(enclosing_names) == 1 and row["gold"]:
         diagnostic = ("enclosing_query_names_correct_candidate" if enclosing_names[0] == row["gold"]
                       else "enclosing_query_names_wrong_candidate")
+    if row["family"] in ("reflexive_clause", "reflexive_infinitive"):
+        a, b = names
+        # The two authored parentheticals modify A. This exact source phrase
+        # contains both marked names, so containment alone cannot identify its head.
+        if (row["Text"][a[1]:b[0]] in (", who saw ", ", beside ")
+                and [a[0], b[1]] in exact_group):
+            diagnostic = "exact_query_linked_to_outer_phrase_headed_by_A"
     return {"status": outcome, "choice": choice, "returned_query_A_B": bits[:3],
             "names_linked_to_strictly_enclosing_query": "".join(enclosing_names),
             **({"diagnostic": diagnostic} if diagnostic else {})}
@@ -178,15 +212,24 @@ def main():
     parser.add_argument("output", type=Path, help="aggregate replay receipt")
     parser.add_argument("--arm", choices=ARMS, required=True, action="append")
     parser.add_argument("--details", type=Path, help="optional per-question evidence")
+    parser.add_argument("--panel", choices=("signer", "reflexive", "reflexive-infinitive"), default="signer")
+    parser.add_argument("--check", type=Path, help="compare the selected arms with a saved receipt")
     args = parser.parse_args()
+    if args.check and args.check.resolve() in {args.output.resolve(), args.details.resolve() if args.details else None}:
+        parser.error("use a separate output path for the checked receipt")
     if len(set(args.arm)) != len(args.arm):
         parser.error("each arm can be requested once")
-    rows = panel()
+    rows = panel() if args.panel == "signer" else reflexive_panel(args.panel == "reflexive-infinitive")
     result, details = {}, {}
     for arm in args.arm:
         result[arm], details[arm] = replay(rows, args.binary, arm)
     receipt = {"panel_sha256": digest(rows), "documents": len(rows), "arms": result}
     args.output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    if args.check:
+        expected = json.loads(args.check.read_bytes())
+        if (expected["panel_sha256"] != receipt["panel_sha256"] or expected["documents"] != len(rows)
+                or any(result[arm] != expected["arms"].get(arm) for arm in args.arm)):
+            raise ValueError("panel or backend decisions differ from the stored receipt")
     if args.details:
         args.details.write_text(json.dumps(details, indent=2, sort_keys=True) + "\n")
 
