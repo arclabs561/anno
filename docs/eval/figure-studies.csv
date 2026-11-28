@@ -1,0 +1,13 @@
+study,datasets,guide
+crossre-endpoint-paired,CrossRE|CrossREAI|CrossRELiterature,docs/eval/crossre-predicate-ranking.md
+crossre-full-test-paired,CrossRE|CrossREAI|CrossRELiterature,docs/eval/crossre-predicate-ranking.md
+crossre-full-test-tradeoff,CrossRE|CrossREAI|CrossRELiterature,docs/eval/crossre-predicate-ranking.md
+crossre-predicate-paired,CrossRE|CrossREAI|CrossRELiterature,docs/eval/crossre-predicate-ranking.md
+crossre-predicate-tradeoff,CrossRE|CrossREAI|CrossRELiterature,docs/eval/crossre-predicate-ranking.md
+genia-span-overlap,GENIA|GENIANested,docs/EXTRACTION_WORKFLOWS.md#review-overlapping-highlights
+native-gap-margin-tradeoff,GAP|Winogender,docs/eval/native-gap-link-retention.md
+native-gap-retention-paired,GAP|Winogender,docs/eval/native-gap-link-retention.md
+nuner-misc-prompt-paired,WikiGold|Wnut17,docs/eval/wikigold-nuner-routing.md#does-a-fourth-prompt-recover-misc
+wikigold-entity-errors,WikiGold,docs/eval/wikigold-nuner-routing.md#which-types-benefit
+wikigold-routing-paired,WikiGold|Wnut17,docs/eval/wikigold-nuner-routing.md
+wikigold-routing-tradeoff,WikiGold|Wnut17,docs/eval/wikigold-nuner-routing.md

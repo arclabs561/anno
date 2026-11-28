@@ -20,6 +20,7 @@ pub mod eval;
 pub mod explain;
 pub mod export;
 pub mod extract;
+pub(crate) mod figure_catalog;
 pub mod history;
 pub mod import;
 pub mod info;

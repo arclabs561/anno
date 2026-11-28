@@ -129,7 +129,7 @@ fn unicode_segments_duplicate_signals_and_unannotated_documents_pool_by_characte
         &compact,
     )))
     .unwrap();
-    assert!(html.contains("<th>Repeated</th><td>3</td><td>3</td><td>100.0%</td>"));
+    assert!(html.contains(r#"<th scope="row">Repeated</th><td data-label="Sharing">3</td><td data-label="All signals">3</td><td data-label="Share of label">100.0%</td>"#));
     for artifact in [&svg, &html, &aggregate.to_string()] {
         for secret in ["private-document-id", "🍊", "🍐", "ABé", "éCλ", "xyz"] {
             assert!(!artifact.contains(secret));
@@ -161,8 +161,43 @@ fn legacy_segments_of_the_same_signal_and_empty_populations() {
     assert_eq!(empty["signals"], 0);
     let html =
         String::from_utf8(success(run(&["viz", "overlap", "--format", "html"], b"[]"))).unwrap();
-    assert!(html.contains("<th>Documents</th><td>0</td><td>0</td><td>—</td>"));
+    assert!(html.contains(r#"<th scope="row">Documents</th><td data-label="Sharing">0</td><td data-label="All">0</td><td data-label="Share">—</td>"#));
     assert!(!html.contains("NaN"));
+}
+
+#[test]
+fn rare_depth_and_label_rankings_use_their_named_denominators() {
+    let report = json!({
+        "schema": "anno.overlap/v1", "title": "Release overlap",
+        "documents": 1, "documents_with_overlap": 1,
+        "signals": 1050, "signals_with_overlap": 65, "characters": 100000,
+        "coverage": {"zero": 99000, "one": 950, "two": 49, "three_or_more": 1},
+        "labels": {
+            "Common": {"signals": 1000, "signals_with_overlap": 60},
+            "Rare": {"signals": 50, "signals_with_overlap": 5}
+        }
+    });
+    let bytes = serde_json::to_vec(&report).unwrap();
+    let html = String::from_utf8(success(run(
+        &["viz", "overlap", "--format", "html"],
+        &bytes,
+    )))
+    .unwrap();
+    assert!(html.contains(r#"<th scope="row">3+ signals</th><td data-label="Characters">1</td><td data-label="Of all text">under 0.01%</td><td data-label="Of shared text">2.00%</td>"#));
+    let table = |name: &str| {
+        let pos = html.find(name).unwrap();
+        &html[pos..pos + html[pos..].find("</table>").unwrap()]
+    };
+    let share = table("<caption>Labels by affected share</caption>");
+    let count = table("<caption>Labels by affected count</caption>");
+    assert!(
+        share.find(r#"<th scope="row">Rare</th>"#).unwrap()
+            < share.find(r#"<th scope="row">Common</th>"#).unwrap()
+    );
+    assert!(
+        count.find(r#"<th scope="row">Common</th>"#).unwrap()
+            < count.find(r#"<th scope="row">Rare</th>"#).unwrap()
+    );
 }
 
 #[test]

@@ -185,6 +185,28 @@ ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved t
 
 ## Visualize evaluation results
 
+Start with a dataset name. Run these commands in an Anno checkout or an
+unpacked `dataset-figures` CI artifact. Each has a dated research catalog with
+the registry evidence and native chart inputs used in that build.
+
+```sh
+anno dataset evidence WikiGold --status scored
+anno viz list --dataset WikiGold
+anno viz render wikigold-routing-paired -o routing.html
+```
+
+Use `anno dataset evidence --status unindexed` to find gaps, or add `--backend`,
+`--task` and `--split` to require a match on the same recorded run. Add `--json`
+for sample sizes and source receipts. A loader check establishes that an input
+opened. Only a scored record establishes that a backend was evaluated.
+
+`anno viz render` also recognizes portable report files by schema. For example,
+`anno viz render my-study.json -o my-study.svg` redraws your own comparison.
+An installed binary can read your own report from any directory. To run named
+studies against a particular research snapshot, pass `--catalog PATH` or set
+`ANNO_FIGURE_CATALOG=/path/to/figure-catalog.json`. This pins the evidence
+independently of the Anno version. [All figure generators and CI downloads](figures/README.md)
+
 For ordinary extraction output, `anno viz overlap documents.jsonl -o overlap.svg`
 measures how many mentions share a character and which labels are affected.
 It reads grounded documents directly and works without a gold reference.
@@ -198,21 +220,72 @@ stream of reports, including JSONL. It pools their counts before computing
 percentages and counts a repeated input once per report. Save a compact,
 replayable summary with `anno viz errors reports.jsonl --title 'Validation errors' -o summary.json`,
 then use `anno viz errors summary.json -o errors.svg` to redraw it.
+Current native reports break errors down by gold label and record whether a
+partial boundary match also had the wrong type. A pooled report needs that
+detail in every input before it can show the per-type result.
 
 ```sh
 anno eval --model pattern --text 'Mail x@y.com to Ada.' \
   --gold 'x@y.com:ORG:5:12' --gold 'Ada:PER:16:19' --json | anno viz errors -o errors.svg
 ```
 
-To compare extractor settings, render a measured operating-point report from the
-checkout root. The chart shows how many correct matches each setting buys for
-its unmatched-prediction cost. Each cohort uses the same axes, normalized to
-100 input units. Filled points mark its best observed settings at each budget.
-The table gives the exact counts and recall for every setting.
+To decide whether a change helps, compare a baseline and candidate on the same
+documents. The following example scores two offline backends on identical gold
+mentions and writes a self-contained comparison you can open in a browser.
 
 ```sh
-anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json -o wikigold.svg
-anno viz tradeoff docs/eval/wikigold-routing-tradeoff.json -o wikigold.html
+for model in pattern heuristic; do
+  anno eval --model "$model" --text 'Mail x@y.com to Ada.' --pair-id mail-1 \
+    --gold 'x@y.com:EMAIL:5:12' --gold 'Ada:PER:16:19' --json > "$model.jsonl"
+done
+anno viz paired pattern.jsonl --against heuristic.jsonl \
+  --baseline-name Pattern --candidate-name Heuristic --cohort 'Mail fixture' \
+  --role 'Worked example' -o comparison.html
+anno viz paired docs/eval/crossre-full-test-paired.json -o crossre.svg
+```
+
+Each JSONL stream may contain multiple documents in any order. Current
+`anno eval --json` records a source-text digest and a fingerprint for each
+typed gold span. A stable occurrence ID distinguishes repeated copies of the
+same text. Use `--pair-id` on both runs when an input lacks such an ID.
+The comparison checks the document and reference sets before counting gained,
+lost and retained exact matches. To compare older evaluations, replay their
+saved predictions and gold through the current evaluator.
+
+The paired view shows all suggestions in the scoring inventory, including
+correct ones. It also shows component calls and median latency when measured.
+A cohort can supply a signed uncertainty interval with its method. Inferring
+a sampling interval requires paired outcomes at the resampling unit. One
+document can simultaneously gain and lose a gold match.
+[Fixed-budget CrossRE example](eval/crossre-predicate-ranking.md) · [WikiGold routing costs](eval/wikigold-nuner-routing.md)
+
+For a whole NER dataset, use an eval-enabled build and write one report for
+every loaded sentence, including sentences with no gold mentions. With WikiGold
+cached, the following runs cover the full input twice. The HTML comparison
+checks that both runs evaluated the same occurrences against the same gold.
+
+```sh
+anno dataset eval --dataset WikiGold --task ner --model pattern --reports pattern.jsonl
+anno dataset eval --dataset WikiGold --task ner --model heuristic --reports heuristic.jsonl
+anno viz paired pattern.jsonl --against heuristic.jsonl --cohort WikiGold --unit sentences \
+  --baseline-name Pattern --candidate-name Heuristic -o wikigold.html
+anno viz errors heuristic.jsonl -o wikigold-errors.svg
+```
+
+On the pinned WikiGold release this example pairs 1,696 sentences, including
+355 with no gold mentions. The heuristic scores 1,394 exact matches and the
+pattern backend scores zero against WikiGold's typed gold spans. Pattern is a
+useful control here. Its structured identifiers fall outside much of this label
+inventory. Per-case timings cover extraction on the machine running the command.
+
+For a sweep over several operating points, plot correct matches against total
+suggestions with `--x-axis suggestions`. The default horizontal axis counts
+unmatched predictions after evaluation. A filled point yields the largest
+observed correct count at or below its horizontal budget. Axes use rates per
+100 input units. The named settings give exact counts and recall.
+
+```sh
+anno viz tradeoff docs/eval/crossre-full-test-tradeoff.json --x-axis suggestions -o queue.html
 ```
 
 To supply your own study, write `anno.tradeoff/v1` JSON with one series per
@@ -237,12 +310,12 @@ these illustrative counts compare two settings on ten sentences.
 }
 ```
 
-All three views accept a JSON file or stdin and write standalone SVG to stdout by
+All four views accept a JSON file or stdin and write standalone SVG to stdout by
 default. A `.html` output file or `--format html` produces a self-contained
 page with an accessible data table. A `.json` output file or `--format json`
-writes the validated operating points, a pooled `anno.errors/v1` report, or
-an `anno.overlap/v1` summary. Rust callers can use `Tradeoff`, `errors::EvalErrors`
-or `overlap::Overlap` from `anno::viz`. Each exposes `from_json`, `render_svg`
+writes a reusable count summary (`anno.paired/v1`, `anno.tradeoff/v1`,
+`anno.errors/v1` or `anno.overlap/v1`). Rust callers can use `paired::Paired`,
+`Tradeoff`, `errors::EvalErrors` or `overlap::Overlap` from `anno::viz`. Each exposes `from_json`, `render_svg`
 and `render_html`. Rendering runs offline in the standard CLI.
 
 ## CLI: batch processing

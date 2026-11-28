@@ -4,6 +4,11 @@
 //! - `list`: Browse available datasets from the registry
 //! - `info`: Show metadata and statistics for a dataset
 //! - `eval`: Evaluate a model on a dataset
+//! - `evidence`: Find recorded runs, measured splits and published studies
+
+mod evidence;
+#[cfg(feature = "eval")]
+mod reports;
 
 use clap::{Parser, Subcommand};
 #[cfg(feature = "eval")]
@@ -45,7 +50,7 @@ struct HtmlWorstCase {
     cmp: EvalComparison,
 }
 
-/// Work with NER datasets
+/// Work with extraction datasets and their recorded evaluations
 #[derive(Parser, Debug)]
 pub struct DatasetArgs {
     /// Action to perform
@@ -56,6 +61,9 @@ pub struct DatasetArgs {
 /// Dataset subcommand actions.
 #[derive(Subcommand, Debug)]
 pub enum DatasetAction {
+    /// Search measured datasets, recorded backend outcomes and relevant figures offline
+    Evidence(evidence::EvidenceArgs),
+
     /// List dataset catalog entries and standard loader support
     #[command(visible_alias = "ls")]
     List {
@@ -111,6 +119,10 @@ pub enum DatasetAction {
         /// Per-example pages are written to `<output_stem>_files/`.
         #[arg(long, value_name = "PATH")]
         output: Option<String>,
+
+        /// Write one native eval JSON object per NER sentence, including empty cases. Compare two files with `anno viz paired BASE --against CANDIDATE`, or inspect one with `anno viz errors`.
+        #[arg(long, value_name = "PATH")]
+        reports: Option<std::path::PathBuf>,
 
         /// Max examples to include in the HTML explorer (worst by error count).
         #[arg(long, default_value_t = 50)]
@@ -244,6 +256,7 @@ pub enum DatasetAction {
 /// Execute the dataset command.
 pub fn run(args: DatasetArgs) -> Result<(), String> {
     match args.action {
+        DatasetAction::Evidence(args) => return evidence::run(args),
         DatasetAction::List {
             task,
             domain,
@@ -292,6 +305,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             task,
             html,
             output,
+            reports,
             max_cases,
             min_errors,
             min_case_errors,
@@ -299,8 +313,23 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             min_gold_relations,
             coref_oracle_mentions,
         } => {
+            if reports.is_some() && !matches!(task, EvalTask::Ner) {
+                return Err("--reports supports --task ner only. Use --html --output PATH for coreference or relation review.".into());
+            }
             #[cfg(feature = "eval")]
             {
+                let mut reports = reports.as_deref().map(reports::Reports::new).transpose()?;
+                if let Some(writer) = &reports {
+                    if html {
+                        let index =
+                            Path::new(output.as_deref().ok_or("--html requires --output PATH")?);
+                        writer.distinct_from(index, "the --html --output index")?;
+                        writer.distinct_from(
+                            &index.with_file_name(ner_html_directory_name(index)),
+                            "the HTML case directory",
+                        )?;
+                    }
+                }
                 let ner_min_errors = min_case_errors.unwrap_or(min_errors);
                 #[cfg(feature = "eval")]
                 let coref_min_mentions = min_gold_mentions.unwrap_or(min_errors);
@@ -346,6 +375,12 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         );
                         let loadable = LoadableDatasetId::try_from(dataset_id)
                             .map_err(|e| format!("Dataset is not loadable: {}", e))?;
+                        if let Some(writer) = &reports {
+                            writer.distinct_from(
+                                &loader.cache_path(loadable),
+                                "the cached dataset",
+                            )?;
+                        }
                         let ds = loader
                             .load_or_download(loadable)
                             .map_err(|e| format!("Failed to load dataset: {}", e))?;
@@ -430,15 +465,21 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             }
                         }
 
+                        // Repeated sentences stay separate. The shared report also fingerprints source and gold.
+                        let dataset_key = parsed_dataset_result
+                            .as_ref()
+                            .map_or_else(|_| "synthetic".to_owned(), |id| format!("{id:?}"));
                         for (case_idx, (text, gold)) in test_cases.iter().enumerate() {
+                            let case_start = reports.as_ref().map(|_| Instant::now());
                             let entities = m
                                 .extract_entities(text, None)
                                 .map_err(|e| format!("Entity extraction failed: {e}"))?;
+                            let elapsed = case_start.map(|start| start.elapsed());
 
                             total_gold += gold.len();
                             total_pred += entities.len();
 
-                            if html_output_path.is_some() {
+                            if html_output_path.is_some() || reports.is_some() {
                                 let gold_signals: Vec<Signal<Location>> = gold
                                     .iter()
                                     .enumerate()
@@ -453,19 +494,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     })
                                     .collect();
 
-                                let pred_signals: Vec<Signal<Location>> = entities
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, e)| {
-                                        let mut s = Signal::from(e);
-                                        s.id = SignalId::new(i as u64);
-                                        s
-                                    })
-                                    .collect();
-
+                                let pred_signals = super::eval::prediction_signals(&entities);
                                 let cmp = EvalComparison::compare(text, gold_signals, pred_signals);
+                                if let (Some(writer), Some(elapsed)) = (&mut reports, elapsed) {
+                                    let id = format!("{dataset_key}:{}", case_idx + 1);
+                                    writer.record(&cmp, &id, model, elapsed)?;
+                                }
                                 let errors = cmp.error_count();
-                                if errors >= ner_min_errors {
+                                if html_output_path.is_some() && errors >= ner_min_errors {
                                     worst_cases.push(HtmlWorstCase {
                                         case_idx,
                                         errors,
@@ -635,6 +671,16 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             });
                             worst_cases.truncate(max_cases);
 
+                            if let Some(writer) = &reports {
+                                let dir = output_path
+                                    .with_file_name(ner_html_directory_name(&output_path));
+                                for case in &worst_cases {
+                                    writer.distinct_from(
+                                        &dir.join(ner_case_filename(case.case_idx)),
+                                        "an HTML case page",
+                                    )?;
+                                }
+                            }
                             write_ner_error_explorer_html(
                                 output_path.as_path(),
                                 &name,
@@ -650,6 +696,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 color("32", "ok:"),
                                 output_path.display()
                             );
+                        }
+                        if let Some(writer) = reports {
+                            writer.publish()?;
                         }
                         println!();
                     }
@@ -1274,6 +1323,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                     task,
                     html,
                     output,
+                    reports,
                     max_cases,
                     min_errors,
                     min_case_errors,
@@ -1494,6 +1544,21 @@ fn synthetic_ner_test_cases() -> Vec<(String, Vec<anno_eval::eval::GoldEntity>)>
 }
 
 #[cfg(feature = "eval")]
+fn ner_html_directory_name(output: &Path) -> String {
+    let stem = output
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("dataset_eval");
+    format!("{stem}_files")
+}
+
+#[cfg(feature = "eval")]
+fn ner_case_filename(index: usize) -> String {
+    format!("case_{index:06}.html")
+}
+
+#[cfg(feature = "eval")]
 #[allow(clippy::too_many_arguments)]
 fn write_ner_error_explorer_html(
     output_path: &Path,
@@ -1505,18 +1570,13 @@ fn write_ner_error_explorer_html(
     total_correct: usize,
     worst_cases: &[HtmlWorstCase],
 ) -> Result<(), String> {
-    let parent = output_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = output_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or("dataset_eval");
-    let files_dir = parent.join(format!("{stem}_files"));
+    let directory_name = ner_html_directory_name(output_path);
+    let files_dir = output_path.with_file_name(&directory_name);
     fs::create_dir_all(&files_dir)
         .map_err(|e| format!("Failed to create {:?}: {}", files_dir, e))?;
 
     for case in worst_cases {
-        let case_filename = format!("case_{:06}.html", case.case_idx);
+        let case_filename = ner_case_filename(case.case_idx);
         let case_path = files_dir.join(&case_filename);
         let title = format!("{model_name} — {dataset_name} — case {}", case.case_idx);
         let case_html = render_eval_html_with_title(&case.cmp, &title);
@@ -1584,8 +1644,8 @@ code{color:var(--code)}
             .position(|m| !matches!(m, EvalMatch::Correct { .. }))
             .unwrap_or(0);
         let rel = format!(
-            "{stem}_files/case_{:06}.html#M{}",
-            case.case_idx, first_error_mid
+            "{directory_name}/{}#M{first_error_mid}",
+            ner_case_filename(case.case_idx)
         );
         let preview = preview_text(&case.cmp.text, 180);
         index.push_str(&format!(

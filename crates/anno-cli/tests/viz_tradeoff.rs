@@ -53,7 +53,13 @@ fn render_through_stdio_or_files_and_choose_html() {
         &["-", "-o", "-", "--format", "html"],
         STUDY.as_bytes(),
     ));
-    assert!(html.contains("<table>") && html.contains("<td>50.000</td><td>150.000</td>"));
+    assert!(html.contains("<table>") && html.contains(r#"<td data-label="Correct / 100">50.000</td><td data-label="Unmatched / 100">150.000</td>"#));
+    let review = successful(tradeoff(
+        path,
+        &["--x-axis", "suggestions"],
+        STUDY.as_bytes(),
+    ));
+    assert!(review.contains("Suggestions / 100") && review.contains("4 suggestions"));
     assert!(successful(tradeoff(
         path,
         &["study.json", "--output", "chart.HTML"],

@@ -1,9 +1,11 @@
 //! Render measured results without loading models or accessing datasets.
 
+mod catalog;
 mod errors;
 mod overlap;
+mod paired;
+mod tradeoff;
 
-use anno::viz::Tradeoff;
 use clap::{Args, Subcommand, ValueEnum};
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
@@ -17,12 +19,18 @@ pub struct VizArgs {
 
 #[derive(Debug, Subcommand)]
 enum View {
-    /// Plot correct and unmatched predictions per 100 observations from anno.tradeoff/v1 JSON
-    Tradeoff(RenderArgs),
+    /// List studies, their datasets and their guides from a local figure catalog
+    List(catalog::ListArgs),
+    /// Render a named study or a portable Anno report, detecting its schema
+    Render(catalog::PortableArgs),
+    /// Compare settings at an unmatched-prediction or total-suggestion budget
+    Tradeoff(tradeoff::TradeoffArgs),
     /// Summarize matching errors and character coverage in one or more anno eval --json reports
     Errors(RenderArgs),
     /// Count shared character positions in grounded documents or replay an overlap summary
     Overlap(RenderArgs),
+    /// Compare two settings on the same inputs, showing gained and lost matches and measured costs
+    Paired(paired::PairedArgs),
 }
 
 #[derive(Debug, Args)]
@@ -88,25 +96,25 @@ impl ReportPaths {
         &self,
         view: impl FnOnce(Box<dyn Read>, Option<&Path>) -> Result<String, String>,
     ) -> Result<(), String> {
+        self.render_from(
+            |path| open_report(path).map_err(|e| format!("{}: {e}", path.display())),
+            view,
+        )
+    }
+
+    fn render_from(
+        &self,
+        open: impl FnOnce(&Path) -> Result<Box<dyn Read>, String>,
+        view: impl FnOnce(Box<dyn Read>, Option<&Path>) -> Result<String, String>,
+    ) -> Result<(), String> {
         let file = |path: &&Path| *path != Path::new("-");
         let input = self.input.as_deref().filter(file);
         let output = self.output.as_deref().filter(file);
         if let (Some(input), Some(output)) = (input, output) {
-            match same_file::is_same_file(input, output) {
-                Ok(true) => {
-                    return Err(format!(
-                        "input and output refer to the same file: {}",
-                        input.display()
-                    ))
-                }
-                Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err.to_string()),
-                _ => (),
-            }
+            distinct_output(input, output)?;
         }
         let reader: Box<dyn Read> = if let Some(path) = input {
-            Box::new(BufReader::new(
-                File::open(path).map_err(|e| format!("{}: {e}", path.display()))?,
-            ))
+            open(path)?
         } else {
             Box::new(io::stdin().lock())
         };
@@ -124,20 +132,28 @@ impl ReportPaths {
     }
 }
 
+fn open_report(path: &Path) -> io::Result<Box<dyn Read>> {
+    Ok(Box::new(BufReader::new(File::open(path)?)))
+}
+
+fn distinct_output(input: &Path, output: &Path) -> Result<(), String> {
+    match same_file::is_same_file(input, output) {
+        Ok(true) => Err(format!(
+            "input and output refer to the same file: {}",
+            input.display()
+        )),
+        Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err.to_string()),
+        _ => Ok(()),
+    }
+}
+
 pub fn run(args: VizArgs) -> Result<(), String> {
     match args.view {
-        View::Tradeoff(options) => options.render(|reader, format, title| {
-            let mut report = Tradeoff::from_json(reader)?;
-            if let Some(title) = title {
-                report.title = title.to_owned();
-            }
-            match format {
-                VizFormat::Svg => report.render_svg(),
-                VizFormat::Html => report.render_html(),
-                VizFormat::Json => report.to_json(),
-            }
-        }),
+        View::List(options) => options.run(),
+        View::Render(options) => options.run(),
+        View::Tradeoff(options) => options.render(),
         View::Errors(options) => options.render(errors::render),
         View::Overlap(options) => options.render(overlap::render),
+        View::Paired(options) => paired::run(options),
     }
 }
