@@ -39,6 +39,34 @@ fn reports(dir: &Path, file: &str) -> Vec<Value> {
 }
 
 #[test]
+fn cached_only_uses_each_task_reader_and_identifies_the_file_on_a_miss() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path();
+    let cache = dir.join("cache/datasets");
+    fs::create_dir_all(&cache).unwrap();
+    for (id, task, contents, expected) in [
+        ("WikiGold", "ner", "Ada B-PER\n", "Sentences: 1"),
+        ("GAP", "coref", concat!(
+            "ID\tText\tPronoun\tPronoun-offset\tA\tA-offset\tA-coref\tB\tB-offset\tB-coref\tURL\n",
+            "trial\tAda met Ben. She left.\tShe\t13\tAda\t0\tTRUE\tBen\t8\tFALSE\thttps://example.org\n"
+        ), "Documents: 1"),
+        ("CrossREAI", "relation",
+            r#"{"sentence":["Ada","joined","Acme"],"ner":[[0,0,"person"],[2,2,"company"]],"relations":[[0,0,2,2,"works_for"]]}"#,
+            "Documents: 1"),
+    ] {
+        let args = ["dataset", "eval", "--cached-only", "--dataset", id, "--task", task, "--model", "heuristic"];
+        let miss = anno(dir, &args);
+        let path = cache.join(format!("{id}.cache"));
+        let diagnostic = failure(miss);
+        assert!(diagnostic.contains(&format!("{id}.cache")), "{diagnostic}");
+        assert!(!path.exists());
+        fs::write(&path, contents).unwrap();
+        let summary = success(anno(dir, &args));
+        assert!(summary.contains("local dataset files only") && summary.contains(expected), "{summary}");
+    }
+}
+
+#[test]
 fn every_observation_uses_the_native_single_document_report() {
     let temp = tempfile::tempdir().unwrap();
     let dir = temp.path();
