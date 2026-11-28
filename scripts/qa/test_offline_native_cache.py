@@ -106,6 +106,9 @@ class NativeCacheTest(unittest.TestCase):
                 ("omitted", "Missing pinned profiles"),
                 ("duplicate", "duplicate profile"),
                 ("manifest", "Restored manifest differs"),
+                ("ghost file", "cache files differ"),
+                ("ghost entry", "manifest inventory differs"),
+                ("wrong source", "Restored manifest differs"),
                 ("replacement", "differs from the index"),
                 ("missing articles", "article attribution"),
                 ("wrong articles", "article attribution"),
@@ -127,6 +130,19 @@ class NativeCacheTest(unittest.TestCase):
                             changed[path] = changed[path].replace(
                                 b"wiki/Example", b"wiki/Other"
                             )
+                    elif case == "ghost file":
+                        changed["cache/datasets/Other.cache"] = raw
+                    elif case in {"ghost entry", "wrong source"}:
+                        path = "cache/datasets/manifest.json"
+                        manifest = json.loads(changed[path])
+                        entry = manifest["entries"][data["id"] + ".cache"]
+                        if case == "ghost entry":
+                            manifest["entries"]["Other.cache"] = dict(
+                                entry, dataset_id="Other.cache"
+                            )
+                        else:
+                            entry["source_url"] = "https://example.org/another-corpus"
+                        changed[path] = native.json_bytes(manifest)
                     elif case == "manifest":
                         path = "cache/datasets/manifest.json"
                         manifest = json.loads(changed[path])

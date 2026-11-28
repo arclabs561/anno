@@ -389,6 +389,40 @@ def build(index, output, anno, caches, online, group, archived=None):
     return artifact
 
 
+def verified_manifests(archive, profiles):
+    """Match the files a restored loader sees to the profiles in the pinned index."""
+    manifests = {}
+    expected_files = set()
+    for profile in profiles:
+        path = Path(profile["path"])
+        manifest = (path.parent / "manifest.json").as_posix()
+        manifests.setdefault(manifest, set()).add(path.name)
+        expected_files.update((profile["path"], manifest))
+
+    delivered = [
+        name
+        for name in archive.namelist()
+        if name.startswith(("cache/", "profiles/"))
+        and (name.endswith(".cache") or name.endswith("/manifest.json"))
+    ]
+    difference = expected_files.symmetric_difference(delivered)
+    if difference:
+        raise ValueError(
+            f"Restored cache files differ from the index: {sorted(difference)}"
+        )
+    if len(delivered) != len(expected_files):
+        raise ValueError("Duplicate restored cache file or manifest")
+
+    result = {}
+    for name, filenames in manifests.items():
+        raw = archive.read(name)
+        manifest = json.loads(raw)
+        if manifest["version"] != 1 or set(manifest["entries"]) != filenames:
+            raise ValueError(f"Restored manifest inventory differs for {name}")
+        result[name] = raw, manifest["entries"]
+    return result
+
+
 def verify(artifact, anno, index, group):
     """Restore one native profile at a time, including the exact manifest from the ZIP."""
     with zipfile.ZipFile(artifact) as archive, tempfile.TemporaryDirectory() as work:
@@ -405,6 +439,8 @@ def verify(artifact, anno, index, group):
             or catalog.get("package") != group
         ):
             raise ValueError(f"Archive does not match the pinned {group} collection")
+        manifests = verified_manifests(archive, expected.values())
+        registry_urls = {data["id"]: data["registry_url"] for data in index["datasets"]}
         for item in catalog["inputs"]:
             key = (item["id"], item["variant"])
             pinned = expected.pop(key, None)
@@ -421,11 +457,12 @@ def verify(artifact, anno, index, group):
         checked = set()
         for item in catalog["inputs"]:
             manifest_path = str(Path(item["path"]).parent / "manifest.json")
-            manifest = archive.read(manifest_path)
+            manifest, entries = manifests[manifest_path]
             filename = f"{item['id']}.cache"
-            entry = json.loads(manifest)["entries"][filename]
+            entry = entries[filename]
             if (
                 entry["dataset_id"] != filename
+                or entry["source_url"] != registry_urls[item["id"]]
                 or entry["resolved_url"] != item["url"]
                 or entry["sentence_count"] != item["counts"]["sentences"]
                 or entry["entity_count"] != item["counts"]["native_labels"]
