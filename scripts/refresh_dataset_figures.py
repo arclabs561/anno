@@ -136,6 +136,7 @@ def render(directory, config, anno):
             EVAL / "wnut-submission-results.csv",
         ),
         ("plot_wnut_native.py", EVAL / "wnut-native-comparison.json", directory),
+        ("plot_histnero_person_errors.py", EVAL / "histnero-ner-scoring.json", directory),
         ("plot_nuner_routing.py", EVAL / "nuner-fallback-routing.json", directory),
         ("plot_s3_source_evidence.py", EVAL / "s3-source-coverage.json", directory),
         (
@@ -261,7 +262,12 @@ def main():
         results[built_report] = report
         if args.output or not (args.update or args.check):
             output = args.output or ROOT / ".generated" / "dataset-figures"
-            for path in sorted(directory.iterdir()):
+            # Include the published plots, their portable chart inputs and the measured tables.
+            # Other files that a generator left in its work directory stay local.
+            artifacts = {p for p in results if p.parent == directory}
+            artifacts.update(p.with_suffix(".svg") for p in pngs)
+            artifacts.update(p.with_suffix(".json") for p in native_svgs)
+            for path in sorted(artifacts):
                 publish(path, output / path.name)
             print(
                 f"Wrote {len(pngs)} PNG/SVG pairs, {len(native_svgs)} native inputs and HTML reports, the dataset explorer, CLI catalog and {len(SUMMARIES)} CSVs to {output}"

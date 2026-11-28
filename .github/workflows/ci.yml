@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 env:
   ANNO_GIT_COMMIT: ${{ github.sha }}
+  ANNO_S3_CACHE: "0"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 permissions:
@@ -149,7 +150,9 @@ jobs:
         if: always()
         with:
           name: ci-check-receipts
-          path: reports/ci-check
+          path: |
+            reports/ci-check/metadata.txt
+            reports/ci-check/sccache-stats.txt
           if-no-files-found: warn
   fmt:
     name: Format
@@ -307,7 +310,7 @@ jobs:
   test-eval:
     name: Test (eval)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
+    if: github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) || vars.ANNO_AWS_ROLE_ARN == '' || vars.ANNO_S3_BUCKET == ''
     permissions:
       contents: read
     steps: &test-eval-steps
@@ -322,28 +325,20 @@ jobs:
           cache-all-crates: true
       - name: Set job-local dataset and eval history paths
         run: |
-          echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-          echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-      # Optional: enable S3 dataset cache via AWS OIDC (no long-lived secrets).
-      # Configure the role ARN as a repo variable: Settings → Secrets and variables → Actions → Variables.
-      - name: Configure AWS credentials (OIDC) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+          echo "ANNO_CACHE_DIR=$RUNNER_TEMP/anno-dataset-cache" >> "$GITHUB_ENV"
+          echo "ANNO_EVAL_HISTORY=$RUNNER_TEMP/anno-dataset-cache/eval-results.jsonl" >> "$GITHUB_ENV"
+      - &dataset-cache
+        name: Read the configured dataset cache
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.ANNO_AWS_ROLE_ARN != '' && vars.ANNO_S3_BUCKET != ''
+        uses: ./.github/actions/dataset-cache
         with:
-          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-      # Note: we intentionally do not support access-key secrets here.
-      # GitHub Actions expressions in `if:` do not allow `secrets.*` (workflow won't parse).
-      - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: |
-          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
-          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      - name: Verify AWS CLI available (S3 cache)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: aws --version
+          bucket: ${{ vars.ANNO_S3_BUCKET }}
+          role: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          region: ${{ vars.ANNO_AWS_REGION || 'us-east-1' }}
       - name: Build with eval features
         run: cargo build --workspace --features eval
+      - name: Verify aggregate benchmark publication on synthetic data
+        run: cargo test --locked -p anno-eval --features eval --example public_benchmark_report
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
       - name: Run library tests
         env: *unit-model-cache
@@ -380,7 +375,7 @@ jobs:
   test-eval-trusted:
     name: Test (eval) (trusted branch)
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.ANNO_AWS_ROLE_ARN != '' && vars.ANNO_S3_BUCKET != ''
     permissions:
       contents: read
       id-token: write
@@ -666,7 +661,7 @@ jobs:
     name: Randomized Matrix Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
+    if: github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) || vars.ANNO_AWS_ROLE_ARN == '' || vars.ANNO_S3_BUCKET == ''
     permissions:
       actions: read
       contents: read
@@ -687,8 +682,8 @@ jobs:
             # Keep the measurement cohort compatible across PR and default-branch runs.
             echo "ANNO_MATRIX_REQUIRE_CACHED=1"
             echo "ANNO_MAX_EXAMPLES=5"
-            echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
-            echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
+            echo "ANNO_CACHE_DIR=$RUNNER_TEMP/anno-dataset-cache"
+            echo "ANNO_EVAL_HISTORY=$RUNNER_TEMP/anno-dataset-cache/eval-results.jsonl"
             # PRs use job-local inputs and cached model weights. Trusted runs can fetch eligible origins.
             echo "ANNO_NO_DOWNLOADS=${{ github.event_name == 'pull_request' && '1' || '0' }}"
             echo "ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=${{ github.event_name == 'pull_request' && '0' || '1' }}"
@@ -697,21 +692,10 @@ jobs:
             echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
             echo "ANNO_MATRIX_DATASET_POOLS_FILE=$RUNNER_TEMP/matrix-dataset-pools.jsonl"
           } >> "$GITHUB_ENV"
-      - name: Configure AWS credentials (OIDC) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-      - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: |
-          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
-          echo "ANNO_MATRIX_STAGE_FROM_S3=1" >> "$GITHUB_ENV"
-          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      - name: Verify AWS CLI available (S3 cache)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: aws --version
+      - *dataset-cache
+      - name: Stage eligible matrix inputs from the configured cache
+        if: env.ANNO_S3_CACHE == '1'
+        run: echo "ANNO_MATRIX_STAGE_FROM_S3=1" >> "$GITHUB_ENV"
       - name: Check the offline sampler on labeled fixtures
         run: |
           smoke="$RUNNER_TEMP/matrix-smoke"
@@ -828,7 +812,11 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.MATRIX_CHECKPOINT }}
-          path: ${{ runner.temp }}/matrix-checkpoint/
+          path: |
+            ${{ runner.temp }}/matrix-checkpoint/eval-results.jsonl
+            ${{ runner.temp }}/matrix-checkpoint/eval-history.db
+            ${{ runner.temp }}/matrix-checkpoint/linucb_global_state.json
+            ${{ runner.temp }}/matrix-checkpoint/muxer_history.*.json
           if-no-files-found: error
           retention-days: 60
       - name: Upload matrix decision and outcome log
@@ -849,7 +837,7 @@ jobs:
     name: Randomized Matrix Test (trusted branch)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.ANNO_AWS_ROLE_ARN != '' && vars.ANNO_S3_BUCKET != ''
     permissions:
       actions: read # Restore trusted matrix checkpoints across workflow runs.
       contents: read
@@ -896,7 +884,7 @@ jobs:
     name: Eval Sanity (small samples)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
+    if: github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) || vars.ANNO_AWS_ROLE_ARN == '' || vars.ANNO_S3_BUCKET == ''
     permissions:
       contents: read
     steps: &eval-sanity-steps
@@ -911,35 +899,35 @@ jobs:
           cache-all-crates: true
       - name: Set job-local dataset and eval history paths
         run: |
-          echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-          echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-      - name: Configure AWS credentials (OIDC) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-      - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: |
-          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
-          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      - name: Verify AWS CLI available (S3 cache)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        run: aws --version
+          echo "ANNO_CACHE_DIR=$RUNNER_TEMP/anno-dataset-cache" >> "$GITHUB_ENV"
+          echo "ANNO_EVAL_HISTORY=$RUNNER_TEMP/anno-dataset-cache/eval-results.jsonl" >> "$GITHUB_ENV"
+      - *dataset-cache
+      - name: Build the WikiGold evaluator
+        run: cargo build --locked --release -p anno-cli --features "eval onnx"
       - name: Run sanity check evaluations
-        run: ./scripts/eval-sanity.sh
+        run: |
+          if ! ./scripts/eval-sanity.sh > "$RUNNER_TEMP/sanity.log" 2>&1; then
+            echo "::error::WikiGold sanity evaluation failed. Check the per-backend status in the aggregate report."
+            exit 1
+          fi
         env:
-          ANNO_ARTIFACT_DIR: reports
+          ANNO_ARTIFACT_DIR: ${{ runner.temp }}/private-sanity
           # Use cached models when available. The WikiGold download uses its own byte cap.
           ANNO_NO_DOWNLOADS: "1"
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
           # Note: cli feature is included in eval via script
+      - name: Prepare public WikiGold counts and scores
+        id: public_report
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p reports
+          cargo run --locked --release -p anno-eval --features "eval onnx" --example public_benchmark_report -- \
+              "$RUNNER_TEMP/private-sanity/eval-sanity-report.json" reports/eval-sanity-report.md reports/eval-sanity-report.json
       - name: Upload sanity reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: ${{ !cancelled() && steps.public_report.outcome == 'success' }}
         with:
           name: eval-sanity-report
           path: |
@@ -950,7 +938,7 @@ jobs:
     name: Eval Sanity (small samples) (trusted branch)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.ANNO_AWS_ROLE_ARN != '' && vars.ANNO_S3_BUCKET != ''
     permissions:
       contents: read
       id-token: write
@@ -964,8 +952,8 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' &&
-      !startsWith(github.ref, 'refs/heads/eval-')
+      (github.ref != format('refs/heads/{0}', github.event.repository.default_branch) ||
+       vars.ANNO_AWS_ROLE_ARN == '' || vars.ANNO_S3_BUCKET == '')
     timeout-minutes: 120
     permissions:
       contents: read
@@ -981,29 +969,30 @@ jobs:
           cache-all-crates: true
       - name: Set job-local dataset and eval history paths
         run: |
-          echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-          echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-      - name: Configure AWS credentials (OIDC) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-      - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        run: |
-          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
-          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      - name: Verify AWS CLI available (S3 cache)
-        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        run: aws --version
+          echo "ANNO_CACHE_DIR=$RUNNER_TEMP/anno-dataset-cache" >> "$GITHUB_ENV"
+          echo "ANNO_EVAL_HISTORY=$RUNNER_TEMP/anno-dataset-cache/eval-results.jsonl" >> "$GITHUB_ENV"
+      - *dataset-cache
+      - name: Build the full evaluator
+        run: cargo build --locked --release -p anno-cli --features "eval onnx candle"
       - name: Run full evaluations
-        run: ./scripts/eval-full.sh
+        run: |
+          if ! ./scripts/eval-full.sh > "$RUNNER_TEMP/full.log" 2>&1; then
+            echo "::error::Full evaluation failed. Check the per-backend status in the aggregate report."
+            exit 1
+          fi
         env:
           MAX_EXAMPLES: ${{ inputs.max_examples }}
+          OUTPUT: ${{ runner.temp }}/private-full.md
+          ANNO_FULL_RESULT_JSON: ${{ runner.temp }}/private-full.json
+      - name: Prepare public evaluation counts and scores
+        id: public_report
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo run --locked --release -p anno-eval --features "eval onnx" --example public_benchmark_report --
+          "$RUNNER_TEMP/private-full.json" eval-full-report.md
       - name: Upload full report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: ${{ !cancelled() && steps.public_report.outcome == 'success' }}
         with:
           name: eval-full-report
           path: eval-full-report.md
@@ -1011,10 +1000,9 @@ jobs:
     name: Eval Full (all combinations) (trusted branch)
     runs-on: ubuntu-latest
     if: >-
-      github.event_name != 'pull_request' &&
-      (startsWith(github.ref, 'refs/heads/eval-') ||
-       (github.event_name == 'workflow_dispatch' &&
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')))
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      vars.ANNO_AWS_ROLE_ARN != '' && vars.ANNO_S3_BUCKET != ''
     timeout-minutes: 120
     permissions:
       contents: read

@@ -17,8 +17,12 @@ cargo build --release -p anno-cli --features "eval onnx candle" || {
 
 # The CLI writes diagnostic reports even when individual evaluations fail.
 # Check the rows before reporting a successful full evaluation.
-result_json=$(mktemp)
-trap 'rm -f -- "$result_json"' EXIT
+if [[ -n "${ANNO_FULL_RESULT_JSON:-}" ]]; then
+    result_json=$ANNO_FULL_RESULT_JSON
+else
+    result_json=$(mktemp)
+    trap 'rm -f -- "$result_json"' EXIT
+fi
 args=(benchmark --output "$OUTPUT" --output-json "$result_json")
 if [[ -n "$MAX_EXAMPLES" ]]; then
     echo "Limiting to $MAX_EXAMPLES examples per dataset"

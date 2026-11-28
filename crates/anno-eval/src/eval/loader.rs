@@ -130,6 +130,8 @@ use std::path::PathBuf;
 ///
 pub use super::dataset_registry::DatasetId;
 
+const AGCNER_TEST_URL: &str = "https://ndownloader.figshare.com/files/42188208";
+
 /// Dataset identifier guaranteed to be loadable by [`DatasetLoader`].
 ///
 /// This is a thin wrapper over [`DatasetId`] that enforces loader support via
@@ -140,6 +142,7 @@ pub struct LoadableDatasetId(DatasetId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum DatasetParsePlan {
     Conll,
+    Agcner,
     JsonlNer,
     WikiannJson,
     TweetNer7,
@@ -504,6 +507,9 @@ impl LoadableDatasetId {
     #[must_use]
     fn registry_hint_plan(id: DatasetId) -> Option<DatasetParsePlan> {
         // Hybrids / special cases first.
+        if id == DatasetId::AgCNER {
+            return Some(DatasetParsePlan::Agcner);
+        }
         if matches!(id, DatasetId::TACRED | DatasetId::ReTACRED) {
             return Some(DatasetParsePlan::Tacred);
         }
@@ -642,7 +648,6 @@ impl LoadableDatasetId {
                 | DatasetId::MultiWOZNER
                 | DatasetId::HinglishNER
                 | DatasetId::ChineseNestedNER
-                | DatasetId::AgCNER
                 | DatasetId::LongDocNER
                 | DatasetId::MultiBioNERLong
                 | DatasetId::ReasoningNER
@@ -1062,6 +1067,16 @@ pub struct AnnotatedSentence {
 }
 
 impl AnnotatedSentence {
+    // AgCNER rows are successive characters of the original string. Explicit
+    // whitespace is already part of a token and must survive reconstruction.
+    fn token_separator(&self) -> &'static str {
+        if self.source_dataset == DatasetId::AgCNER {
+            ""
+        } else {
+            " "
+        }
+    }
+
     /// Get text of the sentence.
     #[must_use]
     pub fn text(&self) -> String {
@@ -1069,21 +1084,22 @@ impl AnnotatedSentence {
             .iter()
             .map(|t| t.text.as_str())
             .collect::<Vec<_>>()
-            .join(" ")
+            .join(self.token_separator())
     }
 
     /// Get entities from this sentence.
     #[must_use]
     pub fn entities(&self) -> Vec<super::datasets::GoldEntity> {
-        // Precompute character offsets for each token in `self.text()` (tokens joined by a
-        // single ASCII space). Offsets are in *character* units, not bytes.
+        // Use the same separator as the model input. All offsets count Unicode scalars.
+        let separator = self.token_separator();
+        let separator_chars = separator.chars().count();
         let mut token_starts: Vec<usize> = Vec::with_capacity(self.tokens.len());
         let mut pos: usize = 0;
         for (i, tok) in self.tokens.iter().enumerate() {
             token_starts.push(pos);
             pos += tok.text.chars().count();
             if i + 1 < self.tokens.len() {
-                pos += 1; // the space inserted by `text()`
+                pos += separator_chars;
             }
         }
 
@@ -1107,7 +1123,7 @@ impl AnnotatedSentence {
                     .iter()
                     .map(|t| t.text.as_str())
                     .collect::<Vec<_>>()
-                    .join(" ");
+                    .join(separator);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -1140,7 +1156,7 @@ impl AnnotatedSentence {
                     .iter()
                     .map(|t| t.text.as_str())
                     .collect::<Vec<_>>()
-                    .join(" ");
+                    .join(separator);
 
                 let start = token_starts.get(i).copied().unwrap_or(0);
                 let end_char = if end <= i {
@@ -1439,16 +1455,17 @@ impl std::fmt::Display for DatasetStats {
 ///    bucket using the AWS CLI credential chain.
 /// 3. On a cache miss, the loader tries the configured source when permitted.
 ///
-////// # Environment Variables
+/// # Environment Variables
 ///
 /// - `ANNO_CACHE_DIR`: Override default cache location
 /// - `ANNO_S3_CACHE`: Set to "1" to enable S3 fallback (requires AWS credentials)
-/// - `ANNO_S3_BUCKET`: Override S3 bucket name (default: `arc-anno-data`)
+/// - `ANNO_S3_BUCKET`: Bucket you are authorized to read. S3 reads require this setting.
 ///
 /// # Example
 ///
 /// ```bash
-/// # Enable S3 caching
+/// # Enable reads from your configured storage
+/// export ANNO_S3_BUCKET=your-cache-bucket
 /// export ANNO_S3_CACHE=1
 /// export AWS_PROFILE=anno-reader  # use a profile authorized to read this bucket
 ///
@@ -1529,7 +1546,7 @@ impl DatasetLoader {
     /// Default location: `~/.cache/anno/datasets` (platform cache via `dirs` crate)
     /// Falls back to `.anno/datasets` in current directory if `dirs` crate unavailable.
     ///
-    /// S3 fallback is enabled if `ANNO_S3_CACHE=1` environment variable is set.
+    /// S3 reads require both `ANNO_S3_CACHE=1` and an explicit `ANNO_S3_BUCKET`.
     pub fn new() -> Result<Self> {
         // Load workspace `.env` (idempotent, does not override existing env vars).
         // This keeps eval tooling usable without manual exporting of env vars.
@@ -1543,24 +1560,7 @@ impl DatasetLoader {
             base_dir.join("anno").join("datasets")
         };
 
-        // Check for S3 caching
-        let s3_bucket = if std::env::var("ANNO_S3_CACHE").unwrap_or_default() == "1" {
-            Some(std::env::var("ANNO_S3_BUCKET").unwrap_or_else(|_| "arc-anno-data".to_string()))
-        } else {
-            None
-        };
-
-        fs::create_dir_all(&cache_dir).map_err(|e| {
-            Error::InvalidInput(format!("Failed to create cache dir {:?}: {}", cache_dir, e))
-        })?;
-
-        let manifest = CacheManifest::load(&cache_dir)?;
-
-        Ok(Self {
-            cache_dir,
-            s3_bucket,
-            manifest: std::sync::RwLock::new(manifest),
-        })
+        Self::with_cache_dir(cache_dir)
     }
 
     /// Update the cache manifest with a new entry and save it.
@@ -1578,11 +1578,10 @@ impl DatasetLoader {
     /// Create a loader with a custom cache directory.
     pub fn with_cache_dir(cache_dir: impl Into<PathBuf>) -> Result<Self> {
         let cache_dir = cache_dir.into();
-        let s3_bucket = if std::env::var("ANNO_S3_CACHE").unwrap_or_default() == "1" {
-            Some(std::env::var("ANNO_S3_BUCKET").unwrap_or_else(|_| "arc-anno-data".to_string()))
-        } else {
-            None
-        };
+        let s3_bucket = Self::read_bucket(
+            std::env::var("ANNO_S3_CACHE").ok().as_deref(),
+            std::env::var("ANNO_S3_BUCKET").ok().as_deref(),
+        );
 
         fs::create_dir_all(&cache_dir).map_err(|e| {
             Error::InvalidInput(format!("Failed to create cache dir {:?}: {}", cache_dir, e))
@@ -1595,6 +1594,18 @@ impl DatasetLoader {
             s3_bucket,
             manifest: std::sync::RwLock::new(manifest),
         })
+    }
+
+    fn read_bucket(enabled: Option<&str>, bucket: Option<&str>) -> Option<String> {
+        if enabled != Some("1") {
+            return None;
+        }
+        let location = bucket?.trim();
+        let name = location
+            .strip_prefix("s3://")
+            .unwrap_or(location)
+            .trim_end_matches('/');
+        (!name.is_empty() && !name.starts_with('/')).then(|| name.to_owned())
     }
 
     /// Base directory for cached datasets.
@@ -1636,37 +1647,14 @@ impl DatasetLoader {
         Self::artifact_language(id, url)
     }
 
-    /// Upload a locally cached dataset (by `DatasetId`) to S3, using its manifest entry.
-    ///
-    /// This uses the same object layout as `load_or_download()`'s best-effort upload:
-    /// - `datasets/<cache_filename>` (legacy/mutable key)
-    /// - `datasets/by-sha256/<sha>/<cache_filename>` (immutable snapshot)
-    /// - `datasets/<cache_filename>.latest.json` (pointer)
-    /// - `datasets/<cache_filename>.manifest.json` (sidecar metadata)
+    /// Raw dataset caches have no reviewed publication package. An authorized read
+    /// can carry separate terms for the text and its annotations.
     #[cfg(feature = "eval")]
-    pub fn upload_cached_dataset_to_s3(&self, bucket: &str, id: DatasetId) -> Result<()> {
-        Self::check_shared_publication(id)?;
-        let key = id.cache_filename();
-        let entry = {
-            let guard = self
-                .manifest
-                .read()
-                .map_err(|_| Error::InvalidInput("cache manifest lock poisoned".to_string()))?;
-            guard
-                .get(key)
-                .cloned()
-                .ok_or_else(|| Error::InvalidInput(format!("No manifest entry for {}", key)))?
-        };
-        let path = self.cache_path_for(id);
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            Error::InvalidInput(format!(
-                "Failed to read cached dataset {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
-        Self::enforce_max_download_bytes(content.len(), "local cache (sync-s3)")?;
-        self.upload_to_s3(bucket, id, &content, &entry)
+    pub fn upload_cached_dataset_to_s3(&self, _bucket: &str, id: DatasetId) -> Result<()> {
+        Err(Error::InvalidInput(format!(
+            "{} is excluded from raw shared-cache publication: no reviewed artifact and notice package",
+            id.name()
+        )))
     }
 
     #[must_use]
@@ -1943,7 +1931,7 @@ impl DatasetLoader {
         }
         if publisher == PublisherFallback::Forbid {
             return Err(Error::InvalidInput(
-                "No matching local dataset; S3 is disabled and publisher fallback is forbidden"
+                "No matching local dataset; S3 is disabled and publisher fallback is forbidden. Set ANNO_S3_CACHE=1 and ANNO_S3_BUCKET to enable S3 reads."
                     .into(),
             ));
         }
@@ -1980,15 +1968,7 @@ impl DatasetLoader {
             entity_count: dataset.entity_count(),
             anno_version: env!("CARGO_PKG_VERSION").to_string(),
         };
-        let _ = self.update_manifest(entry.clone()); // Best effort
-
-        if let Some(bucket) = self
-            .s3_bucket
-            .as_ref()
-            .filter(|_| dataset_id.approved_for_shared_publication())
-        {
-            let _ = self.upload_to_s3(bucket, dataset_id, &content, &entry);
-        }
+        let _ = self.update_manifest(entry); // Best effort, local provenance only.
 
         Ok(DatasetLoadReceipt::new(dataset, sha256, s3_fallback))
     }
@@ -2018,14 +1998,6 @@ impl DatasetLoader {
                 "{} raw data is excluded from shared caches; use an authorized local source",
                 id.name()
             )));
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "eval")]
-    fn check_shared_publication(id: DatasetId) -> Result<()> {
-        if !id.approved_for_shared_publication() {
-            return Err(Error::InvalidInput(format!("{} is excluded from raw shared-cache publication: no reviewed artifact and notice package",id.name())));
         }
         Ok(())
     }
@@ -2098,125 +2070,6 @@ impl DatasetLoader {
         Ok((content, manifest))
     }
 
-    /// Upload dataset to S3 cache bucket.
-    ///
-    /// Best effort - failures are logged but don't stop execution.
-    #[cfg(feature = "eval")]
-    fn upload_to_s3(
-        &self,
-        bucket: &str,
-        id: DatasetId,
-        content: &str,
-        manifest_entry: &CacheManifestEntry,
-    ) -> Result<()> {
-        use std::io::Write;
-        use std::process::{Command, Stdio};
-
-        Self::check_shared_publication(id)?;
-
-        let s3_key = format!("datasets/{}", id.cache_filename());
-        let s3_uri = format!("s3://{}/{}", bucket, s3_key);
-
-        // Use aws s3 cp to upload from stdin
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &s3_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(content.as_bytes());
-        }
-
-        let status = child
-            .wait()
-            .map_err(|e| Error::InvalidInput(format!("Failed to wait for aws s3 cp: {}", e)))?;
-
-        if !status.success() {
-            return Err(Error::InvalidInput("S3 upload failed".to_string()));
-        }
-
-        // Also upload a content-addressed snapshot. This supports the "durable mirror" use case:
-        // once uploaded, snapshots are stable even if upstream changes.
-        let by_sha_key = format!(
-            "datasets/by-sha256/{}/{}",
-            manifest_entry.sha256,
-            id.cache_filename()
-        );
-        let by_sha_uri = format!("s3://{}/{}", bucket, by_sha_key);
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &by_sha_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(content.as_bytes());
-        }
-
-        let _ = child.wait();
-
-        // Update a pointer file for the latest snapshot.
-        let pointer_key = format!("datasets/{}.latest.json", id.cache_filename());
-        let pointer_uri = format!("s3://{}/{}", bucket, pointer_key);
-        let pointer_json = serde_json::json!({
-            "dataset": id.cache_filename(),
-            "sha256": manifest_entry.sha256,
-            "updated_at": super::timestamp::now(),
-            "source_url": manifest_entry.source_url,
-            "resolved_url": manifest_entry.resolved_url,
-            "file_size": manifest_entry.file_size,
-        })
-        .to_string();
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &pointer_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(pointer_json.as_bytes());
-        }
-
-        let _ = child.wait();
-
-        // Upload a sidecar manifest entry (JSON). This makes the S3 cache self-describing.
-        let manifest_key = format!("datasets/{}.manifest.json", id.cache_filename());
-        let manifest_uri = format!("s3://{}/{}", bucket, manifest_key);
-        let json = serde_json::to_string_pretty(manifest_entry)
-            .map_err(|e| Error::InvalidInput(format!("Failed to serialize S3 manifest: {}", e)))?;
-
-        let mut child = Command::new("aws")
-            .args(["s3", "cp", "-", &manifest_uri])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::InvalidInput(format!("Failed to spawn aws s3 cp: {}", e)))?;
-
-        if let Some(ref mut stdin) = child.stdin {
-            let _ = stdin.write_all(json.as_bytes());
-        }
-
-        let status = child
-            .wait()
-            .map_err(|e| Error::InvalidInput(format!("Failed to wait for aws s3 cp: {}", e)))?;
-
-        if status.success() {
-            Ok(())
-        } else {
-            Err(Error::InvalidInput("S3 manifest upload failed".to_string()))
-        }
-    }
-
     /// Best-effort: download the sidecar manifest entry for a dataset from S3.
     #[cfg(feature = "eval")]
     fn download_manifest_entry_from_s3(
@@ -2283,7 +2136,13 @@ impl DatasetLoader {
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
-        self.download_from_url(id, id.download_url().to_owned())
+        // The AgCNER registry identifies its Figshare collection. The actual
+        // evaluation asset is the authors' immutable v1 test file.
+        let url = match id {
+            DatasetId::AgCNER => AGCNER_TEST_URL,
+            _ => id.download_url(),
+        };
+        self.download_from_url(id, url.to_owned())
     }
 
     #[cfg(feature = "eval")]
@@ -2683,10 +2542,19 @@ impl DatasetLoader {
         let source = entry.resolved_url.as_ref().unwrap_or(&entry.source_url);
         dataset.source_url = source.clone();
         dataset.metadata.original_source = Some(source.clone());
-        dataset.metadata.split = entry
-            .resolved_url
-            .as_deref()
-            .and_then(Self::evaluation_split_from_url);
+        dataset.metadata.split = entry.resolved_url.as_deref().and_then(|url| {
+            // Figshare asset IDs identify splits even though their URLs omit filenames.
+            match (dataset.id, url) {
+                (DatasetId::AgCNER, AGCNER_TEST_URL) => Some("test".into()),
+                (DatasetId::AgCNER, "https://ndownloader.figshare.com/files/42188211") => {
+                    Some("dev".into())
+                }
+                (DatasetId::AgCNER, "https://ndownloader.figshare.com/files/42188205") => {
+                    Some("train".into())
+                }
+                _ => Self::evaluation_split_from_url(url),
+            }
+        });
         if dataset.metadata.observed_language.is_none() {
             dataset.metadata.observed_language = entry
                 .resolved_url
@@ -3549,6 +3417,7 @@ impl DatasetLoader {
 
         let mut result = match plan {
             DatasetParsePlan::Conll => self.parse_conll(content, id),
+            DatasetParsePlan::Agcner => self.parse_agcner(content),
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
             DatasetParsePlan::WikiannJson => self.parse_wikiann_json(content, id),
             DatasetParsePlan::TweetNer7 => self.parse_tweetner7(content, id),
@@ -3868,6 +3737,65 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            data_source: DataSource::LocalCache,
+            temporal_metadata: Self::get_temporal_metadata(id),
+            metadata: id.default_metadata(),
+        })
+    }
+
+    /// Read the released character/BIO pairs or an existing token-array JSONL cache.
+    fn parse_agcner(&self, content: &str) -> Result<LoadedDataset> {
+        let id = DatasetId::AgCNER;
+        let first = content
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("");
+        // The literal "{" is also a valid publisher character, e.g. "{ O".
+        if first.trim_start().starts_with('{')
+            && serde_json::from_str::<serde_json::Value>(first).is_ok_and(|row| row.is_object())
+        {
+            return self.parse_jsonl_ner(content, id);
+        }
+        let mut sentences = Vec::new();
+        let mut tokens = Vec::new();
+        for (index, line) in content.lines().chain(std::iter::once("")).enumerate() {
+            if line.trim().is_empty() {
+                if !tokens.is_empty() {
+                    sentences.push(AnnotatedSentence {
+                        source_dataset: id,
+                        tokens: std::mem::take(&mut tokens),
+                    });
+                }
+                continue;
+            }
+            // Split from the right so an explicit ASCII space or tab token survives.
+            let invalid = || {
+                Error::InvalidInput(format!(
+                    "Invalid AgCNER character/BIO pair on line {}",
+                    index + 1
+                ))
+            };
+            let (token, label) = line.rsplit_once([' ', '\t']).ok_or_else(invalid)?;
+            let typed = label
+                .strip_prefix("B-")
+                .or_else(|| label.strip_prefix("I-"));
+            if token.chars().count() != 1
+                || !(label == "O"
+                    || typed
+                        .is_some_and(|ty| !ty.is_empty() && !ty.chars().any(char::is_whitespace)))
+            {
+                return Err(invalid());
+            }
+            tokens.push(AnnotatedToken {
+                text: token.to_owned(),
+                ner_tag: label.to_owned(),
+            });
+        }
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: super::timestamp::now(),
+            source_url: id.download_url().to_owned(),
             data_source: DataSource::LocalCache,
             temporal_metadata: Self::get_temporal_metadata(id),
             metadata: id.default_metadata(),
@@ -8542,6 +8470,102 @@ mod tests {
     }
 
     #[test]
+    fn agcner_source_and_legacy_caches_preserve_text_and_unicode_gold_offsets() {
+        let loader = DatasetLoader::new().unwrap();
+        let chars = ["{", "𠀀", " ", "虫", "Ａ", "\t", "药"];
+        let tags = ["O", "B-PET", "I-PET", "I-PET", "O", "O", "B-DRUG"];
+        let row = serde_json::json!({"tokens":chars, "ner_tags":tags});
+        let envelope = serde_json::json!({
+            "features": [], "num_rows_total": 1, "rows": [{"row_idx": 0, "row": row}]
+        });
+        for input in [
+            "{ O\r\n𠀀 B-PET\r\n  I-PET\r\n虫 I-PET\r\nＡ O\r\n\t O\r\n药 B-DRUG".to_string(),
+            row.to_string(),
+            envelope.to_string(),
+        ] {
+            let data = loader.parse_content_str(&input, DatasetId::AgCNER).unwrap();
+            let (text, gold) = &data.to_test_cases()[0];
+            assert_eq!(text, "{𠀀 虫Ａ\t药");
+            let spans: Vec<_> = gold
+                .iter()
+                .map(|g| (g.text.as_str(), g.original_label.as_str(), g.start, g.end))
+                .collect();
+            assert_eq!(spans, [("𠀀 虫", "PET", 1, 4), ("药", "DRUG", 6, 7)]);
+            assert!(gold.iter().all(|g| text
+                .chars()
+                .skip(g.start)
+                .take(g.end - g.start)
+                .collect::<String>()
+                == g.text));
+        }
+        let ordinary = loader
+            .parse_content_str(
+                r#"{"tokens":["New","York"],"ner_tags":["B-LOC","I-LOC"]}"#,
+                DatasetId::MultiNERD,
+            )
+            .unwrap();
+        let (text, gold) = &ordinary.to_test_cases()[0];
+        assert_eq!(text, "New York");
+        assert_eq!(
+            (gold[0].text.as_str(), gold[0].start, gold[0].end),
+            ("New York", 0, 8)
+        );
+    }
+
+    #[test]
+    fn agcner_manifest_keeps_numeric_figshare_split_provenance() {
+        let loader = DatasetLoader::new().unwrap();
+        let mut data = loader.parse_content_str("甲 O", DatasetId::AgCNER).unwrap();
+        for (url, split) in [
+            (AGCNER_TEST_URL, Some("test")),
+            (
+                "https://ndownloader.figshare.com/files/42188211",
+                Some("dev"),
+            ),
+            (
+                "https://ndownloader.figshare.com/files/42188205",
+                Some("train"),
+            ),
+            ("https://example.org/files/42188208", None),
+        ] {
+            let entry = CacheManifestEntry {
+                dataset_id: "AgCNER.cache".into(),
+                source_url: DatasetId::AgCNER.download_url().into(),
+                resolved_url: Some(url.into()),
+                sha256: "hash".into(),
+                file_size: 0,
+                downloaded_at: String::new(),
+                sentence_count: 1,
+                entity_count: 0,
+                anno_version: String::new(),
+            };
+            DatasetLoader::apply_manifest_provenance(&mut data, &entry);
+            assert_eq!(data.metadata.split.as_deref(), split);
+        }
+    }
+
+    #[test]
+    fn agcner_bio_respects_sentence_breaks_and_rejects_malformed_rows() {
+        let loader = DatasetLoader::new().unwrap();
+        let input = "甲 B-CRO\r\n乙 I-CRO\r\n\r\n丙 O\r\n";
+        let data = loader.parse_content_str(input, DatasetId::AgCNER).unwrap();
+        assert_eq!(data.sentences.len(), 2);
+        assert_eq!(data.sentences[0].text(), "甲乙");
+        assert_eq!(data.sentences[1].text(), "丙");
+        for invalid in [
+            "甲 O\n乙 B-",
+            "甲 O\n乙 BAD",
+            "甲 O\n乙",
+            "甲 O\n乙丙 B-DIS",
+        ] {
+            let err = loader
+                .parse_content_str(invalid, DatasetId::AgCNER)
+                .unwrap_err();
+            assert!(err.to_string().contains("line 2"));
+        }
+    }
+
+    #[test]
     fn test_annotated_sentence_entities() {
         let sentence = AnnotatedSentence {
             tokens: vec![
@@ -11465,6 +11489,24 @@ CEO,O
                 std::fs::write(&path, ann.replace("0 4", bad)).unwrap();
                 assert!(loader.load_litbank_from_path(&path).is_err());
             }
+        }
+
+        #[cfg(feature = "eval")]
+        #[test]
+        fn read_cache_requires_an_explicit_bucket_and_opt_in() {
+            for bucket in [None, Some(""), Some("  "), Some("s3://"), Some("/")] {
+                assert_eq!(DatasetLoader::read_bucket(Some("1"), bucket), None);
+            }
+            for enabled in [None, Some("0"), Some("false")] {
+                assert_eq!(
+                    DatasetLoader::read_bucket(enabled, Some("test-cache")),
+                    None
+                );
+            }
+            assert_eq!(
+                DatasetLoader::read_bucket(Some("1"), Some(" s3://test-cache/ ")).as_deref(),
+                Some("test-cache")
+            );
         }
 
         #[cfg(feature = "eval")]

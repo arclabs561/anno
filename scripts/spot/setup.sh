@@ -1,7 +1,7 @@
 #!/bin/bash
 # One-time setup for AWS spot evaluation infrastructure
 #
-# Creates: IAM role, S3 bucket, SQS queue, EBS volume, launch template
+# Uses an operator-provisioned S3 bucket. Creates the IAM role, SQS queue, EBS volume and launch template.
 #
 # Usage:
 #   ./scripts/spot/setup.sh
@@ -13,11 +13,9 @@
 set -euo pipefail
 
 REGION="${ANNO_SPOT_REGION:-us-east-1}"
-BUCKET="${ANNO_SPOT_BUCKET:-arc-anno-data}"
-QUEUE_NAME="${ANNO_SPOT_QUEUE:-anno-eval-tasks}"
-ROLE_NAME="anno-eval-spot-role"
-INSTANCE_PROFILE="anno-eval-spot-profile"
-LAUNCH_TEMPLATE_NAME="anno-eval-worker"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../s3_bucket.sh"
+
 EBS_CACHE_SIZE_GB="${ANNO_SPOT_CACHE_SIZE:-50}"
 
 # Colors
@@ -58,7 +56,7 @@ create_iam_role() {
     log_info "Creating IAM role: $ROLE_NAME"
     
     # Trust policy for EC2
-    cat > /tmp/trust-policy.json << 'EOF'
+    cat > "$SETUP_DIR/trust-policy.json" << 'EOF'
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -79,27 +77,31 @@ EOF
     else
         aws iam create-role \
             --role-name "$ROLE_NAME" \
-            --assume-role-policy-document file:///tmp/trust-policy.json \
+            --assume-role-policy-document "file://$SETUP_DIR/trust-policy.json" \
             --description "Role for anno evaluation spot instances"
         log_info "Created role: $ROLE_NAME"
     fi
     
     # Policy for S3, SQS, EC2 (for EBS attach), CloudWatch
-    cat > /tmp/role-policy.json << EOF
+    cat > "$SETUP_DIR/role-policy.json" << EOF
 {
     "Version": "2012-10-17",
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::${BUCKET}",
-                "arn:aws:s3:::${BUCKET}/*"
-            ]
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::${BUCKET}",
+            "Condition": {"StringLike": {"s3:prefix": ["datasets/*", "models/*"]}}
+        },
+        {
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": ["arn:aws:s3:::${BUCKET}/datasets/*", "arn:aws:s3:::${BUCKET}/models/*", "arn:aws:s3:::${BUCKET}/src/anno-src.tar.gz"]
+        },
+        {
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::${BUCKET}/results/*"
         },
         {
             "Effect": "Allow",
@@ -136,7 +138,7 @@ EOF
     aws iam put-role-policy \
         --role-name "$ROLE_NAME" \
         --policy-name "anno-eval-policy" \
-        --policy-document file:///tmp/role-policy.json
+        --policy-document "file://$SETUP_DIR/role-policy.json"
     log_info "Attached inline policy to role"
     
     # Attach SSM managed policy for SSM Agent connectivity
@@ -176,8 +178,6 @@ create_sqs_queue() {
             --query QueueUrl --output text)
         log_info "Created queue: $QUEUE_URL"
     fi
-    
-    echo "$QUEUE_URL" > /tmp/anno-queue-url.txt
 }
 
 create_ebs_volume() {
@@ -210,30 +210,11 @@ create_ebs_volume() {
             --query VolumeId --output text)
         log_info "Created volume: $VOLUME_ID"
     fi
-    
-    echo "$VOLUME_ID" > /tmp/anno-cache-volume.txt
 }
 
-create_launch_template() {
-    log_info "Creating launch template: $LAUNCH_TEMPLATE_NAME"
-    
-    # Get latest Amazon Linux 2023 AMI
-    AMI_ID=$(aws ec2 describe-images \
-        --region "$REGION" \
-        --owners amazon \
-        --filters "Name=name,Values=al2023-ami-2023.*-x86_64" "Name=state,Values=available" \
-        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
-        --output text)
-    
-    log_info "Using AMI: $AMI_ID (Amazon Linux 2023)"
-    
-    # User data script - runs on instance boot
-    # Downloads source from S3, builds, starts worker
-    # IMPORTANT: Before running, upload source with:
-    #   git archive --format=tar.gz HEAD -o /tmp/anno-src.tar.gz
-    #   aws s3 cp /tmp/anno-src.tar.gz s3://arc-anno-data/src/anno-src.tar.gz
-    USER_DATA=$(base64 << 'USERDATA'
-#!/bin/bash
+worker_user_data() {
+    printf '#!/bin/bash\nexport ANNO_SPOT_BUCKET=%q\nexport ANNO_SPOT_QUEUE=%q\nexport ANNO_SPOT_QUEUE_URL=%q\nexport ANNO_SPOT_REGION=%q\n' "$BUCKET" "$QUEUE_NAME" "$QUEUE_URL" "$REGION"
+    cat <<'USERDATA'
 set -ex
 
 # Set HOME explicitly for root context
@@ -257,15 +238,11 @@ source "$CARGO_HOME/env"
 export PATH="$CARGO_HOME/bin:$PATH"
 cargo --version
 
-# Get region using IMDSv2 (token required)
-IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-REGION=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-# Fallback to default region if IMDS fails
-REGION=${REGION:-us-east-1}
+REGION="$ANNO_SPOT_REGION"
 
 # Download source from S3 (repo is private, can't git clone)
 cd $HOME
-aws s3 cp s3://arc-anno-data/src/anno-src.tar.gz . --region $REGION
+aws s3 cp "s3://$ANNO_SPOT_BUCKET/src/anno-src.tar.gz" . --region $REGION
 mkdir -p anno
 tar xzf anno-src.tar.gz -C anno
 cd anno
@@ -281,18 +258,19 @@ mkdir -p "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
 # Build anno with ONNX support (can be slow on fresh instances)
 # ONNX enables ML backends: gliner, gliner_multitask, nuner, w2ner
 echo "Building anno with ONNX support..."
-cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -20
+cargo build --locked --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -20
+cargo build --locked --release -p anno-eval --example public_benchmark_report --features "eval onnx" 2>&1 | tail -20
 
 # Sync NER models from S3 (large; needed for ML backends)
 echo "Syncing NER models from S3..."
 mkdir -p "$ANNO_CACHE_MOUNT/models"
 export HF_HOME="$ANNO_CACHE_MOUNT/models"
-aws s3 sync s3://arc-anno-data/models/ner/ "$ANNO_CACHE_MOUNT/models/ner/" --region $REGION --quiet || true
+aws s3 sync "s3://$ANNO_SPOT_BUCKET/models/ner/" "$ANNO_CACHE_MOUNT/models/ner/" --region $REGION --quiet || true
 echo "Models synced: $(du -sh $ANNO_CACHE_MOUNT/models 2>/dev/null | cut -f1)"
 
 # Enable S3 fallback for any missing datasets
 export ANNO_S3_CACHE=1
-export ANNO_S3_BUCKET=arc-anno-data
+export ANNO_S3_BUCKET="$ANNO_SPOT_BUCKET"
 
 # Signal ready
 touch /tmp/anno-worker-ready
@@ -300,17 +278,30 @@ echo "=== Worker Ready $(date) ==="
 
 # Start worker with env vars
 export ANNO_SPOT_REGION="$REGION"
-export ANNO_SPOT_BUCKET="arc-anno-data"
-export ANNO_SPOT_QUEUE="anno-eval-tasks"
-export ANNO_SPOT_QUEUE_URL="https://sqs.${REGION}.amazonaws.com/$(aws sts get-caller-identity --query Account --output text)/anno-eval-tasks"
+
 ./scripts/spot/worker.sh >> /var/log/anno-worker.log 2>&1 &
 
 echo "Worker started with PID $!"
 USERDATA
-)
+}
+
+create_launch_template() {
+    log_info "Creating launch template: $LAUNCH_TEMPLATE_NAME"
+
+    # Get latest Amazon Linux 2023 AMI
+    AMI_ID=$(aws ec2 describe-images \
+        --region "$REGION" \
+        --owners amazon \
+        --filters "Name=name,Values=al2023-ami-2023.*-x86_64" "Name=state,Values=available" \
+        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+        --output text)
+
+    log_info "Using AMI: $AMI_ID (Amazon Linux 2023)"
+
+    USER_DATA=$(worker_user_data | base64 | tr -d '\n')
 
     # Create or update launch template
-    cat > /tmp/launch-template.json << EOF
+    cat > "$SETUP_DIR/launch-template.json" << EOF
 {
     "LaunchTemplateName": "$LAUNCH_TEMPLATE_NAME",
     "LaunchTemplateData": {
@@ -368,7 +359,7 @@ EOF
     
     aws ec2 create-launch-template \
         --region "$REGION" \
-        --cli-input-json file:///tmp/launch-template.json
+        --cli-input-json "file://$SETUP_DIR/launch-template.json"
     
     log_info "Created launch template: $LAUNCH_TEMPLATE_NAME"
 }
@@ -376,14 +367,12 @@ EOF
 save_config() {
     log_info "Saving configuration..."
     
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    QUEUE_URL=$(cat /tmp/anno-queue-url.txt)
-    VOLUME_ID=$(cat /tmp/anno-cache-volume.txt 2>/dev/null || echo "none")
     
-    cat > scripts/spot/config.env << EOF
+    cat > "$SCRIPT_DIR/config.env" << EOF
 # Anno Spot Evaluation Configuration
 # Generated: $(date -uIs)
 
+ANNO_SPOT_CONFIG_VERSION=2
 ANNO_SPOT_REGION=$REGION
 ANNO_SPOT_BUCKET=$BUCKET
 ANNO_SPOT_QUEUE=$QUEUE_NAME
@@ -399,6 +388,19 @@ EOF
 }
 
 main() {
+    if [[ ${1:-} == --help || ${1:-} == -h || ${1:-} == help ]]; then
+        echo 'Usage: ANNO_SPOT_BUCKET=bucket scripts/spot/setup.sh'
+        return
+    fi
+    BUCKET=$(anno_bucket_name "${ANNO_SPOT_BUCKET:-${ANNO_S3_BUCKET:-}}" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+    QUEUE_NAME="${ANNO_SPOT_QUEUE:-anno-eval-${BUCKET//./_}}"
+    local binding
+    binding=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])' "$BUCKET")
+    ROLE_NAME="anno-eval-$binding-role"
+    INSTANCE_PROFILE="anno-eval-$binding-profile"
+    LAUNCH_TEMPLATE_NAME="anno-eval-worker-${BUCKET}"
+    SETUP_DIR=$(mktemp -d)
+    trap 'rm -rf -- "$SETUP_DIR"' EXIT
     echo "========================================"
     echo "  Anno Spot Evaluation Setup"
     echo "========================================"
@@ -423,5 +425,5 @@ main() {
     echo ""
 }
 
-main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi
 

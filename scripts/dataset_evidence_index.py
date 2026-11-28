@@ -103,6 +103,71 @@ def study_outcomes(evidence):
                     detail=f"{counts['correct']} exact, {counts['predicted']} predicted, {counts['gold']} gold",
                 )
 
+    source = "agcner-source-coordinates.json"
+    study = receipt(evidence, source)
+    for split, panel in study["splits"].items():
+        observed = panel["after_original_bio"]
+        gold, predicted = observed["gold_spans"], observed["predicted"]
+        if (
+            observed["source_text_exact"] != observed["cases"]
+            or observed["gold_spans_exact_source_label_and_offsets"] != gold
+            or observed != panel["after_legacy_jsonl"]
+        ):
+            raise ValueError(
+                f"AgCNER {split} scoring does not reproduce the publisher coordinates"
+            )
+        yield score(
+            "AgCNER",
+            "ner",
+            "heuristic",
+            split,
+            "complete publisher split · original character offsets",
+            observed["cases"],
+            "passages",
+            source,
+            panel["source_sha256"],
+            reported_backend="heuristic",
+            read_source="pinned Figshare BIO file",
+            metric="typed exact micro F1",
+            metric_value=2 * observed["correct"] / (gold + predicted),
+            detail=f"{observed['correct']} exact, {predicted} predicted, {gold} gold",
+        )
+
+    source = "histnero-ner-scoring.json"
+    study = receipt(evidence, source)
+    for split, panel in study["splits"].items():
+        arms = panel["scoring"]
+        if (
+            arms["source"]["gold"] != panel["source_gold"]
+            or arms["dataset"]["gold"]
+            != panel["source_gold"] - panel["zero_length_gold_spans"]
+            or arms["source"]["predicted"] != arms["dataset"]["predicted"]
+        ):
+            raise ValueError(
+                f"HistNERo {split} populations disagree with the scored label policies"
+            )
+        for policy, scope in (
+            ("source", "publisher labels and original gold spans"),
+            ("dataset", "dataset label policy and nonempty gold spans"),
+        ):
+            arm = arms[policy]
+            yield score(
+                "HistNERo",
+                "ner",
+                study["backend"],
+                split,
+                f"complete publisher split · {scope}",
+                panel["cases"],
+                "sentences",
+                source,
+                panel["source"]["sha256"],
+                reported_backend=study["backend"],
+                read_source="pinned HistNERo JSON and publisher class schema",
+                metric="typed exact micro F1",
+                metric_value=arm["f1"],
+                detail=f"{arm['correct']} exact, {arm['predicted']} predicted, {arm['gold']} gold",
+            )
+
     source = "vira-speech-act.json"
     study = receipt(evidence, source)
     for split, panel in study["splits"].items():

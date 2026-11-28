@@ -8,21 +8,20 @@ Enrich dataset registry with:
 Run with: uv run python scripts/enrich_dataset_registry.py
 """
 
+import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.request
 import urllib.error
-import ssl
 
-CACHE_DIR = Path.home() / "Library/Caches/anno/datasets"
+_user_cache = Path.home() / "Library/Caches" if sys.platform == "darwin" else Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache"))
+CACHE_DIR = Path(os.getenv("ANNO_CACHE_DIR", _user_cache / "anno")) / "datasets"
 REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno-eval/src/eval/dataset_registry.rs"
-S3_BUCKET = "arc-anno-data"
 OUTPUT_FILE = Path(__file__).parent.parent / "scripts/registry_enrichment.json"
 
 # Timeout for URL health checks (seconds)
@@ -86,18 +85,13 @@ def check_url_health(url: str) -> dict:
         return {"status": "skip", "url": url}
     
     try:
-        # Create SSL context that doesn't verify certificates (for speed)
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        
         req = urllib.request.Request(
             url,
             headers={'User-Agent': 'Mozilla/5.0 (compatible; anno-health-check/1.0)'},
             method='HEAD'
         )
         
-        with urllib.request.urlopen(req, timeout=URL_TIMEOUT, context=ctx) as response:
+        with urllib.request.urlopen(req, timeout=URL_TIMEOUT) as response:
             return {
                 "status": "ok",
                 "url": url,
@@ -216,6 +210,9 @@ def generate_rust_updates(s3_matches: dict, hf_additions: dict) -> str:
     return "\n".join(lines)
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check-urls", action="store_true", help="Contact registry HTTP sources")
+    args = parser.parse_args()
     print("=" * 60)
     print("Dataset Registry Enrichment")
     print("=" * 60)
@@ -241,7 +238,7 @@ def main():
     
     # URL health checks (optional - takes time)
     health_results = {}
-    if "--check-urls" in sys.argv:
+    if args.check_urls:
         print("\n[5/5] Running URL health checks...")
         health_results = run_health_checks(datasets)
         

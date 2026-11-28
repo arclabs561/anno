@@ -28,12 +28,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-import boto3
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
+if __package__:
+    from .storage import fleet_settings, selected_bucket
+else:
+    from storage import fleet_settings, selected_bucket
 
-console = Console()
+# Planning, --help, and local execution use the Python standard library.
+try:
+    import boto3
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from rich.table import Table
+except ModuleNotFoundError:
+    console = None
+else:
+    console = Console()
 
 # ============================================================================
 # Configuration
@@ -42,10 +51,10 @@ console = Console()
 @dataclass
 class Config:
     region: str = "us-east-1"
-    bucket: str = "arc-anno-data"
-    queue_name: str = "anno-eval-tasks"
+    bucket: str = ""
+    queue_name: str = ""
     queue_url: str = ""
-    launch_template: str = "anno-eval-worker"
+
     fleet_size: int = 4
     instance_types: list[str] = None
     
@@ -53,20 +62,7 @@ class Config:
         if self.instance_types is None:
             self.instance_types = ["c7i.xlarge", "c7a.xlarge", "m7i.xlarge", "c6i.xlarge"]
         
-        # Load from environment
-        self.region = os.environ.get("ANNO_SPOT_REGION", self.region)
-        self.bucket = os.environ.get("ANNO_SPOT_BUCKET", self.bucket)
-        self.queue_name = os.environ.get("ANNO_SPOT_QUEUE", self.queue_name)
         self.fleet_size = int(os.environ.get("ANNO_SPOT_FLEET_SIZE", self.fleet_size))
-        
-        # Try loading from config file
-        config_path = Path(__file__).parent / "config.env"
-        if config_path.exists():
-            for line in config_path.read_text().splitlines():
-                if "=" in line and not line.startswith("#"):
-                    key, value = line.split("=", 1)
-                    if key == "ANNO_SPOT_QUEUE_URL":
-                        self.queue_url = value
 
 
 # ============================================================================
@@ -194,15 +190,15 @@ def cmd_generate(args, config: Config):
         max_examples=args.max_examples,
     ))
     
-    console.print(f"[bold]Generated {len(tasks)} tasks[/bold]")
-    
     if args.dry_run:
+        print(f"Generated {len(tasks)} tasks")
         for task in tasks[:10]:
-            console.print(f"  {task}")
+            print(f"  {task}")
         if len(tasks) > 10:
-            console.print(f"  ... and {len(tasks) - 10} more")
+            print(f"  ... and {len(tasks) - 10} more")
         return
     
+    console.print(f"[bold]Generated {len(tasks)} tasks[/bold]")
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -238,7 +234,7 @@ def launch_fleet(config: Config, target_capacity: int) -> str:
             "LaunchTemplateConfigs": [
                 {
                     "LaunchTemplateSpecification": {
-                        "LaunchTemplateName": config.launch_template,
+                        "LaunchTemplateName": f"anno-eval-worker-{config.bucket}",
                         "Version": "$Latest",
                     },
                     "Overrides": overrides,
@@ -677,7 +673,7 @@ def cmd_local(args, config: Config):
         max_examples=max_cases,
     ))
     
-    console.print(f"[bold]Running {len(tasks)} evaluations locally...[/bold]")
+    print(f"Running {len(tasks)} evaluations locally...")
     
     results = []
     output_dir = Path(args.output).parent
@@ -688,7 +684,7 @@ def cmd_local(args, config: Config):
     if not anno_bin.exists():
         anno_bin = Path("target/debug/anno")
     if not anno_bin.exists():
-        console.print("[red]Error: anno binary not found. Run 'cargo build --release -p anno-cli --features eval' first.[/red]")
+        print("Error: anno binary not found. Run 'cargo build --release -p anno-cli --features eval' first.")
         return
     
     for i, task in enumerate(tasks, 1):
@@ -696,7 +692,7 @@ def cmd_local(args, config: Config):
         dataset = task["dataset"]
         seed = task["seed"]
         
-        console.print(f"\n[{i}/{len(tasks)}] [bold]{backend}[/bold] × [cyan]{dataset}[/cyan] (seed={seed})")
+        print(f"\n[{i}/{len(tasks)}] {backend} × {dataset} (seed={seed})")
         
         start = datetime.now()
         try:
@@ -732,7 +728,7 @@ def cmd_local(args, config: Config):
                     "n": int(n_match.group(1)) if n_match else 0,
                     "duration_ms": duration_ms,
                 }
-                console.print(f"  [green]F1={r['f1']:.1f}% P={r['precision']:.1f}% R={r['recall']:.1f}% ({duration_ms}ms)[/green]")
+                print(f"  F1={r['f1']:.1f}% P={r['precision']:.1f}% R={r['recall']:.1f}% ({duration_ms}ms)")
             else:
                 r = {
                     "timestamp": datetime.now().isoformat(),
@@ -744,14 +740,14 @@ def cmd_local(args, config: Config):
                     "error": "parse_failed",
                     "stderr": result.stderr[:500] if result.stderr else None,
                 }
-                console.print(f"  [yellow]No results parsed (exit={result.returncode})[/yellow]")
+                print(f"  No results parsed (exit={result.returncode})")
                 if result.stderr:
-                    console.print(f"  [dim]{result.stderr[:200]}[/dim]")
+                    print(f"  {result.stderr[:200]}")
             
             results.append(r)
             
         except subprocess.TimeoutExpired:
-            console.print(f"  [red]Timeout after 600s[/red]")
+            print(f"  Timeout after 600s")
             results.append({
                 "timestamp": datetime.now().isoformat(),
                 "backend": backend, "dataset": dataset, "seed": seed,
@@ -759,7 +755,7 @@ def cmd_local(args, config: Config):
                 "duration_ms": 600000, "error": "timeout",
             })
         except Exception as e:
-            console.print(f"  [red]Error: {e}[/red]")
+            print(f"  Error: {e}")
             results.append({
                 "timestamp": datetime.now().isoformat(),
                 "backend": backend, "dataset": dataset, "seed": seed,
@@ -773,13 +769,13 @@ def cmd_local(args, config: Config):
         for r in results:
             f.write(json.dumps(r) + "\n")
     
-    console.print(f"\n[bold green]Results written to {output_path}[/bold green]")
+    print(f"\nResults written to {output_path}")
     
     # Summary
     successful = [r for r in results if r.get("f1", 0) > 0]
     if successful:
         best = max(successful, key=lambda r: r["f1"])
-        console.print(f"[bold]Best: {best['backend']}/{best['dataset']} F1={best['f1']:.1f}%[/bold]")
+        print(f"Best: {best['backend']}/{best['dataset']} F1={best['f1']:.1f}%")
 
 
 # ============================================================================
@@ -839,7 +835,27 @@ def main():
     
     args = parser.parse_args()
     config = Config()
-    
+    if args.command in {"launch", "status", "results", "full"} or (
+        args.command == "generate" and not args.dry_run
+    ):
+        try:
+            config.bucket = selected_bucket()
+        except ValueError as exc:
+            parser.error(str(exc))
+
+    if args.command == "teardown":
+        try:
+            config.bucket = selected_bucket()
+        except ValueError:
+            pass  # A fleet ID or explicit SQS queue can be cleaned up independently.
+    config.region, config.queue_name, config.queue_url = fleet_settings(config.bucket)
+    if args.command == "teardown" and args.purge_queue and not (config.queue_name or config.queue_url):
+        parser.error("Choose the queue with ANNO_SPOT_QUEUE or configure its Spot bucket.")
+
+    local_only = args.command == "local" or (args.command == "generate" and args.dry_run)
+    if not local_only and console is None:
+        parser.error("Remote commands require boto3 and rich. Run via uv run scripts/spot/orchestrate.py.")
+
     commands = {
         "generate": cmd_generate,
         "launch": cmd_launch,

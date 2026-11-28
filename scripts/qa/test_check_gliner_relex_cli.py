@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 import json
+from subprocess import CompletedProcess
 from pathlib import Path
 import tempfile
 import unittest
@@ -32,13 +33,23 @@ class RelexParityTests(unittest.TestCase):
             for changes, error in (({}, None), ({"runtime_model": "fallback"}, "runtime"),
                                    ({"relation_producer": dict(producer, model_version="old")}, "producer")):
                 output = {"entities": [], "relations": [], "provenance": expected | changes}
-                with self.subTest(changes=changes), patch("subprocess.check_output",
-                        side_effect=[json.dumps(output), export.read_text()]):
+                replies = [CompletedProcess([], 0, stdout=data, stderr=b"")
+                           for data in (json.dumps(output).encode(), export.read_bytes())]
+                with self.subTest(changes=changes), patch("subprocess.run", side_effect=replies):
                     if error:
                         with self.assertRaisesRegex(ValueError, error):
                             check_case("anno", case, generation, export)
                     else:
                         self.assertEqual(check_case("anno", case, generation, export)["directed_edges"], 0)
+
+    def test_failure_reports_the_stage_and_exit_code_without_source_or_process_output(self):
+        case = json.loads(FIXTURE.read_bytes())["cases"][0] | {"text": "PRIVATE_FIXTURE_SENTENCE"}
+        reply = CompletedProcess([], 17, stdout=b"PRIVATE_STDOUT", stderr=b"PRIVATE_STDERR")
+        with tempfile.TemporaryDirectory() as directory, patch("subprocess.run", return_value=reply) as run:
+            with self.assertRaises(ValueError) as failure:
+                check_case("anno", case, "a" * 64, Path(directory, "export.json"))
+        self.assertEqual(str(failure.exception), "Native extraction exited 17")
+        self.assertTrue(run.call_args.kwargs["capture_output"])
 
 
 if __name__ == "__main__":
