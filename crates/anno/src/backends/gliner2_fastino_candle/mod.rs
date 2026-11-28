@@ -251,7 +251,7 @@ impl GLiNER2FastinoCandle {
     /// Load from HuggingFace Hub with an explicit Candle device.
     pub fn from_pretrained_with_device(model_id: &str, device: &Device) -> crate::Result<Self> {
         check_device(device)?;
-        let api = crate::backends::hf_loader::hf_api()
+        let api = crate::backends::hf_loader::model_source()
             .map_err(|e| crate::Error::Backend(format!("hf_api: {e}")))?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 

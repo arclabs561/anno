@@ -14,7 +14,7 @@
 /// symptom: headaches (25,34) 0.87
 /// symptom: fever (46,51) 0.82
 /// ```
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn main() -> anno::Result<()> {
     use anno::GLiNEROnnx;
 
@@ -35,7 +35,7 @@ fn main() -> anno::Result<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 fn main() {
     eprintln!(
         "This example requires the `onnx` feature: cargo run --example zero_shot --features onnx"

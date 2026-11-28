@@ -68,7 +68,7 @@ fn test_sorted_output() {
 }
 
 /// Verify stacked default includes an ML backend when onnx is enabled and models are available.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn test_default_includes_ml_backend_when_available() {
     let stats = StackedNER::default().stats();

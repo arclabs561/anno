@@ -462,6 +462,16 @@ jobs:
           ANNO_NO_DOWNLOADS: "1"
         # The GLiNER fixtures select their model cache process-wide.
         run: cargo test --locked -p anno --features onnx --test bughunt7 -- --test-threads=1 --nocapture
+      - name: Verify local ONNX inference without Hub transport
+        env:
+          ANNO_BH7_ORT_LIB: "linked"
+        run: |
+          cargo tree --locked -p anno --no-default-features --features onnx-local -e normal,build --prefix none > "$RUNNER_TEMP/anno-local-tree"
+          if grep -q '^hf-hub v' "$RUNNER_TEMP/anno-local-tree"; then
+            echo "::error::onnx-local pulled in the Hub transport"
+            exit 1
+          fi
+          cargo test --locked -p anno --no-default-features --features onnx-local --test bughunt7 -- --test-threads=1
       # gliner2-fastino is not in any other job's feature set; its processor
       # tests read testdata/gliner2_fastino/ fixtures and silently rot without
       # a CI run that enables the feature.

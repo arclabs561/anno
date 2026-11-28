@@ -42,9 +42,9 @@
 
 #![allow(unused_imports)] // EntityType used conditionally
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod export;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod inference;
 
 use crate::backends::inference::ZeroShotNER;
@@ -70,7 +70,7 @@ const DEFAULT_POLY_LABELS: &[&str] = &[
 /// The export script writes to `~/.cache/anno/models/gliner-poly/` by default;
 /// `cache_dir()` may resolve to a platform-specific location (e.g. `~/Library/Caches/anno`
 /// on macOS).
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn local_model_cache_candidates() -> [std::path::PathBuf; 2] {
     [
         crate::env::cache_dir().join("models/gliner-poly"),
@@ -84,7 +84,7 @@ fn local_model_cache_candidates() -> [std::path::PathBuf; 2] {
 // ONNX-enabled implementation
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use std::sync::Mutex;
 
 /// Poly-Encoder GLiNER backend for zero-shot NER with inter-label interactions.
@@ -94,7 +94,7 @@ use std::sync::Mutex;
 /// allows label-to-label and label-to-text interactions during encoding.
 ///
 /// Requires the `onnx` feature and a compatible ONNX export.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub struct GLiNERPoly {
     session: Mutex<ort::session::Session>,
     /// The repository exporter emits a separate model producing label embeddings.
@@ -109,7 +109,7 @@ pub struct GLiNERPoly {
     is_quantized: bool,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl std::fmt::Debug for GLiNERPoly {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GLiNERPoly")
@@ -123,7 +123,7 @@ impl std::fmt::Debug for GLiNERPoly {
 // Model trait (ONNX)
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl crate::Model for GLiNERPoly {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         self.extract(text, DEFAULT_POLY_LABELS, 0.5)
@@ -168,7 +168,7 @@ impl crate::Model for GLiNERPoly {
 // ZeroShotNER trait (ONNX)
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl ZeroShotNER for GLiNERPoly {
     fn extract_with_types(
         &self,
@@ -198,14 +198,14 @@ impl ZeroShotNER for GLiNERPoly {
 // Stub when feature disabled
 // =============================================================================
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 #[derive(Debug)]
 /// GLiNERPoly stub (requires `onnx` feature).
 pub struct GLiNERPoly {
     _private: (),
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 impl GLiNERPoly {
     /// Create a new Poly-Encoder GLiNER model (stub -- requires `onnx` feature).
     pub fn new(_model_name: &str) -> Result<Self> {
@@ -217,7 +217,7 @@ impl GLiNERPoly {
     }
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 impl crate::Model for GLiNERPoly {
     fn extract_entities(&self, _text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         Err(Error::FeatureNotAvailable(
@@ -242,7 +242,7 @@ impl crate::Model for GLiNERPoly {
     }
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 impl ZeroShotNER for GLiNERPoly {
     fn extract_with_types(
         &self,
@@ -281,7 +281,7 @@ mod tests {
 
     // ---- Test 1: construction without onnx returns FeatureNotAvailable ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_creation_no_onnx() {
         let err = GLiNERPoly::new("knowledgator/gliner-bi-large-v1.0").unwrap_err();
         assert!(
@@ -292,7 +292,7 @@ mod tests {
 
     // ---- Test 2: name is stable across feature configurations ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_name_stable() {
         use crate::Model;
         let model = GLiNERPoly { _private: () };
@@ -301,7 +301,7 @@ mod tests {
 
     // ---- Test 3: error message mentions onnx when feature disabled ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_error_mentions_onnx() {
         let err = GLiNERPoly::new("test-model").unwrap_err();
         let msg = err.to_string();
@@ -313,7 +313,7 @@ mod tests {
 
     // ---- Test 4: supported_types returns empty without onnx ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_supported_types_empty() {
         use crate::Model;
         let model = GLiNERPoly { _private: () };
@@ -322,7 +322,7 @@ mod tests {
 
     // ---- Test 5: is_available returns false without onnx ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_is_not_available() {
         use crate::Model;
         let model = GLiNERPoly { _private: () };
@@ -331,7 +331,7 @@ mod tests {
 
     // ---- Test 6: ZeroShotNER returns error without onnx ----
     #[test]
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     fn test_gliner_poly_zero_shot_error() {
         let model = GLiNERPoly { _private: () };
         let err = model
@@ -342,7 +342,7 @@ mod tests {
 
     // ---- Tests with onnx feature enabled ----
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn split_export_routes_label_embeddings_and_preserves_source_offsets() {
         let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/bughunt7_data");
@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn test_gliner_poly_name_onnx() {
         // Verify that GLiNERPoly::new fails gracefully with a bad model name.
         // Skip if a local cache exists, because new() finds the cached model
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn test_gliner_poly_capabilities() {
         // Verify capabilities are reported correctly by checking the default labels.
         assert!(!DEFAULT_POLY_LABELS.is_empty());
@@ -433,7 +433,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_make_span_tensors_empty() {
         let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(0);
@@ -441,7 +441,7 @@ mod tests {
         assert!(span_mask.is_empty());
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_make_span_tensors_single_word() {
         let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(1);
@@ -458,7 +458,7 @@ mod tests {
         assert_eq!(span_idx[1], 0);
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_make_span_tensors_three_words() {
         let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(3);
@@ -493,7 +493,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_local_model_cache_candidates() {
         let paths = local_model_cache_candidates();
