@@ -132,13 +132,19 @@ pub fn download_model_file_at_revision<T: hf_hub::RepoType>(
     let offline = no_downloads();
     let mut last_error = String::new();
     for &filename in candidates {
-        match repo
-            .download_file()
-            .filename(filename)
-            .maybe_revision(revision.map(str::to_owned))
-            .local_files_only(offline)
-            .send()
-        {
+        let fetch = |local_only| {
+            repo.download_file()
+                .filename(filename)
+                .maybe_revision(revision.map(str::to_owned))
+                .local_files_only(local_only)
+                .send()
+        };
+        // Like the previous Hub client's get(), a cached named revision needs no HTTP request.
+        let result = match fetch(true) {
+            Err(_) if !offline => fetch(false),
+            cached => cached,
+        };
+        match result {
             Ok(path) if path.is_file() => return Ok(path),
             Ok(path) => last_error = format!("{} is not a file", path.display()),
             Err(err) => last_error = err.to_string(),

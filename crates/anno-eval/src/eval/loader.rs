@@ -2933,17 +2933,19 @@ impl DatasetLoader {
         })?;
         let (owner, name) = hf_hub::split_id(dataset_name);
         let repo = api.dataset(owner, name);
-        let file_path_buf = repo
-            .download_file()
-            .filename(file_path)
-            .send()
-            .map_err(|e| {
-                Error::InvalidInput(format!(
-                    "Failed to download {} from HuggingFace Hub: {}. \
+        let fetch = |local_only| {
+            repo.download_file()
+                .filename(file_path)
+                .local_files_only(local_only)
+                .send()
+        };
+        let file_path_buf = fetch(true).or_else(|_| fetch(false)).map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to download {} from HuggingFace Hub: {}. \
                  Falling back to HTTP download.",
-                    file_path, e
-                ))
-            })?;
+                file_path, e
+            ))
+        })?;
 
         std::fs::read_to_string(&file_path_buf)
             .map_err(|e| Error::InvalidInput(format!("Failed to read downloaded file: {}", e)))
