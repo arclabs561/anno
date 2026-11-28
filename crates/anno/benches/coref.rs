@@ -1,5 +1,6 @@
 use anno::backends::coref::mention_ranking::MentionRankingCoref;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 // ---------------------------------------------------------------------------
 // Coref test inputs
