@@ -86,6 +86,7 @@ fn export_preserves_edits_without_starting_the_selected_model() {
         assert!(ann.contains("REVIEWED Arg1:T1 Arg2:T2"), "{ann}");
         let edges = fs::read_to_string(dir.join(format!("{prefix}-edges.csv"))).unwrap();
         assert!(edges.contains("Marie,org:1_Acme_Inc,REVIEWED,"), "{edges}");
+        assert!(edges.lines().skip(1).all(|edge| edge.ends_with(&label)));
         assert!(!edges.contains("CO_OCCURS"));
     }
 }
