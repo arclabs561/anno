@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_TARGET_DIR="$RUNNER_TEMP/wikibela-build"
-          cargo build --locked -p anno-cli --no-default-features --bin anno
+          cargo build --locked -p anno-cli --no-default-features --features extractor-html2text --bin anno
           install -m 755 "$CARGO_TARGET_DIR/debug/anno" "$RUNNER_TEMP/wikibela/anno"
           rm -rf -- "$CARGO_TARGET_DIR"
       - name: Install the pinned upstream CPU retriever
