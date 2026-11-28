@@ -79,6 +79,7 @@ README_preview_screenshot*.png
 
 # Python
 .venv/
+.venv-*/
 __pycache__/
 *.pyc
 *.pyo
@@ -201,9 +202,27 @@ scripts/aws/.tfvars
 # fcoref ONNX symlinks (any depth; no trailing / — they're symlinks not dirs)
 **/fcoref_onnx
 
-# ONNX model artifacts (large, download on demand)
+# Local model snapshots, external checkout and work directories used by docs/models/.
+# Ignore the entire snapshot so tokenizer files, Python modules and manifests
+# downloaded with the weights stay local too.
+/models/
+/kniv-v7-large-en/
+/relik-aida/
+/corpipe-base/
+/crac2026-corpipe/
+/glidre-work/
+.*.prepare.lock
+
+# Downloaded or converted model weights in custom locations
 *.onnx
 *.onnx_data
+*.onnx.data
+*.safetensors
+pytorch_model*.bin
+*.ckpt
+*.gguf
+model.pt
+*.udpipe
 
 # Hygiene (added by guardian audit)
 .env.*

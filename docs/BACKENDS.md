@@ -19,6 +19,8 @@ Use `anno models list` to see extraction backends and their build status. A “c
 
 Use `anno models checkpoints --json` to read the inventory programmatically. Preparation and guide paths are relative to the repository root. Each recipe points to the script or manifest that owns the preparation details when one exists. The [backend catalog](../crates/anno/src/backends/catalog.rs) supplies build metadata, and the [checkpoint replay manifest](../scripts/qa/checkpoint_replay/models.json) pins files and expected predictions for selected checkpoints.
 
+When preparing a checkpoint inside this checkout, use the ignored top-level `models/` directory for the whole snapshot, including tokenizer files. Track the preparation recipe, upstream revision and verification data alongside the integration. Write local evaluation inputs and prediction files under `.generated/` or outside the checkout.
+
 ### Defaults by task
 
 | Request | Selection when you omit `--model` |
