@@ -47,3 +47,6 @@ h1{font:bold 19px/1.1 Georgia,serif}.console nav{padding-top:36px}
 .bench-switches button[aria-pressed=true]{border-style:inset;color:#f2d795;background:#3b3126}
 .paper-source{float:right;margin-left:4px}.bench-copy{font:12px/1.5 monospace;color:#b4d6ae}
 @media(min-width:651px){#outfitter .shop-body{min-height:204px;grid-template-columns:38% 37% 25%}#outfitter .details,#outfitter .stats{padding:6px}.tile{min-height:62px}.tile .sprite{width:40px}.details p{margin:6px 0}.actions{padding:4px 6px}.stats .sprite{width:min(100%,128px)}}
+#survey-labels{width:100%;padding:5px;color:#cfdfc1;background:#171b16;border:2px inset #665f55;font:13px monospace}
+#equipment{border-top:1px solid #56545a;margin-top:8px;padding-top:6px}
+.spec-plate{display:grid;grid-template-columns:auto 1fr;gap:2px 6px;margin:0;font:11px/1.4 Arial,sans-serif}.spec-plate dt{color:#bcb7a4}.spec-plate dd{margin:0;text-align:right}

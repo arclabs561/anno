@@ -17,3 +17,5 @@ For a visual review, search the web at review time for original Escape Velocity 
 Run a 6,000-character CRF passage. Time the click handler and the completed result separately. Edit the passage or leave the lab during inference and check for stale results. Verify one WASM request across landing and first lab use.
 
 Compare the landing window and equipment dialog at the same desktop viewport with published gameplay captures. Check the relative widths of the vista, service banks and cockpit rail, inventory column count, instrument preview and bottom action row. Recheck legibility at phone width.
+
+On a fresh visit open the Survey receiver and verify that the neural assets load only when a scan starts. Compare the fitted reader with GLiNER on the same sounding, tune to vessel alone, then inspect the exported score and the character offsets following the moon. Measure first use and repeat inference separately. Check cancellation and an unavailable checkpoint.
