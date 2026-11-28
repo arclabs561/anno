@@ -473,7 +473,7 @@ impl GLiNER2Fastino {
         model_id: &str,
         cfg: GLiNER2FastinoConfig,
     ) -> crate::Result<Self> {
-        let api = crate::backends::hf_loader::hf_api()
+        let api = crate::backends::hf_loader::model_source()
             .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: hf_api: {e}")))?;
         // The public, supported model is always reproducible by default.
         // Other model IDs remain floating unless the caller opts into a revision.

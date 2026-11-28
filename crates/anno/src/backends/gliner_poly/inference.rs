@@ -18,7 +18,7 @@ const TOKEN_SEP: u32 = 128003;
 /// Default max span width from GLiNER config.
 pub(super) const MAX_SPAN_WIDTH: usize = 12;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl GLiNERPoly {
     /// Is a self-contained bi-encoder export ready for offline sampling?
     #[must_use]
@@ -207,7 +207,7 @@ impl GLiNERPoly {
             labels_encoder_name
         );
 
-        let api = crate::backends::hf_loader::hf_api()?;
+        let api = crate::backends::hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, labels_encoder_name);
         let tok_path = crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
         crate::backends::hf_loader::load_tokenizer(&tok_path)
@@ -233,7 +233,7 @@ impl GLiNERPoly {
         {
             return Self::from_dir_with_options(&dir, optimization_level, num_threads);
         }
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         // Download model -- try quantized variants first if preferred.

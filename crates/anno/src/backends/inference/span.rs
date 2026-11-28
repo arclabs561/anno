@@ -12,7 +12,7 @@ use crate::SpanCandidate;
 
 /// Match GLiNER's WhitespaceTokenSplitter so that the trained span grid sees
 /// punctuation as separate words and retains internal hyphens.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) fn gliner_word_ranges(text: &str) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
     static WORDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
         regex::Regex::new(r"[\p{L}\p{N}_]+(?:[-_][\p{L}\p{N}_]+)*|\S").expect("constant word regex")
@@ -20,7 +20,7 @@ pub(crate) fn gliner_word_ranges(text: &str) -> impl Iterator<Item = std::ops::R
     WORDS.find_iter(text).map(|word| word.range())
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) fn gliner_words(text: &str) -> Vec<&str> {
     gliner_word_ranges(text).map(|range| &text[range]).collect()
 }

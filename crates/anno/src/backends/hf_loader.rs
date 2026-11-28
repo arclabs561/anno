@@ -1,31 +1,17 @@
 //! Shared HuggingFace model loading utilities.
 //!
-//! Centralizes the duplicated pattern of:
-//! 1. Initializing the HF API (with an optional token from the process environment)
-//! 2. Downloading model files from a HuggingFace repo
-//! 3. Creating ONNX Runtime sessions with standard configuration
-//!
-//! # Usage
-//!
-//! ```rust,ignore
-//! use anno::backends::hf_loader::{hf_api, download_model_file, create_onnx_session, OnnxSessionConfig};
-//!
-//! let api = hf_api()?;
-//! let repo = api.model("protectai", "bert-base-NER-onnx");
-//! let model_path = download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
-//! let tokenizer_path = download_model_file(&repo, &["tokenizer.json"])?;
-//! let session = create_onnx_session(&model_path, OnnxSessionConfig::default())?;
-//! ```
+//! Resolves model artifacts from disk or the optional Hub client and builds ONNX sessions.
 
 use crate::{Error, Result};
 
-/// Returns `true` when `ANNO_NO_DOWNLOADS` is set to a truthy value.
+/// Returns `true` in a local-only build or when `ANNO_NO_DOWNLOADS` is truthy.
 ///
 /// The flag blocks *new* network fetches; cached models still load via
 /// [`download_model_file`]. Backends constructed from local paths bypass
 /// this layer entirely.
 pub fn no_downloads() -> bool {
-    no_downloads_from(std::env::var("ANNO_NO_DOWNLOADS").ok().as_deref())
+    !cfg!(feature = "hub-downloads")
+        || no_downloads_from(std::env::var("ANNO_NO_DOWNLOADS").ok().as_deref())
 }
 
 fn no_downloads_from(value: Option<&str>) -> bool {
@@ -38,42 +24,17 @@ fn no_downloads_from(value: Option<&str>) -> bool {
     }
 }
 
-/// Initialize the Hugging Face client with the process environment's token and cache.
-pub fn hf_api() -> Result<hf_hub::HFClientSync> {
-    let mut builder = hf_hub::HFClient::builder().cache_dir(hub_cache_dir());
-    if let Some(token) = crate::env::hf_token() {
-        builder = builder.token(token);
-    }
-    Ok(builder.build_sync()?)
-}
+#[cfg(feature = "hub-downloads")]
+mod transport;
+#[cfg(feature = "hub-downloads")]
+pub use transport::{download_model_file, download_model_file_at_revision};
+#[cfg(feature = "hub-downloads")]
+pub(crate) use transport::{hub_cache_dir, hub_model, model_source, ModelRepo};
 
-pub(crate) fn hub_model(
-    api: &hf_hub::HFClientSync,
-    id: &str,
-) -> hf_hub::HFRepositorySync<hf_hub::RepoTypeModel> {
-    let (owner, name) = hf_hub::split_id(id);
-    api.model(owner, name)
-}
-
-/// Preserve the native home directory on Windows when no Hub cache override is set.
-pub(crate) fn hub_cache_dir() -> std::path::PathBuf {
-    if cfg!(windows)
-        && [
-            "HF_HUB_CACHE",
-            "HUGGINGFACE_HUB_CACHE",
-            "HF_HOME",
-            "XDG_CACHE_HOME",
-            "HOME",
-        ]
-        .iter()
-        .all(|key| std::env::var_os(key).is_none())
-    {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(".cache").join("huggingface").join("hub");
-        }
-    }
-    hf_hub::resolve_cache_dir()
-}
+#[cfg(not(feature = "hub-downloads"))]
+mod local;
+#[cfg(not(feature = "hub-downloads"))]
+pub(crate) use local::{download_model_file, hub_cache_dir, hub_model, model_source, ModelRepo};
 
 /// Directory of a model's local exports, named refs and snapshots.
 pub(crate) fn model_cache_dir(cache: &std::path::Path, model: &str) -> std::path::PathBuf {
@@ -98,77 +59,14 @@ pub(crate) fn cached_main_file(
     file.is_file().then_some(file)
 }
 
-/// Download a file from a HuggingFace repo, trying multiple candidate paths in order.
-///
-/// Returns the local path to the downloaded file. Tries each candidate path in order
-/// and returns the first successful download.
-///
-/// # Arguments
-///
-/// * `repo` - HuggingFace repo handle from `api.model()`
-/// * `candidates` - File paths to try in order (e.g., `&["onnx/model.onnx", "model.onnx"]`)
-///
-/// # Errors
-///
-/// Returns `Error::Retrieval` if none of the candidates can be downloaded.
-pub fn download_model_file<T: hf_hub::RepoType>(
-    repo: &hf_hub::HFRepositorySync<T>,
-    candidates: &[&str],
-) -> Result<std::path::PathBuf> {
-    download_model_file_at_revision(repo, None, candidates)
-}
-
-/// Resolve all candidates at the same revision, including in cache-only mode.
-pub fn download_model_file_at_revision<T: hf_hub::RepoType>(
-    repo: &hf_hub::HFRepositorySync<T>,
-    revision: Option<&str>,
-    candidates: &[&str],
-) -> Result<std::path::PathBuf> {
-    if candidates.is_empty() {
-        return Err(Error::Retrieval(
-            "download_model_file: candidates must not be empty".into(),
-        ));
-    }
-    let offline = no_downloads();
-    let mut last_error = String::new();
-    for &filename in candidates {
-        let fetch = |local_only| {
-            repo.download_file()
-                .filename(filename)
-                .maybe_revision(revision.map(str::to_owned))
-                .local_files_only(local_only)
-                .send()
-        };
-        // Like the previous Hub client's get(), a cached named revision needs no HTTP request.
-        let result = match fetch(true) {
-            Err(_) if !offline => fetch(false),
-            cached => cached,
-        };
-        match result {
-            Ok(path) if path.is_file() => return Ok(path),
-            Ok(path) => last_error = format!("{} is not a file", path.display()),
-            Err(err) => last_error = err.to_string(),
-        }
-    }
-    let mode = if offline {
-        "ANNO_NO_DOWNLOADS is set; cache lookup failed"
-    } else {
-        "Hub download failed"
-    };
-    Err(Error::Retrieval(format!(
-        "{mode} for [{}]: {last_error}",
-        candidates.join(", ")
-    )))
-}
-
-#[cfg(any(feature = "onnx", test))]
+#[cfg(any(feature = "onnx-local", test))]
 pub(crate) const QUANTIZED_ONNX_PATHS: &[&str] = &[
     "onnx/model_quantized.onnx",
     "model_quantized.onnx",
     "onnx/model_int8.onnx",
     "model_int8.onnx",
 ];
-#[cfg(any(feature = "onnx", test))]
+#[cfg(any(feature = "onnx-local", test))]
 pub(crate) const FP32_ONNX_PATHS: &[&str] = &["onnx/model.onnx", "model.onnx"];
 
 #[cfg(feature = "candle")]
@@ -216,7 +114,7 @@ fn cached_candle_files(
 }
 
 /// Check exactly the graph variants the loader can use, without opening weights.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) fn cached_hub_onnx_files(model: &str, quantized: bool, require_config: bool) -> bool {
     let repo = model_cache_dir(&hub_cache_dir(), model);
     let present = |name: &str| cached_main_file(&repo, name).is_some();
@@ -226,7 +124,7 @@ pub(crate) fn cached_hub_onnx_files(model: &str, quantized: bool, require_config
             || quantized && QUANTIZED_ONNX_PATHS.iter().any(|name| present(name)))
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) fn hub_onnx_files_available(model: &str, quantized: bool, require_config: bool) -> bool {
     !no_downloads() || cached_hub_onnx_files(model, quantized, require_config)
 }
@@ -240,9 +138,9 @@ pub(crate) fn hub_onnx_files_available(model: &str, quantized: bool, require_con
 ///
 /// * `repo` - HuggingFace repo handle
 /// * `prefer_quantized` - Whether to try quantized variants first
-#[cfg(any(feature = "onnx", test))]
+#[cfg(any(feature = "onnx-local", test))]
 pub fn download_onnx_model(
-    repo: &hf_hub::HFRepositorySync<hf_hub::RepoTypeModel>,
+    repo: &ModelRepo,
     prefer_quantized: bool,
 ) -> Result<(std::path::PathBuf, bool)> {
     if prefer_quantized {
@@ -294,6 +192,7 @@ mod tests {
         assert!(available());
     }
 
+    #[cfg(feature = "hub-downloads")]
     #[test]
     fn immutable_snapshot_loads_without_a_ref_file() {
         let home = tempfile::tempdir().unwrap();
@@ -321,6 +220,7 @@ mod tests {
         assert!(cached("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tokenizer.json").is_err());
     }
 
+    #[cfg(feature = "hub-downloads")]
     #[test]
     fn offline_candidate_lookup_preserves_revision_without_network() {
         // Isolate environment flags from tests running concurrently in this process.
@@ -385,7 +285,7 @@ mod tests {
 /// preferences in future versions without breaking struct-literal callers.
 /// Construct via `OnnxSessionConfig::default()` and override the fields you
 /// care about before constructing the session.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OnnxSessionConfig {
@@ -428,7 +328,7 @@ pub struct OnnxSessionConfig {
 ///
 /// The function is additive: it avoids extending [`OnnxSessionConfig`], whose
 /// public fields are also used by in-crate struct literals.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum OnnxExecutionProvider {
@@ -444,7 +344,7 @@ pub enum OnnxExecutionProvider {
     Rocm,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl Default for OnnxSessionConfig {
     fn default() -> Self {
         Self {
@@ -467,7 +367,7 @@ impl Default for OnnxSessionConfig {
 ///     .with_execution_providers([CPUExecutionProvider::default().build()])?
 ///     .commit_from_file(&model_path)?
 /// ```
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub fn create_onnx_session(
     model_path: &std::path::Path,
     config: OnnxSessionConfig,
@@ -482,7 +382,7 @@ pub fn create_onnx_session(
 /// available for nodes unsupported by an accelerator that *does* register.
 /// `provider` overrides `config.prefer_cuda` and `config.prefer_coreml`; those
 /// legacy preferences are only honored by [`create_onnx_session`].
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub fn create_onnx_session_with_provider(
     model_path: &std::path::Path,
     mut config: OnnxSessionConfig,
@@ -496,7 +396,7 @@ pub fn create_onnx_session_with_provider(
     create_onnx_session_with_requested_provider(model_path, config, Some(provider))
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn create_onnx_session_with_requested_provider(
     model_path: &std::path::Path,
     config: OnnxSessionConfig,
@@ -636,13 +536,13 @@ fn create_onnx_session_with_requested_provider(
 }
 
 /// Load a HuggingFace tokenizer from a file path.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub fn load_tokenizer(path: &std::path::Path) -> Result<tokenizers::Tokenizer> {
     tokenizers::Tokenizer::from_file(path)
         .map_err(|e| Error::Retrieval(format!("Tokenizer load: {}", e)))
 }
 
-#[cfg(all(test, feature = "onnx"))]
+#[cfg(all(test, feature = "onnx-local"))]
 mod onnx_session_tests {
     use super::*;
 

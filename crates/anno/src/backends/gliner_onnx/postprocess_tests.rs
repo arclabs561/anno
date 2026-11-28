@@ -111,7 +111,7 @@ fn test_expand_ner_label_full_pipeline() {
     assert_eq!(expand_ner_label("EVENT"), "event");
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn test_make_span_tensors_basic() {
     // Test the span tensor generation logic (same algorithm across gliner backends)
@@ -134,7 +134,7 @@ fn test_make_span_tensors_basic() {
     assert_eq!(valid_count, 15);
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn test_default_gliner_labels() {
     use super::inference::DEFAULT_GLINER_LABELS;
@@ -145,7 +145,7 @@ fn test_default_gliner_labels() {
     assert!(DEFAULT_GLINER_LABELS.len() >= 10);
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn test_gliner_onnx_from_nonexistent() {
     use super::GLiNEROnnx;

@@ -89,6 +89,7 @@ criterion = { workspace = true }
 
 [features]
 default = ["onnx", "heuristic-fr"]
+hub-downloads = ["dep:hf-hub"]
 heuristic-fr = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
@@ -98,11 +99,12 @@ schema = ["dep:schemars"]
 # Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed
 # adapters from extraction output to KnowledgeGraph and N-Triples).
 graph = ["dep:lattix"]
-onnx = [
+onnx = ["onnx-local", "hub-downloads"]
+# Native ONNX inference with local files and pre-populated Hub snapshots.
+onnx-local = [
   "dep:ort",
   "dep:ndarray",
   "dep:tokenizers",
-  "dep:hf-hub",
   "dep:lru",
   "dep:safetensors",
 ]
@@ -136,7 +138,7 @@ candle = [
   "dep:candle-nn",
   "dep:safetensors",
   "dep:tokenizers",
-  "dep:hf-hub",
+  "hub-downloads",
 ]
 metal = ["candle", "candle-core/metal"]
 cuda = ["candle", "candle-core/cuda"]
@@ -210,19 +212,19 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[example]]
 name = "fcoref_word_spans"
 test = true
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "fcoref_resource_profile"
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "coref_gap_panel"
 
 [[example]]
 name = "nuner_panel"
-required-features = ["onnx"]
+required-features = ["onnx-local"]
 
 [[example]]
 name = "stacked_nuner_routing"
-required-features = ["onnx"]
+required-features = ["onnx-local"]

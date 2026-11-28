@@ -13,7 +13,7 @@ use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, Zer
 use crate::EntityCategory;
 use crate::{Entity, EntityType, Error, Result};
 use std::collections::HashMap;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use std::sync::Mutex;
 
 mod token_decoder;
@@ -23,7 +23,7 @@ mod token_decoder;
 
 /// GLiNER multi-task ONNX implementation.
 /// GLiNER multi-task ONNX implementation.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug)]
 pub struct GLiNERMultitaskOnnx {
     pub(super) session: Mutex<ort::session::Session>,
@@ -34,7 +34,7 @@ pub struct GLiNERMultitaskOnnx {
     hidden_size: usize,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl GLiNERMultitaskOnnx {
     /// Check the default constructor's graph, tokenizer and configuration.
     pub fn hub_assets_available(model: &str) -> bool {
@@ -47,7 +47,7 @@ impl GLiNERMultitaskOnnx {
 
         super::check_model_id_is_supported(model_id)?;
 
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;

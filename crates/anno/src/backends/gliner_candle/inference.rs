@@ -162,7 +162,7 @@ impl GLiNERCandle {
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         let device = best_device()?;
 
-        let api = crate::backends::hf_loader::hf_api()?;
+        let api = crate::backends::hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Download files

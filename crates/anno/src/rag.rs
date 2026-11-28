@@ -375,7 +375,7 @@ pub fn resolve_for_rag(
 /// let result = resolve_for_rag_neural("John went to the store. He bought milk.", &clusters, None);
 /// assert_eq!(result.text, "John went to the store. John bought milk.");
 /// ```
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub fn resolve_for_rag_neural(
     text: &str,
     clusters: &[crate::backends::coref::t5::CorefCluster],
@@ -2130,7 +2130,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     mod neural_tests {
         use crate::backends::coref::t5::CorefCluster;
         use crate::rag::*;

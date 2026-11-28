@@ -182,15 +182,15 @@ mod sealed {
     impl Sealed for super::NuNER {}
     impl Sealed for super::W2NER {}
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     impl Sealed for super::BertNEROnnx {}
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     impl Sealed for super::GLiNEROnnx {}
 
     impl Sealed for super::backends::gliner_poly::GLiNERPoly {}
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     impl Sealed for super::backends::gliner_multitask::GLiNERMultitaskOnnx {}
 
     #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
@@ -681,26 +681,29 @@ pub use backends::inference::{
     RelationExtractionConfig, RelationExtractor, RelationTriple, ZeroShotNER,
 };
 
+#[cfg(all(feature = "onnx-local", feature = "hub-downloads"))]
+pub use backends::hf_loader::{download_model_file, download_model_file_at_revision};
+
 // ONNX session helpers. The `hf_loader` module itself is `pub(crate)` since
 // its surface is mostly internal plumbing, but these three items are stable
 // enough to expose for downstream users and examples (e.g. the per-EP smoke
 // binaries under `examples/`). The hf_loader module rustdoc already
 // documented this path; this re-export makes the documented path real.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use backends::hf_loader::{
-    create_onnx_session, create_onnx_session_with_provider, download_model_file,
-    download_model_file_at_revision, OnnxExecutionProvider, OnnxSessionConfig,
+    create_onnx_session, create_onnx_session_with_provider, OnnxExecutionProvider,
+    OnnxSessionConfig,
 };
 
-#[cfg(feature = "onnx")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
+#[cfg(feature = "onnx-local")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onnx-local")))]
 pub use backends::{
     BertNEROnnx, BertNerArtifactPaths, BertNerTrace, BertNerTraceArtifact, BertNerTraceArtifacts,
     BertNerTraceEntity, GLiNEROnnx,
 };
 
-#[cfg(feature = "onnx")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
+#[cfg(feature = "onnx-local")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onnx-local")))]
 pub use backends::{FCoref, FCorefConfig};
 
 #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
@@ -881,7 +884,7 @@ pub const DEFAULT_W2NER_MODEL: &str = models::W2NER;
 
 /// Automatically select the best available NER backend.
 pub fn auto() -> Result<Box<dyn Model>> {
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     {
         match GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
             Ok(model) => return Ok(Box::new(model)),
@@ -929,7 +932,7 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
         .map(|info| {
             let available = match info.feature {
                 None => true,
-                Some("onnx") => cfg!(feature = "onnx"),
+                Some("onnx") => cfg!(feature = "onnx-local"),
                 Some("candle") => cfg!(feature = "candle"),
                 Some("llm") => cfg!(feature = "llm"),
                 Some("heuristic-fr") => cfg!(feature = "heuristic-fr"),

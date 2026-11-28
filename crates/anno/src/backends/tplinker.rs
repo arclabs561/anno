@@ -64,14 +64,14 @@
 //! ```
 
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor};
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use crate::EntityCategory;
 use crate::{Confidence, Entity, EntityType, Language, Model, Result};
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use std::borrow::Cow;
 
 /// Check the exporter's three batch-one handshaking tensors before flat indexing.
-#[cfg(any(feature = "onnx", test))]
+#[cfg(any(feature = "onnx-local", test))]
 fn validate_logit_shapes(
     seq_len: usize,
     entity_tags: usize,
@@ -113,7 +113,7 @@ fn validate_logit_shapes(
 // ONNX Backend (feature-gated)
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod onnx_impl {
     use super::*;
     use crate::backends::hf_loader;
@@ -781,7 +781,7 @@ mod heuristic_impl {
 pub struct TPLinker {
     entity_threshold: f32,
     relation_threshold: f32,
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     onnx: Option<onnx_impl::TPLinkerOnnx>,
 }
 
@@ -796,7 +796,7 @@ impl TPLinker {
 
     /// Create with custom thresholds.
     pub fn with_thresholds(entity_threshold: f32, relation_threshold: f32) -> Self {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         let onnx = {
             let default_dir = dirs::cache_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from(".cache"))
@@ -814,13 +814,13 @@ impl TPLinker {
         Self {
             entity_threshold,
             relation_threshold,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             onnx,
         }
     }
 
     /// Create from a local model directory (ONNX only).
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn from_local(dir: &std::path::Path) -> Result<Self> {
         let onnx = onnx_impl::TPLinkerOnnx::from_local(dir)?;
         Ok(Self {
@@ -832,11 +832,11 @@ impl TPLinker {
 
     /// Whether this instance is using the neural ONNX backend.
     pub fn is_neural(&self) -> bool {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             self.onnx.is_some()
         }
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             false
         }
@@ -853,7 +853,7 @@ impl TPLinker {
 
 impl Model for TPLinker {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         if let Some(ref onnx) = self.onnx {
             let result = onnx.extract_joint(text, &[], 0.0)?;
             return Ok(result.entities);
@@ -894,7 +894,7 @@ impl Model for TPLinker {
     }
 
     fn description(&self) -> &'static str {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         if self.onnx.is_some() {
             return "TPLinker joint entity-relation extraction (ONNX, Wang et al. COLING 2020)";
         }
@@ -936,7 +936,7 @@ impl RelationExtractor for TPLinker {
         threshold: f32,
         max_span_distance: usize,
     ) -> Result<(ExtractionWithRelations, Option<crate::Provenance>)> {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         if let Some(ref onnx) = self.onnx {
             let output = onnx.extract_joint(text, relation_types, threshold)?;
             return Ok((
@@ -1065,7 +1065,7 @@ mod tests {
     fn test_tplinker_name_and_description() {
         let tp = TPLinker::new().unwrap();
         assert_eq!(tp.name(), "tplinker");
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         assert_eq!(tp.runtime_name(), "tplinker-heuristic");
         let desc = tp.description();
         assert!(
@@ -1221,12 +1221,12 @@ mod tests {
 
     #[test]
     fn test_is_neural_flag() {
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         assert!(
             !TP_STANDARD.is_neural(),
             "without onnx feature, TPLinker should not be neural"
         );
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             // With onnx feature enabled, is_neural depends on model availability.
             // Without a downloaded model it should be false (heuristic fallback).
@@ -1364,7 +1364,7 @@ mod tests {
         assert!(conf > 0.5 && conf <= 1.0);
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_tplinker_config_deserialization() {
         let json = r#"{
@@ -1378,7 +1378,7 @@ mod tests {
         assert_eq!(config.relations.len(), 2);
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[test]
     fn test_tplinker_config_defaults() {
         let json = r#"{}"#;

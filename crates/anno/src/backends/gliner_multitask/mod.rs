@@ -86,7 +86,7 @@ use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, Zer
 /// Extract relations, using GLiREL (ONNX) when available, falling back to heuristics.
 ///
 /// GLiREL is loaded lazily on first call and cached via `OnceLock`.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn extract_relations_neural_or_heuristic(
     entities: &[Entity],
     text: &str,
@@ -156,12 +156,12 @@ fn extract_relations_neural_or_heuristic(
 
 #[cfg(feature = "candle")]
 pub mod candle;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub mod onnx;
 pub mod schema;
 #[cfg(feature = "candle")]
 pub use candle::GLiNERMultitaskCandle;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use onnx::GLiNERMultitaskOnnx;
 pub use schema::{
     ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
@@ -172,13 +172,13 @@ pub use schema::{
 // =============================================================================
 
 /// GLiNER multi-task stub (requires onnx or candle feature).
-#[cfg(not(any(feature = "onnx", feature = "candle")))]
+#[cfg(not(any(feature = "onnx-local", feature = "candle")))]
 #[derive(Debug)]
 pub struct GLiNERMultitask {
     _private: (),
 }
 
-#[cfg(not(any(feature = "onnx", feature = "candle")))]
+#[cfg(not(any(feature = "onnx-local", feature = "candle")))]
 impl GLiNERMultitask {
     /// Load model (requires feature).
     pub fn from_pretrained(_model_id: &str) -> Result<Self> {
@@ -206,7 +206,7 @@ impl GLiNERMultitask {
 pub type GLiNERMultitask = GLiNERMultitaskCandle;
 
 /// GLiNER multi-task model - ONNX backend (when candle not enabled).
-#[cfg(all(feature = "onnx", not(feature = "candle")))]
+#[cfg(all(feature = "onnx-local", not(feature = "candle")))]
 pub type GLiNERMultitask = GLiNERMultitaskOnnx;
 
 // =============================================================================
@@ -281,7 +281,7 @@ pub(super) fn map_entity_type(type_str: &str) -> EntityType {
 // Model Trait Implementation (ONNX)
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl crate::Model for GLiNERMultitaskOnnx {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         let schema = TaskSchema::new().with_entities(&[
@@ -397,7 +397,7 @@ impl crate::Model for GLiNERMultitaskCandle {
 // ZeroShotNER Trait Implementation
 // =============================================================================
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl ZeroShotNER for GLiNERMultitaskOnnx {
     fn default_types(&self) -> &[&'static str] {
         &["person", "organization", "location", "date", "event"]
@@ -451,7 +451,7 @@ impl ZeroShotNER for GLiNERMultitaskCandle {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl RelationExtractor for GLiNERMultitaskOnnx {
     fn extract_with_relations(
         &self,
@@ -618,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "onnx", feature = "candle"))]
+    #[cfg(any(feature = "onnx-local", feature = "candle"))]
     fn test_relation_heuristic_unicode_safe_and_case_insensitive() {
         use crate::backends::inference::RelationTriple;
         use crate::offset::bytes_to_chars;

@@ -12,9 +12,9 @@ impl NuNER {
         Self {
             model_id: "numind/NuNER_Zero".to_string(),
             threshold: 0.5,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             requires_span_tensors: false,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             span_width: 1,
             default_labels: vec![
                 "person".to_string(),
@@ -25,9 +25,9 @@ impl NuNER {
                 "event".to_string(),
             ],
             max_input_chars: super::MAX_INPUT_CHARS_512,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             session: None,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             tokenizer: None,
         }
     }
@@ -45,9 +45,9 @@ impl NuNER {
         Self {
             model_id: "numind/NuNER_Zero-4k".to_string(),
             threshold: 0.5,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             requires_span_tensors: false,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             span_width: 1,
             default_labels: vec![
                 "person".to_string(),
@@ -58,14 +58,14 @@ impl NuNER {
                 "event".to_string(),
             ],
             max_input_chars: super::MAX_INPUT_CHARS_4K,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             session: None,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             tokenizer: None,
         }
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn export_4k_paths() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
         use std::path::{Path, PathBuf};
 
@@ -92,7 +92,7 @@ impl NuNER {
         })
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn local_graph(dir: &std::path::Path) -> Option<std::path::PathBuf> {
         ["model.onnx", "model_quantized.onnx", "onnx/model.onnx"]
             .into_iter()
@@ -101,7 +101,7 @@ impl NuNER {
     }
 
     /// Check the file layout selected by `from_pretrained` without loading the graph.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[must_use]
     pub fn model_files_available(model: &str) -> bool {
         if model == crate::models::NUNER_ZERO_4K {
@@ -115,7 +115,7 @@ impl NuNER {
     }
 
     /// Whether the graph and tokenizer for the local 4k export are installed.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[must_use]
     pub fn local_4k_export_available() -> bool {
         Self::export_4k_paths().is_some()
@@ -137,7 +137,7 @@ impl NuNER {
     /// ```rust,ignore
     /// let ner = NuNER::from_pretrained("onnx-community/NuNER_Zero-span")?;
     /// ```
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;
 
@@ -159,7 +159,7 @@ impl NuNER {
                 Some(dir.join("gliner_config.json")).filter(|p| p.is_file()),
             )
         } else {
-            let api = hf_loader::hf_api()?;
+            let api = hf_loader::model_source()?;
             let repo = crate::backends::hf_loader::hub_model(&api, model_id);
             (
                 hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?,
@@ -273,7 +273,7 @@ impl NuNER {
     /// * `text` - Text to extract from
     /// * `entity_types` - Entity type labels (e.g., `["person", "company"]`)
     /// * `threshold` - Confidence threshold (0.0-1.0)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn extract(
         &self,
         text: &str,
@@ -299,7 +299,7 @@ impl NuNER {
     }
 
     /// Run NuNER inference on a single (non-chunked) piece of text.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn extract_single(
         &self,
         text: &str,
@@ -426,7 +426,7 @@ impl NuNER {
     /// Matches Python GLiNER's prepare_span_idx function:
     /// `span_idx = [(i, i + j) for i in range(num_tokens) for j in range(max_width)]`
     ///
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn make_span_tensors(words: usize, width: usize) -> Result<(Vec<i64>, Vec<bool>)> {
         let size = words
             .checked_mul(width)
@@ -452,7 +452,7 @@ impl NuNER {
     }
 
     /// Encode prompt for token mode (no span tensors).
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub(super) fn encode_prompt(
         &self,
         tokenizer: &tokenizers::Tokenizer,
@@ -527,7 +527,7 @@ impl NuNER {
     ///
     /// Token mode output shape: [batch, seq_len, num_entity_types]
     /// Each position has scores for each entity type (BIO-style).
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn decode_token_output(
         &self,
         outputs: &ort::session::SessionOutputs,
@@ -735,7 +735,7 @@ impl NuNER {
     /// Span mode output shape: [batch, num_words, max_width, num_classes]
     /// With max_width=1, each word has logits for each entity type.
     /// We apply sigmoid and compare to threshold.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn decode_span_output(
         &self,
         outputs: &ort::session::SessionOutputs,
@@ -935,7 +935,7 @@ impl NuNER {
         Ok(entities)
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn create_entity(
         &self,
