@@ -235,6 +235,7 @@ class S3DestinationTests(unittest.TestCase):
             self.assertIn("s3://example-dataset-cache/models/", calls)
             manifest = json.loads((cache / "manifest.json").read_text())
             self.assertEqual(manifest["artifacts"]["datasets"], [])
+            self.assertEqual(manifest["created_by"], "anno")
             self.calls_path.unlink()
             link = cache / "scripts" / "disguised.py"
             link.symlink_to(raw)

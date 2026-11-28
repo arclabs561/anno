@@ -93,8 +93,6 @@ generate_manifest() {
     python3 - "$manifest_path" "$LOCAL_CACHE" "$S3_BUCKET" "$version" <<'PY_MANIFEST'
 import datetime
 import json
-import os
-import socket
 import sys
 from pathlib import Path
 
@@ -115,7 +113,7 @@ for category in ("models", "scripts"):
 manifest = {
     "version": "2.0",
     "created": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "created_by": f"{os.getenv('USER', 'unknown')}@{socket.gethostname().split('.')[0]}",
+    "created_by": "anno",
     "anno_version": version,
     "bucket": bucket,
     "description": "Anno model and script cache",
@@ -127,7 +125,7 @@ PY_MANIFEST
 }
 
 upload_all() {
-    log_info "Uploading all artifacts to S3..."
+    log_info "Uploading models, scripts and their manifest to S3..."
     
     mkdir -p "$DATASETS_DIR" "$MODELS_DIR" "$SCRIPTS_DIR"
     
@@ -313,7 +311,7 @@ case "${1:-status}" in
         echo "Usage: $0 {upload|download|download-datasets|sync|status|ls|size|upload-script}"
         echo ""
         echo "Commands:"
-        echo "  upload        Upload local cache to S3"
+        echo "  upload        Upload local models, scripts and their manifest"
         echo "  download      Download S3 cache to local"
         echo "  download-datasets  Download permitted datasets only"
         echo "  sync          Bidirectional sync (local wins)"
