@@ -35,7 +35,12 @@ def charts(balanced, full):
     p = full["panels"]
     followup = p["additional_test"]
     fresh = row(followup, "Additional distinct test texts", "Held out from the original study")
-    fresh["interval"] = paired_interval(domain["paired_review_slots"] for domain in followup["domains"].values())
+    strata = [d["paired_review_slots"] for d in followup["domains"].values() if "paired_review_slots" in d]
+    if strata:
+        if len(strata) != len(followup["domains"]):
+            raise ValueError("The paired interval requires sentence outcomes for every domain")
+        if interval := paired_interval(strata):
+            fresh["interval"] = interval
     return {
         "crossre-predicate-paired.json": chart("Extra CrossRE matches in the original ranking study", [
             row(balanced["panels"]["dev"], "Development", "Rule selection"),

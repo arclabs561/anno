@@ -90,6 +90,55 @@ class EndpointBudgetTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate relation"):
             run.condensed([head, tail], pairs + pairs[:1])
 
+    def test_frozen_endpoints_all_budgets_domains_and_native_chart(self):
+        root = Path(__file__).resolve().parents[3] / "docs/eval"
+        receipt = json.loads((root / "crossre-endpoint-budget.json").read_text())
+        chart = json.loads((root / "crossre-endpoint-paired.json").read_text())
+        self.assertEqual(run.endpoint_chart(receipt), chart)
+        for row, eligible in zip(chart["rows"], (1651, 1713, 80, 2022), strict=True):
+            self.assertIn(f"{eligible:,} eligible", row["role"])
+            self.assertEqual(row["baseline"]["correct"] + row["baseline"]["unmatched"], eligible // 2)
+        self.assertEqual(receipt["selection"]["selected_endpoint_weight"], .5)
+        self.assertEqual(len(receipt["selection"]["source_sha256"]), 18)
+        panels = receipt["panels"]
+        sizes = {"calibration": 96, "confirmation": 1989, "additional_test": 2047,
+                 "balanced_test": 192, "outside_content_holdout": 207, "full_official_test": 2446}
+        self.assertEqual({s: p["scope"]["sentences"] for s, p in panels.items()}, sizes)
+        for name, panel in panels.items():
+            scope = panel["scope"]
+            self.assertEqual(scope["gold_relations"] - scope["stock_correct"], scope["gold_missed_by_stock"])
+            self.assertEqual(set(panel["budgets"]), {"25", "50", "100"})
+            for percent, budget in panel["budgets"].items():
+                slots, counts = budget["review_slots"], Counter(budget["counts"])
+                self.assertEqual(slots, int(percent) * scope["eligible_for_one_suggestion"] // 100)
+                self.assertEqual(counts["sentences"], scope["sentences"])
+                self.assertEqual(counts, sum(map(Counter, budget["domains"].values()), Counter()))
+                self.assertEqual(counts["endpoint_correct"] - counts["confidence_correct"],
+                                 counts["gained_correct_relations"] - counts["lost_correct_relations"])
+                self.assertLessEqual(counts["both_correct_changed_relation"],
+                                     min(counts["gained_correct_relations"], counts["lost_correct_relations"]))
+                allocation = Counter(budget["sentence_allocation"])
+                both = allocation["both_reviewed_with_same_relation"] + allocation["both_reviewed_with_different_relation"]
+                for arm, admitted in (("confidence", "baseline_only_sentence"), ("endpoint", "candidate_only_sentence")):
+                    self.assertEqual(both + allocation[admitted], slots)
+                    self.assertEqual(counts[arm + "_suggestions"], slots)
+                    self.assertEqual(counts[arm + "_correct"] + counts[arm + "_unmatched"], slots)
+                self.assertEqual("net_match_interval" in budget, (name, percent) == ("confirmation", "50"))
+        primary = panels["confirmation"]["budgets"]["50"]
+        self.assertEqual((primary["review_slots"], primary["counts"]["confidence_correct"],
+                          primary["counts"]["endpoint_correct"]), (825, 123, 139))
+        interval = primary["net_match_interval"]
+        self.assertEqual((interval["lower"], interval["upper"], interval["replicates"]), (5, 26, 10_000))
+        self.assertEqual(sum(interval["eligible_sentences_by_domain"].values()), 1651)
+        # Global partial budgets can move slots across subsets. With all nominees admitted,
+        # the total must exactly equal the disjoint pieces of the release.
+        pieces = [panels[n] for n in ("additional_test", "balanced_test", "outside_content_holdout")]
+        full = panels["full_official_test"]
+        for metric in ("sentences", "eligible_for_one_suggestion", "stock_correct", "stock_predictions", "gold_relations"):
+            self.assertEqual(full["scope"][metric], sum(p["scope"][metric] for p in pieces))
+        self.assertEqual(Counter(full["budgets"]["100"]["counts"]),
+                         sum((Counter(p["budgets"]["100"]["counts"]) for p in pieces), Counter()))
+
     def test_aggregate_workers_must_agree_on_development_and_cover_test(self):
         selected = {"selected_endpoint_weight": .5}
         confirmation = {"part": "confirmation", "selection": selected, "panels": {

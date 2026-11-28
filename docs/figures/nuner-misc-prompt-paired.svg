@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="1299" viewBox="0 0 520 1299" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">What did a fourth NuNER prompt change?</title><desc id="paired-desc">Baseline Three prompts compared with candidate Add miscellaneous on the same inputs. Total suggestions include exact and unmatched predictions. WikiGold · all four mapped types. Complete English release · 1,696 sentences. +6 net exact matches · 2,034 → 2,040. Gained 37 · lost 31. Retained 2,003 of 2,034 baseline matches (98.5%). Interval -13.24 to 26.04 net matches · 95% paired bootstrap by WikiGold document, scaled to 1,696 sentences. Change in total suggestions is 0 (3,438 to 3,438). Change in unmatched is −6 (1,404 to 1,398). Change in model calls is 0 (1,383 to 1,383). WikiGold · MISC only. Type subset of the same release · 1,696 sentences. +20 net exact matches · 0 → 20. Gained 20 · lost 0. Retained 0 of 0 baseline matches (undefined share). Interval 10.13 to 32.13 net matches · 95% paired bootstrap by WikiGold document, scaled to 1,696 sentences. Change in total suggestions is +34 (0 to 34). Change in unmatched is +14 (0 to 14). Change in model calls is 0 (1,383 to 1,383). WikiGold · PER, ORG and LOC. Type subset of the same release · 1,696 sentences. −14 net exact matches · 2,034 → 2,020. Gained 17 · lost 31. Retained 2,003 of 2,034 baseline matches (98.5%). Interval -30.38 to 2.2 net matches · 95% paired bootstrap by WikiGold document, scaled to 1,696 sentences. Change in total suggestions is −34 (3,438 to 3,404). Change in unmatched is −20 (1,404 to 1,384). Change in model calls is 0 (1,383 to 1,383). WNUT-17 · five mapped types. Official test · MISC has no gold class · 1,287 sentences. −2 net exact matches · 476 → 474. Gained 5 · lost 7. Retained 469 of 476 baseline matches (98.5%). Interval -8 to 3 net matches · 95% paired bootstrap by sentence occurrence, scaled to 1,287 sentences. Change in total suggestions is −36 (1,627 to 1,591). Change in unmatched is −34 (1,151 to 1,117). Change in model calls is 0 (992 to 992).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">What did a fourth NuNER</text>
+<text x="18" y="61" class="heading">prompt change?</text>
+<text x="18" y="90" class="scope">Baseline · Three prompts → Candidate · Add</text>
+<text x="18" y="110" class="scope">miscellaneous</text>
+<text x="18" y="130" class="scope">Net exact matches · −32.13 to +32.13 · center is</text>
+<text x="18" y="150" class="scope">zero</text>
+<path d="M18 170H502" stroke="#bdcec9"/>
+<text x="18" y="195" class="cohort">WikiGold · all four mapped types</text>
+<text x="18" y="219" class="scope">Complete English release · 1,696 sentences</text>
+<path d="M390 236H494" stroke="#d2deda"/><path d="M442 226v20" stroke="#688079"/>
+<path d="M420.57 230v12M420.57 236H484.14M484.14 230v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="451.71" cy="236" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="241" class="score">+6 net exact matches · 2,034 →</text>
+<text x="18" y="263" class="score">2,040</text>
+<text x="18" y="285" class="scope">Interval -13.24 to 26.04 net matches · 95% paired</text>
+<text x="18" y="305" class="scope">bootstrap by WikiGold document, scaled to 1,696</text>
+<text x="18" y="325" class="scope">sentences</text>
+<text x="18" y="345" class="scope">Gained 37 · lost 31 · retained 2,003/2,034 (98.5%)</text>
+<text x="18" y="365" class="measure">Total suggestions</text>
+<text x="18" y="384" class="scope">3,438 → 3,438 (change 0)</text>
+<text x="267" y="365" class="measure">Unmatched</text>
+<text x="267" y="384" class="scope">1,404 → 1,398 (change</text>
+<text x="267" y="403" class="scope">−6)</text>
+<text x="18" y="425" class="measure">Model calls</text>
+<text x="18" y="444" class="scope">1,383 → 1,383 (change 0)</text>
+<path d="M18 468H502" stroke="#bdcec9"/>
+<text x="18" y="493" class="cohort">WikiGold · MISC only</text>
+<text x="18" y="517" class="scope">Type subset of the same release · 1,696 sentences</text>
+<path d="M390 534H494" stroke="#d2deda"/><path d="M442 524v20" stroke="#688079"/>
+<path d="M458.39 528v12M458.39 534H494.00M494.00 528v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="474.37" cy="534" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="539" class="score">+20 net exact matches · 0 → 20</text>
+<text x="18" y="561" class="scope">Interval 10.13 to 32.13 net matches · 95% paired</text>
+<text x="18" y="581" class="scope">bootstrap by WikiGold document, scaled to 1,696</text>
+<text x="18" y="601" class="scope">sentences</text>
+<text x="18" y="621" class="scope">Gained 20 · lost 0 · retained 0/0 (undefined share)</text>
+<text x="18" y="641" class="measure">Total suggestions</text>
+<text x="18" y="660" class="scope">0 → 34 (change +34)</text>
+<text x="267" y="641" class="measure">Unmatched</text>
+<text x="267" y="660" class="scope">0 → 14 (change +14)</text>
+<text x="18" y="682" class="measure">Model calls</text>
+<text x="18" y="701" class="scope">1,383 → 1,383 (change 0)</text>
+<path d="M18 725H502" stroke="#bdcec9"/>
+<text x="18" y="750" class="cohort">WikiGold · PER, ORG and LOC</text>
+<text x="18" y="774" class="scope">Type subset of the same release · 1,696 sentences</text>
+<path d="M390 791H494" stroke="#d2deda"/><path d="M442 781v20" stroke="#688079"/>
+<path d="M392.83 785v12M392.83 791H445.56M445.56 785v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="419.34" cy="791" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="796" class="score">−14 net exact matches · 2,034 →</text>
+<text x="18" y="818" class="score">2,020</text>
+<text x="18" y="840" class="scope">Interval -30.38 to 2.2 net matches · 95% paired</text>
+<text x="18" y="860" class="scope">bootstrap by WikiGold document, scaled to 1,696</text>
+<text x="18" y="880" class="scope">sentences</text>
+<text x="18" y="900" class="scope">Gained 17 · lost 31 · retained 2,003/2,034 (98.5%)</text>
+<text x="18" y="920" class="measure">Total suggestions</text>
+<text x="18" y="939" class="scope">3,438 → 3,404 (change</text>
+<text x="18" y="958" class="scope">−34)</text>
+<text x="267" y="920" class="measure">Unmatched</text>
+<text x="267" y="939" class="scope">1,404 → 1,384 (change</text>
+<text x="267" y="958" class="scope">−20)</text>
+<text x="18" y="980" class="measure">Model calls</text>
+<text x="18" y="999" class="scope">1,383 → 1,383 (change 0)</text>
+<path d="M18 1023H502" stroke="#bdcec9"/>
+<text x="18" y="1048" class="cohort">WNUT-17 · five mapped types</text>
+<text x="18" y="1072" class="scope">Official test · MISC has no gold class · 1,287</text>
+<text x="18" y="1092" class="scope">sentences</text>
+<path d="M390 1109H494" stroke="#d2deda"/><path d="M442 1099v20" stroke="#688079"/>
+<path d="M429.05 1103v12M429.05 1109H446.86M446.86 1103v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="438.76" cy="1109" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="1114" class="score">−2 net exact matches · 476 → 474</text>
+<text x="18" y="1136" class="scope">Interval -8 to 3 net matches · 95% paired bootstrap</text>
+<text x="18" y="1156" class="scope">by sentence occurrence, scaled to 1,287 sentences</text>
+<text x="18" y="1176" class="scope">Gained 5 · lost 7 · retained 469/476 (98.5%)</text>
+<text x="18" y="1196" class="measure">Total suggestions</text>
+<text x="18" y="1215" class="scope">1,627 → 1,591 (change</text>
+<text x="18" y="1234" class="scope">−36)</text>
+<text x="267" y="1196" class="measure">Unmatched</text>
+<text x="267" y="1215" class="scope">1,151 → 1,117 (change</text>
+<text x="267" y="1234" class="scope">−34)</text>
+<text x="18" y="1256" class="measure">Model calls</text>
+<text x="18" y="1275" class="scope">992 → 992 (change 0)</text>
+</svg>

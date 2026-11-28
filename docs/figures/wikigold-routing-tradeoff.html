@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Running NuNER on stock-skipped sentences</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" width="560" height="1593" viewBox="0 0 560 1593" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Running NuNER on stock-skipped sentences</title><desc id="chart-desc">Horizontal position counts predictions without a reference match. Rates are per 100 sentences. Settings with identical counts share a mark. WNUT-17 test · BERT absent has 295 sentences and 264 gold items. Stock has 31 correct, 257 unmatched, and 288 total suggestions. Run NuNER has 111 correct, 397 unmatched, and 508 total suggestions. WNUT-17 test · BERT loaded has 295 sentences and 264 gold items. Stock has 87 correct, 263 unmatched, and 350 total suggestions. Run NuNER has 101 correct, 382 unmatched, and 483 total suggestions. WikiGold · BERT absent has 313 sentences and 731 gold items. Stock has 231 correct, 307 unmatched, and 538 total suggestions. Run NuNER has 435 correct, 274 unmatched, and 709 total suggestions. WikiGold · BERT loaded has 313 sentences and 731 gold items. Stock has 563 correct, 233 unmatched, and 796 total suggestions. Run NuNER has 567 correct, 254 unmatched, and 821 total suggestions. </desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:15px}.heading{font-size:24px;font-weight:700}.cohort{font-size:20px;font-weight:700}.scope,.counts,.axis{fill:#405963}.label,.axis-title{font-weight:700}.axis{font-size:16px}.grid,.rule{fill:none;stroke:#d8e2e3}.frontier{fill:none;stroke:#41877f;stroke-width:2}.optimal{fill:#006867;stroke:white;stroke-width:1.4}.dominated{fill:white;stroke:#425b63;stroke-width:1.6}.leader{fill:none;stroke:#9aaeb0;stroke-width:.9}</style>
+<rect width="560" height="1593" fill="white"/><text x="18" y="31" class="heading">Running NuNER on stock-skipped</text>
+<text x="18" y="59" class="heading">sentences</text>
+<text x="18" y="87" class="scope">Horizontal position counts predictions without a reference</text>
+<text x="18" y="106" class="scope">match. Rates are per 100 sentences.</text>
+<text x="18" y="125" class="scope">Filled points give the most correct matches at or below the</text>
+<text x="18" y="144" class="scope">stated budget.</text>
+<path d="M18 170H542" class="rule"/>
+<text x="18" y="196" class="cohort">WNUT-17 test · BERT absent</text>
+<text x="18" y="219" class="scope">295 sentences · 264 gold</text>
+<text x="69" y="250" class="axis-title">Correct / 100</text>
+<path d="M69 464.00H299" class="grid"/><text x="62" y="469.00" text-anchor="end" class="axis">0</text>
+<path d="M69 414.00H299" class="grid"/><text x="62" y="419.00" text-anchor="end" class="axis">50</text>
+<path d="M69 364.00H299" class="grid"/><text x="62" y="369.00" text-anchor="end" class="axis">100</text>
+<path d="M69 314.00H299" class="grid"/><text x="62" y="319.00" text-anchor="end" class="axis">150</text>
+<path d="M69 264.00H299" class="grid"/><text x="62" y="269.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 264V464" class="grid"/><text x="69.00" y="483" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 264V464" class="grid"/><text x="145.67" y="483" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 264V464" class="grid"/><text x="222.33" y="483" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 264V464" class="grid"/><text x="299.00" y="483" text-anchor="middle" class="axis">150</text>
+<text x="299" y="504" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M202.58 453.49H275.35V426.37H299" class="frontier"/>
+<path d="M275.35 426.37L320 273" class="leader"/>
+<text x="325" y="277" class="label">Run NuNER</text>
+<text x="325" y="295" class="counts">111 correct · 397</text>
+<text x="325" y="313" class="counts">unmatched</text>
+<text x="325" y="331" class="counts">508 suggestions · 42.0%</text>
+<text x="325" y="349" class="counts">recall</text>
+<path d="M202.58 453.49L320 373" class="leader"/>
+<text x="325" y="377" class="label">Stock</text>
+<text x="325" y="395" class="counts">31 correct · 257</text>
+<text x="325" y="413" class="counts">unmatched</text>
+<text x="325" y="431" class="counts">288 suggestions · 11.7%</text>
+<text x="325" y="449" class="counts">recall</text>
+<g><title>Run NuNER · 111 correct · 397 unmatched</title><circle cx="275.35" cy="426.37" r="4.5" class="optimal"/></g>
+<g><title>Stock · 31 correct · 257 unmatched</title><circle cx="202.58" cy="453.49" r="4.5" class="optimal"/></g>
+<path d="M18 525H542" class="rule"/>
+<text x="18" y="551" class="cohort">WNUT-17 test · BERT loaded</text>
+<text x="18" y="574" class="scope">295 sentences · 264 gold</text>
+<text x="69" y="605" class="axis-title">Correct / 100</text>
+<path d="M69 819.00H299" class="grid"/><text x="62" y="824.00" text-anchor="end" class="axis">0</text>
+<path d="M69 769.00H299" class="grid"/><text x="62" y="774.00" text-anchor="end" class="axis">50</text>
+<path d="M69 719.00H299" class="grid"/><text x="62" y="724.00" text-anchor="end" class="axis">100</text>
+<path d="M69 669.00H299" class="grid"/><text x="62" y="674.00" text-anchor="end" class="axis">150</text>
+<path d="M69 619.00H299" class="grid"/><text x="62" y="624.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 619V819" class="grid"/><text x="69.00" y="838" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 619V819" class="grid"/><text x="145.67" y="838" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 619V819" class="grid"/><text x="222.33" y="838" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 619V819" class="grid"/><text x="299.00" y="838" text-anchor="middle" class="axis">150</text>
+<text x="299" y="859" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M205.70 789.51H267.55V784.76H299" class="frontier"/>
+<path d="M267.55 784.76L320 628" class="leader"/>
+<text x="325" y="632" class="label">Run NuNER</text>
+<text x="325" y="650" class="counts">101 correct · 382</text>
+<text x="325" y="668" class="counts">unmatched</text>
+<text x="325" y="686" class="counts">483 suggestions · 38.3%</text>
+<text x="325" y="704" class="counts">recall</text>
+<path d="M205.70 789.51L320 728" class="leader"/>
+<text x="325" y="732" class="label">Stock</text>
+<text x="325" y="750" class="counts">87 correct · 263</text>
+<text x="325" y="768" class="counts">unmatched</text>
+<text x="325" y="786" class="counts">350 suggestions · 33.0%</text>
+<text x="325" y="804" class="counts">recall</text>
+<g><title>Run NuNER · 101 correct · 382 unmatched</title><circle cx="267.55" cy="784.76" r="4.5" class="optimal"/></g>
+<g><title>Stock · 87 correct · 263 unmatched</title><circle cx="205.70" cy="789.51" r="4.5" class="optimal"/></g>
+<path d="M18 880H542" class="rule"/>
+<text x="18" y="906" class="cohort">WikiGold · BERT absent</text>
+<text x="18" y="929" class="scope">313 sentences · 731 gold</text>
+<text x="69" y="960" class="axis-title">Correct / 100</text>
+<path d="M69 1174.00H299" class="grid"/><text x="62" y="1179.00" text-anchor="end" class="axis">0</text>
+<path d="M69 1124.00H299" class="grid"/><text x="62" y="1129.00" text-anchor="end" class="axis">50</text>
+<path d="M69 1074.00H299" class="grid"/><text x="62" y="1079.00" text-anchor="end" class="axis">100</text>
+<path d="M69 1024.00H299" class="grid"/><text x="62" y="1029.00" text-anchor="end" class="axis">150</text>
+<path d="M69 974.00H299" class="grid"/><text x="62" y="979.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 974V1174" class="grid"/><text x="69.00" y="1193" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 974V1174" class="grid"/><text x="145.67" y="1193" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 974V1174" class="grid"/><text x="222.33" y="1193" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 974V1174" class="grid"/><text x="299.00" y="1193" text-anchor="middle" class="axis">150</text>
+<text x="299" y="1214" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M203.23 1035.02H299" class="frontier"/>
+<path d="M203.23 1035.02L320 983" class="leader"/>
+<text x="325" y="987" class="label">Run NuNER</text>
+<text x="325" y="1005" class="counts">435 correct · 274</text>
+<text x="325" y="1023" class="counts">unmatched</text>
+<text x="325" y="1041" class="counts">709 suggestions · 59.5%</text>
+<text x="325" y="1059" class="counts">recall</text>
+<path d="M219.39 1100.20L320 1083" class="leader"/>
+<text x="325" y="1087" class="label">Stock</text>
+<text x="325" y="1105" class="counts">231 correct · 307</text>
+<text x="325" y="1123" class="counts">unmatched</text>
+<text x="325" y="1141" class="counts">538 suggestions · 31.6%</text>
+<text x="325" y="1159" class="counts">recall</text>
+<g><title>Run NuNER · 435 correct · 274 unmatched</title><circle cx="203.23" cy="1035.02" r="4.5" class="optimal"/></g>
+<g><title>Stock · 231 correct · 307 unmatched</title><circle cx="219.39" cy="1100.20" r="4.5" class="dominated"/></g>
+<path d="M18 1235H542" class="rule"/>
+<text x="18" y="1261" class="cohort">WikiGold · BERT loaded</text>
+<text x="18" y="1284" class="scope">313 sentences · 731 gold</text>
+<text x="69" y="1315" class="axis-title">Correct / 100</text>
+<path d="M69 1529.00H299" class="grid"/><text x="62" y="1534.00" text-anchor="end" class="axis">0</text>
+<path d="M69 1479.00H299" class="grid"/><text x="62" y="1484.00" text-anchor="end" class="axis">50</text>
+<path d="M69 1429.00H299" class="grid"/><text x="62" y="1434.00" text-anchor="end" class="axis">100</text>
+<path d="M69 1379.00H299" class="grid"/><text x="62" y="1384.00" text-anchor="end" class="axis">150</text>
+<path d="M69 1329.00H299" class="grid"/><text x="62" y="1334.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 1329V1529" class="grid"/><text x="69.00" y="1548" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 1329V1529" class="grid"/><text x="145.67" y="1548" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 1329V1529" class="grid"/><text x="222.33" y="1548" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 1329V1529" class="grid"/><text x="299.00" y="1548" text-anchor="middle" class="axis">150</text>
+<text x="299" y="1569" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M183.14 1349.13H193.43V1347.85H299" class="frontier"/>
+<path d="M193.43 1347.85L320 1338" class="leader"/>
+<text x="325" y="1342" class="label">Run NuNER</text>
+<text x="325" y="1360" class="counts">567 correct · 254</text>
+<text x="325" y="1378" class="counts">unmatched</text>
+<text x="325" y="1396" class="counts">821 suggestions · 77.6%</text>
+<text x="325" y="1414" class="counts">recall</text>
+<path d="M183.14 1349.13L320 1438" class="leader"/>
+<text x="325" y="1442" class="label">Stock</text>
+<text x="325" y="1460" class="counts">563 correct · 233</text>
+<text x="325" y="1478" class="counts">unmatched</text>
+<text x="325" y="1496" class="counts">796 suggestions · 77.0%</text>
+<text x="325" y="1514" class="counts">recall</text>
+<g><title>Run NuNER · 567 correct · 254 unmatched</title><circle cx="193.43" cy="1347.85" r="4.5" class="optimal"/></g>
+<g><title>Stock · 563 correct · 233 unmatched</title><circle cx="183.14" cy="1349.13" r="4.5" class="optimal"/></g>
+</svg>
+<div class="scroll"><section class="operating-points"><header class="mobile-intro"><h1>Running NuNER on stock-skipped sentences</h1><p>Horizontal position counts predictions without a reference match. Filled points identify the greatest correct count observed at or below that budget.</p></header><table><caption>WNUT-17 test · BERT absent <span>· 295 sentences · 264 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">288</td><td data-label="Correct">31</td><td data-label="Unmatched">257</td><td data-label="Correct / 100">10.508</td><td data-label="Unmatched / 100">87.119</td><td data-label="Recall">11.7%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Run NuNER</th><td data-label="Suggestions">508</td><td data-label="Correct">111</td><td data-label="Unmatched">397</td><td data-label="Correct / 100">37.627</td><td data-label="Unmatched / 100">134.576</td><td data-label="Recall">42.0%</td><td data-label="On frontier">Yes</td></tr></tbody></table><table><caption>WNUT-17 test · BERT loaded <span>· 295 sentences · 264 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">350</td><td data-label="Correct">87</td><td data-label="Unmatched">263</td><td data-label="Correct / 100">29.492</td><td data-label="Unmatched / 100">89.153</td><td data-label="Recall">33.0%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Run NuNER</th><td data-label="Suggestions">483</td><td data-label="Correct">101</td><td data-label="Unmatched">382</td><td data-label="Correct / 100">34.237</td><td data-label="Unmatched / 100">129.492</td><td data-label="Recall">38.3%</td><td data-label="On frontier">Yes</td></tr></tbody></table><table><caption>WikiGold · BERT absent <span>· 313 sentences · 731 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">538</td><td data-label="Correct">231</td><td data-label="Unmatched">307</td><td data-label="Correct / 100">73.802</td><td data-label="Unmatched / 100">98.083</td><td data-label="Recall">31.6%</td><td data-label="On frontier">No</td></tr><tr><th scope="row">Run NuNER</th><td data-label="Suggestions">709</td><td data-label="Correct">435</td><td data-label="Unmatched">274</td><td data-label="Correct / 100">138.978</td><td data-label="Unmatched / 100">87.540</td><td data-label="Recall">59.5%</td><td data-label="On frontier">Yes</td></tr></tbody></table><table><caption>WikiGold · BERT loaded <span>· 313 sentences · 731 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">796</td><td data-label="Correct">563</td><td data-label="Unmatched">233</td><td data-label="Correct / 100">179.872</td><td data-label="Unmatched / 100">74.441</td><td data-label="Recall">77.0%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Run NuNER</th><td data-label="Suggestions">821</td><td data-label="Correct">567</td><td data-label="Unmatched">254</td><td data-label="Correct / 100">181.150</td><td data-label="Unmatched / 100">81.150</td><td data-label="Recall">77.6%</td><td data-label="On frontier">Yes</td></tr></tbody></table></section></div></main></body></html>

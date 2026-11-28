@@ -77,6 +77,20 @@ class FullReleaseTest(unittest.TestCase):
         self.assertEqual(result["occurrences_with_different_directed_references"], 2)
         self.assertEqual(result["different_references_and_different_stock_match_counts_groups"], 0)
 
+    def test_an_older_aggregate_can_show_the_observed_effect_without_inventing_pairing(self):
+        root = replay.BASELINE.parent
+        original = json.loads(replay.BASELINE.read_text())
+        full = json.loads((root / "crossre-full-test.json").read_text())
+        domains = full["panels"]["additional_test"]["domains"]
+        domains["ai"].pop("paired_review_slots")
+        with self.assertRaisesRegex(ValueError, "every domain"):
+            paired.charts(original, full)
+        for domain in domains.values():
+            domain.pop("paired_review_slots", None)
+        row = paired.charts(original, full)["crossre-full-test-paired.json"]["rows"][0]
+        self.assertNotIn("interval", row)
+        self.assertEqual((row["gained"], row["lost"]), (53, 55))
+
     def test_frozen_release_and_chart_reconcile(self):
         root = Path(__file__).resolve().parents[3] / "docs/eval"
         receipt = json.loads((root / "crossre-full-test.json").read_text())

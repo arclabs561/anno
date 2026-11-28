@@ -268,7 +268,33 @@ The candidate dropped 12 correct and nine wrong standalone highlights. In `posse
 
 Start with the output your application needs. A typed mention needs exact span and type labels. Resolving two mentions to the same person needs a gold mention cluster. Scoring a place-of-birth relation between people and places needs a directed predicate with both endpoints. The names in the figure are benchmarks for those three decisions. The passage itself comes from one checked-in Anno example. [JEREX fixture and predictions](../scripts/qa/joint_baseline) · [Joint extraction scoring](eval/joint-stage-baseline.md)
 
-![One JEREX example shows which typed mentions, mention cluster and directed relation WikiGold or WNUT-17, LitBank and DocRED can score respectively.](figures/benchmark-chooser.png)
+![In the authored JEREX example, Marie Curie and Curie are person mentions of one individual. The saved prediction links that head cluster to the place Warsaw with the directed birthplace predicate P19.](figures/benchmark-chooser.png)
+
+Run the replay for the unit you score. These commands take local input paths and run from the checkout root.
+
+**Typed mentions.** Supply the two Anno executables and the pinned WNUT checkout. Count exact typed spans gained and lost on the same inputs. The published comparison retained 146 unfamiliar gold mentions across all 1,287 test sentences. [Builds and WNUT test results](DOMAIN_QA.md#compare-native-anno-on-unfamiliar-names)
+
+```sh
+uv run --script scripts/qa/wnut_native_replay.py \
+  --baseline "$BASELINE" --candidate "$CANDIDATE" \
+  --data-dir "$WNUT" --output wnut.json
+```
+
+**Mention clusters.** Supply the pinned LitBank checkout and word-aligned predictions for its document 208 fixture. Check all four marked mention-pair decisions. Missing endpoints count as unresolved. [LitBank case, model run and expected links](#replay-a-quoted-role-and-two-named-people)
+
+```sh
+python3 scripts/qa/replay_litbank_role.py \
+  "$LITBANK" --predictions "$COREF_JSON"
+```
+
+**Directed relations.** Supply matching gold documents and JEREX predictions. Match the directed predicate and both complete endpoint clusters. On the first three DocRED joint test records, JEREX matched 17 of 76 labeled relations among 58 predictions. [Source identities and trained replay](eval/joint-stage-baseline.md#jerex-on-annotated-documents)
+
+```sh
+python3 crates/anno-eval/examples/docred/score_jerex.py \
+  "$DOCRED_GOLD" "$JEREX_JSON" --stages
+```
+
+To exercise the illustrated passage offline, run `cargo test --locked -p anno --no-default-features --example import_jerex`. The test reads the checked-in model output and verifies the directed relation after importing the document. [Authored fixture and expected projection](eval/joint-stage-baseline.md#frozen-projection-fixture)
 
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
 
@@ -285,7 +311,7 @@ The [coreference corpus replay guide](eval/coref-corpus-qa.md) covers local pane
 
 For a WikiANN review, estimate how much text will be highlighted from the **training split in the language you plan to review**. That estimate came within five percentage points of the test rate in **143 of 176 languages**. Using the median of the other languages’ training rates did so for **52**. The median error was 1.17 and 9.36 points, respectively. The unit is a token position carrying a WikiANN silver label. Estimating reviewer time requires a timed sample from your application. [Per-language estimates and observed rates](eval/dataset-wikiann-split-density.csv)
 
-![At five percentage points of error, 143 WikiANN languages are inside the tolerance using their own training splits and 52 are inside using the other languages.](figures/wikiann-split-density.png)
+![On the five-point tolerance line, the same-language and other-languages baselines include 155 versus 51 of 176 languages on development and 143 versus 52 on test. Each point counts a language with all three measured splits.](figures/wikiann-split-density.png)
 
 On MultiCoNER v2, each language’s own training rate predicted both held-out splits within five percentage points for all 12 single-language tracks. Median absolute error was **0.53 points on development and 0.29 on test**. Using the median training rate of the other 11 languages raised those errors to **2.35 and 2.23 points** and met the five-point threshold for 9 development and 11 test tracks. Chinese had the largest test miss with the cross-language estimate at 10.94 points. These counts exclude the pooled multilingual track. [MultiCoNER v2 per-language counts and estimates](eval/dataset-multiconer-v2-split-density.csv)
 

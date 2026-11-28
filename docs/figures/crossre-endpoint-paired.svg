@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="894" viewBox="0 0 520 894" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">CrossRE reviews at 50% of eligible sentences</title><desc id="paired-desc">Baseline Predicate confidence compared with candidate Endpoint-weighted confidence on the same inputs. Total suggestions include exact and unmatched predictions. Unused development texts. Independent confirmation · 1,651 eligible · 1,989 sentences. +16 net exact matches · 123 → 139. Gained 25 · lost 9. Retained 114 of 123 baseline matches (92.7%). Interval 5 to 26 net matches · 95% paired bootstrap with both global review queues reselected. Change in total suggestions is 0 (825 to 825). Change in unmatched is −16 (702 to 686). Additional official test texts. Previously examined for other rules · 1,713 eligible · 2,047 sentences. +36 net exact matches · 108 → 144. Gained 46 · lost 10. Retained 98 of 108 baseline matches (90.7%). Change in total suggestions is 0 (856 to 856). Change in unmatched is −36 (748 to 712). Original development panel. Selection · 80 eligible · 96 sentences. +3 net exact matches · 4 → 7. Gained 3 · lost 0. Retained 4 of 4 baseline matches (100.0%). Change in total suggestions is 0 (40 to 40). Change in unmatched is −3 (36 to 33). Complete official test release. Includes the official test subsets · 2,022 eligible · 2,446 sentences. +42 net exact matches · 131 → 173. Gained 52 · lost 10. Retained 121 of 131 baseline matches (92.4%). Change in total suggestions is 0 (1,011 to 1,011). Change in unmatched is −42 (880 to 838).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">CrossRE reviews at 50% of</text>
+<text x="18" y="61" class="heading">eligible sentences</text>
+<text x="18" y="90" class="scope">Baseline · Predicate confidence → Candidate ·</text>
+<text x="18" y="110" class="scope">Endpoint-weighted confidence</text>
+<text x="18" y="130" class="scope">Net exact matches · −42 to +42 · center is zero</text>
+<text x="18" y="150" class="scope">Intervals · 95% paired bootstrap with both global</text>
+<text x="18" y="170" class="scope">review queues reselected</text>
+<path d="M18 190H502" stroke="#bdcec9"/>
+<text x="18" y="215" class="cohort">Unused development texts</text>
+<text x="18" y="239" class="scope">Independent confirmation · 1,651 eligible · 1,989</text>
+<text x="18" y="259" class="scope">sentences</text>
+<path d="M390 276H494" stroke="#d2deda"/><path d="M442 266v20" stroke="#688079"/>
+<path d="M448.19 270v12M448.19 276H474.19M474.19 270v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="461.81" cy="276" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="281" class="score">+16 net exact matches · 123 → 139</text>
+<text x="18" y="303" class="scope">Interval 5 to 26 net matches</text>
+<text x="18" y="323" class="scope">Gained 25 · lost 9 · retained 114/123 (92.7%)</text>
+<text x="18" y="343" class="measure">Total suggestions</text>
+<text x="18" y="362" class="scope">825 → 825 (change 0)</text>
+<text x="267" y="343" class="measure">Unmatched</text>
+<text x="267" y="362" class="scope">702 → 686 (change −16)</text>
+<path d="M18 386H502" stroke="#bdcec9"/>
+<text x="18" y="411" class="cohort">Additional official test texts</text>
+<text x="18" y="435" class="scope">Previously examined for other rules · 1,713 eligible</text>
+<text x="18" y="455" class="scope">· 2,047 sentences</text>
+<path d="M390 472H494" stroke="#d2deda"/><path d="M442 462v20" stroke="#688079"/>
+<circle cx="486.57" cy="472" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="477" class="score">+36 net exact matches · 108 → 144</text>
+<text x="18" y="499" class="scope">Gained 46 · lost 10 · retained 98/108 (90.7%)</text>
+<text x="18" y="519" class="measure">Total suggestions</text>
+<text x="18" y="538" class="scope">856 → 856 (change 0)</text>
+<text x="267" y="519" class="measure">Unmatched</text>
+<text x="267" y="538" class="scope">748 → 712 (change −36)</text>
+<path d="M18 562H502" stroke="#bdcec9"/>
+<text x="18" y="587" class="cohort">Original development panel</text>
+<text x="18" y="611" class="scope">Selection · 80 eligible · 96 sentences</text>
+<path d="M390 628H494" stroke="#d2deda"/><path d="M442 618v20" stroke="#688079"/>
+<circle cx="445.71" cy="628" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="633" class="score">+3 net exact matches · 4 → 7</text>
+<text x="18" y="655" class="scope">Gained 3 · lost 0 · retained 4/4 (100.0%)</text>
+<text x="18" y="675" class="measure">Total suggestions</text>
+<text x="18" y="694" class="scope">40 → 40 (change 0)</text>
+<text x="267" y="675" class="measure">Unmatched</text>
+<text x="267" y="694" class="scope">36 → 33 (change −3)</text>
+<path d="M18 718H502" stroke="#bdcec9"/>
+<text x="18" y="743" class="cohort">Complete official test release</text>
+<text x="18" y="767" class="scope">Includes the official test subsets · 2,022 eligible ·</text>
+<text x="18" y="787" class="scope">2,446 sentences</text>
+<path d="M390 804H494" stroke="#d2deda"/><path d="M442 794v20" stroke="#688079"/>
+<circle cx="494.00" cy="804" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="809" class="score">+42 net exact matches · 131 → 173</text>
+<text x="18" y="831" class="scope">Gained 52 · lost 10 · retained 121/131 (92.4%)</text>
+<text x="18" y="851" class="measure">Total suggestions</text>
+<text x="18" y="870" class="scope">1,011 → 1,011 (change 0)</text>
+<text x="267" y="851" class="measure">Unmatched</text>
+<text x="267" y="870" class="scope">880 → 838 (change −42)</text>
+</svg>

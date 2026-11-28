@@ -56,6 +56,7 @@
       "sentences": 192
     }
   },
+  "predicate_study_sha256": "97d2016f229bf0c2339ee53c0062da4f1112ba70ce74cd38639d5583acf88631",
   "source_sha256": {
     "ai-dev.json": "52fa53bf57b51b63f49ee58420188e49c5bd04a34cd6e0b99089676b0ba2264a",
     "ai-test.json": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",

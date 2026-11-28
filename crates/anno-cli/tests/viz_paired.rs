@@ -89,6 +89,24 @@ fn portable_counts_persist_and_formats_name_the_operating_costs() {
 }
 
 #[test]
+fn equal_nonempty_review_budgets_are_labeled_as_a_zero_change() {
+    let mut input = portable();
+    let row = &mut input["rows"][0];
+    row["baseline"] = json!({"correct":1,"unmatched":2});
+    row["candidate"] = json!({"correct":2,"unmatched":1});
+    row["lost"] = json!(0);
+    let report = Paired::from_json(input.to_string().as_bytes()).unwrap();
+    let svg = report.render_svg().unwrap();
+    assert!(svg.contains(">Total suggestions</text>"));
+    assert!(svg.contains(">3 → 3 (change 0)</text>"));
+    assert!(svg.contains("Change in total suggestions is 0 (3 to 3)."));
+    assert!(svg.contains(">2 → 1 (change −1)</text>"));
+    let html = report.render_html().unwrap();
+    assert!(html.contains("Total suggestions 3 → 3 (change 0)"));
+    assert!(html.contains("Unmatched 2 → 1 (change −1)"));
+}
+
+#[test]
 fn signed_match_labels_agree_at_one_zero_and_count_limits() {
     for (before, after, label) in [
         (0, 1, "+1 net exact match"),

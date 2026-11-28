@@ -324,8 +324,10 @@ def endpoint_chart(receipt):
         panel = panels[name]
         budget = panel["budgets"][str(PRIMARY_BUDGET)]
         counts = budget["counts"]
+        scope = panel["scope"]
         row = {
-            "label": label, "role": role, "observations": panel["scope"]["sentences"],
+            "label": label, "role": f"{role} · {scope['eligible_for_one_suggestion']:,} eligible",
+            "observations": scope["sentences"],
             "baseline": {"correct": counts.get("confidence_correct", 0), "unmatched": counts.get("confidence_unmatched", 0)},
             "candidate": {"correct": counts.get("endpoint_correct", 0), "unmatched": counts.get("endpoint_unmatched", 0)},
             "gained": counts.get("gained_correct_relations", 0), "lost": counts.get("lost_correct_relations", 0),
@@ -333,7 +335,7 @@ def endpoint_chart(receipt):
         if interval := budget.get("net_match_interval"):
             row["interval"] = {key: interval[key] for key in ("lower", "upper", "method")}
         rows.append(row)
-    return {"schema": "anno.paired/v1", "title": "CrossRE reviews with a half-size queue", "unit": "sentences",
+    return {"schema": "anno.paired/v1", "title": "CrossRE reviews at 50% of eligible sentences", "unit": "sentences",
             "baseline": "Predicate confidence", "candidate": "Endpoint-weighted confidence", "rows": rows}
 
 

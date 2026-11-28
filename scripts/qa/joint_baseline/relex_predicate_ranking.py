@@ -532,7 +532,9 @@ def cli_gate_report(report, counted):
                 f"{CLI_PREDICATE_GATE:.2f}": {k: cli[k] for k in ("matched", "predicted")},
             },
         }
+    source_study = (json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
     return {"study": "Retrospective predicate thresholds with fixed retained endpoints and training prompts",
+            "predicate_study_sha256": digest(source_study),
             "checkpoint_revision": report["checkpoint_revision"], "crossre_revision": report["crossre_revision"],
             "source_sha256": report["source_sha256"], "entity_and_adjacency_gate": STOCK_GATE, "panels": panels}
 

@@ -54,6 +54,13 @@ impl Measure {
                 .unwrap_or_else(|| "—".into()),
         }
     }
+
+    fn values_and_change(&self) -> String {
+        format!(
+            "{} → {} (change {})",
+            self.baseline, self.candidate, self.change
+        )
+    }
 }
 
 impl PairedRow {
@@ -111,10 +118,7 @@ impl PairedRow {
         let mut rows = Vec::new();
         let mut line = String::new();
         for m in measures {
-            let field = format!(
-                "{} {} → {} ({})",
-                m.label, m.baseline, m.candidate, m.change
-            );
+            let field = format!("{} {}", m.label, m.values_and_change());
             if !line.is_empty() {
                 let together = format!("{line}  ·  {field}");
                 if wrap(&together, 49).len() == 1 {
@@ -308,10 +312,10 @@ impl Paired {
                 let mut bottom = y;
                 for (i, m) in pair.iter().enumerate() {
                     let x = if i == 0 { LEFT } else { 267 };
-                    let labels = wrap(&format!("{} {}", m.label, m.change), 27);
+                    let labels = wrap(m.label, 27);
                     lines(&mut body, &labels, x, y, 19, "measure");
                     let next = y + labels.len() as i32 * 19;
-                    let values = wrap(&format!("{} → {}", m.baseline, m.candidate), 27);
+                    let values = wrap(&m.values_and_change(), 27);
                     lines(&mut body, &values, x, next, 19, "scope");
                     bottom = bottom.max(next + values.len() as i32 * 19);
                 }
@@ -331,8 +335,11 @@ impl Paired {
             for measure in measures {
                 write!(
                     description,
-                    " {} from {} to {}.",
-                    measure.label, measure.baseline, measure.candidate
+                    " Change in {} is {} ({} to {}).",
+                    measure.label.to_ascii_lowercase(),
+                    measure.change,
+                    measure.baseline,
+                    measure.candidate
                 )
                 .unwrap();
             }
