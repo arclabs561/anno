@@ -1,9 +1,11 @@
 // Loaded only after an explicit scan from the survey bench.
 import {Gliner} from './vendor/gliner.mjs';
 
-const repository='onnx-community/gliner_small-v2';
-const revision='6b17161d3a8ef6737ee6492659a095daed73d868';
-const weights='https://huggingface.co/'+repository+'/resolve/'+revision+'/onnx/model_quantized.onnx';
+const manifest=await fetch(new URL('./model-weights.json',import.meta.url));
+if(!manifest.ok)throw new Error('Could not load the survey cartridge record.');
+const {survey:cartridge}=await manifest.json();
+const {repository,revision,sha256,bytes:size}=cartridge;
+const weights='https://huggingface.co/'+repository+'/resolve/'+revision+'/'+cartridge.path;
 let model;
 
 async function openReceiver(status){
@@ -11,7 +13,6 @@ async function openReceiver(status){
   let cache;
   try { cache=await caches.open('saltglass-survey-v1'); } catch {}
   const cached=await cache?.match(weights);
-  const size=183403734;
   let bytes;
   if(cached){
     bytes=new Uint8Array(await cached.arrayBuffer());
@@ -30,11 +31,20 @@ async function openReceiver(status){
       if(mb>=shown+5){status('Receiving cartridge · '+mb+' / 183 MB');shown=mb;}
     }
     if(received!==size)throw new Error('Incomplete survey cartridge. Run the scan again.');
-    try { await cache?.put(weights,new Response(bytes)); } catch {}
   }
   if(bytes.length!==size){
     await cache?.delete(weights);
     throw new Error('Incomplete cached cartridge. Run the scan again.');
+  }
+  status('Verifying cartridge checksum…');
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  const actual=Array.from(digest,byte=>byte.toString(16).padStart(2,'0')).join('');
+  if(actual!==sha256){
+    await cache?.delete(weights);
+    throw new Error('Cartridge checksum mismatch. Run the scan again to fetch a fresh copy.');
+  }
+  if(!cached){
+    try { await cache?.put(weights,new Response(bytes)); } catch {}
   }
   status('Starting the local neural reader…');
   const receiver=new Gliner({
@@ -60,6 +70,6 @@ export async function survey(text,labels,threshold,status){
   const entities=matches.map(({spanText,start,end,label,score})=>({
     text:spanText,label,score,start:Array.from(text.slice(0,start)).length,end:Array.from(text.slice(0,end)).length
   }));
-  return {entities,labels,model:repository,revision,threshold,
+  return {entities,labels,model:repository,revision,weights_sha256:sha256,threshold,
     scan_ms:Math.round(performance.now()-scan),total_ms:Math.round(performance.now()-start)};
 }
