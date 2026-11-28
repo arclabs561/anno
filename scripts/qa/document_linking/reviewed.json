@@ -1,0 +1,169 @@
+[
+  {
+    "id": "concert",
+    "entities": [
+      {
+        "id": "singer",
+        "type": "PER",
+        "mentions": [
+          {
+            "start": 12,
+            "end": 19,
+            "text": "Rihanna"
+          },
+          {
+            "start": 46,
+            "end": 53,
+            "text": "Rihanna"
+          },
+          {
+            "start": 74,
+            "end": 77,
+            "text": "She"
+          }
+        ]
+      },
+      {
+        "id": "island",
+        "type": "LOC",
+        "mentions": [
+          {
+            "start": 36,
+            "end": 44,
+            "text": "Barbados"
+          },
+          {
+            "start": 64,
+            "end": 72,
+            "text": "Barbados"
+          }
+        ]
+      }
+    ],
+    "wikidata": {
+      "singer": "Q36844",
+      "island": "Q244"
+    },
+    "relations": [
+      [
+        "singer",
+        "P27",
+        "island"
+      ]
+    ],
+    "named_spans": [
+      [
+        12,
+        19
+      ],
+      [
+        46,
+        53
+      ],
+      [
+        36,
+        44
+      ],
+      [
+        64,
+        72
+      ]
+    ]
+  },
+  {
+    "id": "capital",
+    "entities": [
+      {
+        "id": "city",
+        "type": "LOC",
+        "mentions": [
+          {
+            "start": 0,
+            "end": 5,
+            "text": "Paris"
+          },
+          {
+            "start": 35,
+            "end": 40,
+            "text": "Paris"
+          },
+          {
+            "start": 88,
+            "end": 93,
+            "text": "Paris"
+          }
+        ]
+      },
+      {
+        "id": "state",
+        "type": "LOC",
+        "mentions": [
+          {
+            "start": 24,
+            "end": 30,
+            "text": "France"
+          },
+          {
+            "start": 64,
+            "end": 70,
+            "text": "France"
+          }
+        ]
+      },
+      {
+        "id": "scientist",
+        "type": "PER",
+        "mentions": [
+          {
+            "start": 42,
+            "end": 53,
+            "text": "Marie Curie"
+          },
+          {
+            "start": 72,
+            "end": 75,
+            "text": "She"
+          }
+        ]
+      }
+    ],
+    "wikidata": {
+      "city": "Q90",
+      "state": "Q142",
+      "scientist": "Q7186"
+    },
+    "relations": [
+      [
+        "state",
+        "P36",
+        "city"
+      ]
+    ],
+    "named_spans": [
+      [
+        0,
+        5
+      ],
+      [
+        35,
+        40
+      ],
+      [
+        88,
+        93
+      ],
+      [
+        24,
+        30
+      ],
+      [
+        64,
+        70
+      ],
+      [
+        42,
+        53
+      ]
+    ]
+  }
+]

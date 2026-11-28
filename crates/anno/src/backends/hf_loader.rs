@@ -95,7 +95,7 @@ pub(crate) fn candle_files_available(
 }
 
 #[cfg(feature = "candle")]
-fn cached_candle_files(
+pub(crate) fn cached_candle_files(
     repo: &std::path::Path,
     config: &[&str],
     tokenizer: &[&str],

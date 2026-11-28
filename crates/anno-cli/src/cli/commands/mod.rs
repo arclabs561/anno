@@ -28,6 +28,7 @@ pub mod import;
 pub mod info;
 pub mod joint;
 pub mod mhel;
+mod model_routing;
 pub mod models;
 #[cfg(feature = "eval")]
 pub mod muxer;

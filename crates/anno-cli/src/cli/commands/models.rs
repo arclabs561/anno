@@ -8,6 +8,8 @@ use clap::{Parser, Subcommand};
 
 #[path = "checkpoints/mod.rs"]
 mod checkpoints;
+#[path = "models_explain.rs"]
+mod explain;
 
 /// List and compare available models
 #[derive(Parser, Debug)]
@@ -23,6 +25,9 @@ pub enum ModelsAction {
     /// List all available models with status
     #[command(visible_alias = "ls")]
     List,
+
+    /// Explain how a request selects a model using offline preflight.
+    Explain(explain::ExplainArgs),
 
     /// Browse checkpoint sources, entry points and preparation recipes offline.
     Checkpoints {
@@ -138,6 +143,7 @@ fn build_status(compiled: bool) -> String {
 /// Execute the models command.
 pub fn run(args: ModelsArgs) -> Result<(), String> {
     match args.action {
+        ModelsAction::Explain(args) => return explain::run(args),
         ModelsAction::Checkpoints { id, json } => return checkpoints::run(id.as_deref(), json),
         ModelsAction::List => {
             println!();

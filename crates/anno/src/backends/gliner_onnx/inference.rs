@@ -94,6 +94,15 @@ impl GLiNEROnnx {
         self.joint_relex
     }
 
+    /// Whether the default graph and tokenizer already exist in the local Hub cache.
+    pub fn cached_assets_available(model_name: &str) -> bool {
+        crate::backends::hf_loader::cached_hub_onnx_files(
+            model_name,
+            GLiNERConfig::default().prefer_quantized,
+            false,
+        )
+    }
+
     /// Whether a Hub-backed graph and tokenizer can be acquired under the current
     /// download policy. Offline this checks files in the active Hub revision.
     /// The constructor still validates the graph and tokenizer on use.
