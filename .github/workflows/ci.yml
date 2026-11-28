@@ -1095,9 +1095,9 @@ jobs:
       - name: Check direct timestamp dependencies and keep PDF optional
         run: |
           graph=(cargo tree --locked --target all --edges normal,build --prefix none)
-          for package in anno anno-cli anno-eval; do
+          for package in anno anno-cli anno-eval anno-py; do
             "${graph[@]}" -p "$package" --depth 1 > "$RUNNER_TEMP/anno-direct-dependencies"
-            if grep -q '^chrono v' "$RUNNER_TEMP/anno-direct-dependencies"; then
+            if grep -Eq '^(chrono|humantime) v' "$RUNNER_TEMP/anno-direct-dependencies"; then
               cat "$RUNNER_TEMP/anno-direct-dependencies"
               exit 1
             fi

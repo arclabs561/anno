@@ -5,6 +5,9 @@
 [advisories]
 unused-ignored-advisory = "deny"
 ignore = [
+    # Revisit when the Hub client releases an Xet runtime without these dependencies.
+    { id = "RUSTSEC-2026-0542", reason = "Xet requires humantime for duration formatting; this advisory concerns maintenance." },
+    { id = "RUSTSEC-2026-0543", reason = "Xet uses Chrono internally; Anno uses its own timestamp parser for persisted history." },
     # No safe upgrade available (transitive).
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; no safe upgrade is available." },
 ]
@@ -38,6 +41,9 @@ exceptions = [
     { crate = "cssparser-macros", allow = ["MPL-2.0"] },
     { crate = "dtoa-short", allow = ["MPL-2.0"] },
     { crate = "selectors", allow = ["MPL-2.0"] },
+
+    # xet-runtime uses colored for terminal output.
+    { crate = "colored", allow = ["MPL-2.0"] },
 
     # MPL-2.0 via `dirs` (cache/config directory resolution).
     { crate = "option-ext", allow = ["MPL-2.0"] },
