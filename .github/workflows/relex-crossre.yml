@@ -111,7 +111,7 @@ jobs:
           if sum(row["directed_edges"] for row in native) != counts["totals"]["predicted"]:
               raise SystemExit("Native directed-edge total differs from the fixed stock result")
           PY
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: relex-parity
           path: relex-receipt.json
@@ -174,7 +174,7 @@ jobs:
           runner=scripts/qa/joint_baseline/relex_endpoint_budget.py
           python "$runner" collect "$RUNNER_TEMP/crossre" "$RELEX_WEIGHTS" "$RUNNER_TEMP/model-rows" --scope "$PART"
           python "$runner" measure "$RUNNER_TEMP/crossre" "$RUNNER_TEMP/model-rows" "$RUNNER_TEMP/selection.json" --part "$PART" --output "$RUNNER_TEMP/$PART.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: crossre-endpoint-${{ matrix.part }}
           path: ${{ runner.temp }}/${{ matrix.part }}.json
@@ -190,7 +190,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: crossre-endpoint-*
           merge-multiple: true
@@ -200,7 +200,7 @@ jobs:
           result="$RUNNER_TEMP/crossre-endpoint-result"
           mkdir -p "$result"
           python3 scripts/qa/joint_baseline/relex_endpoint_budget.py assemble "$RUNNER_TEMP/parts/confirmation.json" "$RUNNER_TEMP/parts/test.json" --output "$result/crossre-endpoint-budget.json" --paired-output "$result/crossre-endpoint-paired.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: crossre-endpoint-study
           path: |

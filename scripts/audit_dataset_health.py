@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Compare previously checked registry URLs with an optional local S3 inventory.
 
 Usage:
