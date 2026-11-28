@@ -33,9 +33,13 @@ just dataset-figures --update  # Refresh the published images and derived summar
 just dataset-figures --check   # Check the published images and counts
 ```
 
-To call the entry point directly, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Use `--output DIR` for another preview directory or `--anno PATH` to render with an existing Anno binary. [Build entry point and dependencies](refresh_dataset_figures.py)
+To call the entry point directly, run `uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check`. Use `--output DIR` for another preview directory or `--anno PATH` to render with an existing Anno binary. Choose a fresh output directory when preparing a ZIP to share. A reused directory can contain files from earlier work. [Build entry point and dependencies](refresh_dataset_figures.py)
 
-The build discovers study inputs under `docs/eval/`. Name each file `<study>-<view>.json`, using the matching native view in the table. Add its dataset IDs and guide to `docs/eval/figure-studies.csv` so readers can find it with `anno viz list --dataset NAME`. The generator writes the same native inputs and dataset evidence to `docs/eval/figure-catalog.json` and the CI download. A figure refresh can update this catalog independently of a CLI release. It calls the public CLI and rasterizes the SVG with resvg and the bundled DejaVu Sans fonts. Embed the SVG with the same file stem. [Chart formats and CLI examples](../docs/QUICKSTART.md#visualize-evaluation-results)
+The bundle includes the studies listed in `docs/eval/figure-studies.csv`. To publish a study, generate its aggregate with `anno viz <view> --format json`, save it under `docs/eval/<study>-<view>.json`, and add its dataset IDs and guide to the CSV. Check the titles, labels and other free text for material you have the right to publish. Keep per-case reports with the authorized corpus. Local reports can be rendered directly with `anno viz render`.
+
+The builder checks each listed report against the native view it names. The optional `metadata_sha256` column records an exact version of a study's additional metadata that has been reviewed for publication. Leave it empty for a report with only native chart fields. For a report with extension metadata, review that object and hash its UTF-8 JSON with sorted keys, unescaped Unicode, compact separators and no trailing newline. The existing WikiGold entry records its published counts, source and model digests. [Study list](../docs/eval/figure-studies.csv) · [WikiGold aggregate and metadata](../docs/eval/wikigold-entity-errors.json)
+
+The generator includes those same inputs in `docs/eval/figure-catalog.json` and in the CI download. Readers can find them with `anno viz list --dataset NAME`. A figure refresh can update the catalog independently of a CLI release. The builder renders with the public CLI and rasterizes the SVG with resvg and the bundled DejaVu Sans fonts. Embed the SVG with the same file stem. [Chart formats and CLI examples](../docs/QUICKSTART.md#visualize-evaluation-results)
 
 | View | Portable input | What the report shows |
 |---|---|---|
