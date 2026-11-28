@@ -3,6 +3,21 @@ use wasm_bindgen::prelude::*;
 
 fn mentions(text: &str, reader: &str, vessels: bool) -> Result<Vec<anno::Entity>, JsValue> {
     if text.len() > 32_000 { return Err(JsValue::from_str("Log exceeds 32 KB")); }
+    if reader == "pilot" {
+        // Local register entries take precedence, followed by structured patterns.
+        // Keep CRF predictions for spans outside those two sources.
+        let mut rows = mentions(text, "registry", vessels)?;
+        for source in ["patterns", "crf"] {
+            let candidates = mentions(text, source, vessels)?;
+            for entity in candidates {
+                if rows.iter().all(|r| r.end() <= entity.start() || entity.end() <= r.start()) {
+                    rows.push(entity);
+                }
+            }
+        }
+        rows.sort_by_key(|entity| entity.start());
+        return Ok(rows);
+    }
     if reader == "crf" {
         thread_local! { static READER: anno::backends::CrfNER = anno::backends::CrfNER::new(); }
         return READER.with(|model| model.extract_entities(text, None))

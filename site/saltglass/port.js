@@ -3,18 +3,28 @@ import init, {extract, inspect} from './engine/pkg/saltglass_reader.js';
 const $ = selector => document.querySelector(selector);
 const log = "From the landing field at Saltglass Reach you can usually see two of the three moons. To find the third, stand beside the mail shed and look through the gap in the observatory stairs. Iona Vale painted a white mark on the step for visitors. She touches it up every spring.\n\nVale captains the Kestrel for the Brackwater Packet Company. Yesterday she brought the company’s new tide tables over from Low Bell, along with one passenger and a crate of dry socks. The tables say the mail road stays dry until noon. The passenger walked in at eleven with his boots full of water.";
 const catalog = {
-  crf: ['CRF reader', 2, 'A trained sequence model for people, organizations and places. Its weights come from Anno’s English WikiANN model. It reads the words around a name, so unfamiliar ports can have their own entries.'],
-  registry: ['Port gazetteer', 0, 'Anno LexiconNER looks up local names in the Saltglass registry. The vessel register adds the Kestrel to its vocabulary.'],
-  heuristic: ['Heuristic reader', 1, 'Anno HeuristicNER uses capitalization, nearby words and other cues. Try names and organizations from beyond the Reach.'],
-  patterns: ['Pattern reader', 4, 'Anno RegexNER recognizes structured text. Try a date, a sum of money or a (fictional) email address in the reader lab.'],
-  vessels: ['Vessel register', 6, 'The harbor supplement lists ships by name. Fit it alongside the port gazetteer to identify the Kestrel in the dispatch.']
+  pilot: ['Harbor pilot', 7, 'Splices the port index and stamp reader into the CRF feed. A registered name gets first claim on its span.'],
+  crf: ['CRF reader', 2, 'Reads a name by its neighbors. The sequence weights were trained on English WikiANN. Try moving the same signature between two sentences.'],
+  registry: ['Port gazetteer', 0, 'A drum index of local names. The clerk cut a second groove for Vale under her surname.'],
+  heuristic: ['Heuristic reader', 1, 'Picks names from capitals and nearby words. The carbon-copy test drops the case from an incoming wire.'],
+  patterns: ['Pattern reader', 4, 'Finds dates and contact marks in the mail. Pull the privacy shutter to see what survives on a public copy.'],
+  vessels: ['Vessel register', 6, 'A supplement to the harbor index. Slide in the ship roll to distinguish the boat from the rest of its address.']
 };
-const readers = ['crf','registry','heuristic','patterns'];
+const readers = ['pilot','crf','registry','heuristic','patterns'];
+const benchCards = {
+  pilot: ['Bridge crossfeed','Raw CRF','Crossfeed','Iona Vale at Low Bell. Mail iona@example.org.'],
+  crf: ['Context drum','Landing log','Sounding','Iona Vale painted a white mark on the step for visitors.','🌙 Iona Vale sounded the west berth.'],
+  registry: ['Alias index','Full signature','Surname only','Iona Vale reached Low Bell.','Vale reached Low Bell.'],
+  heuristic: ['Wire receiver','Typescript','Carbon copy','Dr. Alice Smith arrived in Paris.','dr. alice smith arrived in paris.'],
+  patterns: ['Mail shutter','Incoming wire','Public copy','Send the May 12, 2026 sounding to iona@example.org.'],
+  vessels: ['Ship roll','Roll withdrawn','Roll inserted','Vale booked the Kestrel for Low Bell.']
+};
+let benchSide=0, useNotice=false;
 const key = 'anno.saltglass.v1';
 let saved;
 try { saved = JSON.parse(localStorage.getItem(key)); } catch {}
 const state = {
-  reader: readers.includes(saved?.reader) ? saved.reader : 'crf',
+  reader: readers.includes(saved?.reader) ? saved.reader : 'pilot',
   vessels: saved?.vessels === true,
   mission: ['accepted','delivered'].includes(saved?.mission) ? saved.mission : 'open',
   notice: saved?.notice==='amended'?'amended':'posted',
@@ -282,7 +292,7 @@ function sprite(node,i){node.style.backgroundPosition=(i%4)*100/3+'% '+Math.floo
 function shop(){
   const inv=$('#inventory');inv.replaceChildren();
   for(const [id,[name,index]] of Object.entries(catalog)){
-    const tile=action('',()=>{selected=id;shop();$('#tile-'+id).focus();});tile.id='tile-'+id;tile.className='tile';
+    const tile=action('',()=>{selected=id;benchSide=0;shop();$('#tile-'+id).focus();});tile.id='tile-'+id;tile.className='tile';
     tile.setAttribute('aria-pressed',String(id===selected));
     const icon=el('span',undefined,'sprite');sprite(icon,index);
     tile.append(icon,name);inv.append(tile);
@@ -291,17 +301,46 @@ function shop(){
   sprite($('#large-icon'),index);
   $('#equipment').textContent=isFitted(selected)?'Fitted':'Available';
   $('#fit').disabled=!ready||isFitted(selected);$('#remove').disabled=!ready||selected!=='vessels'||!state.vessels;
-  const example=screen==='board' && state.mission==='accepted'?notices[state.notice].text:'Vale captains the Kestrel for the Brackwater Packet Company.';
+  const [test,first,second,front,back]=benchCards[selected];
+  const atDesk=screen==='board' && state.mission==='accepted';
   const preview=$('#preview');preview.replaceChildren();
-  if(ready) preview.append(el('span','Fitting preview','small'),annotated(example,read(example,selected==='vessels'?'registry':selected,selected==='vessels'||state.vessels)));
+  if(!ready)return;
+  if(atDesk){
+    const source=action(useNotice?'Try bench card':'Read notice '+notices[state.notice].number,()=>{
+      useNotice=!useNotice;shop();$('#preview .paper-source').focus();
+    });
+    source.className='paper-source';preview.append(source);
+  }
+  const onNotice=atDesk && useNotice;
+  const text=onNotice?notices[state.notice].text:(benchSide && back?back:front);
+  let reader=selected;
+  if(selected==='pilot' && !onNotice && !benchSide)reader='crf';
+  if(selected==='vessels')reader='registry';
+  const withRoll=selected==='vessels'?(onNotice || Boolean(benchSide)):state.vessels;
+  const shutter=selected==='patterns' && !onNotice && benchSide;
+  const rows=read(text,reader,withRoll);
+  preview.append(el('strong',onNotice?'Notice '+notices[state.notice].number:test,'bench-label'));
+  if(!onNotice){
+    const switches=el('div',undefined,'bench-switches');
+    [first,second].forEach((label,i)=>{
+      const button=action(label,()=>{benchSide=i;shop();$('#preview [aria-pressed=true]').focus();});
+      button.setAttribute('aria-pressed',String(benchSide===i));switches.append(button);
+    });
+    preview.append(switches);
+  }
+  if(shutter)preview.append(el('p',inspect(text,reader,withRoll,'redact'),'bench-copy'));
+  else preview.append(annotated(text,rows));
+  const count=shutter?'Public copy':rows.length+' '+(rows.length===1?'mention':'mentions');
+  $('#equipment').textContent=(isFitted(selected)?'Fitted':'Available')+' · '+(selected==='vessels'?'index supplement':'reader bay')+' · '+count;
+
 }
 function updateFit(){
   labResult=null;save();shop();draw();
   $('#signal').textContent='Anno WebAssembly · '+catalog[state.reader][0];
 }
-$('#fit').onclick=()=>{if(selected==='vessels'){state.vessels=true;state.reader='registry';}else state.reader=selected;updateFit();};
+$('#fit').onclick=()=>{if(selected==='vessels'){state.vessels=true;if(state.reader!=='pilot')state.reader='registry';}else state.reader=selected;updateFit();};
 $('#remove').onclick=()=>{state.vessels=false;updateFit();};
-$('#shop').onclick=()=>{selected=state.reader;shop();$('#outfitter').showModal();};
+$('#shop').onclick=()=>{selected=state.reader;benchSide=0;useNotice=screen==='board' && state.mission==='accepted';shop();$('#outfitter').showModal();};
 $('#done').onclick=()=>$('#outfitter').close();
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>{screen=b.dataset.screen;draw();$('#heading').focus();});
 $('#leave').onclick=()=>{state.away=true;save();draw();$('#land').focus();};
