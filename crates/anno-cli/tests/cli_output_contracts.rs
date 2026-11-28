@@ -734,6 +734,29 @@ fn identical_duplicate_mentions_compare_equal_in_either_order() {
 }
 
 #[test]
+fn recursive_batch_rejects_file_directory_conflicts_before_writing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("notes/report.json")).unwrap();
+    for file in ["first.txt", "report.txt", "report.json/second.txt"] {
+        fs::write(dir.join("notes").join(file), "text").unwrap();
+    }
+    let result = invoke(
+        dir,
+        &[
+            "batch", "--dir", "notes", "--output", "out", "--model", "pattern",
+        ],
+    );
+    assert!(!result.status.success());
+    let error = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        error.contains("output directory") && error.contains("report.json"),
+        "{error}"
+    );
+    assert!(!dir.join("out/first.json").exists());
+}
+
+#[test]
 fn recursive_batch_preserves_relative_ids_and_excludes_its_output_tree() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();

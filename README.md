@@ -35,28 +35,26 @@ The range ends just before the period. Anno counts Unicode scalar values.
 
 ## Extract a directory
 
-Install the CLI with `cargo install anno-cli --locked`. Put your text or
-Markdown files in `notes/` and run:
+The harbor office issued a notice, then amended it. Which date changed?
+From the root of this checkout, install the CLI and run it on the examples tree:
 
 ```sh
-anno batch --model heuristic \
-  --dir notes --output results
+cargo install --locked --path crates/anno-cli \
+  --no-default-features --features extractor-readability
+anno batch --dir crates/anno-py/examples --model pattern --format jsonl |
+  jq -r '[.id, (.entities[] | select(.type == "DATE") | .text)] | @tsv'
 ```
 
-The checkout CLI also descends into subdirectories: `notes/letters/bio.txt`
-becomes `results/letters/bio.json`. The published 0.15 CLI reads the top level.
-Each JSON file keeps the text and its annotations. If `notes/bio.txt` contains the
-Lynn Conway sentence above, who appears in `results/bio.json`?
+| Document | Issued | Berth applications close | Public drawing |
+| --- | --- | --- | --- |
+| `bulletins/bulletin-edition-1` | Nov 18 | **Dec 4** | Dec 9 |
+| `bulletins/bulletin-edition-2` | Nov 18 | **Dec 7** | Dec 9 |
 
-```sh
-jq -r '.signals[] | select(.label == "PER") | .surface' results/bio.json
-```
-
-```text
-Lynn Conway
-```
-
-The heuristic backend runs without model weights. [Parallel workers, caching, and JSONL input](docs/QUICKSTART.md#cli-batch-processing)
+The command lists dates in source order. The notices supply their meaning.
+For your own archive, pass `--dir notes --output results` to save one
+annotation file per document. A source at `notes/letters/bio.txt` becomes
+`results/letters/bio.json`. The published 0.15 CLI scans only the top level.
+[Batch processing](docs/QUICKSTART.md#cli-batch-processing)
 
 ## Choose what to extract
 

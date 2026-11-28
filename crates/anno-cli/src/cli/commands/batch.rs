@@ -805,42 +805,50 @@ fn write_outputs(
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| format!("Failed to create output dir '{}': {}", out_dir.display(), e))?;
 
+    let suffix = if matches!(args.format, OutputFormat::Jsonl) {
+        "jsonl"
+    } else {
+        "json"
+    };
+    let mut paths = Vec::with_capacity(documents.len());
     for doc in documents {
         if args.dir.is_some() {
-            let mut parent = out_dir.clone();
-            let mut parts = doc.id().split('/').peekable();
-            while let Some(part) = parts.next() {
+            for part in doc.id().split('/') {
                 validate_path_component(part, "document path component")?;
-                if parts.peek().is_some() {
-                    parent.push(part);
-                    if parent.is_symlink() {
-                        return Err(format!(
-                            "Refusing symlink output directory '{}'",
-                            parent.display()
-                        ));
-                    }
-                    std::fs::create_dir_all(&parent)
-                        .map_err(|e| format!("Cannot create '{}': {e}", parent.display()))?;
-                }
-            }
-            let suffix = if matches!(args.format, OutputFormat::Jsonl) {
-                "jsonl"
-            } else {
-                "json"
-            };
-            let dest = out_dir.join(format!("{}.{suffix}", doc.id()));
-            if dest.is_symlink() {
-                return Err(format!("Refusing symlink output file '{}'", dest.display()));
             }
         } else {
             validate_path_component(doc.id(), "document id")?;
         }
+        paths.push(out_dir.join(format!("{}.{suffix}", doc.id())));
     }
 
-    for doc in documents {
+    // A source tree can contain both a.txt and a.json/b.txt. Their output
+    // paths would require a.json to be both a file and a directory.
+    let destinations: std::collections::HashSet<&Path> =
+        paths.iter().map(PathBuf::as_path).collect();
+    for path in &paths {
+        if path.is_symlink() || (path.exists() && !path.is_file()) {
+            return Err(format!("Expected an output file at '{}'", path.display()));
+        }
+        for parent in path.ancestors().skip(1).take_while(|p| *p != out_dir) {
+            if destinations.contains(parent)
+                || parent.is_symlink()
+                || (parent.exists() && !parent.is_dir())
+            {
+                return Err(format!(
+                    "Expected an output directory at '{}'",
+                    parent.display()
+                ));
+            }
+        }
+    }
+    for (doc, path) in documents.iter().zip(paths) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Cannot create '{}': {e}", parent.display()))?;
+        }
         match args.format {
             OutputFormat::Json => {
-                let path = out_dir.join(format!("{}.json", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string_pretty(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
@@ -848,7 +856,6 @@ fn write_outputs(
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }
             OutputFormat::Jsonl => {
-                let path = out_dir.join(format!("{}.jsonl", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
@@ -857,7 +864,6 @@ fn write_outputs(
             }
             _ => {
                 // Grounded and other formats: raw GroundedDocument
-                let path = out_dir.join(format!("{}.json", doc.id()));
                 let payload = serde_json::to_string_pretty(doc)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload)
