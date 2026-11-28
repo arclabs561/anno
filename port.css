@@ -25,3 +25,19 @@ nav button[aria-current=true]{border-style:inset;box-shadow:inset 3px 0 #d7c98e}
 mark[aria-pressed=true]{background:#353832;outline:1px solid currentColor}
 .manifest{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;background:#10120f;border-left:2px solid #817853;padding:8px;font:13px/1.45 monospace}
 article,.details{min-width:0}
+
+/* Ship instruments remain visible beside the docked service window. */
+main{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:5px;align-items:center}
+#port,#orbit{grid-area:1/1}footer{grid-column:1/-1}
+#ship-rail{align-self:stretch;padding:4px;display:flex;flex-direction:column;background-color:#333}
+.scope{position:relative;aspect-ratio:1;background:radial-gradient(ellipse at center,#212326 0 1px,transparent 2px 32%,#232526 33%,transparent 34%),#070909;border:2px inset #655f59}
+.scope i,.scope b{position:absolute;width:5px;height:5px;background:#c8bc86;top:61%;left:35%}.scope b{width:3px;height:3px;top:57%;left:39%;background:#9acead}#ship-rail[data-outbound=true] .scope b{top:24%;left:72%}
+#ship-rail dl{margin:4px 0;background:#080909;text-align:center;border:2px inset #686461;font:12px/1.25 Arial}
+#ship-rail dt{color:#afa99f;padding-top:8px}#ship-rail dd{margin:3px 0 0;padding:0 2px 8px;border-bottom:2px groove #56524d}
+.console{grid-template-columns:23% minmax(0,1fr) 23%}.console nav button,.actions button{border-radius:12px;background:linear-gradient(#5e2729,#862529 39%,#4a1015 60%,#400f13);border:2px ridge #837874}
+h1{font:bold 19px/1.1 Georgia,serif}.console nav{padding-top:36px}
+#outfitter{width:min(880px,96vw)}.shop-body{grid-template-columns:44% 28% 1fr}#inventory{grid-template-columns:repeat(4,minmax(0,1fr))}.tile{font-size:12px}.tile .sprite{width:min(47px,100%)}
+.notice-paper,.receipt{background:#d1c5a2;color:#302e28;padding:10px 12px;border-left:4px double #77725e;font:14px/1.4 Georgia,serif}.notice-paper strong,.receipt strong{font: bold 11px monospace;letter-spacing:.06em}.notice-paper mark,.notice-paper .key{color:#303d35}.notice-paper .span-detail{color:#51402f}.receipt{max-width:32em;border-block:1px dashed #605c50}.pencil{color:#d3ceb6;font-style:italic}.slip-tabs{display:flex;gap:4px;margin:6px 0}.slip-tabs button[aria-pressed=true]{border-style:inset;color:#fff0a6}#content .slip-tabs button{margin:0}
+@media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}#ship-rail{display:none}}
+@media(max-width:650px){.console,.shop-body{grid-template-columns:1fr 1fr}.console nav{padding-top:8px}#inventory{grid-template-columns:repeat(2,minmax(0,1fr))}.tile .sprite{width:48px}}
+@media(min-width:761px){main{width:min(100%,880px)}.console{min-height:250px}#content,.details{font-size:13px;line-height:1.36}.details h3{margin:3px 0 8px}#outfitter{width:min(820px,96vw)}#ship-rail dl{flex:1;display:grid;grid-template-rows:auto 1fr auto 1fr auto 1fr}#ship-rail dd{border-bottom:4px ridge #56524d}}
