@@ -774,6 +774,44 @@ fn export_reads_a_whole_grounded_batch_and_preserves_its_tree() {
 }
 
 #[test]
+fn duplicate_stdin_ids_can_stream_but_cannot_overwrite_a_saved_document() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    let input = dir.join("rows.jsonl");
+    fs::write(
+        &input,
+        r#"{"id":"first","text":"First."}
+{"id":"notice","text":"Earlier edition."}
+{"id":"notice","text":"Later edition."}
+"#,
+    )
+    .unwrap();
+    let run = |extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args([
+                "batch", "--stdin", "--model", "pattern", "--format", "jsonl",
+            ])
+            .args(extra)
+            .current_dir(dir)
+            .stdin(fs::File::open(&input).unwrap())
+            .output()
+            .unwrap()
+    };
+    let streamed = run(&[]);
+    assert!(streamed.status.success());
+    assert_eq!(
+        String::from_utf8(streamed.stdout).unwrap().lines().count(),
+        3
+    );
+
+    let saved = run(&["--output", "out"]);
+    assert!(!saved.status.success());
+    assert!(String::from_utf8_lossy(&saved.stderr).contains("notice.jsonl"));
+    assert!(!dir.join("out/first.jsonl").exists());
+    assert!(!dir.join("out/notice.jsonl").exists());
+}
+
+#[test]
 fn recursive_batch_rejects_file_directory_conflicts_before_writing() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
