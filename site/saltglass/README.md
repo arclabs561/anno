@@ -1,6 +1,6 @@
 # Saltglass Reach
 
-The Anno project's playable GitHub Pages port. Reader lab input stays in the browser. The port gazetteer uses Anno's LexiconNER with a fictional local registry. The pattern and heuristic readers run Anno's RegexNER and HeuristicNER. The Outfitter previews equipment against the same passage before fitting it. Local storage keeps the loadout, lab draft and dispatch progress.
+The Anno project's playable GitHub Pages port. Reader lab input stays in the browser. The port gazetteer uses Anno's LexiconNER with a fictional local registry. The pattern and heuristic readers run Anno's RegexNER and HeuristicNER. The Outfitter previews equipment against the same passage before fitting it. Local storage keeps equipment and dispatch progress. Edited passages stay in page memory. The lab compares the three readers, groups detected mentions with SimpleCorefResolver, runs heuristic relation extraction and previews pattern-based PII redaction. Redaction exports contain the preview without the original passage.
 
 Run `git lfs pull` and serve this directory with a static HTTP server. GitHub Pages serves a materialized copy from the gh-pages branch. The generated WebAssembly and JavaScript bindings are checked in so loading the port requires no build service.
 

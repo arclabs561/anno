@@ -9,6 +9,7 @@ Choose the entry point for the question. Run commands and read repository docume
 
 | Task | First action |
 |---|---|
+| Validate the Saltglass Reach browser demo | Use the [live port replay](references/saltglass.md) to check rendered output, Unicode offsets, negative cases and network cost. |
 | Inspect a nested-name, competing-antecedent or abstention case | Start with `just qa-coref-corpora list` for rights and pinned input formats. Use the [corpus replay guide](../../../docs/eval/coref-corpus-qa.md) for local checking, blinded inputs and source-bound scoring. |
 | Find or record a completed experiment | Open the [experiment records](../../../docs/eval/README.md) for paired notes, aggregate results and replay commands. Include the observed producer and language, gains and losses, and the decision supported by the run. |
 | Reproduce a named case | Run its fixed replay with the binary from the checkout being tested. For example, use `ANNO_BIN=target/debug/anno just qa-replay typed_spans currency-print-spacing`. |
