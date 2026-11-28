@@ -17,12 +17,18 @@ const state = {
   reader: readers.includes(saved?.reader) ? saved.reader : 'crf',
   vessels: saved?.vessels === true,
   mission: ['accepted','delivered'].includes(saved?.mission) ? saved.mission : 'open',
+  notice: saved?.notice==='amended'?'amended':'posted',
+  amendment: readers.includes(saved?.amendment)?saved.amendment:null,
+  receipt: saved?.receipt===true,
   sample: log,
   away: saved?.away === true
 };
 let screen = 'log', selected = state.reader, ready = false, labResult = null;
 let experiment = 'mentions';
-const dispatch = 'Iona Vale is waiting at Low Bell. Hand the corrected tide tables to the captain of the Kestrel.';
+const notices = {
+  posted: {number:'41', text:'14 May 2026 · 12:00. The mail road dries at noon. Hold the Kestrel at Low Bell until the carts arrive.'},
+  amended: {number:'42', text:'15 May 2026 · 11:00. 🌙 Iona Vale sounded the west berth. She reports the mail road underwater. Send the Kestrel by the Low Bell channel.'}
+};
 const experiments = {
   mentions:['Mentions', log],
   compare:['Compare readers', '🌙 Iona Vale reached Low Bell. Contact iona@example.org on May 12, 2026.'],
@@ -32,7 +38,7 @@ const experiments = {
   conll:['Token manifest (BIO)', 'Iona Vale reached Low Bell.'],
   redact:['Redact contacts', 'Reach the fictional harbor clerk at iona@example.org.']
 };
-function save() { try { localStorage.setItem(key, JSON.stringify({reader:state.reader,vessels:state.vessels,mission:state.mission,away:state.away})); } catch {} }
+function save() { try { localStorage.setItem(key, JSON.stringify({reader:state.reader,vessels:state.vessels,mission:state.mission,notice:state.notice,amendment:state.amendment,receipt:state.receipt,away:state.away})); } catch {} }
 function el(tag,text,cls) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -126,13 +132,17 @@ function draw(rerun=false) {
   const content=$('#content');content.replaceChildren();
   $('#port').hidden=state.away;$('#orbit').hidden=!state.away;
   $('#harbor-call').textContent = {open:'Mail road flooded · use west berth', accepted:'West berth · Kestrel awaiting dispatch', delivered:'Channel clear · Kestrel outbound'}[state.mission];
+  $('#berth').textContent=state.mission==='delivered'?'Vacant':'Kestrel';
+  $('#ship-reader').textContent=catalog[state.reader][0];
+  $('#port-fix').textContent=state.away?'On approach':'West berth';
+  $('#ship-rail').dataset.outbound=String(state.mission==='delivered');
   $('#orbit-message').textContent=state.mission==='delivered'?'The Kestrel clears the flats with the corrected tide tables.':'A lamp burns above the mail shed. The port is accepting arrivals.';
   $('#heading').textContent=({log:'Saltglass Reach',lab:'Reader lab',board:'Mission BBS'})[screen];
   document.querySelectorAll('[data-screen]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.screen===screen)));
   $('#export').onclick=exportPortLog;
-  $('#export').disabled=!ready || (screen==='board' && state.mission!=='accepted');
+  $('#export').disabled=!ready || (screen==='board' && state.mission!=='accepted' && !state.receipt);
   const formatLabel = {brat:'Download .ann',conll:'Download BIO'};
-  $('#export').textContent=screen==='board'?'Export dispatch':(screen==='lab' && formatLabel[experiment])||'Export log';
+  $('#export').textContent=screen==='board'?(state.receipt?'Export receipt':'Export dispatch'):(screen==='lab' && formatLabel[experiment])||'Export log';
   if(screen==='log'){
     const rows=ready?read(log):[];
     content.append(annotated(log,rows));
@@ -213,18 +223,59 @@ function draw(rerun=false) {
     content.append(mode,caption,input,scan,example,result);
     if(ready && !state.away && (rerun || labResult)) run();
   }
-  if(screen==='board') {
-    content.append(el('h3','Mail run · corrected tide tables'));
-    if(state.mission==='open') content.append(el('p','The road flooded an hour early. Get the corrected tables to the packet boat before the next tide.'),action('Accept dispatch',()=>{state.mission='accepted';save();draw();}));
-    if(state.mission==='accepted') {
-      const spans=ready?read(dispatch):[];
-      content.append(annotated(dispatch,spans));
-      const ship=spans.find(e=>category(e.label)==='vessel');
-      if(ship) content.append(action('Deliver to '+ship.text,()=>{state.mission='delivered';save();draw();}));
-      else content.append(el('p','Fit the port gazetteer and vessel register in the Outfitter to identify the ship.','small'));
-    }
-    if(state.mission==='delivered') content.append(el('p','Dispatch signed by Iona Vale. The Kestrel carries the revised tables to Low Bell. Your return passage is paid.'));
+  if(screen==='board') drawBoard(content);
+}
+
+function clerkRecord(){
+  const text=notices.amended.text;
+  const span=word=>{
+    const start=Array.from(text.slice(0,text.indexOf(word))).length;
+    return {text:word,start,end:start+Array.from(word).length};
+  };
+  return {source:'harbor clerk',reviewed_reader:state.amendment,
+    entity:{...span('Iona Vale'),label:'PER'},coreference:{mention:span('She'),antecedent:span('Iona Vale')}};
+}
+
+function drawBoard(content){
+  content.append(el('h3','West berth · tide dispatch'));
+  if(state.mission==='open'){
+    content.append(el('p','Two tide notices are clipped to the mail hook. The Kestrel needs the one that accounts for the flooded road.'),action('Accept dispatch',()=>{state.mission='accepted';save();draw();}));
+    return;
   }
+  if(state.mission==='delivered'){
+    const receipt=el('section',undefined,'receipt');
+    receipt.append(el('strong','WEST BERTH  /  DEPARTURE COPY'),el('p',state.receipt?'Notice 42 · 15 May · 11:00 sounding':'Corrected tables received'),el('p','Kestrel → Low Bell'),el('p','Dispatch signed by Iona Vale. Return passage paid.'));
+    if(state.receipt)receipt.append(el('small','Clerk verified the captain and linked “She” to her signature.'));
+    content.append(receipt);
+    if(!state.receipt)content.append(action('Replay with the two tide notices',()=>{
+      state.mission='accepted';state.notice='posted';state.amendment=null;save();draw();
+    }));
+    return;
+  }
+  const notice=notices[state.notice];
+  const slips=el('div',undefined,'slip-tabs');
+  for(const [id,n] of Object.entries(notices)){
+    const tab=action('Notice '+n.number,()=>{state.notice=id;save();draw();document.querySelector('.slip-tabs [aria-pressed=true]').focus();});
+    tab.setAttribute('aria-pressed',String(state.notice===id));slips.append(tab);
+  }
+  const paper=el('section',undefined,'notice-paper');
+  const spans=ready?read(notice.text):[];
+  paper.append(el('strong','SALTGLASS  /  SOUNDINGS OFFICE'),annotated(notice.text,spans));
+  content.append(slips,paper);
+  if(state.notice==='amended' && ready){
+    const original=spans.find(e=>e.text==='Iona Vale');
+    content.append(el('p',catalog[state.reader][0]+' reads the signature as '+(original?category(original.label):'unmarked')+'.','small'));
+    if(state.amendment)content.append(el('p','Clerk’s pencil · Iona Vale = person · She → Iona Vale','pencil'),action('Erase amendment',()=>{state.amendment=null;save();draw();}));
+    else content.append(action('Mark Iona Vale as person and link “She”',()=>{state.amendment=state.reader;save();draw();}));
+  }
+  const feedback=el('p');feedback.setAttribute('role','status');
+  const send=action('Deliver notice '+notice.number,()=>{
+    if(state.notice==='posted'){feedback.textContent='Held at the mail hook. This is yesterday’s prediction. Find the observation from the flooded berth.';return;}
+    if(!state.amendment){feedback.textContent='The clerk needs a named witness. Check the signature and the following pronoun.';return;}
+    if(!spans.some(e=>category(e.label)==='vessel')){feedback.textContent='Ship unverified. Fit the vessel register in the Outfitter to read the addressee.';return;}
+    state.mission='delivered';state.receipt=true;save();draw();$('#heading').focus();
+  });
+  send.disabled=!ready;content.append(send,feedback);
 }
 function isFitted(id) {return id==='vessels'?state.vessels:state.reader===id;}
 function sprite(node,i){node.style.backgroundPosition=(i%4)*100/3+'% '+Math.floor(i/4)*50+'%';}
@@ -240,7 +291,7 @@ function shop(){
   sprite($('#large-icon'),index);
   $('#equipment').textContent=isFitted(selected)?'Fitted':'Available';
   $('#fit').disabled=!ready||isFitted(selected);$('#remove').disabled=!ready||selected!=='vessels'||!state.vessels;
-  const example='Vale captains the Kestrel for the Brackwater Packet Company.';
+  const example=screen==='board' && state.mission==='accepted'?notices[state.notice].text:'Vale captains the Kestrel for the Brackwater Packet Company.';
   const preview=$('#preview');preview.replaceChildren();
   if(ready) preview.append(el('span','Fitting preview','small'),annotated(example,read(example,selected==='vessels'?'registry':selected,selected==='vessels'||state.vessels)));
 }
@@ -256,8 +307,14 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>{screen=b.da
 $('#leave').onclick=()=>{state.away=true;save();draw();$('#land').focus();};
 $('#land').onclick=()=>{state.away=false;screen='log';save();draw();$('#heading').focus();};
 function exportPortLog(){
-  const text=screen==='board'?dispatch:log;
-  saveReport({entities:read(text)},text);
+  const text=screen==='board'?notices[state.notice].text:log;
+  const report={entities:read(text)};
+  if(screen==='board'){
+    report.notice=notices[state.notice].number;
+    if(state.notice==='amended' && state.amendment)report.amendment=clerkRecord();
+    if(state.receipt)report.receipt={signed_by:'Iona Vale',vessel:'Kestrel',destination:'Low Bell'};
+  }
+  saveReport(report,text);
 }
 function saveReport(report,text){
   const source=report.experiment==='redact'?{}:{text};
