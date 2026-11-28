@@ -90,7 +90,10 @@ def restore(root, record):
                     raise ValueError(f"Size or SHA-256 differs for {path}")
             out.flush()
             check(temp, record)
-            os.link(temp, dest)
+            try:
+                os.link(temp, dest)
+            except FileExistsError:
+                check(dest, record)
         finally:
             temp.unlink(missing_ok=True)
 
