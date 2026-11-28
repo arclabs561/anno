@@ -1,13 +1,18 @@
 """Check the published raster as well as the SVG geometry used by the figure build."""
 
+import importlib.util
 from pathlib import Path
 import unittest
 
-from PIL import Image, ImageChops
-
 
 class HistneroFigureTest(unittest.TestCase):
+    @unittest.skipUnless(
+        importlib.util.find_spec("PIL"),
+        "pixel checks require the figure workflow's Pillow dependency",
+    )
     def test_png_keeps_whitespace_around_all_content(self):
+        from PIL import Image, ImageChops
+
         png = (
             Path(__file__).resolve().parents[2]
             / "docs/figures/histnero-person-errors.png"
