@@ -3,7 +3,8 @@
 //! Use [`Overlap`](crate::viz::overlap::Overlap) to measure shared characters in
 //! grounded documents, [`EvalErrors`](crate::viz::errors::EvalErrors) to examine
 //! evaluation outcomes, and [`Tradeoff`](crate::viz::Tradeoff) to compare operating
-//! points across cohorts. Each view can render an offline report from a saved input.
+//! points across cohorts. [`Paired`](crate::viz::Paired) compares the same inputs under
+//! two settings, including gains, losses and measured costs. Each view renders offline.
 //!
 //! ```
 //! use anno::viz::Tradeoff;
@@ -18,9 +19,11 @@
 
 pub mod errors;
 pub mod overlap;
+pub mod paired;
 mod tradeoff;
 
-pub use tradeoff::{OperatingPoint, Tradeoff, TradeoffSeries, TRADEOFF_SCHEMA};
+pub use paired::{Paired, PAIRED_SCHEMA};
+pub use tradeoff::{OperatingPoint, Tradeoff, TradeoffAxis, TradeoffSeries, TRADEOFF_SCHEMA};
 
 use crate::core::grounded::html_escape as escape;
 use std::fmt::Write;
@@ -42,14 +45,15 @@ fn html_document(title: &str, svg: &str, table: &str) -> String {
     format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{}</title>
-<style>body{{max-width:76rem;margin:1rem auto;padding:0 1rem;color:#183541;background:white;font:1rem/1.45 "DejaVu Sans",sans-serif}}svg{{display:block;width:100%;height:auto}}table{{border-collapse:collapse;width:100%;margin:1.5rem 0;font-variant-numeric:tabular-nums}}caption{{text-align:left;font-size:1.25rem;font-weight:700;margin-bottom:.5rem}}td,th{{padding:.45rem .6rem;text-align:left;vertical-align:top;border-bottom:1px solid #d5e0e2}}thead th{{color:#456371}}.scroll{{overflow-x:auto}}</style>
+<style>{css}</style>
 </head><body><main>{svg}<div class="scroll">{table}</div></main></body></html>"#,
-        escape(title)
+        escape(title),
+        css = include_str!("report.css")
     )
 }
 
 /// Group digits without changing integer precision.
-fn integer(value: u64) -> String {
+fn integer(value: impl ToString) -> String {
     let digits = value.to_string();
     let mut grouped = String::new();
     for (i, c) in digits.bytes().enumerate() {
