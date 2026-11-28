@@ -318,7 +318,22 @@ installed Anno version can be updated independently. [Figure generators and CI d
 
 ## CLI: batch processing
 
-Process a directory of `.txt` or `.md` files:
+From the repository root, try the checkout CLI on two versions of a notice about winter boat spaces:
+
+```sh
+anno batch --model pattern --dir crates/anno-py/examples/bulletins --output results
+jq -r '.signals[] | select(.label == "DATE") | .surface' results/bulletin-edition-2.json
+```
+
+The second notice contains three dates: `2026-11-18`, `2026-12-07`, and
+`2026-12-09`. Open the JSON file to see where they appeared in the notice.
+
+For your own corpus, `--dir` walks subdirectories and mirrors their paths
+under `--output`. Two files named `report.txt` in different folders have
+distinct document IDs. Files with the same stem in the same folder, such as
+`report.md` and `report.txt`, produce an error. The walker skips directory
+symlinks and the output subtree. Recursion is available in the checkout;
+the published 0.15 CLI scans one level.
 
 ```bash
 # Sequential, write per-document JSON to results/
@@ -361,8 +376,10 @@ for e in entities {
 
 ## Offsets
 
-Offsets count characters (Unicode scalar values), not UTF-8 bytes. See the
-[span and offset contract](CONTRACT.md).
+In `Zoë at IBM.`, the mention `IBM` occupies character range `7..10` and
+UTF-8 byte range `8..11`. The extra byte belongs to `ë`. For Rust string
+slices, build a [SpanConverter](https://docs.rs/anno/latest/anno/struct.SpanConverter.html)
+from the original text and use the converted byte range. [Span contract](CONTRACT.md#source-text-and-offsets)
 
 ## Next
 

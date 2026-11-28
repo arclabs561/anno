@@ -694,7 +694,20 @@ pub fn is_ascii(text: &str) -> bool {
 
 /// Converter for efficiently handling many spans from the same text.
 ///
-/// Pre-computes mapping tables so each conversion is O(1).
+/// Reuse one converter for all mentions in the same source text. Anno counts
+/// Unicode scalar values; Rust slices a string at UTF-8 byte boundaries.
+/// For non-ASCII text, the converter builds lookup tables once so each
+/// conversion takes O(1) time.
+///
+/// ```
+/// use anno::SpanConverter;
+///
+/// let text = "Zoë at IBM.";
+/// let offsets = SpanConverter::new(text);
+/// let mention = offsets.from_chars(7, 10);
+/// assert_eq!(mention.byte_range(), 8..11);
+/// assert_eq!(&text[mention.byte_range()], "IBM");
+/// ```
 pub struct SpanConverter {
     byte_to_char: Vec<usize>,
     char_to_byte: Vec<usize>,

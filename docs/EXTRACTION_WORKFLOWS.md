@@ -17,6 +17,17 @@ anno pipeline --model pattern --files notice.txt --format jsonl --output documen
 anno export --input documents.jsonl --output annotations-from-pipeline --format brat
 ```
 
+To export an entire tree, save one grounded document per input file:
+
+```sh
+anno batch --dir docs/examples/computing-history --model heuristic --format grounded --output saved
+anno export --input saved --format brat --output annotations
+```
+
+Open `annotations/processors/arm.txt` alongside `arm.ann` in the same
+directory. The note credits Sophie Wilson and Steve Furber. The annotation
+file locates their names at character ranges `0..13` and `18..30`.
+
 Compact extraction JSON omits the complete source text. Grounded JSON retains
 it, so conversion can reproduce whitespace and character offsets. Pipeline
 JSONL contains one grounded document per line in document mode. With multiple
@@ -340,6 +351,37 @@ An external reference that recorded only the old ID can remain ambiguous.
 
 ## Trace a signal to its original HTML
 
+A page displays `alice@example.org` twice. Its first address contains an
+inline bold tag and spells the at sign `&#64;`. Its second uses a literal
+`@`. Searching the rendered text gives you the same address both times.
+
+With the checkout CLI, run this in a scratch directory to select each at
+sign in the cleaned text and locate it in the saved HTML:
+
+```sh
+printf '<p>🦊 al<b>ice</b>&#64;example.org</p><p>alice@example.org</p>' > page.html
+anno extract --file page.html --model pattern --html-source-spans --clean --format grounded > doc.json
+anno query source-span doc.json 7 8 --original page.html
+anno query source-span doc.json 25 26 --original page.html
+```
+
+| Cleaned text (characters) | Saved HTML (bytes) | Source spelling |
+| --- | --- | --- |
+| `7..8` | `20..25` | `&#64;` |
+| `25..26` | `48..49` | `@` |
+
+Check the returned ranges directly against the file:
+
+```python
+from pathlib import Path
+
+source = Path("page.html").read_bytes()
+assert source[20:25] == b"&#64;"
+assert source[48:49] == b"@"
+```
+
+### Use the map on your own page
+
 `anno extract --file page.html --model pattern --html-source-spans` renders a
 local UTF-8 HTML file with deformat's mapped strip renderer and writes grounded
 JSON. Use `--export result.json` to save it. The renderer choice can change which
@@ -365,14 +407,3 @@ complete character reference, such as `&#64;`. `whitespace_collapsed`,
 an entire text run or tag. For a gap in the renderer map, `unmapped` has a rendered byte
 range and `null` source bytes. Check the source digest before using these byte ranges. Direct
 fragments can be compared byte for byte with the rendered text.
-
-To verify which of two identical email addresses a highlight refers to, run this in a scratch directory with the checkout's CLI:
-
-```sh
-printf '<p>🦊 al<b>ice</b>&#64;example.org</p><p>alice@example.org</p>' > page.html
-anno extract --file page.html --model pattern --html-source-spans --clean --format grounded > doc.json
-anno query source-span doc.json 7 8 --original page.html
-anno query source-span doc.json 25 26 --original page.html
-```
-
-Both queries select an analyzed `@`. The first returns a transformed fragment covering original bytes `[20, 25)` (the full `&#64;` reference). The second returns a direct fragment covering `[48, 49)` (the literal `@` in the second paragraph).

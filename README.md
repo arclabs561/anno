@@ -1,93 +1,161 @@
 # anno
 
-[![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
-[![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
+Anno finds named entities in text, links mentions, and extracts relations.
+Use the Rust library in an application or the `anno` command on a directory
+of documents. Each mention points back to the words in its source.
 
-Anno is a Rust library for finding entities in text and linking mentions of the
-same person, place, or thing. Each result points back to the words it came from.
+[Rust](#find-mentions-in-rust) · [CLI](#extract-a-directory) · [Python](#compare-two-notices-in-python) · [Models](#choose-what-to-extract) · [API](https://docs.rs/anno)
 
-## Find mentions
+## Find mentions in Rust
 
-> **Sophie Wilson** designed the **ARM** processor.
+In a Rust project, run `cargo add anno@0.15 --no-default-features` for the
+offline extractor. Put this in `src/main.rs` and run `cargo run`:
 
-The offline extractor returns two mentions:
+```rust
+use anno::extract;
+
+fn main() -> anno::Result<()> {
+    let text = "Lynn Conway worked at IBM.";
+    for m in extract(text)? {
+        let span = m.start()..m.end();
+        println!("{} [{}] {span:?}", m.text, m.entity_type);
+    }
+    Ok(())
+}
+```
 
 ```text
-Sophie Wilson   PER    0..13
-ARM             ORG   27..30
+Lynn Conway [PER] 0..11
+IBM [ORG] 22..25
 ```
 
-Pass the sentence to `anno::extract` to get the label and range for each
-mention. Each range counts Unicode scalar values in the original text. To highlight
-a mention in a Rust string, convert the range to byte offsets first.
-[Working with offsets](docs/CONTRACT.md#source-text-and-offsets)
+Count from zero: the letters in `IBM` occupy positions 22, 23, and 24.
+The range ends just before the period. Anno counts Unicode scalar values.
+[Using these ranges in Rust](docs/CONTRACT.md#source-text-and-offsets)
 
-Add the library with `cargo add anno` (Rust 1.91 or later), or run the offline
-example from a checkout:
+## Extract a directory
+
+Lynn Conway co-wrote a textbook on chip design. Years later, she used her
+website to share other trans women’s stories. Which notes in a computing
+history collection mention her? From the root of this checkout, build an
+index of names across three short catalog notes.
 
 ```sh
-cargo run -p anno --no-default-features --example quickstart
+cargo install --locked --path crates/anno-cli \
+  --no-default-features --features extractor-readability
+anno batch --dir docs/examples/computing-history --model heuristic --format jsonl |
+  jq -r '.id as $doc | .entities[] | select(.type == "PER") |
+         [$doc, .text, .start, .end] | @tsv'
 ```
+
+| Document | Person | Character range |
+| --- | --- | --- |
+| `archives/trans-history` | Lynn Conway | `0..11` |
+| `books/chip-design` | Lynn Conway | `0..11` |
+| `books/chip-design` | Carver Mead | `16..27` |
+| `processors/arm` | Sophie Wilson | `0..13` |
+| `processors/arm` | Steve Furber | `18..30` |
+
+The sample notes draw on [Conway’s own collection](https://ai.eecs.umich.edu/people/conway/TSsuccesses/TSsuccesses.html)
+and the Computer History Museum’s accounts of [the textbook](https://www.computerhistory.org/revolution/digital-logic/12/287/1613)
+and [the first ARM processor](https://computerhistory.org/profile/sophie-wilson/).
+
+For your own archive, pass `--dir notes --output results` to save one
+annotation file per document. A source at `notes/letters/bio.txt` becomes
+`results/letters/bio.json`. The published 0.15 CLI scans only the top level.
+[Batch processing](docs/QUICKSTART.md#cli-batch-processing)
+
+## Choose what to extract
+
+Give GLiNER2.5 the labels
+`person`, `organization`, and `location`. In Anno’s pinned checkpoint replay,
+it picks out *Mario Rossi*, *Apple*, and *Cupertino* from a sentence. To try the same input,
+build the checkout CLI with `gliner2-fastino` and point `GLINER25_MODEL_DIR`
+at the FP32 ONNX export:
+
+```sh
+anno extract --model gliner25 \
+  --extract-types person,organization,location \
+  --text 'Mario Rossi works at Apple in Cupertino'
+```
+
+For a directed edge such as `person → works_for → organization`, the
+separate `anno joint` command accepts a relation schema and a local PyTorch
+checkpoint. [Model setup and examples](docs/BACKENDS.md#fastino-gliner25) ·
+[Checkpoint replay](scripts/qa/checkpoint_replay/README.md)
+
+## Same text, different source
+
+Two addresses on a page both read `alice@example.org`. Select the `@` in
+each one. Where should an editor put the cursor in the original HTML?
+
+| On screen | In the HTML file | UTF-8 bytes |
+| --- | --- | --- |
+| First `@` | `&#64;` | `20..25` |
+| Second `@` | `@` | `48..49` |
+
+The checkout CLI can save the source map with the annotations and look up
+either occurrence after cleaning the page. [Replay both lookups](docs/EXTRACTION_WORKFLOWS.md#trace-a-signal-to-its-original-html)
 
 ## Follow a pronoun across captions
 
 > **Émilie Durand** inspected *the east gate*.\
 > **She** said *it* would reopen on Monday.
 
-Here FCoref links *She* to *Émilie Durand* and *it* to *the east gate*. A
-caption editor can use either link to highlight the earlier words or play
-the cue that contains them.
+Select *She* in the cue at **14.9 seconds**. FCoref links it to *Émilie
+Durand* in the cue at **12.3 seconds**. The caption adapter returns both cue
+ranges so an editor can jump to the earlier line.
+[Reproduce with FCoref](crates/anno/examples/caption_links/README.md)
 
-Add a microphone emoji and a space before *Émilie*. In the full transcript,
-*She* moves from character 39 to 41. In the recording, its cue still begins at
-14.9 seconds. The replay checks the links and cue ranges in both versions
-using a local FP32 model. [Run the caption example](crates/anno/examples/caption_links/README.md)
+Already have word boundaries? Aurelius passes its document text and word
+spans to Anno’s `analyze_words`. [Read the caller](https://github.com/arlyon/aurelius/blob/1319bcdcee28ee5b668b41a2a4f85dd0722b460f/lanes/src/language.rs#L317)
 
-## Where do pronoun links go missing?
+## Compare two notices in Python
 
-In Anno’s replay of 128 English passages from the GAP test split, 117
-pronoun–name pairs were labeled as referring to the same person. FCoref
-received the raw passages and predicted its own mentions.
-
-| FCoref output | Pairs |
-| --- | ---: |
-| Both mentions linked | 73 |
-| Mentions in separate clusters | 3 |
-| At least one span missing | 41 |
-
-For most missed links on this panel, at least one of the two spans was
-already missing from the output. The study also counts false links and
-compares three resolvers on the same passages.
-[Results, scoring method, and replay](docs/eval/coref-panels.md#gap-pronoun-decisions)
-
-## Command line
+Two notices give different deadlines to apply for a winter boat space.
+Which sentence changed? Install the bindings with
+`python -m pip install anno-py`. From the repository root, run:
 
 ```sh
-cargo install anno-cli --locked
+cd crates/anno-py/examples
+python bulletin_diff.py \
+  bulletins/bulletin-edition-1.txt \
+  bulletins/bulletin-edition-2.txt
 ```
 
-```sh
-ANNO_NO_DOWNLOADS=1 anno extract --model heuristic \
-  --text "Lynn Conway worked at IBM and Xerox PARC in California."
-```
+The script compares the dates in the two notices and returns the source lines
+for the dates whose counts changed:
+
+> Issued 2026-11-18. Applications for a winter berth close on **2026-12-04**.\
+> Issued 2026-11-18. Applications for a winter berth now close on **2026-12-07**.
+
+Applications stay open three days longer. The drawing is still on December 9.
+[Compare your own notices](crates/anno-py/README.md#compare-dates-in-two-bulletins)
+
+## What survives an export?
+
+Two annotations can start at the same letter:
 
 ```text
-PER:1 "Lynn Conway"
-ORG:2 "IBM" "Xerox PARC"
-LOC:1 "California"
+cyclophilin gene
+^^^^^^^^^^^^^^^^  DNA
+^^^^^^^^^^^       protein
 ```
 
-Use `--format grounded` to retain the input text alongside its annotations.
-The default stack may download weights on first use. `ANNO_NO_DOWNLOADS=1`
-limits it to available local models, patterns and heuristics.
+Anno’s HTML preview highlights the longer phrase once. Its JSONL exporter
+writes a record for each annotation.
 
-## More examples
+On the GENIA corpus, HTML displayed **50,709 of 55,740** supplied mentions.
+JSONL preserved **all 55,740**. Both exporters received the reference
+annotations directly, so the difference measures what a reviewer can see.
+[Inspect the overlaps and replay the exports](docs/EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
 
-- See which extraction labels overlap, count evaluation mistakes, or compare how many matches a fallback recovers for its extra predictions. [Built-in visualization commands](docs/QUICKSTART.md#visualize-evaluation-results)
-- [Compare two harbor bulletins in Python](crates/anno-py/README.md#compare-dates-in-two-bulletins). The deadline moved from December 4 to December 7. Find the line that changed in each edition.
-- [Choose your own entity types](docs/QUICKSTART.md#cli-extract-entities). Give GLiNER labels such as `DRUG` and `SYMPTOM` to look for in a passage.
-- [Correct one occurrence of a name](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention). Two entries read “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician.
-- [Use your own tokenizer](crates/anno/examples/fcoref_word_spans.rs) or [process a directory of documents](docs/QUICKSTART.md#cli-batch-processing).
+## What else can you do with a mention?
+
+- **Correct a namesake.** Two entries in the same log say “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician. [Review one occurrence](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention)
+- **Hand annotations to another tool.** Save a grounded document once. Write BRAT annotations for an editor or graph CSV for analysis without rerunning the extractor. [Convert saved annotations](docs/EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations)
+- **Find out what a stronger model buys.** Compare recovered labels with the extra predictions someone must review, or inspect where two labels overlap. [Visualize evaluation results](docs/QUICKSTART.md#visualize-evaluation-results)
+- **Check what the benchmark gave the model.** On CrossRE, giving the same checkpoint each test sentence’s annotated labels raised strict relation F1 from 29.5% to 58.2%. [Inspect the paired comparison](docs/eval/crossre-full-prompt-comparison.md)
 
 <details>
 <summary>Cargo dependency for the 0.16 release line</summary>

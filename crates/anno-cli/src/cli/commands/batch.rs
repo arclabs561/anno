@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 /// Batch processing
 #[derive(Parser, Debug)]
 pub struct BatchArgs {
-    /// Process directory of text files (.txt, .md, .html, .htm, .pdf)
+    /// Process supported text and document files recursively under DIR
     #[arg(short, long, value_name = "DIR")]
     pub dir: Option<String>,
 
@@ -325,6 +325,47 @@ fn finalize_document(
     }
 }
 
+/// Use root-relative IDs so two subdirectories can contain the same filename.
+fn read_directory_inputs(
+    root: &Path,
+    output: Option<&Path>,
+) -> Result<Vec<(String, String)>, String> {
+    let mut files = std::collections::BTreeMap::new();
+    for path in crate::cli::utils::corpus_files(
+        root,
+        output,
+        &["txt", "md", "html", "htm", "xhtml", "pdf", "rst", "text"],
+    )? {
+        let relative = path.strip_prefix(root).expect("entry beneath input root");
+        let relative = relative
+            .to_str()
+            .ok_or_else(|| format!("Non-UTF-8 input path '{}'", path.display()))?;
+        let (stem, _) = relative.rsplit_once('.').expect("supported extension");
+        let id = stem.replace(std::path::MAIN_SEPARATOR, "/");
+        if let Some(other) = files.insert(id.clone(), path.clone()) {
+            return Err(format!(
+                "Duplicate document id '{id}' for '{}' and '{}'",
+                other.display(),
+                path.display()
+            ));
+        }
+    }
+    if files.is_empty() {
+        return Err(format!("No input files found under '{}'", root.display()));
+    }
+    files
+        .into_iter()
+        .map(|(id, path)| {
+            let text = crate::cli::utils::read_input_file(
+                path.to_str()
+                    .ok_or_else(|| format!("Non-UTF-8 input path {}", path.display()))?,
+            )
+            .map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+            Ok((id, text))
+        })
+        .collect()
+}
+
 // Main entry point
 
 /// Execute the batch processing command.
@@ -408,50 +449,8 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
         }
         out
     } else {
-        let dir = args.dir.as_ref().expect("validated above");
-        let dir_path = Path::new(dir);
-        let entries = std::fs::read_dir(dir_path)
-            .map_err(|e| format!("Failed to read directory '{}': {}", dir, e))?;
-
-        let mut out = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let ext_ok = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| {
-                    matches!(
-                        e,
-                        "txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text"
-                    )
-                })
-                .unwrap_or(false);
-            if !ext_ok {
-                continue;
-            }
-            let path_str = path.to_string_lossy();
-            let text = crate::cli::utils::read_input_file(&path_str)
-                .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
-            let doc_id = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("doc{}", out.len() + 1));
-            out.push((doc_id, text));
-        }
-
-        if out.is_empty() {
-            return Err(format!(
-                "No input files found under '{}' (expected .txt, .md, .html, .htm, .pdf, .rst)",
-                args.dir.as_deref().unwrap_or("")
-            ));
-        }
-        out.sort_by(|a, b| a.0.cmp(&b.0));
-        out
+        let dir = Path::new(args.dir.as_deref().expect("validated above"));
+        read_directory_inputs(dir, args.output.as_deref().map(Path::new))?
     };
 
     if !args.quiet {
@@ -780,14 +779,50 @@ fn write_outputs(
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| format!("Failed to create output dir '{}': {}", out_dir.display(), e))?;
 
+    let suffix = if matches!(args.format, OutputFormat::Jsonl) {
+        "jsonl"
+    } else {
+        "json"
+    };
+    let mut paths = Vec::with_capacity(documents.len());
     for doc in documents {
-        validate_path_component(doc.id(), "document id")?;
+        if args.dir.is_some() {
+            for part in doc.id().split('/') {
+                validate_path_component(part, "document path component")?;
+            }
+        } else {
+            validate_path_component(doc.id(), "document id")?;
+        }
+        paths.push(out_dir.join(format!("{}.{suffix}", doc.id())));
     }
 
-    for doc in documents {
+    // A source tree can contain both a.txt and a.json/b.txt. Their output
+    // paths would require a.json to be both a file and a directory.
+    let destinations: std::collections::HashSet<&Path> =
+        paths.iter().map(PathBuf::as_path).collect();
+    for path in &paths {
+        if path.is_symlink() || (path.exists() && !path.is_file()) {
+            return Err(format!("Expected an output file at '{}'", path.display()));
+        }
+        for parent in path.ancestors().skip(1).take_while(|p| *p != out_dir) {
+            if destinations.contains(parent)
+                || parent.is_symlink()
+                || (parent.exists() && !parent.is_dir())
+            {
+                return Err(format!(
+                    "Expected an output directory at '{}'",
+                    parent.display()
+                ));
+            }
+        }
+    }
+    for (doc, path) in documents.iter().zip(paths) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Cannot create '{}': {e}", parent.display()))?;
+        }
         match args.format {
             OutputFormat::Json => {
-                let path = out_dir.join(format!("{}.json", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string_pretty(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
@@ -795,7 +830,6 @@ fn write_outputs(
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }
             OutputFormat::Jsonl => {
-                let path = out_dir.join(format!("{}.jsonl", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name, runtime_model);
                 let payload = serde_json::to_string(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
@@ -804,7 +838,6 @@ fn write_outputs(
             }
             _ => {
                 // Grounded and other formats: raw GroundedDocument
-                let path = out_dir.join(format!("{}.json", doc.id()));
                 let payload = serde_json::to_string_pretty(doc)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload)

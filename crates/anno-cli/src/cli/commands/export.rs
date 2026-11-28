@@ -27,7 +27,7 @@ use anno::GroundedDocument;
 /// Export annotations to different formats
 #[derive(Parser, Debug)]
 pub struct ExportArgs {
-    /// Raw text, grounded JSON, grounded JSONL, or a directory of input files
+    /// Raw text, grounded JSON, grounded JSONL, or a directory tree of input files
     #[arg(short, long, value_name = "PATH")]
     pub input: PathBuf,
 
@@ -259,26 +259,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     let files: Vec<PathBuf> = if args.input.is_file() {
         vec![args.input.clone()]
     } else {
-        let mut inputs = Vec::new();
-        let entries = fs::read_dir(&args.input)
-            .map_err(|e| format!("Failed to read directory {}: {e}", args.input.display()))?;
-        for entry in entries {
-            let path = entry
-                .map_err(|e| format!("Failed to list {}: {e}", args.input.display()))?
-                .path();
-            if !path
-                .extension()
-                .is_some_and(|e| e == "txt" || e == "json" || e == "jsonl")
-            {
-                continue;
-            }
-            let metadata = fs::metadata(&path)
-                .map_err(|e| format!("Failed to inspect {}: {e}", path.display()))?;
-            if metadata.is_file() {
-                inputs.push(path);
-            }
-        }
-        inputs
+        crate::cli::utils::corpus_files(&args.input, Some(&args.output), &["txt", "json", "jsonl"])?
     };
 
     if files.is_empty() {
@@ -294,14 +275,36 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     if args.document_iri.is_some() && inputs.len() != 1 {
         return Err("--document-iri requires exactly one document".into());
     }
-    let mut by_output_stem = HashMap::new();
+    let output_dir = |item: &ExportInput| {
+        let relative = item
+            .name
+            .strip_prefix(&args.input)
+            .ok()
+            .and_then(Path::parent);
+        relative.map_or_else(|| args.output.clone(), |p| args.output.join(p))
+    };
+    let mut planned = HashMap::new();
     for item in &inputs {
-        let file = &item.name;
-        let stem = output_stem(file);
-        if let Some(previous) = by_output_stem.insert(stem, file) {
-            return Err(format!(
-                "Inputs {previous:?} and {file:?} map to the same output name. Rename one or export them to separate directories."
-            ));
+        for path in output_paths(&item.name, &output_dir(item), args.format) {
+            if let Some(previous) = planned.insert(path, &item.source) {
+                return Err(format!(
+                    "Inputs {previous:?} and {:?} map to the same output name",
+                    item.source
+                ));
+            }
+        }
+    }
+    for path in planned.keys() {
+        for parent in path.ancestors().skip(1).take_while(|p| *p != args.output) {
+            if planned.contains_key(parent)
+                || parent.is_symlink()
+                || (parent.exists() && !parent.is_dir())
+            {
+                return Err(format!(
+                    "Expected an output directory at '{}'",
+                    parent.display()
+                ));
+            }
         }
     }
 
@@ -320,7 +323,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
         .map_err(|e| format!("Cannot identify export inputs: {e}"))?;
     for item in &inputs {
         let file = &item.source;
-        for path in output_paths(&item.name, &args.output, args.format) {
+        for path in output_paths(&item.name, &output_dir(item), args.format) {
             match fs::symlink_metadata(&path) {
                 Ok(_) => {
                     let target = file_identity(&path)
@@ -376,7 +379,11 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     let mut success_count = 0;
     let mut error_count = 0;
 
+    drop(planned);
     for item in inputs {
+        let destination = output_dir(&item);
+        fs::create_dir_all(&destination)
+            .map_err(|e| format!("Cannot create {}: {e}", destination.display()))?;
         let file = &item.source;
         let extracted = if let Some(doc) = item.document {
             Ok((doc.text().to_owned(), Extracted::from_document(&doc)?))
@@ -423,7 +430,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                 match export_file(ExportFileOpts {
                     input: file,
                     name: &item.name,
-                    output_dir: &args.output,
+                    output_dir: &destination,
                     content: &content,
                     ext,
                     format: args.format,
