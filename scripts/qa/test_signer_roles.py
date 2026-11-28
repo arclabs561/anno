@@ -26,6 +26,21 @@ class SignerRolesTests(unittest.TestCase):
                 self.assertEqual(sum(x != y for x, y in zip(a["Text"].split(), b["Text"].split(), strict=True)), 1)
         self.assertTrue(any(len(r["Text"][:r["Pronoun-offset"]].encode()) > r["Pronoun-offset"] for r in rows))
 
+    def test_reflexive_name_order_cannot_solve_both_clauses(self):
+        rows = signer.reflexive_panel()
+        self.assertEqual(signer.digest(rows), "9ed58ba2b32c83a10c9554a8acf5594fe89054f76b12844a3a3c2537437a7b36")
+        outcomes = []
+        for a, b in zip(rows[::2], rows[1::2], strict=True):
+            self.assertEqual(signer.gap.spans(a), signer.gap.spans(b))
+            self.assertEqual([a["gold"], b["gold"]], ["A", "B"])
+            for row in (a, b):
+                p, _, nearest = signer.gap.spans(row)
+                output = {"id": row["ID"], "producer": "fcoref", "clusters": [[list(nearest), list(p)]]}
+                outcomes.append(signer.observe(row, output, "fcoref", "predicted"))
+        summary = signer.summarize(rows, outcomes)
+        self.assertEqual(summary["by_family"]["reflexive_clause"], {"correct": 12, "wrong": 12})
+        self.assertEqual(summary["paired_unique_decisions"]["reflexive_clause"], {"same_unique_choice": 12})
+
     def test_exact_bounds_and_competing_answers_have_separate_verdicts(self):
         row = signer.panel()[0]
         p, a, b = map(list, signer.gap.spans(row))

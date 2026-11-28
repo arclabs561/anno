@@ -57,17 +57,24 @@ def panel():
     return rows
 
 
-def reflexive_panel():
+def reflexive_panel(infinitive=False):
     """Contrast the subject of a matrix clause with the subject of a reported clause."""
     rows = []
-    for names, pronoun in [(("Ada", "Béa"), "herself"), (("Leo", "Max"), "himself")]:
+    layouts = [(("Iris", "Léna"), "herself"), (("Omar", "Evan"), "himself")] if infinitive else [
+        (("Ada", "Béa"), "herself"), (("Leo", "Max"), "himself")]
+    actions = ("washed", "dressed", "defended") if infinitive else ("praised", "blamed", "introduced")
+    family = "reflexive_infinitive" if infinitive else "reflexive_clause"
+    for names, pronoun in layouts:
         for a, b in (names, names[::-1]):
-            for action in ("praised", "blamed", "introduced"):
+            for action in actions:
                 pair = f"clause-{a}-{b}-{action}"
                 passages = (f"Yesterday {a}, who saw {b}, had {action} {pronoun}.",
                             f"Yesterday {a} said how {b} once {action} {pronoun}.")
+                if infinitive:
+                    passages = (f"Today {a}, beside {b}, {action} {pronoun}.",
+                                f"Today {a} advised {b} to {action.removesuffix('ed')} {pronoun}.")
                 for gold_name, text in zip("AB", passages, strict=True):
-                    rows.append({"ID": f"{pair}-{gold_name}", "pair": pair, "family": "reflexive_clause",
+                    rows.append({"ID": f"{pair}-{gold_name}", "pair": pair, "family": family,
                                  "Text": text, "Pronoun": pronoun, "Pronoun-offset": text.index(pronoun),
                                  "A": a, "A-offset": text.index(a), "B": b, "B-offset": text.index(b),
                                  "gold": gold_name})
@@ -117,6 +124,13 @@ def observe(row, result, producer, mode):
     elif outcome == "query_missing" and len(enclosing_names) == 1 and row["gold"]:
         diagnostic = ("enclosing_query_names_correct_candidate" if enclosing_names[0] == row["gold"]
                       else "enclosing_query_names_wrong_candidate")
+    if row["family"] in ("reflexive_clause", "reflexive_infinitive"):
+        a, b = names
+        # The two authored parentheticals modify A. This exact source phrase
+        # contains both marked names, so containment alone cannot identify its head.
+        if (row["Text"][a[1]:b[0]] in (", who saw ", ", beside ")
+                and [a[0], b[1]] in exact_group):
+            diagnostic = "exact_query_linked_to_outer_phrase_headed_by_A"
     return {"status": outcome, "choice": choice, "returned_query_A_B": bits[:3],
             "names_linked_to_strictly_enclosing_query": "".join(enclosing_names),
             **({"diagnostic": diagnostic} if diagnostic else {})}
@@ -197,12 +211,12 @@ def main():
     parser.add_argument("output", type=Path, help="aggregate replay receipt")
     parser.add_argument("--arm", choices=ARMS, required=True, action="append")
     parser.add_argument("--details", type=Path, help="optional per-question evidence")
-    parser.add_argument("--panel", choices=("signer", "reflexive"), default="signer")
+    parser.add_argument("--panel", choices=("signer", "reflexive", "reflexive-infinitive"), default="signer")
     parser.add_argument("--check", type=Path, help="compare the selected arms with a saved receipt")
     args = parser.parse_args()
     if len(set(args.arm)) != len(args.arm):
         parser.error("each arm can be requested once")
-    rows = reflexive_panel() if args.panel == "reflexive" else panel()
+    rows = panel() if args.panel == "signer" else reflexive_panel(args.panel == "reflexive-infinitive")
     result, details = {}, {}
     for arm in args.arm:
         result[arm], details[arm] = replay(rows, args.binary, arm)
