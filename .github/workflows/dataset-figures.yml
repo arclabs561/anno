@@ -9,7 +9,19 @@ on:
       - scripts/genia_grounded_overlap.py
       - scripts/qa/test_refresh_dataset_figures.py
       - scripts/qa/test_genia_nesting_counts.py
+      - scripts/qa/native_gap_link_retention.py
+      - scripts/qa/wikigold_*.py
+      - scripts/qa/*nuner*.py
+      - scripts/qa/test_native_gap_link_retention.py
+      - scripts/qa/test_dataset_*.py
+      - scripts/survey_dataset_ci_outcomes.py
       - scripts/figure_coverage_report.py
+      - scripts/figure_catalog.py
+      - docs/eval/figure-studies.csv
+      - scripts/dataset_evidence_index.py
+      - scripts/dataset_explorer.html.in
+      - scripts/dataset_file_survey.py
+      - scripts/qa/check_native_figure_layout.py
       - scripts/plot_*.py
       - scripts/qa/joint_baseline/**
       - Cargo.lock
@@ -18,39 +30,47 @@ on:
       - crates/anno/src/lib.rs
       - crates/anno/src/viz/**
       - crates/anno/src/core/grounded/**
+      - crates/anno-cli/src/cli/commands/dataset.rs
+      - crates/anno-cli/src/cli/commands/dataset/**
+      - crates/anno-cli/src/cli/commands/figure_catalog.rs
+      - crates/anno-eval/src/eval/dataset_registry.rs
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
       - crates/anno-cli/src/cli/commands/eval.rs
       - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
-      - docs/figures/*-tradeoff.svg
-      - docs/figures/*-errors.svg
-      - docs/figures/*-overlap.svg
-      - docs/eval/*-tradeoff.json
-      - docs/eval/*-errors.json
-      - docs/eval/*-overlap.json
+      - docs/figures/*.svg
+      - docs/figures/*.html
+      - docs/eval/*.json
+      - docs/eval/dataset-explorer.html
       - docs/eval/dataset-*.csv
       - docs/eval/dataset-coverage.md
       - docs/eval/crossre-prompt-scope.csv
-      - docs/eval/crossre-full-prompt-comparison.json
-      - docs/eval/genia-nesting-counts.json
-      - docs/eval/genia-native-exports.json
-      - docs/eval/ner-language-length.json
-      - docs/eval/nuner-fallback-routing.json
-      - docs/eval/s3-source-coverage.json
       - docs/eval/s3-publisher-file-matches.csv
       - docs/eval/wnut-submission-results.csv
-      - docs/eval/wnut-*.json
   push:
     branches: [main]
     paths:
+      - scripts/qa/joint_baseline/**
       - .github/workflows/dataset-figures.yml
       - scripts/refresh_dataset_figures.py
       - scripts/genia_grounded_overlap.py
       - scripts/qa/test_refresh_dataset_figures.py
       - scripts/qa/test_genia_nesting_counts.py
+      - scripts/qa/native_gap_link_retention.py
+      - scripts/qa/wikigold_*.py
+      - scripts/qa/*nuner*.py
+      - scripts/qa/test_native_gap_link_retention.py
+      - scripts/qa/test_dataset_*.py
+      - scripts/survey_dataset_ci_outcomes.py
       - scripts/figure_coverage_report.py
+      - scripts/figure_catalog.py
+      - docs/eval/figure-studies.csv
+      - scripts/dataset_evidence_index.py
+      - scripts/dataset_explorer.html.in
+      - scripts/dataset_file_survey.py
+      - scripts/qa/check_native_figure_layout.py
       - scripts/plot_*.py
       - Cargo.lock
       - Cargo.toml
@@ -58,29 +78,24 @@ on:
       - crates/anno/src/lib.rs
       - crates/anno/src/viz/**
       - crates/anno/src/core/grounded/**
+      - crates/anno-cli/src/cli/commands/dataset.rs
+      - crates/anno-cli/src/cli/commands/dataset/**
+      - crates/anno-cli/src/cli/commands/figure_catalog.rs
+      - crates/anno-eval/src/eval/dataset_registry.rs
       - crates/anno-cli/src/main.rs
       - crates/anno-cli/src/cli/commands/mod.rs
       - crates/anno-cli/src/cli/commands/viz/**
       - crates/anno-cli/src/cli/commands/eval.rs
       - crates/anno-cli/src/cli/parser.rs
       - docs/figures/*.png
-      - docs/figures/*-tradeoff.svg
-      - docs/figures/*-errors.svg
-      - docs/figures/*-overlap.svg
-      - docs/eval/*-tradeoff.json
-      - docs/eval/*-errors.json
-      - docs/eval/*-overlap.json
+      - docs/figures/*.svg
+      - docs/figures/*.html
+      - docs/eval/*.json
+      - docs/eval/dataset-explorer.html
       - docs/eval/dataset-*.csv
-      - docs/eval/crossre-full-prompt-comparison.json
       - docs/eval/crossre-prompt-scope.csv
-      - docs/eval/genia-nesting-counts.json
-      - docs/eval/genia-native-exports.json
-      - docs/eval/ner-language-length.json
-      - docs/eval/nuner-fallback-routing.json
-      - docs/eval/s3-source-coverage.json
       - docs/eval/s3-publisher-file-matches.csv
       - docs/eval/wnut-*.csv
-      - docs/eval/wnut-*.json
   workflow_dispatch:
 
 permissions:
@@ -103,14 +118,29 @@ jobs:
           toolchain: 'stable'
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
-      - name: Check paired CrossRE inputs and outcomes
-        run: python3 -m unittest discover -s scripts/qa -p 'test_crossre_prompt*.py'
-      - name: Check publication and verify GENIA measurements
+      - name: Reconcile paired studies with their source counts
+        run: |
+          python3 -m unittest discover -s scripts/qa/joint_baseline -p 'test_relex_*.py'
+          for pattern in 'test_crossre_prompt*.py' 'test_*nuner*.py' test_native_gap_link_retention.py; do
+            python3 -m unittest discover -s scripts/qa -p "$pattern"
+          done
+      - name: Check publication, dataset evidence and GENIA measurements
         run: |
           uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p test_refresh_dataset_figures.py
+          uv run --python 3.12 --with-requirements scripts/refresh_dataset_figures.py python -m unittest discover -s scripts/qa -p 'test_dataset_*.py'
           python3 -m unittest discover -s scripts/qa -p test_genia_nesting_counts.py
       - name: Render and compare the published figures
         run: uv run --python 3.12 --script scripts/refresh_dataset_figures.py --check --output "$RUNNER_TEMP/dataset-figures"
+      - name: Discover recorded inputs and render a named study from the artifact
+        run: |
+          target=$(cargo metadata --locked --format-version=1 --no-deps | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
+          cd "$RUNNER_TEMP/dataset-figures"
+          "$target/debug/anno" dataset evidence WikiGold --status scored --json > "$RUNNER_TEMP/scored.json"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["matched_ids"] == 1 and d["datasets"][0]["records"]' "$RUNNER_TEMP/scored.json"
+          "$target/debug/anno" viz render wikigold-routing-paired -o "$RUNNER_TEMP/named.html"
+          cmp "$RUNNER_TEMP/named.html" wikigold-routing-paired.html
+      - name: Read the native reports at phone and documentation widths
+        run: uv run --python 3.12 --with playwright==1.62.0 python scripts/qa/check_native_figure_layout.py "$RUNNER_TEMP/dataset-figures" --require-explorer
       - name: Save the rendered images and measurements
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

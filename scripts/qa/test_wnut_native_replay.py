@@ -1,6 +1,8 @@
 """Check the WNUT projection, exposure strata and native provenance contract."""
 
 from collections import Counter, defaultdict
+import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -16,6 +18,31 @@ from wnut_native_replay import (
 
 
 class NativeWnutTest(unittest.TestCase):
+    @unittest.skipUnless(
+        importlib.util.find_spec("matplotlib"), "figure requires Matplotlib"
+    )
+    def test_changed_predictions_with_unchanged_hits_still_change_release_headline(
+        self,
+    ):
+        from matplotlib import pyplot as plt
+        from plot_wnut_native import draw
+
+        receipt = (
+            Path(__file__).resolve().parents[2]
+            / "docs/eval/wnut-native-comparison.json"
+        )
+        report = json.loads(receipt.read_text())
+        pairs = report["paired"]["all"]
+        pairs.update(false_positives_added=1, false_positives_removed=1)
+        with self.assertRaisesRegex(ValueError, "Identical typed spans"):
+            draw(report)
+        pairs["changed_sentences"] = 1
+        figure = draw(report)
+        try:
+            self.assertIn("Typed spans changed on 1 of", figure.texts[0].get_text())
+        finally:
+            plt.close(figure)
+
     def test_projected_span_changes_and_unseen_false_positives(self):
         by_arm = {r: defaultdict(Counter) for r in ARMS}
         paired = defaultdict(Counter)

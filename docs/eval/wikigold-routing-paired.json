@@ -1,0 +1,123 @@
+{
+  "baseline": "Skip NuNER",
+  "candidate": "Run NuNER",
+  "rows": [
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 231,
+        "median_ms": 0.19,
+        "unmatched": 307
+      },
+      "candidate": {
+        "calls": 313,
+        "correct": 435,
+        "median_ms": 640.71,
+        "unmatched": 274
+      },
+      "gained": 220,
+      "label": "WikiGold · BERT absent",
+      "lost": 16,
+      "observations": 313,
+      "role": "Complete release · 4 scored WikiGold types"
+    },
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 563,
+        "median_ms": 77.99,
+        "unmatched": 233
+      },
+      "candidate": {
+        "calls": 313,
+        "correct": 567,
+        "median_ms": 829.12,
+        "unmatched": 254
+      },
+      "gained": 4,
+      "label": "WikiGold · BERT loaded",
+      "lost": 0,
+      "observations": 313,
+      "role": "Complete release · 4 scored WikiGold types"
+    },
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 31,
+        "median_ms": 0.22,
+        "unmatched": 257
+      },
+      "candidate": {
+        "calls": 295,
+        "correct": 111,
+        "median_ms": 191.06,
+        "unmatched": 397
+      },
+      "gained": 82,
+      "label": "WNUT-17 test · BERT absent",
+      "lost": 2,
+      "observations": 295,
+      "role": "Official test · 5 mapped WNUT types"
+    },
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 87,
+        "median_ms": 66.23,
+        "unmatched": 263
+      },
+      "candidate": {
+        "calls": 295,
+        "correct": 101,
+        "median_ms": 302.65,
+        "unmatched": 382
+      },
+      "gained": 14,
+      "label": "WNUT-17 test · BERT loaded",
+      "lost": 0,
+      "observations": 295,
+      "role": "Official test · 5 mapped WNUT types"
+    },
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 14,
+        "median_ms": 0.16,
+        "unmatched": 91
+      },
+      "candidate": {
+        "calls": 165,
+        "correct": 55,
+        "median_ms": 147.93,
+        "unmatched": 110
+      },
+      "gained": 43,
+      "label": "WNUT-17 development · BERT absent",
+      "lost": 2,
+      "observations": 165,
+      "role": "Development · 5 mapped WNUT types"
+    },
+    {
+      "baseline": {
+        "calls": 0,
+        "correct": 43,
+        "median_ms": 50.63,
+        "unmatched": 97
+      },
+      "candidate": {
+        "calls": 165,
+        "correct": 50,
+        "median_ms": 236.14,
+        "unmatched": 114
+      },
+      "gained": 7,
+      "label": "WNUT-17 development · BERT loaded",
+      "lost": 0,
+      "observations": 165,
+      "role": "Development · 5 mapped WNUT types"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "What does a skipped NuNER call buy?",
+  "unit": "stock-skipped sentences"
+}

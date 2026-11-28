@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 
 from jointie_coverage import gold_graph
-from relex_roles import SOURCE_SHA, classify, gold, score_document
+from relex_roles import SOURCE_SHA, classify, decode, gold, score_document
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts/qa"))
@@ -29,6 +29,7 @@ MODEL_FILES = {
     "added_tokens.json": "14fedd7e9f345ea45fd9b74245468121d5ccac83e523cad1680529d00bb0e8e8",
 }
 STOCK_GATE = 0.5
+CLI_PREDICATE_GATE = 0.55
 FLOOR = 0.30
 RULES = {
     "score": (0.0, 0.0),
@@ -367,7 +368,7 @@ def public_counts(counts):
     }
 
 
-def run_study(directory, observation, all_eligible=False):
+def run_study(directory, observation, all_eligible=False, *, cli_gate_counts=None):
     data, schemas, panels, pins, scope = cohorts(directory, all_eligible)
 
     def evaluate(panel):
@@ -380,6 +381,14 @@ def run_study(directory, observation, all_eligible=False):
             for index in indices:
                 doc = source[index]
                 scored = observation(split, domain, index, doc, schemas[domain])
+                if cli_gate_counts is not None and split in cli_gate_counts:
+                    kept, scores, _, _ = scored
+                    filtered = decode(scores, kept, schemas[domain]["relation_types"], CLI_PREDICATE_GATE)
+                    reference = gold(doc)
+                    cli_gate_counts[split].update(
+                        sentences=1, gold=reference.total(),
+                        predicted=filtered.total(), matched=(filtered & reference).total(),
+                    )
                 rows.append(document_counts(doc, schemas[domain], scored))
             by_domain[domain] = aggregate(rows)
         return aggregate(by_domain.values()), by_domain
@@ -504,6 +513,30 @@ def tradeoff(report):
     }
 
 
+def cli_gate_report(report, counted):
+    """Retrospective gate comparison using the original paired sentences and trained scores."""
+    panels = {}
+    for split in ("dev", "test"):
+        panel = report["panels"][split]
+        stock, additions = panel["stock"], panel["additional_edges"]["gate_0.40"]
+        cli = counted[split]
+        if cli["sentences"] != stock["sentences"] or cli["gold"] != stock["gold"]:
+            raise ValueError("CLI gate and original study must cover the same reference occurrences")
+        panels[split] = {
+            "sentences": stock["sentences"], "gold": stock["gold"],
+            "index_text_sha256_by_domain": {d: s["index_text_sha256"] for d, s in report["selection"][split].items()},
+            "predicate_gates": {
+                "0.40": {"matched": stock["matched"] + additions["correct_added"],
+                         "predicted": stock["predicted"] + additions["added"]},
+                "0.50": {k: stock[k] for k in ("matched", "predicted")},
+                f"{CLI_PREDICATE_GATE:.2f}": {k: cli[k] for k in ("matched", "predicted")},
+            },
+        }
+    return {"study": "Retrospective predicate thresholds with fixed retained endpoints and training prompts",
+            "checkpoint_revision": report["checkpoint_revision"], "crossre_revision": report["crossre_revision"],
+            "source_sha256": report["source_sha256"], "entity_and_adjacency_gate": STOCK_GATE, "panels": panels}
+
+
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument(
@@ -512,6 +545,7 @@ def main():
     cli.add_argument("checkpoint", type=Path)
     cli.add_argument("--output", type=Path, required=True)
     cli.add_argument("--tradeoff-output", type=Path, required=True)
+    cli.add_argument("--cli-gate-output", type=Path, help="Also compare the 0.55 CLI predicate gate on dev and test")
     cli.add_argument("--threads", type=int, default=2, help="PyTorch CPU inference threads")
     cli.add_argument(
         "--all-eligible", action="store_true", help="Replay every eligible distinct dev and test text"
@@ -524,13 +558,18 @@ def main():
     torch.set_num_threads(args.threads)
     torch.set_num_interop_threads(1)
     model, wrapper = load_model(args.checkpoint)
+    cli_counts = {s: Counter() for s in ("dev", "test")} if args.cli_gate_output else None
     with torch.inference_mode():
         result = run_study(
             args.data,
             lambda split, domain, index, doc, schema: infer(model, wrapper, doc, schema),
             all_eligible=args.all_eligible,
+            cli_gate_counts=cli_counts,
         )
-    for path, data in ((args.output, result), (args.tradeoff_output, tradeoff(result))):
+    outputs = [(args.output, result), (args.tradeoff_output, tradeoff(result))]
+    if cli_counts is not None:
+        outputs.append((args.cli_gate_output, cli_gate_report(result, cli_counts)))
+    for path, data in outputs:
         path.write_text(
             json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",

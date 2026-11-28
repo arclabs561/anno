@@ -14,20 +14,24 @@ import sys
 import tempfile
 from importlib.metadata import distribution
 from pathlib import Path
+from figure_catalog import NAME as CATALOG_NAME, write_catalog
 from figure_coverage_report import coverage_text
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 EVAL = ROOT / "docs" / "eval"
 FIGURES = ROOT / "docs" / "figures"
-NATIVE_VIEWS = ("tradeoff", "overlap", "errors")
+NATIVE_VIEWS = ("tradeoff", "overlap", "errors", "paired")
 SUMMARIES = (
     "dataset-coverage.csv",
     "dataset-coverage-by-domain.csv",
     "dataset-density-ranges.csv",
+    "dataset-density-units.csv",
+    "dataset-evaluation-coverage.csv",
     "dataset-wikiann-split-density.csv",
     "dataset-multiconer-v2-split-density.csv",
 )
+DATASET_REFERENCE = "dataset-explorer.html"
 
 
 def build_anno():
@@ -78,10 +82,12 @@ def render_native(inputs, directory, anno):
     for source in inputs:
         svg = directory / source.with_suffix(".svg").name
         png = svg.with_suffix(".png")
-        if svg.exists() or png.exists():
+        html = svg.with_suffix(".html")
+        if svg.exists() or png.exists() or html.exists():
             raise ValueError(f"More than one figure has the name {source.stem!r}.")
         view = source.stem.rsplit("-", 1)[1]
-        subprocess.run([executable, "viz", view, source, "--output", svg], check=True)
+        for target in (svg, html):
+            subprocess.run([executable, "viz", view, source, "--output", target], check=True)
         png.write_bytes(
             svg_to_bytes(
                 svg_path=str(svg),
@@ -141,6 +147,7 @@ def render(directory, config, anno):
         ),
         ("plot_ner_language_length.py", directory),
         ("plot_benchmark_examples.py", directory),
+        ("dataset_evidence_index.py", EVAL, directory),
     ]
     config.mkdir()
     (config / "matplotlibrc").write_text(
@@ -157,6 +164,7 @@ def render(directory, config, anno):
             [sys.executable, SCRIPTS / script, *args], check=True, env=env, cwd=ROOT
         )
     native = native_paths(EVAL, "json")
+    write_catalog(EVAL, directory, native)
     if native:
         render_native(native, directory, anno)
     return [directory / source.with_suffix(".svg").name for source in native]
@@ -167,7 +175,7 @@ def same_result(built, published):
         return False
     if filecmp.cmp(built, published, shallow=False):
         return True
-    if built.suffix in {".csv", ".md", ".svg"}:
+    if built.suffix in {".csv", ".md", ".svg", ".html"}:
         try:
             return built.read_text(encoding="utf-8") == published.read_text(
                 encoding="utf-8"
@@ -208,7 +216,7 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        help="Export PNGs, SVGs, native chart JSON and derived CSVs to this directory.",
+        help="Export figures, offline HTML, native inputs and derived CSVs to this directory.",
     )
     parser.add_argument(
         "--anno",
@@ -219,7 +227,7 @@ def main():
     modes.add_argument(
         "--update",
         action="store_true",
-        help="Refresh changed figures and derived CSVs in the documentation.",
+        help="Refresh published figures, offline reports and derived CSVs.",
     )
     modes.add_argument(
         "--check",
@@ -238,9 +246,13 @@ def main():
             parser.exit(1, "Every figure must render both PNG and SVG.\n")
         results = {p: FIGURES / p.name for p in pngs}
         results.update({p: FIGURES / p.name for p in native_svgs})
+        html_reports = [svg.with_suffix(".html") for svg in native_svgs]
+        results.update({p: FIGURES / p.name for p in html_reports})
         results.update({directory / name: EVAL / name for name in SUMMARIES})
+        results[directory / DATASET_REFERENCE] = EVAL / DATASET_REFERENCE
+        results[directory / CATALOG_NAME] = EVAL / CATALOG_NAME
         if any(not built.is_file() for built in results):
-            parser.exit(1, "The generators did not produce every derived CSV.\n")
+            parser.exit(1, "A figure, offline report or derived CSV is missing.\n")
         report = EVAL / "dataset-coverage.md"
         built_report = directory.parent / report.name
         built_report.write_text(
@@ -253,15 +265,17 @@ def main():
             for path in sorted(directory.iterdir()):
                 publish(path, output / path.name)
             print(
-                f"Wrote {len(pngs)} PNG/SVG pairs, {len(native_svgs)} native chart inputs and {len(SUMMARIES)} CSVs to {output}"
+                f"Wrote {len(pngs)} PNG/SVG pairs, {len(native_svgs)} native inputs and HTML reports, the dataset explorer, CLI catalog and {len(SUMMARIES)} CSVs to {output}"
             )
             if not (args.update or args.check):
                 return
 
-        published_images = set(FIGURES.glob("*.png")) | set(
-            native_paths(FIGURES, "svg")
+        published_figures = (
+            set(FIGURES.glob("*.png"))
+            | set(native_paths(FIGURES, "svg"))
+            | set(native_paths(FIGURES, "html"))
         )
-        missing = sorted(published_images - set(results.values()))
+        missing = sorted(published_figures - set(results.values()))
         if missing:
             names = ", ".join(p.name for p in missing)
             parser.exit(
@@ -279,7 +293,7 @@ def main():
                 1, "Run the figure generator with --update to refresh the docs.\n"
             )
         print(
-            f"Verified {len(pngs)} published PNGs, {len(native_svgs)} native SVGs, {len(SUMMARIES)} derived CSVs and the coverage guide's counts."
+            f"Verified {len(pngs)} published PNGs, {len(native_svgs)} native SVG/HTML reports, the dataset explorer, CLI catalog, {len(SUMMARIES)} derived CSVs and the coverage guide's counts."
         )
 
 

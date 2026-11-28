@@ -130,6 +130,21 @@
           "changed_documents": 112
         }
       },
+      "threshold_pair_resampling": {
+        "cluster": "article URL",
+        "clusters": 1834,
+        "draws": 5000,
+        "seed": 428,
+        "net_correct_95": [
+          -29,
+          -12
+        ],
+        "retention_defined_draws": 5000,
+        "retention_percent_95": [
+          76.86,
+          89.81
+        ]
+      },
       "sweeps": {
         "rival": [
           {
@@ -376,6 +391,21 @@
           "incorrect_removed_when_neither_gold": 0,
           "changed_documents": 22
         }
+      },
+      "threshold_pair_resampling": {
+        "cluster": "article URL",
+        "clusters": 328,
+        "draws": 5000,
+        "seed": 428,
+        "net_correct_95": [
+          -22,
+          -7
+        ],
+        "retention_defined_draws": 5000,
+        "retention_percent_95": [
+          46.34,
+          78.0
+        ]
       },
       "sweeps": {
         "rival": [
@@ -624,6 +654,21 @@
           "changed_documents": 90
         }
       },
+      "threshold_pair_resampling": {
+        "cluster": "article URL",
+        "clusters": 1825,
+        "draws": 5000,
+        "seed": 428,
+        "net_correct_95": [
+          -33,
+          -14
+        ],
+        "retention_defined_draws": 5000,
+        "retention_percent_95": [
+          75.81,
+          88.64
+        ]
+      },
       "sweeps": {
         "rival": [
           {
@@ -867,6 +912,21 @@
           "changed_documents": 81
         }
       },
+      "threshold_pair_resampling": {
+        "cluster": "Winogender template",
+        "clusters": 120,
+        "draws": 5000,
+        "seed": 428,
+        "net_correct_95": [
+          -21,
+          -6
+        ],
+        "retention_defined_draws": 5000,
+        "retention_percent_95": [
+          68.52,
+          89.86
+        ]
+      },
       "sweeps": {
         "rival": [
           {
@@ -1108,6 +1168,21 @@
           "incorrect_removed_when_neither_gold": 0,
           "changed_documents": 2
         }
+      },
+      "threshold_pair_resampling": {
+        "cluster": "Winogender template",
+        "clusters": 120,
+        "draws": 5000,
+        "seed": 428,
+        "net_correct_95": [
+          -3,
+          0
+        ],
+        "retention_defined_draws": 4295,
+        "retention_percent_95": [
+          0.0,
+          100.0
+        ]
       },
       "sweeps": {
         "rival": [

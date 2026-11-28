@@ -60,7 +60,7 @@ impl PairedRow {
     fn scope(&self, unit: &str) -> String {
         // A study's free-text unit can include irregular plurals or a qualifier.
         let sample = match (self.observations, unit) {
-            (1, "documents") => "1 document".to_owned(),
+            (1, "documents" | "sentences") => format!("1 {}", unit.trim_end_matches('s')),
             (1, unit) => format!("{unit} (n = 1)"),
             (count, unit) => format!("{} {unit}", integer(count)),
         };

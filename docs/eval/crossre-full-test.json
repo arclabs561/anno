@@ -518,6 +518,80 @@
           "suggestions": 349
         }
       },
+      "domain_net_match_intervals": {
+        "ai": {
+          "bonferroni_family_95": {
+            "lower": -10,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 5
+          },
+          "pointwise_95": {
+            "lower": -8,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 3
+          }
+        },
+        "literature": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 11
+          },
+          "pointwise_95": {
+            "lower": -10,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 8
+          }
+        },
+        "music": {
+          "bonferroni_family_95": {
+            "lower": -2,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 21
+          },
+          "pointwise_95": {
+            "lower": 1,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 18
+          }
+        },
+        "news": {
+          "bonferroni_family_95": {
+            "lower": -8,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 0
+          },
+          "pointwise_95": {
+            "lower": -7,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 0
+          }
+        },
+        "politics": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 7
+          },
+          "pointwise_95": {
+            "lower": -11,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 4
+          }
+        },
+        "science": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 9
+          },
+          "pointwise_95": {
+            "lower": -10,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 6
+          }
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "148d66dc5f8c3930d3b5e5b07b1ca3fd07dbf4c4d0edd09f4fd7dfe05619a4c5",

@@ -204,6 +204,25 @@ def replay(args, output):
         raise ValueError(
             "native pooled counts disagree with the sentence-level evaluation records"
         )
+    expected_labels = {
+        "by_gold_label": {
+            label: {
+                "exact": counts["correct"],
+                "same_span_wrong_label": counts["type_mismatch"],
+                "partial_overlap": counts["boundary_error"],
+                "missed": counts["false_negative"],
+            }
+            for label, counts in by_gold.items()
+        },
+        "partial_labels": {
+            "same": partial_labels["same_label"],
+            "different": partial_labels["different_labels"],
+        },
+    }
+    if summary.get("label_outcomes") != expected_labels:
+        raise ValueError(
+            "native label outcomes disagree with the independently aligned signals"
+        )
     summary["metadata"] = {
         "source": source,
         "stock": {
@@ -217,8 +236,7 @@ def replay(args, output):
         "predicted_outside_gold_inventory": outside,
         "by_gold_label": dict(by_gold),
         "by_predicted_label": dict(by_pred),
-        # This diagnostic needs the source-bound span labels; the portable eval
-        # JSON carries just the two IDs and the IoU for each partial overlap.
+        # Preserve the independent signal-by-signal cross-check of the native aggregate.
         "partial_overlap_labels_from_aligned_signals": partial_labels,
     }
     # Have the native importer validate and serialize the annotated aggregate;

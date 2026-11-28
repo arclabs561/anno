@@ -13,9 +13,9 @@ from matplotlib.patches import Patch
 INK = "#213945"
 MUTED = "#4a626d"
 OUTCOMES = {
-    "exact": ("Exact span and mapped type", "#146e70"),
+    "exact": ("Exact span and type", "#146e70"),
     "wrong_type": ("Exact span, wrong type", "#c48b44"),
-    "partial_overlap": ("Different overlapping span", "#ad9cbe"),
+    "partial_overlap": ("Boundary overlap", "#ad9cbe"),
     "no_overlap": ("No overlap", "#dbe4e5"),
 }
 
@@ -55,39 +55,63 @@ def draw(report):
                 "Unfamiliar-mention groups do not partition the test mentions"
             )
 
-    fig = plt.figure(figsize=(8.6, 5.95))
-    fig.text(
-        0.032,
-        0.941,
-        "Which unfamiliar WNUT mentions does Anno miss?",
-        fontsize=17,
-        color=INK,
-        weight="bold",
-    )
+    changed = report["paired"]["all"]["changed_sentences"]
+    if not 0 <= changed <= test:
+        raise ValueError("Changed sentence count exceeds the scored test population")
+    if changed == 0 and (
+        before["counts"] != after["counts"]
+        or any(
+            report["paired"]["all"][key]
+            for key in (
+                "exact_gained",
+                "exact_lost",
+                "false_positives_added",
+                "false_positives_removed",
+            )
+        )
+    ):
+        raise ValueError("Identical typed spans cannot have different scored outcomes")
     versions = [arm["cli_version"].removeprefix("anno ") for arm in (before, after)]
-    fig.text(
-        0.032,
-        0.892,
-        f"{report['protocol']['backend'].capitalize()} {versions[0]} → {versions[1]} · {test:,} test sentences · {current['gold']:,} unfamiliar mentions",
-        fontsize=10.7,
-        color=MUTED,
-    )
     fp = [
         100 * arm["counts"]["all"]["false_positives"] / test for arm in (before, after)
     ]
+    title = (
+        f"Identical typed spans on all\n{test:,} WNUT-17 test sentences"
+        if changed == 0
+        else f"Typed spans changed on {changed:,} of\n{test:,} WNUT-17 test sentences"
+    )
+    fig = plt.figure(figsize=(4.85, 6.45))
     fig.text(
-        0.032,
-        0.825,
-        f"Unfamiliar matches gained  {change['exact_gained']:,}     Lost  {change['exact_lost']:,}",
-        fontsize=10.9,
+        0.045,
+        0.97,
+        title,
+        va="top",
+        fontsize=15.4,
+        linespacing=1.15,
         color=INK,
         weight="bold",
     )
     fig.text(
-        0.544,
-        0.825,
-        f"False positives / 100 sentences  {fp[0]:.1f} → {fp[1]:.1f}",
-        fontsize=10.1,
+        0.045,
+        0.852,
+        f"{report['protocol']['backend'].capitalize()} {versions[0]} → {versions[1]}"
+        f"  ·  threshold {report['protocol']['threshold']}",
+        fontsize=11.5,
+        color=MUTED,
+    )
+    fig.text(
+        0.045,
+        0.794,
+        f"Unfamiliar matches  ·  {change['exact_gained']:,} gained, {change['exact_lost']:,} lost",
+        fontsize=12.4,
+        weight="bold",
+        color=INK,
+    )
+    fig.text(
+        0.045,
+        0.755,
+        f"Unmatched predictions / 100 sentences  ·  {fp[0]:.1f} → {fp[1]:.1f}",
+        fontsize=10.8,
         color=INK,
     )
     fig.legend(
@@ -95,26 +119,27 @@ def draw(report):
             Patch(facecolor=color, label=label) for label, color in OUTCOMES.values()
         ],
         loc="center left",
-        bbox_to_anchor=(0.024, 0.737),
+        bbox_to_anchor=(0.025, 0.678),
         ncol=2,
-        handlelength=1.1,
-        columnspacing=2.2,
-        fontsize=9.1,
+        handlelength=1.0,
+        columnspacing=0.9,
+        handletextpad=0.4,
+        fontsize=10.4,
         frameon=False,
         labelcolor=INK,
     )
     fig.text(
-        0.032,
-        0.636,
-        f"{versions[1]} by WNUT gold type",
-        size=10.9,
+        0.045,
+        0.602,
+        f"{versions[1]} outcomes by unfamiliar gold type",
+        size=12,
         color=INK,
         weight="bold",
     )
-    fig.text(0.954, 0.636, "Gold", size=9, color=MUTED, weight="bold", ha="right")
+    fig.text(0.965, 0.555, "Gold", size=10.4, color=MUTED, weight="bold", ha="right")
 
     def row_panel(rows, bottom, height, show_ticks=False):
-        ax = fig.add_axes([0.204, bottom, 0.665, height])
+        ax = fig.add_axes([0.25, bottom, 0.598, height])
         for position, (label, values) in enumerate(rows):
             start = 0
             for field, (_, color) in OUTCOMES.items():
@@ -123,14 +148,14 @@ def draw(report):
                 ax.barh(
                     position, width, left=start, height=0.66, color=color, linewidth=0
                 )
-                if width >= 6:
+                if width >= 9:
                     ax.text(
                         start + width / 2,
                         position,
                         f"{n:,}",
                         va="center",
                         ha="center",
-                        fontsize=8.7,
+                        fontsize=10.3,
                         color="white" if field == "exact" else INK,
                     )
                 start += width
@@ -139,46 +164,46 @@ def draw(report):
                     f"Outcome counts do not sum to {label}'s gold denominator"
                 )
             ax.text(
-                1.13,
+                1.19,
                 position,
                 f"{values['gold']:,}",
                 transform=ax.get_yaxis_transform(),
                 ha="right",
                 va="center",
-                size=9.5,
+                size=11,
                 color=INK,
             )
         ax.set(xlim=(0, 100), ylim=(len(rows) - 0.5, -0.5))
         ax.set_yticks(
-            range(len(rows)), [label for label, _ in rows], color=INK, fontsize=9.3
+            range(len(rows)), [label for label, _ in rows], color=INK, fontsize=10.7
         )
         if show_ticks:
             ax.set_xticks(
                 [0, 25, 50, 75, 100],
                 ["0%", "25%", "50%", "75%", "100%"],
                 color=MUTED,
-                fontsize=8.7,
+                fontsize=10.3,
             )
         else:
             ax.set_xticks([])
         ax.spines[:].set_visible(False)
         ax.tick_params(length=0)
 
-    row_panel(names, 0.314, 0.29)
+    row_panel(names, 0.297, 0.255)
     fig.text(
-        0.032,
-        0.254,
-        "By first cased letter in the unfamiliar mention",
-        size=10.9,
+        0.045,
+        0.234,
+        "First cased letter of the unfamiliar mention",
+        size=12,
         color=INK,
         weight="bold",
     )
-    row_panel(casing, 0.137, 0.099, show_ticks=True)
+    row_panel(casing, 0.123, 0.073, show_ticks=True)
     fig.text(
-        0.032,
         0.045,
-        "Group and corporation both score as ORG. Every row shows counts and uses its own gold denominator.",
-        fontsize=9,
+        0.031,
+        "Each bar uses its own gold count.\nGroup and corporation both score as ORG.",
+        fontsize=10.3,
         color=MUTED,
     )
     return fig

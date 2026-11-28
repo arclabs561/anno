@@ -8,6 +8,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from textwrap import fill
 
 import matplotlib
 
@@ -39,89 +40,58 @@ def benchmark_chooser():
     if relation["type"] != "P19":
         raise ValueError("The worked example expects the place-of-birth predicate")
 
-    fig, ax = plt.subplots(figsize=(10.2, 4.6))
-    fig.subplots_adjust(left=0.035, right=0.985, bottom=0.025, top=0.98)
+    fig, ax = plt.subplots(figsize=(4.8, 5.9))
+    fig.subplots_adjust(left=0.045, right=0.96, bottom=0.01, top=0.985)
     ax.set(xlim=(0, 1), ylim=(0, 1))
     ax.axis("off")
     ax.text(
-        0,
-        0.95,
-        "Which benchmark scores the output you need?",
-        fontsize=18,
-        weight="bold",
-        color=INK,
+        0, 0.95, "Which output are you scoring?", fontsize=16, weight="bold", color=INK
     )
-    ax.text(0, 0.84, source["source_text"], fontsize=12, color=INK)
-    for x, label in [
-        (0, "Unit to score"),
-        (0.24, "Saved JEREX prediction"),
-        (0.73, "Example benchmark"),
-    ]:
-        ax.text(x, 0.71, label, fontsize=10, weight="bold", color=TEAL)
-    for y in [0.67, 0.49, 0.29, 0.09]:
-        ax.axhline(y, color=RULE, linewidth=0.8)
+    ax.text(
+        0,
+        0.895,
+        "Authored Anno passage · saved JEREX prediction",
+        fontsize=11,
+        color=TEAL,
+    )
+    ax.text(
+        0, 0.86, fill(source["source_text"], width=42), va="top", fontsize=12, color=INK
+    )
 
-    # Preserve token order when displaying the mentions of each type.
-    typed_mentions = {}
+    def section(y, title, benchmark):
+        ax.axhline(y + 0.05, color=RULE, linewidth=0.9)
+        ax.text(0, y, title, fontsize=13, weight="bold", color=INK)
+        ax.text(1, y, benchmark, ha="right", fontsize=11, color=TEAL)
+
+    section(0.67, "Exact span and type", "WikiGold / WNUT-17")
+    by_type = {}
     for entity in prediction["entities"]:
-        typed_mentions.setdefault(entity["type"], []).extend(entity["mentions"])
-    for i, (kind, indices) in enumerate(typed_mentions.items()):
+        by_type.setdefault(entity["type"], []).extend(entity["mentions"])
+    for i, (kind, indices) in enumerate(by_type.items()):
         ordered = sorted(
             indices, key=lambda index: prediction["mentions"][index]["start"]
         )
-        y = 0.60 - i * 0.065
-        ax.text(0.24, y, kind, fontsize=9, color=TEAL, weight="bold", va="center")
+        y = 0.61 - i * 0.05
+        ax.text(0, y, kind, fontsize=11, color=TEAL, weight="bold")
         ax.text(
-            0.30,
+            0.13,
             y,
             " · ".join(mentions[index] for index in ordered),
-            fontsize=11,
+            fontsize=12,
             color=INK,
-            va="center",
         )
 
-    for y, unit, dataset, detail in [
-        (0.575, "Typed mentions", "WikiGold or WNUT-17", "Exact span and entity type"),
-        (0.39, "Mention cluster", "LitBank", "Mentions of one referent"),
-        (0.19, "Directed relation", "DocRED", "Predicate and endpoint clusters"),
-    ]:
-        ax.text(0, y, unit, fontsize=12, color=INK, weight="bold", va="center")
-        ax.text(0.73, y + 0.015, dataset, fontsize=12, color=INK, weight="bold")
-        ax.text(0.73, y - 0.05, detail, fontsize=10, color=INK)
+    section(0.44, "Mention cluster", "LitBank")
+    ax.text(0, 0.375, "One person", fontsize=11, color=TEAL)
+    ax.text(0.30, 0.375, " · ".join(head), fontsize=12, color=INK)
 
-    def node(x, y, label):
-        ax.text(
-            x,
-            y,
-            label,
-            ha="center",
-            va="center",
-            fontsize=10,
-            color=INK,
-            bbox={"boxstyle": "round,pad=.35", "fc": "#e6f2ef", "ec": TEAL, "lw": 0.8},
-        )
-
-    first_name, second_name = head
-    ax.plot([0.32, 0.61], [0.39, 0.39], color=TEAL, linewidth=1.3)
-    node(0.32, 0.39, first_name)
-    node(0.61, 0.39, second_name)
-
-    ax.annotate(
-        "",
-        xy=(0.58, 0.17),
-        xytext=(0.39, 0.17),
-        arrowprops={"arrowstyle": "-|>", "color": TEAL, "lw": 1.4},
-    )
-    ax.text(0.49, 0.22, "place of birth (P19)", fontsize=9, ha="center", color=INK)
-    node(0.32, 0.17, " / ".join(head))
-    node(0.62, 0.17, " / ".join(tail))
-    ax.text(
-        0,
-        0.012,
-        "The passage is an Anno fixture. The benchmark names identify other sources for scoring each kind of output.",
-        fontsize=9,
-        color=INK,
-    )
+    section(0.264, "Directed predicate and endpoints", "DocRED")
+    ax.text(0, 0.198, "Head", fontsize=11, color=TEAL)
+    ax.text(0.18, 0.198, " / ".join(head), fontsize=12, color=INK)
+    ax.text(0.05, 0.132, "↓", fontsize=17, color=TEAL, ha="center")
+    ax.text(0.18, 0.135, "place of birth (P19)", fontsize=12, color=INK)
+    ax.text(0, 0.072, "Tail", fontsize=11, color=TEAL)
+    ax.text(0.18, 0.072, " / ".join(tail), fontsize=12, color=INK)
     return fig
 
 
@@ -193,92 +163,7 @@ def crossre_prompt_scores(receipt=CROSSRE_RECEIPT):
         reverse=True,
     )
 
-    fig = plt.figure(figsize=(8.8, 8.05))
-    fig.text(
-        0.025,
-        0.96,
-        "What does the gold prompt reveal?",
-        color=INK,
-        fontsize=18,
-        weight="bold",
-    )
-    fig.text(
-        0.025,
-        0.918,
-        f"Distinct reference predicates in {sum(int(r['sentences']) for r in test):,} test sentences. Segments show sentence counts.",
-        color=INK,
-        fontsize=10.5,
-    )
-    ax = fig.add_axes((0.20, 0.571, 0.775, 0.250))
-    groups = [
-        (none, "No predicate", "#75456f", "white"),
-        (single, "One predicate type", "#dca75a", INK),
-        (many, "Two or more types", "#dae4e6", INK),
-    ]
-    starts = [0.0] * len(test)
-    for key, title, color, ink in groups:
-        counts = [int(row[key]) for row in test]
-        widths = [100 * n / int(r["sentences"]) for n, r in zip(counts, test)]
-        bars = ax.barh(
-            range(len(test)),
-            widths,
-            left=starts,
-            height=0.69,
-            color=color,
-            edgecolor="white",
-            linewidth=0.7,
-            label=title,
-        )
-        for bar, count in zip(bars, counts):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_y() + bar.get_height() / 2,
-                f"{count:,}",
-                ha="center",
-                va="center",
-                color=ink,
-                fontsize=10.5,
-            )
-        starts = [start + width for start, width in zip(starts, widths)]
     names = {"ai": "AI"}
-    ax.set_yticks(
-        range(len(test)),
-        [
-            f"{names.get(r['domain'], r['domain'].title())}  ({int(r['sentences']):,})"
-            for r in test
-        ],
-    )
-    ax.set_xlim(0, 100)
-    ax.set_ylim(len(test) - 0.55, -0.55)
-    ax.set_xticks([0, 25, 50, 75, 100], ["0%", "25%", "50%", "75%", "100%"])
-    ax.legend(
-        loc="lower left",
-        bbox_to_anchor=(0.0, 1.03),
-        borderaxespad=0,
-        frameon=False,
-        ncol=3,
-        handlelength=1.1,
-        columnspacing=1.6,
-        fontsize=10.5,
-    )
-    ax.spines[:].set_visible(False)
-    ax.tick_params(axis="both", length=0, labelcolor=INK, labelsize=10.5)
-
-    fig.text(
-        0.025,
-        0.463,
-        "How much of the F1 gain comes from relation-free sentences?",
-        color=INK,
-        fontsize=14,
-        weight="bold",
-    )
-    fig.text(
-        0.025,
-        0.423,
-        f"GLiNER-Relex on {sum(int(r['gold_relations']) for r in test):,} held-out relations. The first row pools counts across domains.",
-        color=INK,
-        fontsize=10.4,
-    )
     test_domains = [split["domain"] for split in test]
     if set(test_domains) != report["domains"].keys():
         raise ValueError("Every surveyed test domain needs its paired model result")
@@ -294,93 +179,165 @@ def crossre_prompt_scores(receipt=CROSSRE_RECEIPT):
         for condition in range(3)
     ]
     rows.insert(0, ("All domains", pooled))
-    ax = fig.add_axes((0.196, 0.135, 0.421, 0.209))
-    table = fig.add_axes((0.647, 0.135, 0.337, 0.209), sharey=ax)
-    columns = [
-        ("Fixed", "o", TEAL),
-        ("Filtered", "s", "#b16c14"),
-        ("Gold", "D", "#75456f"),
-    ]
-    positions = [0] + [i + 0.35 for i in range(1, len(rows))]
-    for (label, counts), y in zip(rows, positions):
-        rates = [
-            200 * matched / (predicted + reference)
-            for matched, predicted, reference in counts
-        ]
-        fixed, _, gold = rates
-        ax.plot([fixed, gold], [y, y], color="#c1cacc", lw=2.2, zorder=1)
-        for i, (rate, (_, marker, color)) in enumerate(zip(rates, columns)):
-            ax.plot(
-                rate,
-                y,
-                marker=marker,
-                markersize=6.8,
-                linestyle="none",
-                color=color,
-                markeredgecolor="white",
-                markeredgewidth=0.5,
-                zorder=2 + i,
-            )
-            weight = "bold" if y == 0 else "normal"
+    fig = plt.figure(figsize=(4.85, 7.3))
+    fig.text(
+        0.045,
+        0.954,
+        "CrossRE with and without test labels",
+        color=INK,
+        fontsize=15.3,
+        weight="bold",
+    )
+    fig.text(
+        0.045,
+        0.916,
+        f"GLiNER-Relex · {sum(int(r['sentences']) for r in test):,} test sentences",
+        fontsize=11.5,
+        color=INK,
+    )
+    fig.text(
+        0.045,
+        0.885,
+        f"Strict directed-relation F1 (%) · {pooled[0][2]:,} gold relations",
+        fontsize=11.2,
+        color=INK,
+    )
+
+    # The first setting can be used on unseen text. The other two require answers.
+    table = fig.add_axes((0.045, 0.532, 0.91, 0.284))
+    table.set(xlim=(0, 1), ylim=(len(rows) - 0.3, -1.25))
+    table.axis("off")
+    fixed_x, filter_x, oracle_x = 0.43, 0.675, 0.92
+    fig.text(
+        0.425,
+        0.84,
+        "At inference",
+        ha="center",
+        color=TEAL,
+        fontsize=11.8,
+        weight="bold",
+    )
+    fig.text(
+        0.77,
+        0.84,
+        "Uses test labels",
+        ha="center",
+        color="#74446b",
+        fontsize=11.8,
+        weight="bold",
+    )
+    table.axvline(0.543, color=RULE, lw=1.1)
+    for x, name in (
+        (0, "Domain"),
+        (fixed_x, "Fixed"),
+        (filter_x, "Filtered"),
+        (oracle_x, "Gold"),
+    ):
+        table.text(
+            x,
+            -0.92,
+            name,
+            va="center",
+            ha="left" if x == 0 else "center",
+            color=INK,
+            fontsize=10.8,
+            weight="bold",
+        )
+    table.axhline(-0.43, color=RULE, lw=0.85)
+    for n, (label, counts) in enumerate(rows):
+        weight = "bold" if n == 0 else "normal"
+        table.text(0, n, label, fontsize=11.4, weight=weight, color=INK, va="center")
+        for x, (matched, predicted, reference) in zip(
+            (fixed_x, filter_x, oracle_x), counts
+        ):
+            f1 = 200 * matched / (predicted + reference)
             table.text(
-                i + 0.5,
-                y,
-                f"{rate:.1f}",
+                x,
+                n,
+                f"{f1:.1f}",
                 ha="center",
                 va="center",
-                color=INK,
+                fontsize=12,
+                color=TEAL if x == fixed_x else INK,
                 weight=weight,
-                fontsize=10.5,
             )
-    ax.set_yticks(positions, [label for label, _ in rows])
-    ax.get_yticklabels()[0].set_fontweight("bold")
-    ax.set(
-        ylim=(positions[-1] + 0.55, -0.63), xlim=(0, 100), xticks=[0, 25, 50, 75, 100]
+    table.axhline(0.5, color=RULE, lw=0.85)
+    fig.text(
+        0.045,
+        0.495,
+        "Fixed uses the domain’s training vocabulary.",
+        fontsize=11,
+        color=TEAL,
     )
-    ax.set_xlabel("Strict F1 (%)", fontsize=10, color=INK)
-    ax.grid(axis="x", color="#e4ebeb", lw=0.7)
-    ax.set_axisbelow(True)
-    ax.spines[:].set_visible(False)
-    ax.tick_params(length=0, colors=INK, labelsize=10.2)
-    table.set_xlim(0, 3)
-    table.set_axis_off()
-    for i, (column, marker, color) in enumerate(columns):
-        table.plot(
-            (i + 0.20) / 3,
-            1.068,
-            marker=marker,
+    fig.text(
+        0.045,
+        0.455,
+        "Filtered suppresses predictions on gold-empty sentences.\n"
+        "Gold supplies each sentence’s reference labels.",
+        va="center",
+        fontsize=10.3,
+        color=INK,
+    )
+
+    fig.text(
+        0.045,
+        0.39,
+        "How much do test labels reveal?",
+        fontsize=14,
+        color=INK,
+        weight="bold",
+    )
+    fig.text(
+        0.045,
+        0.355,
+        "Sentences by number of distinct gold predicates",
+        fontsize=11,
+        color=INK,
+    )
+    ax = fig.add_axes((0.225, 0.075, 0.725, 0.227))
+    starts = [0.0] * len(test)
+    for key, label, color, ink in (
+        (none, "None", "#75456f", "white"),
+        (single, "One", "#daa454", INK),
+        (many, "Two or more", "#dae4e6", INK),
+    ):
+        counts = [int(row[key]) for row in test]
+        widths = [
+            100 * count / int(row["sentences"]) for count, row in zip(counts, test)
+        ]
+        bars = ax.barh(
+            range(len(test)),
+            widths,
+            left=starts,
+            height=0.72,
             color=color,
-            markersize=6,
-            transform=table.transAxes,
-            clip_on=False,
+            edgecolor="white",
+            lw=0.7,
+            label=label,
         )
-        table.text(
-            (i + 0.34) / 3,
-            1.068,
-            column,
-            transform=table.transAxes,
-            ha="left",
-            va="center",
-            fontsize=10,
-            weight="bold",
-            color=INK,
-        )
-    for panel in (ax, table):
-        panel.axhline(0.65, color=RULE, lw=0.8)
-    fig.text(
-        0.025,
-        0.046,
-        "Fixed uses the training vocabulary. Filtered removes its predictions on sentences with no gold relation.",
-        fontsize=9.5,
-        color=INK,
+        ax.bar_label(bars, labels=counts, label_type="center", fontsize=10.5, color=ink)
+        starts = [start + width for start, width in zip(starts, widths)]
+    ax.set(
+        yticks=range(len(test)),
+        yticklabels=[names.get(r["domain"], r["domain"].title()) for r in test],
+        xlim=(0, 100),
+        ylim=(len(test) - 0.5, -0.5),
+        xticks=(0, 50, 100),
+        xticklabels=("0%", "50%", "100%"),
     )
-    fig.text(
-        0.025,
-        0.019,
-        "Gold supplies the entity and relation labels from each sentence’s reference relations.",
-        fontsize=9.5,
-        color=INK,
+    ax.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.48, 1.01),
+        ncol=3,
+        frameon=False,
+        handlelength=1.05,
+        columnspacing=0.95,
+        fontsize=10.5,
     )
+    ax.spines[:].set_visible(False)
+    ax.tick_params(length=0, colors=INK, labelsize=10.9)
+    ax.set_xlabel("Share of each domain’s test sentences", color=INK, fontsize=11)
+
     return fig
 
 

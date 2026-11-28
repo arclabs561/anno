@@ -20,6 +20,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 SPECIAL = {
     "WikiANN": "Silver entity tags",
@@ -226,16 +227,20 @@ def collect(direct, repository, hub, github):
     return observations
 
 
-def summarize(observations, names):
-    groups = defaultdict(list)
+def unique_units(observations):
+    groups = defaultdict(dict)
     for item in observations:
-        groups[item.dataset].append(item)
+        # Equal counts alone do not identify the same source partition.
+        groups[item.dataset].setdefault((item.identity, item.tagged, item.tokens), item)
+    return groups
+
+
+def summarize(observations, names):
+    route_counts = defaultdict(int)
+    for item in observations:
+        route_counts[item.dataset] += 1
     rows = []
-    for dataset, group in groups.items():
-        units = {}
-        for item in group:
-            # Different files with coincidentally equal counts remain separate.
-            units.setdefault((item.identity, item.tagged, item.tokens), item)
+    for dataset, units in unique_units(observations).items():
         rates = [100 * item.density for item in units.values()]
         quartiles = (
             quantiles(rates, n=4, method="inclusive") if len(rates) >= 4 else None
@@ -245,7 +250,7 @@ def summarize(observations, names):
             "name": names[dataset],
             "annotation": SPECIAL.get(dataset, "Entity tags"),
             "n_observation_units": len(units),
-            "n_route_observations": len(group),
+            "n_route_observations": route_counts[dataset],
             "median_percent": float(median(rates)),
             "p25_percent": float(quartiles[0]) if quartiles else "",
             "p75_percent": float(quartiles[2]) if quartiles else "",
@@ -267,6 +272,122 @@ def summarize(observations, names):
     return sorted(
         rows, key=lambda row: (-row["median_percent"], row["name"], row["id"])
     )
+
+
+def write_units(path, observations):
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(
+            (
+                "id",
+                "annotation",
+                "partition",
+                "tagged",
+                "tokens",
+                "percent",
+                "route",
+                "source",
+                "sha256",
+            )
+        )
+        for dataset, group in sorted(unique_units(observations).items()):
+            for unit in sorted(
+                group.values(), key=lambda u: (u.partition, u.source, u.identity)
+            ):
+                writer.writerow(
+                    (
+                        dataset,
+                        SPECIAL.get(dataset, "Entity tags"),
+                        unit.partition,
+                        unit.tagged,
+                        unit.tokens,
+                        f"{float(unit.density) * 100:.6f}",
+                        unit.route,
+                        unit.source,
+                        unit.sha256,
+                    )
+                )
+
+
+def plot_biomedical(observations, output):
+    """One term-annotation task per row, displaying each measured split directly."""
+    types = {
+        "BC4CHEMD": "Chemicals",
+        "NCBIDisease": "Diseases",
+        "BC2GM": "Genes and proteins",
+        "S800": "Species",
+    }
+    groups = unique_units(observations)
+    selected = [
+        (name, types[name], list(groups[name].values()))
+        for name in types
+        if name in groups
+    ]
+    if not selected:
+        return
+    maximum = max(100 * float(u.density) for _, _, units in selected for u in units)
+    limit = min(100, 5 * (int(maximum / 5) + 1))
+    ink, muted, teal = "#193743", "#455e66", "#096e69"
+    fig, ax = plt.subplots(figsize=(4.45, 2.5 + 0.60 * len(selected)))
+    fig.subplots_adjust(left=0.405, right=0.95, top=0.70, bottom=0.20)
+    fig.text(
+        0.045,
+        0.965,
+        "How much biomedical text\ncarries a term label?",
+        weight="bold",
+        size=15.4,
+        color=ink,
+        va="top",
+    )
+    fig.text(
+        0.045,
+        0.815,
+        "Each dot shows one file or partition.\nThe line spans the observed rates.",
+        size=10.6,
+        color=muted,
+        va="top",
+    )
+    ax.set_xlim(0, limit)
+    ax.set_ylim(len(selected) - 0.55, -0.55)
+    ax.set_yticks(
+        range(len(selected)),
+        [f"{kind}\n{ident} · n={len(units)}" for ident, kind, units in selected],
+        fontsize=10.6,
+    )
+    ax.spines[:].set_visible(False)
+    ax.tick_params(length=0, colors=ink)
+    ax.set_axisbelow(True)
+    ax.grid(axis="x", color="#dce4e6", linewidth=0.8)
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
+    ax.tick_params(axis="x", labelsize=10.3)
+    ax.set_xlabel("Labeled source tokens (%)", size=10.6, color=ink)
+    for y, (_, _, units) in enumerate(selected):
+        values = sorted(100 * float(u.density) for u in units)
+        ax.hlines(y, values[0], values[-1], color=teal, lw=1.1)
+        # Stagger each observation slightly so coincident percentages stay visible.
+        offsets = [
+            (i - (len(units) - 1) / 2) * min(0.11, 0.48 / len(units))
+            for i in range(len(units))
+        ]
+        ax.scatter(
+            values,
+            [y + d for d in offsets],
+            s=42,
+            color=teal,
+            edgecolor="white",
+            linewidth=0.8,
+            zorder=3,
+        )
+    fig.text(
+        0.045,
+        0.042,
+        "Rates use each release’s tokenization.",
+        size=10.3,
+        color=muted,
+    )
+    for ext in ("png", "svg"):
+        fig.savefig(output / f"dataset-density-biomedical.{ext}", dpi=160)
+    plt.close(fig)
 
 
 def plot(rows, output):
@@ -452,6 +573,8 @@ def main():
     rows = summarize(observations, names)
     args.output.mkdir(parents=True, exist_ok=True)
     plot(rows, args.output)
+    plot_biomedical(observations, args.output)
+    write_units(args.output / "dataset-density-units.csv", observations)
     with (args.output / "dataset-density-ranges.csv").open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=rows[0], lineterminator="\n")
         writer.writeheader()

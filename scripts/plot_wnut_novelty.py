@@ -337,7 +337,6 @@ def plot(rows, output):
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
 
     individuals = defaultdict(dict)
@@ -352,218 +351,166 @@ def plot(rows, output):
     order = sorted(
         individuals, key=lambda name: -individuals[name]["unseen"]["correct"]
     )
-    fig = plt.figure(figsize=(8.7, 7.25), facecolor="white")
+    fig = plt.figure(figsize=(4.85, 6.9), facecolor="white")
+    total = individuals[order[0]]
+    unseen_gold, seen_gold = (total[key]["gold"] for key in ("unseen", "seen"))
     fig.text(
-        0.025,
-        0.967,
-        "Which unfamiliar names do WNUT-17 systems recover?",
-        fontsize=17,
+        0.045,
+        0.951,
+        "Unfamiliar names in WNUT-17",
+        fontsize=16,
         color=INK,
         weight="bold",
     )
     fig.text(
-        0.025,
-        0.926,
-        f"{len(order)} published submissions with identical test tokens · Exact span and entity type",
-        fontsize=10.5,
+        0.045,
+        0.912,
+        f"{len(order)} systems on identical test tokens · exact span and type",
+        fontsize=10.9,
+        color=INK,
+    )
+    fig.text(
+        0.045,
+        0.853,
+        f"Unseen in training  ·  {unseen_gold:,} gold mentions",
+        color=TEAL,
+        fontsize=12,
+        weight="bold",
+    )
+    fig.text(
+        0.045,
+        0.816,
+        f"Seen in training  ·  one of {seen_gold} hits shifts recall by {100 / seen_gold:.1f} points.",
+        fontsize=10.8,
         color=INK,
     )
 
-    ax = fig.add_axes([0.203, 0.546, 0.605, 0.255])
-    fig.text(
-        0.025,
-        0.865,
-        "Recall by exposure to training names",
-        fontsize=13,
-        weight="bold",
-        color=INK,
-    )
-    totals = individuals[order[0]]
-    handles = [
-        Line2D(
-            [],
-            [],
-            marker="o",
-            ls="",
-            color=TEAL,
-            label=f"Unseen ({totals['unseen']['gold']:,} gold mentions)",
-        ),
-        Line2D(
-            [],
-            [],
-            marker="D",
-            ls="",
-            markerfacecolor="white",
-            color=SEEN,
-            label=f"Seen ({totals['seen']['gold']} gold mentions)",
-        ),
-    ]
-    ax.legend(
-        handles=handles,
-        loc="lower left",
-        bbox_to_anchor=(-0.016, 1.015),
-        ncol=2,
-        frameon=False,
-        handletextpad=0.2,
-        columnspacing=1.5,
-        fontsize=9,
-    )
-    ax.text(
-        1.20,
-        1.085,
-        "Unseen\nprecision",
-        transform=ax.transAxes,
-        ha="center",
-        va="center",
-        fontsize=9,
-        weight="bold",
-        color=INK,
-    )
-    for i, name in enumerate(order):
-        unseen, seen = individuals[name]["unseen"], individuals[name]["seen"]
-        u, s = (100 * r["correct"] / r["gold"] for r in (unseen, seen))
-        ax.plot([u, s], [i, i], color=RULE, lw=2.2, zorder=1)
-        ax.scatter([u], [i], s=45, color=TEAL, zorder=3)
-        ax.scatter(
-            [s],
-            [i],
-            s=38,
-            marker="D",
-            facecolor="white",
-            edgecolor=SEEN,
-            linewidth=1.6,
-            zorder=3,
-        )
-        ax.annotate(
-            f"{u:.1f}%",
-            (u, i),
-            xytext=(-8, 0),
-            textcoords="offset points",
-            ha="right",
+    table = fig.add_axes((0.045, 0.525, 0.915, 0.269))
+    table.set(xlim=(0, 1), ylim=(len(order) - 0.3, -1.55))
+    table.axis("off")
+    for col, label in (
+        (0, "Submission"),
+        (0.48, "Unseen\nrecall"),
+        (0.71, "Unseen\nprecision"),
+        (1.0, "Seen\nhits"),
+    ):
+        table.text(
+            col,
+            -1.18,
+            label,
+            ha="left" if col == 0 else "right",
             va="center",
-            color=TEAL,
-            fontsize=9,
-        )
-        ax.annotate(
-            f"{seen['correct']}/{seen['gold']}",
-            (s, i),
-            xytext=(8, 0),
-            textcoords="offset points",
-            ha="left",
-            va="center",
-            color=SEEN,
-            fontsize=9,
-        )
-        precision = 100 * unseen["correct"] / unseen["predicted"]
-        ax.text(
-            1.20,
-            i,
-            f"{precision:.1f}%",
-            transform=ax.get_yaxis_transform(),
-            ha="center",
-            va="center",
+            fontsize=10.2,
+            weight="bold",
             color=INK,
-            fontsize=10,
         )
-    ax.set(
-        ylim=(len(order) - 0.45, -0.55),
-        yticks=range(len(order)),
-        yticklabels=order,
-        xlim=(0, 100),
-        xticks=[0, 25, 50, 75, 100],
-        xticklabels=["0%", "25%", "50%", "75%", "100%"],
-    )
-    ax.grid(axis="x", color="#ebeeee", linewidth=0.7)
-    ax.set_axisbelow(True)
-    ax.tick_params(axis="both", length=0, pad=5, labelcolor=INK)
-    ax.spines[:].set_visible(False)
+    table.axhline(-0.51, color=RULE, lw=0.8)
+    for row, name in enumerate(order):
+        unseen, seen = (individuals[name][key] for key in ("unseen", "seen"))
+        table.text(0, row, name, va="center", fontsize=10.8, color=INK)
+        for col, value, color in (
+            (0.48, f"{100 * unseen['correct'] / unseen['gold']:.1f}%", TEAL),
+            (0.71, f"{100 * unseen['correct'] / unseen['predicted']:.1f}%", TEAL),
+            (1.0, f"{seen['correct']} / {seen['gold']}", SEEN),
+        ):
+            table.text(
+                col, row, value, ha="right", va="center", fontsize=11.6, color=color
+            )
 
+    combined = groups["all"]
     fig.text(
-        0.025,
-        0.441,
-        "What did the submissions find on each unseen mention?",
-        fontsize=13,
+        0.045,
+        0.476,
+        f"Best match from any of {len(order)} systems",
+        fontsize=14,
         color=INK,
         weight="bold",
     )
     fig.text(
-        0.025,
-        0.406,
-        "Each gold mention gets the closest match made by any of them.",
-        fontsize=10,
+        0.045,
+        0.439,
+        f"At least one system found {combined['correct']:,} / {combined['gold']:,} unfamiliar mentions.",
+        fontsize=10.8,
         color=INK,
     )
-    bx = fig.add_axes([0.203, 0.135, 0.724, 0.24])
+    bx = fig.add_axes([0.253, 0.123, 0.605, 0.238])
     kinds = sorted(TYPES, key=lambda k: -groups[k]["correct"] / groups[k]["gold"])
-    for i, kind in enumerate(kinds):
-        left = 0
+    for row, kind in enumerate(kinds):
         group = groups[kind]
+        start = 0
         for outcome, color in zip(OUTCOMES, OUTCOME_COLORS):
-            count = group[outcome]
-            width = 100 * count / group["gold"]
+            n = group[outcome]
+            width = 100 * n / group["gold"]
             bx.barh(
-                i,
+                row,
                 width,
-                left=left,
-                height=0.65,
+                left=start,
+                height=0.68,
                 color=color,
                 edgecolor="white",
-                linewidth=0.7,
+                lw=0.6,
             )
-            if width >= 4:
+            if width >= 10:
                 bx.text(
-                    left + width / 2,
-                    i,
-                    str(count),
+                    start + width / 2,
+                    row,
+                    str(n),
                     va="center",
                     ha="center",
-                    fontsize=8.5,
-                    color="white" if outcome == "correct" else "#17262c",
+                    fontsize=10,
+                    color="white" if outcome == "correct" else INK,
                 )
-            left += width
+            start += width
         bx.text(
-            101.5, i, str(group["gold"]), va="center", ha="left", fontsize=9, color=INK
+            1.15,
+            row,
+            str(group["gold"]),
+            transform=bx.get_yaxis_transform(),
+            va="center",
+            ha="right",
+            fontsize=11,
+            color=INK,
         )
     bx.text(
-        101.5,
-        -0.70,
+        1.15,
+        1.015,
         "Gold",
-        ha="left",
-        va="bottom",
-        fontsize=8.5,
+        transform=bx.transAxes,
+        ha="right",
+        fontsize=10.4,
         weight="bold",
         color=INK,
     )
     bx.set(
-        ylim=(len(kinds) - 0.4, -0.55),
+        ylim=(len(kinds) - 0.45, -0.55),
         yticks=range(len(kinds)),
-        yticklabels=[k.title().replace("-", " ") for k in kinds],
-        xlim=(0, 104),
-        xticks=[0, 25, 50, 75, 100],
-        xticklabels=["0%", "25%", "50%", "75%", "100%"],
+        yticklabels=[k.replace("-", " ").capitalize() for k in kinds],
+        xlim=(0, 100),
+        xticks=(0, 50, 100),
+        xticklabels=("0%", "50%", "100%"),
     )
     bx.spines[:].set_visible(False)
-    bx.tick_params(axis="both", length=0, pad=5, labelcolor=INK)
+    bx.tick_params(length=0, pad=3, colors=INK, labelsize=10.4)
     fig.legend(
         handles=[
             Patch(facecolor=c, label=l)
             for c, l in zip(
                 OUTCOME_COLORS,
                 [
-                    "Exact span + type",
+                    "Exact span and type",
                     "Same span, wrong type",
-                    "Different overlapping span",
+                    "Boundary overlap",
                     "No overlap",
                 ],
             )
         ],
-        loc="lower center",
-        bbox_to_anchor=(0.50, 0.030),
+        loc="center left",
+        bbox_to_anchor=(0.027, 0.052),
         frameon=False,
         ncol=2,
-        fontsize=9.5,
-        columnspacing=1.7,
-        handlelength=1.1,
+        handlelength=1.0,
+        columnspacing=0.9,
+        fontsize=10.3,
     )
     for ext in ("png", "svg"):
         fig.savefig(output / f"wnut-novelty.{ext}", dpi=160)

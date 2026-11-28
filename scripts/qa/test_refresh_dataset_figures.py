@@ -39,6 +39,7 @@ class PublishedFigureChecks(unittest.TestCase):
             for suffix, contents in (
                 ("csv", b"count\n3\n"),
                 ("svg", b"<svg>\n<desc>3</desc>\n</svg>\n"),
+                ("html", b"<html>\n<p>3</p>\n</html>\n"),
             ):
                 with self.subTest(suffix=suffix):
                     built, existing = (
@@ -74,6 +75,7 @@ class PublishedFigureChecks(unittest.TestCase):
                     "right-tradeoff",
                     "genia-span-overlap",
                     "wikigold-entity-errors",
+                    "comparison-paired",
                 )
             ]
             for source in sources:
@@ -89,6 +91,9 @@ class PublishedFigureChecks(unittest.TestCase):
                 )
                 self.assertTrue(check)
                 title = json.loads(source.read_text(encoding="utf-8"))["title"]
+                if dest.suffix == ".html":
+                    dest.write_text(f"<html><title>{title}</title></html>", encoding="utf-8")
+                    return
                 dest.write_text(
                     '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="30">'
                     f'<text x="4" y="21" font-family="DejaVu Sans">{title}</text></svg>',
@@ -101,7 +106,7 @@ class PublishedFigureChecks(unittest.TestCase):
                 ) as render:
                     figures.render_native(sources, output, anno=None)
                 build.assert_called_once_with()
-                self.assertEqual(render.call_count, len(sources))
+                self.assertEqual(render.call_count, 2 * len(sources))
 
             for source in sources:
                 with self.subTest(source=source.name):
@@ -110,6 +115,7 @@ class PublishedFigureChecks(unittest.TestCase):
                     )
                     svg = output / source.with_suffix(".svg").name
                     self.assertIn(source.stem, svg.read_text(encoding="utf-8"))
+                    self.assertIn(source.stem, svg.with_suffix(".html").read_text(encoding="utf-8"))
                     with Image.open(svg.with_suffix(".png")) as preview:
                         self.assertEqual(preview.size, (120, 30))
                         self.assertIsNotNone(

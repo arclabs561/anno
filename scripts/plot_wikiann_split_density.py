@@ -110,47 +110,49 @@ def comparison_rows(ledger, dataset="WikiANN"):
 
 
 def plot(rows, output):
-    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, figsize=(8.6, 4.1))
-    fig.subplots_adjust(left=0.095, right=0.974, top=0.615, bottom=0.226, wspace=0.14)
     total = len(rows)
+    fig, axes = plt.subplots(2, 1, sharex=True, sharey=True, figsize=(4.9, 7.25))
+    fig.subplots_adjust(left=0.13, right=0.965, top=0.748, bottom=0.157, hspace=0.97)
     fig.text(
-        0.035,
-        0.96,
-        "How well does training density predict a held-out split?",
+        0.04,
+        0.956,
+        "How close is training density?",
         fontsize=16,
         weight="bold",
-        va="top",
         color=INK,
     )
     fig.text(
-        0.035,
-        0.855,
-        f"WikiANN · {total} languages · silver-tagged tokens as a share of all tokens",
-        fontsize=9.4,
-        va="top",
+        0.04,
+        0.912,
+        f"WikiANN · {total} matched languages · silver-tagged tokens",
+        fontsize=11,
+        color=MUTED,
+    )
+    fig.text(
+        0.04,
+        0.878,
+        "Curves count languages within each absolute error.",
+        fontsize=11,
         color=MUTED,
     )
     fig.legend(
         handles=[
-            Line2D(
-                [], [], color=SAME, lw=2.4, label="Training split in the same language"
-            ),
+            Line2D([], [], color=SAME, lw=2.4, label="Same language’s training rate"),
             Line2D(
                 [],
                 [],
                 color=OTHER,
-                lw=2.1,
+                lw=2.2,
                 ls="--",
                 label=f"Median training rate in the other {total - 1} languages",
             ),
         ],
         loc="upper left",
-        bbox_to_anchor=(0.027, 0.802),
-        ncol=2,
-        columnspacing=2,
-        handlelength=2.7,
+        bbox_to_anchor=(0.018, 0.868),
+        handlelength=2.3,
         frameon=False,
-        fontsize=8.9,
+        fontsize=10.6,
+        labelspacing=0.4,
     )
     largest = max(
         row[f"{split}_{reference}_error_pp"]
@@ -160,11 +162,11 @@ def plot(rows, output):
     )
     limit = max(10, 10 * ceil(largest / 10))
     for ax, (split, label) in zip(axes, HELD_OUT.items()):
-        medians = []
-        within_five = []
-        for reference, color, style in (
-            ("same_language", SAME, "-"),
-            ("other_languages", OTHER, "--"),
+        medians, within_five = [], []
+        ax.axvline(5, linestyle=":", color="#65767e", lw=1.2)
+        for reference, color, style, marker in (
+            ("same_language", SAME, "-", "o"),
+            ("other_languages", OTHER, "--", "s"),
         ):
             errors = sorted(row[f"{split}_{reference}_error_pp"] for row in rows)
             ranks = [100 * i / total for i in range(1, total + 1)]
@@ -174,42 +176,52 @@ def plot(rows, output):
                 where="post",
                 color=color,
                 ls=style,
-                lw=2.0,
-                zorder=3,
+                lw=2,
             )
+            within = sum(error <= 5 for error in errors)
+            ax.plot(5, 100 * within / total, marker=marker, ms=6, color=color, zorder=4)
             medians.append(median(errors))
-            within_five.append(sum(error <= 5 for error in errors))
-        ax.set_title(label, loc="left", fontsize=11, weight="bold", color=INK, pad=8)
-        ax.set_xlim(0, limit)
-        ax.set_ylim(0, 103)
-        ax.set_xticks(range(0, limit + 1, 10))
-        ax.set_yticks((0, 25, 50, 75, 100))
-        ax.grid(axis="y", color="#d6dfe0", lw=0.65)
-        ax.axvline(5, linestyle=":", color="#72838a", lw=0.8)
+            within_five.append(within)
+        ax.set_title(
+            f"{label}  ·  5-point tolerance",
+            loc="left",
+            fontsize=12.3,
+            weight="bold",
+            color=INK,
+            pad=6,
+        )
+        ax.set(
+            xlim=(0, limit),
+            ylim=(0, 103),
+            xticks=[0, 5, *range(20, limit + 1, 20)],
+            yticks=(0, 50, 100),
+            yticklabels=("0%", "50%", "100%"),
+        )
+        ax.grid(axis="y", color="#d6dfe0", lw=0.7)
         ax.spines[["top", "right"]].set_visible(False)
         for side in ("left", "bottom"):
             ax.spines[side].set_color("#98a9ac")
-        ax.tick_params(length=2.5, color="#98a9ac", labelsize=8.4)
-        ax.text(
-            0.0,
-            -0.37,
-            f"Median error   {medians[0]:.1f} vs {medians[1]:.1f} points",
-            transform=ax.transAxes,
-            fontsize=9.0,
-            color=INK,
-            weight="bold",
+        ax.tick_params(length=2.5, color="#98a9ac", labelsize=10.6, labelbottom=True)
+        # Position the labels in rank order at the observed tolerance.
+        entries = sorted(
+            zip(within_five, medians, ("Same", "Other"), (SAME, OTHER)), reverse=True
         )
-        ax.text(
-            0.0,
-            -0.50,
-            f"Within 5 points   {within_five[0]} vs {within_five[1]} of {total} languages",
-            transform=ax.transAxes,
-            fontsize=8.0,
-            color=MUTED,
-        )
-    axes[0].set_ylabel("Languages within error threshold (%)", fontsize=8.6, color=INK)
-    for ax in axes:
-        ax.set_xlabel("Absolute error (percentage points)", fontsize=8.5, color=INK)
+        for i, (count, mid, name, color) in enumerate(entries):
+            ax.text(
+                0,
+                -0.31 - i * 0.155,
+                f"{name}  {count}/{total} within tolerance  ·  median error {mid:.1f} pp",
+                transform=ax.transAxes,
+                fontsize=10.2,
+                color=color,
+            )
+    fig.text(
+        0.04,
+        0.016,
+        "Horizontal scale is absolute error in percentage points.",
+        fontsize=10.4,
+        color=MUTED,
+    )
     for ext in ("png", "svg"):
         fig.savefig(output / f"wikiann-split-density.{ext}", dpi=160)
     plt.close(fig)

@@ -96,7 +96,22 @@ class WikiGoldEntityErrorsTest(unittest.TestCase):
             ),
         )
         self.assertEqual(sum(confused_pred.values()), totals["same_span_wrong_label"])
+        native_labels = self.report["label_outcomes"]
+        for label, counts in gold.items():
+            self.assertEqual(
+                native_labels["by_gold_label"][label],
+                {
+                    "exact": counts.get("correct", 0),
+                    "same_span_wrong_label": counts.get("type_mismatch", 0),
+                    "partial_overlap": counts.get("boundary_error", 0),
+                    "missed": counts.get("false_negative", 0),
+                },
+            )
         partial = audit["partial_overlap_labels_from_aligned_signals"]
+        self.assertEqual(
+            native_labels["partial_labels"],
+            {"same": partial["same_label"], "different": partial["different_labels"]},
+        )
         self.assertEqual(
             partial["different_labels"] + partial["same_label"],
             totals["partial_overlap"],

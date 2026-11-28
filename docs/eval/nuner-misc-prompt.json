@@ -1,0 +1,622 @@
+{
+  "bert": "absent",
+  "candidate_patch_sha256": "3a5babeaac949fef53abb177e77612fde02d29cb8aeae22a3f7be7790beda40e",
+  "candidate_prompts": [
+    "person",
+    "organization",
+    "location",
+    "miscellaneous"
+  ],
+  "checkpoint_sha256": {
+    "gliner_config.json": "84c03b5361224deac8f8af3ba99deab2e0fe24ae7ae953669b6c9e70460a2659",
+    "model.onnx": "65c04518901b4484e32c7aa80edc98ab025067e44569141bee94cc498f8096f5",
+    "tokenizer.json": "44ce8be1f3118c673c7408bf903766c38bf1ea507e9b8f1e3d85b253a9a12ad1"
+  },
+  "final_threshold": 0.5,
+  "model": "deepanwa/NuNerZero_onnx@40349bb15d985ced384bed5c35115fd70069f4b9",
+  "nuner_threshold": 0.9,
+  "routing": "stock, no fallback opt-in",
+  "scoring": "Exact typed Unicode-character spans on identical ordered sentences. Suggestions include every final native output. Mapped suggestions include only the corpus scoring inventory. The fourth prompt maps to MISC. WNUT has no gold MISC class and excludes candidate MISC outputs from mapped suggestions.",
+  "stock_prompts": [
+    "person",
+    "organization",
+    "location"
+  ],
+  "wikigold": {
+    "by_gold_label": {
+      "LOC": {
+        "candidate_exact": 726,
+        "gained": 14,
+        "gold": 1014,
+        "lost": 15,
+        "stock_exact": 727
+      },
+      "MISC": {
+        "candidate_exact": 20,
+        "gained": 20,
+        "gold": 712,
+        "lost": 0,
+        "stock_exact": 0
+      },
+      "ORG": {
+        "candidate_exact": 564,
+        "gained": 2,
+        "gold": 898,
+        "lost": 14,
+        "stock_exact": 576
+      },
+      "PER": {
+        "candidate_exact": 730,
+        "gained": 1,
+        "gold": 934,
+        "lost": 2,
+        "stock_exact": 731
+      }
+    },
+    "candidate_exact": 2040,
+    "candidate_mapped_suggestions": 3438,
+    "candidate_mapped_unmatched": 1398,
+    "candidate_misc_predictions": 34,
+    "candidate_misc_reference_overlap": {
+      "no_overlap": 13,
+      "overlap_only": 1,
+      "same_span_misc": 20,
+      "same_span_other_type": 0
+    },
+    "candidate_ordered_output_sha256": "8ce6cda4d744aa191d0103dcb80252d29b4858a76b6f47a3495ae8dc7ddf48bd",
+    "candidate_suggestions": 3718,
+    "exact_gained": 37,
+    "exact_lost": 31,
+    "gold": 3558,
+    "gold_empty_sentences": 355,
+    "new_exact_misc_by_stock_overlap": {
+      "no_overlap": 18,
+      "overlap_only": 0,
+      "same_span_other_type": 2
+    },
+    "nuner_calls": 1383,
+    "ordered_group_and_input_sha256": "e95170b5472d415fcd97f4b2004e100e92142aee0f5e7415920d1260aeb3063e",
+    "resampling": {
+      "groups": 145,
+      "histogram": [
+        {
+          "groups": 12,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 1
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 2
+        },
+        {
+          "groups": 10,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 2
+        },
+        {
+          "groups": 14,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 3
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 3
+        },
+        {
+          "groups": 1,
+          "net_exact": -2,
+          "net_misc_exact": 0,
+          "sentences": 4
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 4
+        },
+        {
+          "groups": 12,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 4
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 4
+        },
+        {
+          "groups": 9,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 5
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 5
+        },
+        {
+          "groups": 2,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 6
+        },
+        {
+          "groups": 6,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 6
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 6
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 1,
+          "sentences": 7
+        },
+        {
+          "groups": 9,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 7
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 7
+        },
+        {
+          "groups": 1,
+          "net_exact": 2,
+          "net_misc_exact": 0,
+          "sentences": 7
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 8
+        },
+        {
+          "groups": 3,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 9
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 9
+        },
+        {
+          "groups": 4,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 10
+        },
+        {
+          "groups": 4,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 11
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 11
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 12
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 12
+        },
+        {
+          "groups": 1,
+          "net_exact": -3,
+          "net_misc_exact": 0,
+          "sentences": 13
+        },
+        {
+          "groups": 2,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 13
+        },
+        {
+          "groups": 2,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 13
+        },
+        {
+          "groups": 1,
+          "net_exact": 3,
+          "net_misc_exact": 3,
+          "sentences": 13
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 14
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 14
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 14
+        },
+        {
+          "groups": 1,
+          "net_exact": 2,
+          "net_misc_exact": 1,
+          "sentences": 14
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 15
+        },
+        {
+          "groups": 2,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 15
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 1,
+          "sentences": 15
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 1,
+          "sentences": 16
+        },
+        {
+          "groups": 3,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 17
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 18
+        },
+        {
+          "groups": 2,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 19
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 19
+        },
+        {
+          "groups": 1,
+          "net_exact": 4,
+          "net_misc_exact": 3,
+          "sentences": 19
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 20
+        },
+        {
+          "groups": 4,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 21
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 28
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 2,
+          "sentences": 28
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 29
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 30
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 1,
+          "sentences": 33
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 36
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 37
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 1,
+          "sentences": 38
+        },
+        {
+          "groups": 1,
+          "net_exact": -3,
+          "net_misc_exact": 0,
+          "sentences": 40
+        },
+        {
+          "groups": 2,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 45
+        },
+        {
+          "groups": 1,
+          "net_exact": -1,
+          "net_misc_exact": 0,
+          "sentences": 46
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 47
+        },
+        {
+          "groups": 1,
+          "net_exact": 0,
+          "net_misc_exact": 0,
+          "sentences": 50
+        },
+        {
+          "groups": 1,
+          "net_exact": 2,
+          "net_misc_exact": 1,
+          "sentences": 59
+        },
+        {
+          "groups": 1,
+          "net_exact": -3,
+          "net_misc_exact": 0,
+          "sentences": 74
+        },
+        {
+          "groups": 1,
+          "net_exact": 1,
+          "net_misc_exact": 0,
+          "sentences": 82
+        }
+      ],
+      "intervals": {
+        "all": {
+          "lower": -13.24,
+          "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+          "upper": 26.04
+        },
+        "misc": {
+          "lower": 10.13,
+          "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+          "upper": 32.13
+        },
+        "other": {
+          "lower": -30.38,
+          "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+          "upper": 2.2
+        }
+      },
+      "replicates": 4000,
+      "seed": 430,
+      "sentences": 1696,
+      "unit": "WikiGold document"
+    },
+    "sentences": 1696,
+    "sentences_changed": 167,
+    "source": {
+      "bytes": 318530,
+      "cold_s3_artifact": 15123052847,
+      "cold_s3_receipt": "wikigold-cold.json",
+      "cold_s3_workflow_run": 45834640325,
+      "distinct_sentence_texts": 1687,
+      "document_markers_excluded": 145,
+      "documents_with_sentences": 145,
+      "gold_empty_sentences": 355,
+      "gold_spans": 3558,
+      "native_gold_cases_sha256": "25ebf59f7db0e89410130ae9e99f1293f24548742e62185c605699eb109d916d",
+      "publisher": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt",
+      "sentence_occurrences": 1696,
+      "sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+      "tagged_tokens": 6431,
+      "tokens": 39007
+    },
+    "stock_exact": 2034,
+    "stock_mapped_suggestions": 3438,
+    "stock_mapped_unmatched": 1404,
+    "stock_misc_predictions": 0,
+    "stock_mislabeled_misc": {
+      "boundaries_missing_after": 14,
+      "corrected": 2,
+      "same_bounds_wrong_type_after": 247,
+      "stock_same_bounds_wrong_type": 263
+    },
+    "stock_ordered_output_sha256": "eba388dec93c184b91800ef33d557cb30575c65aa36526efbe32e467aa639e23",
+    "stock_skipped": 313,
+    "stock_suggestions": 3718
+  },
+  "wnut_test": {
+    "by_gold_label": {
+      "LOC": {
+        "candidate_exact": 77,
+        "gained": 2,
+        "gold": 150,
+        "lost": 0,
+        "stock_exact": 75
+      },
+      "ORG": {
+        "candidate_exact": 109,
+        "gained": 2,
+        "gold": 231,
+        "lost": 2,
+        "stock_exact": 109
+      },
+      "PER": {
+        "candidate_exact": 288,
+        "gained": 1,
+        "gold": 429,
+        "lost": 5,
+        "stock_exact": 292
+      },
+      "PRODUCT": {
+        "candidate_exact": 0,
+        "gained": 0,
+        "gold": 127,
+        "lost": 0,
+        "stock_exact": 0
+      },
+      "WORK_OF_ART": {
+        "candidate_exact": 0,
+        "gained": 0,
+        "gold": 142,
+        "lost": 0,
+        "stock_exact": 0
+      }
+    },
+    "candidate_exact": 474,
+    "candidate_mapped_suggestions": 1591,
+    "candidate_mapped_unmatched": 1117,
+    "candidate_misc_predictions": 10,
+    "candidate_misc_reference_overlap": {
+      "no_overlap": 9,
+      "overlap_only": 0,
+      "same_span_misc": 0,
+      "same_span_other_type": 1
+    },
+    "candidate_ordered_output_sha256": "ce30e89cdfe5e0a1fb6374d924176136288c2229903e5e00bc8a37256431cbd6",
+    "candidate_suggestions": 2102,
+    "exact_gained": 5,
+    "exact_lost": 7,
+    "gold": 1079,
+    "gold_empty_sentences": 598,
+    "nuner_calls": 992,
+    "ordered_group_and_input_sha256": "758983abc813c39fedc7466d365014e804bddb9e7baaa75cfbc5c38d3ac72db1",
+    "resampling": {
+      "groups": 1287,
+      "histogram": [
+        {
+          "groups": 5,
+          "net_exact": -1,
+          "sentences": 1
+        },
+        {
+          "groups": 1279,
+          "net_exact": 0,
+          "sentences": 1
+        },
+        {
+          "groups": 3,
+          "net_exact": 1,
+          "sentences": 1
+        }
+      ],
+      "intervals": {
+        "all": {
+          "lower": -8.0,
+          "method": "95% paired bootstrap by sentence occurrence, scaled to 1,287 sentences",
+          "upper": 3.0
+        }
+      },
+      "replicates": 4000,
+      "seed": 430,
+      "sentences": 1287,
+      "unit": "sentence occurrence"
+    },
+    "sentences": 1287,
+    "sentences_changed": 83,
+    "source": {
+      "repository": "leondz/emerging_entities_17",
+      "revision": "e52a2d2a71ac1a051ca2d532eef28653c5c02603",
+      "sha256": {
+        "emerging.test.annotated": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0",
+        "wnut17train.conll": "731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5"
+      },
+      "test_distinct_reconstructed_texts": 1280,
+      "test_gold_empty_sentences": 598,
+      "test_mentions": 1079,
+      "test_reconstructed_texts_sha256": "4aa1f7e39526269175156dc0493abed2e5c9b6ae6cdf3e77c8a16fb9a820c5b8",
+      "test_sentences": 1287,
+      "test_tokens": 23394,
+      "train_casefolded_names": 1544,
+      "train_mentions": 1975,
+      "train_sentences": 3394
+    },
+    "stock_exact": 476,
+    "stock_mapped_suggestions": 1627,
+    "stock_mapped_unmatched": 1151,
+    "stock_misc_predictions": 0,
+    "stock_ordered_output_sha256": "4e78305ed92b34af1278a28a1bac6bf472a9a37ef368cd4636119ad9225d7b89",
+    "stock_skipped": 295,
+    "stock_suggestions": 2128
+  },
+  "worker_sha256": {
+    "candidate": "8aab5aca5f28833cf852d5f021257d229425aa4b01263698e3b31522b7643b3f",
+    "stock": "62e462569c0eac5f58ee585a6770ec36e1f3225d520d9953f46f40242973818a"
+  }
+}

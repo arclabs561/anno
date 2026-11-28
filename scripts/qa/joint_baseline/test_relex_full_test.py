@@ -92,6 +92,14 @@ class FullReleaseTest(unittest.TestCase):
         self.assertEqual(transitions["both_correct_different_relation"], 14)
         self.assertEqual(transitions["confidence_only_correct"], 41)
         self.assertEqual(transitions["both_margins_only_correct"], 39)
+        fresh = groups["additional_test"]
+        for domain, estimates in fresh["domain_net_match_intervals"].items():
+            counts = [fresh["domains"][domain]["paired_review_slots"]]
+            self.assertEqual(estimates["pointwise_95"], replay.paired_interval(counts))
+            adjusted = replay.paired_interval(counts, alpha=.05 / len(fresh["domains"]))
+            self.assertEqual(estimates["bonferroni_family_95"], adjusted)
+            self.assertLessEqual(adjusted["lower"], 0)
+            self.assertGreaterEqual(adjusted["upper"], 0)
         self.assertEqual(groups["balanced_test"]["stock"], frozen["panels"]["test"]["stock"])
         self.assertEqual(
             groups["balanced_test"]["additional_edges"],

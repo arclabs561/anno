@@ -67,6 +67,38 @@
       "pairs": 1
     }
   ],
+  "label_outcomes": {
+    "by_gold_label": {
+      "LOC": {
+        "exact": 727,
+        "same_span_wrong_label": 109,
+        "partial_overlap": 53,
+        "missed": 125
+      },
+      "MISC": {
+        "exact": 0,
+        "same_span_wrong_label": 263,
+        "partial_overlap": 121,
+        "missed": 328
+      },
+      "ORG": {
+        "exact": 576,
+        "same_span_wrong_label": 120,
+        "partial_overlap": 102,
+        "missed": 100
+      },
+      "PER": {
+        "exact": 731,
+        "same_span_wrong_label": 44,
+        "partial_overlap": 71,
+        "missed": 88
+      }
+    },
+    "partial_labels": {
+      "same": 137,
+      "different": 210
+    }
+  },
   "metadata": {
     "by_gold_label": {
       "LOC": {

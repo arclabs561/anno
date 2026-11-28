@@ -5,11 +5,22 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from relex_predicate_ranking import RULES, compare_scores, suggestions, tradeoff
+from relex_predicate_ranking import RULES, cli_gate_report, compare_scores, suggestions, tradeoff
 from relex_roles import measure
 
 
 class PredicateRankingTests(unittest.TestCase):
+    def test_cli_gate_replay_uses_the_original_panel_denominators_and_fingerprints(self):
+        eval_dir = Path(__file__).resolve().parents[3] / "docs/eval"
+        original = json.loads((eval_dir / "crossre-predicate-ranking.json").read_text())
+        frozen = json.loads((eval_dir / "crossre-cli-predicate-gates.json").read_text())
+        counted = {"dev": Counter(sentences=96, gold=397, matched=121, predicted=371),
+                   "test": Counter(sentences=192, gold=646, matched=200, predicted=628)}
+        self.assertEqual(cli_gate_report(original, counted), frozen)
+        counted["test"]["sentences"] -= 1
+        with self.assertRaisesRegex(ValueError, "same reference occurrences"):
+            cli_gate_report(original, counted)
+
     def test_existing_threshold_trial_uses_the_same_scored_pairs(self):
         a, b = (0, 1), (2, 3)
         spans = {a, b}
