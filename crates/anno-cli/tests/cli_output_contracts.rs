@@ -55,7 +55,7 @@ fn export_preserves_edits_without_starting_the_selected_model() {
     // Both records retain the same original document ID and must get distinct files.
     let row = doc.to_string();
     fs::write(dir.join("review.jsonl"), format!("{row}\n{row}\n")).unwrap();
-    for fmt in ["brat", "graph-csv"] {
+    for fmt in ["brat", "graph-csv", "jsonl"] {
         ok(
             dir,
             &[
@@ -73,6 +73,15 @@ fn export_preserves_edits_without_starting_the_selected_model() {
     }
     for number in [1, 2] {
         let prefix = format!("out/review-{number}");
+        let label = format!("review.jsonl#record={number}");
+        let rows = fs::read_to_string(dir.join(format!("{prefix}.jsonl"))).unwrap();
+        assert!(!rows.is_empty());
+        for row in rows.lines() {
+            assert_eq!(serde_json::from_str::<Value>(row).unwrap()["source"], label);
+        }
+        let nodes = fs::read_to_string(dir.join(format!("{prefix}-nodes.csv"))).unwrap();
+        assert!(nodes.lines().count() > 1);
+        assert!(nodes.lines().skip(1).all(|row| row.ends_with(&label)));
         let ann = fs::read_to_string(dir.join(format!("{prefix}.ann"))).unwrap();
         assert!(ann.contains("REVIEWED Arg1:T1 Arg2:T2"), "{ann}");
         let edges = fs::read_to_string(dir.join(format!("{prefix}-edges.csv"))).unwrap();

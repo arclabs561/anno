@@ -161,6 +161,7 @@ impl Extracted {
 }
 
 struct ExportInput {
+    record_number: Option<usize>,
     source: PathBuf,
     name: PathBuf,
     document: Option<GroundedDocument>,
@@ -170,6 +171,7 @@ fn plan_input(path: &Path) -> Result<Vec<ExportInput>, String> {
     let extension = path.extension().and_then(|e| e.to_str());
     if !matches!(extension, Some("json" | "jsonl")) {
         return Ok(vec![ExportInput {
+            record_number: None,
             source: path.into(),
             name: path.into(),
             document: None,
@@ -196,6 +198,7 @@ fn plan_input(path: &Path) -> Result<Vec<ExportInput>, String> {
         .into_iter()
         .enumerate()
         .map(|(i, doc)| ExportInput {
+            record_number: multiple.then_some(i + 1),
             source: path.into(),
             name: if multiple {
                 path.with_file_name(format!("{}-{}.json", output_stem(path), i + 1))
@@ -428,6 +431,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                 let entity_count = ext.entities.len();
                 let rel_count = ext.relations.len();
                 match export_file(ExportFileOpts {
+                    record_number: item.record_number,
                     input: file,
                     name: &item.name,
                     output_dir: &destination,
@@ -492,6 +496,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
 }
 
 struct ExportFileOpts<'a> {
+    record_number: Option<usize>,
     input: &'a Path,
     name: &'a Path,
     output_dir: &'a Path,
@@ -576,6 +581,7 @@ pub(super) fn write_extraction(
         super::super::utils::source_sha256(doc.text())
     );
     export_file(ExportFileOpts {
+        record_number: None,
         input: name,
         name,
         output_dir: directory,
@@ -591,6 +597,7 @@ pub(super) fn write_extraction(
 
 fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     let ExportFileOpts {
+        record_number,
         input,
         name,
         output_dir,
@@ -604,6 +611,11 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     } = opts;
     let paths = output_paths(name, output_dir, format);
 
+    let mut source_label = input.to_string_lossy();
+    if let Some(number) = record_number {
+        source_label.to_mut().push_str(&format!("#record={number}"));
+    }
+
     if matches!(format, ExportFormat::GraphCsv) {
         let nodes_path = &paths[0];
         let edges_path = &paths[1];
@@ -615,7 +627,7 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         let (nodes_csv, edges_csv) = writer(
             &ext.entities,
             &ext.relations,
-            &input.to_string_lossy(),
+            &source_label,
             include_confidence,
         );
         write_output(nodes_path, nodes_csv, overwrite)
@@ -634,7 +646,6 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         ));
     }
 
-    let source_label = input.to_string_lossy();
     let source_iri = || -> Result<String, String> {
         match document_iri {
             Some(iri) => Ok(iri.to_owned()),
