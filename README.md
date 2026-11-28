@@ -34,7 +34,8 @@ Lynn Conway [PER] 0..11
 IBM [ORG] 22..25
 ```
 
-Ranges count Unicode scalar values from zero. The end is exclusive.
+Count from zero: the letters in `IBM` occupy positions 22, 23, and 24.
+The range ends just before the period. Anno counts Unicode scalar values.
 [Using these ranges in Rust](docs/CONTRACT.md#source-text-and-offsets)
 
 ## Same text, different source
@@ -83,9 +84,16 @@ Applications stay open three days longer. The drawing is still on December 9.
 
 ## What survives an export?
 
-Give two exporters the same annotations for *cyclophilin gene*. One mention
-covers the whole phrase. Another covers just *cyclophilin*. Anno’s HTML
-preview highlights the longer span once. Its JSONL export keeps both records.
+Two annotations can start at the same letter:
+
+```text
+cyclophilin gene
+^^^^^^^^^^^^^^^^  DNA
+^^^^^^^^^^^       protein
+```
+
+Anno’s HTML preview highlights the longer phrase once. Its JSONL exporter
+writes a record for each annotation.
 
 On the GENIA corpus, HTML displayed **50,709 of 55,740** supplied mentions.
 JSONL preserved **all 55,740**. Both exporters received the reference
