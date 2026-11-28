@@ -16,7 +16,7 @@
 /// define_feature_stub! {
 ///     /// Optional doc comment for the stub struct.
 ///     struct GLiNEROnnx;
-///     feature = "onnx";
+///     feature = "onnx-local";
 ///     name = "GLiNER-ONNX (unavailable)";
 ///     description = "GLiNER with ONNX Runtime backend - requires 'onnx' feature";
 ///     error_msg = "GLiNER-ONNX requires the 'onnx' feature";

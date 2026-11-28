@@ -71,7 +71,7 @@ impl RelexEntityExport {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl GLiNEROnnx {
     /// Whether the local GLiNER-RelEx entity graph, tokenizer and configuration
     /// are present. Graph validity is checked by ONNX Runtime at construction.
@@ -132,7 +132,7 @@ impl GLiNEROnnx {
     pub fn with_config(model_name: &str, config: GLiNERConfig) -> Result<Self> {
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         let (model_path, is_quantized, tokenizer_path, local_config) = if model_name
@@ -1365,7 +1365,7 @@ impl GLiNEROnnx {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn gliner_token_ids(config_str: &str) -> Result<(u32, u32)> {
     let config_json: serde_json::Value = serde_json::from_str(config_str)
         .map_err(|error| Error::Parse(format!("gliner_config.json: {error}")))?;
@@ -1507,10 +1507,10 @@ fn detect_encoder_mode(session: &ort::session::Session) -> config::EncoderMode {
 ///
 /// This follows the same pattern as `convert_pytorch_to_safetensors` in the Candle backend:
 /// automatic on-demand conversion at load time, cached for subsequent loads.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn export_pytorch_to_onnx(
     model_name: &str,
-    repo: &hf_hub::HFRepositorySync<hf_hub::RepoTypeModel>,
+    repo: &crate::backends::hf_loader::ModelRepo,
     prefer_quantized: bool,
 ) -> Result<(std::path::PathBuf, bool)> {
     use std::path::Path;
@@ -1640,7 +1640,7 @@ fn export_pytorch_to_onnx(
 }
 
 /// Default entity types for zero-shot GLiNER when used via the Model trait.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(super) const DEFAULT_GLINER_LABELS: &[&str] = &[
     "person",
     "organization",

@@ -82,7 +82,7 @@ impl GLiREL {
     /// `scripts/export_glirel_onnx.py` to export it locally, then
     /// call [`GLiREL::from_local`].
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;

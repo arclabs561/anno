@@ -105,7 +105,7 @@ pub use decode::{map_label_to_entity_type, DiscontinuousDecodeRow, W2NERRelation
 use crate::backends::inference::{DiscontinuousEntity, DiscontinuousNER, HandshakingMatrix};
 use crate::{Confidence, Entity, EntityType, Language, Model, Result};
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use crate::Error;
 
 /// Configuration for W2NER decoding.
@@ -167,9 +167,9 @@ impl Default for W2NERConfig {
 /// ```
 pub struct W2NER {
     config: W2NERConfig,
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     session: Option<std::sync::Mutex<ort::session::Session>>,
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     tokenizer: Option<tokenizers::Tokenizer>,
 }
 
@@ -179,9 +179,9 @@ impl W2NER {
     pub fn new() -> Self {
         Self {
             config: W2NERConfig::default(),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             session: None,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             tokenizer: None,
         }
     }
@@ -191,16 +191,16 @@ impl W2NER {
     pub fn with_config(config: W2NERConfig) -> Self {
         Self {
             config,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             session: None,
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             tokenizer: None,
         }
     }
 
     /// Whether automatic evaluation can acquire this export. Cached and local
     /// weights need no Hub token.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn model_files_available(model: &str, has_hf_token: bool) -> bool {
         use crate::backends::hf_loader;
         let dir = std::path::Path::new(model);
@@ -217,7 +217,7 @@ impl W2NER {
     ///
     /// # Arguments
     /// * `model_path` - Local path or HuggingFace model ID
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn from_pretrained(model_path: &str) -> Result<Self> {
         use crate::backends::hf_loader;
         use std::path::Path;
@@ -230,7 +230,7 @@ impl W2NER {
             (model_file, tokenizer_file)
         } else {
             // HuggingFace download
-            let api = hf_loader::hf_api()?;
+            let api = hf_loader::model_source()?;
             let repo = crate::backends::hf_loader::hub_model(&api, model_path);
             let no_downloads = hf_loader::no_downloads();
 
@@ -480,7 +480,7 @@ impl W2NER {
     }
 
     /// Run inference with ONNX model.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn extract_with_grid(&self, text: &str, threshold: f32) -> Result<Vec<Entity>> {
         if text.is_empty() {
             return Ok(vec![]);
@@ -645,7 +645,7 @@ impl W2NER {
     /// Full discontinuous-NER extraction using the NNW+THW grid decoding algorithm.
     ///
     /// Called by `extract_discontinuous` when an ONNX session is loaded.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn extract_discontinuous_with_nnw(
         &self,
         text: &str,
@@ -782,7 +782,7 @@ impl W2NER {
 }
 
 /// Number of labels in a `[1, seq_len, seq_len, num_labels]` grid output.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn grid_label_count(shape: &[i64], seq_len: usize) -> Result<usize> {
     match shape {
         [_, a, b, labels] if *a as usize == seq_len && *b as usize == seq_len && *labels >= 3 => {
@@ -800,7 +800,7 @@ fn grid_label_count(shape: &[i64], seq_len: usize) -> Result<usize> {
 /// special tokens and subword pieces). Word `w` is represented by the first
 /// non-special token whose span starts inside it; word pairs with no such
 /// token keep all-zero logits, whose argmax is the None label.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn token_grid_to_word_grid(
     grid: &[f32],
     seq_len: usize,
@@ -838,7 +838,7 @@ fn token_grid_to_word_grid(
     out
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn w2ner_auto_export_enabled(
     no_downloads: bool,
     in_github_actions: bool,
@@ -881,7 +881,7 @@ impl Model for W2NER {
             }
         }
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             if self.session.is_some() {
                 return self.extract_with_grid(text, self.config.threshold.value() as f32);
@@ -892,7 +892,7 @@ impl Model for W2NER {
             ))
         }
 
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             Err(crate::Error::FeatureNotAvailable(
                 "W2NER requires the 'onnx' feature. Build with: cargo build --features onnx"
@@ -910,11 +910,11 @@ impl Model for W2NER {
     }
 
     fn is_available(&self) -> bool {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             self.session.is_some()
         }
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             false
         }
@@ -958,7 +958,7 @@ impl DiscontinuousNER for W2NER {
             return Ok(vec![]);
         }
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             if self.session.is_some() {
                 return self.extract_discontinuous_with_nnw(text, threshold);
@@ -967,14 +967,14 @@ impl DiscontinuousNER for W2NER {
 
         let _ = (entity_types, threshold);
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             Err(crate::Error::ModelInit(
                 "W2NER model not loaded. Call `W2NER::from_pretrained(...)` (requires `onnx` feature) before calling `extract_discontinuous`.".to_string(),
             ))
         }
 
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             Err(crate::Error::FeatureNotAvailable(
                 "W2NER requires the 'onnx' feature. Build with: cargo build --features onnx"

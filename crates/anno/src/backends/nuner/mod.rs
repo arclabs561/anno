@@ -35,7 +35,7 @@ use crate::{Entity, EntityCategory, EntityType, Language, Model, Result};
 use crate::Error;
 
 /// Encoded prompt result: (input_ids, attention_mask, word_mask, num_entity_types)
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 type EncodedPrompt = (Vec<i64>, Vec<i64>, Vec<i64>, i64);
 
 /// NuNER Zero-shot NER model.
@@ -75,9 +75,9 @@ pub struct NuNER {
     /// Confidence threshold (0.0-1.0)
     threshold: f64,
     /// Whether model requires span tensors (detected on load)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     requires_span_tensors: bool,
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     span_width: usize,
     /// Default entity labels for Model trait
     default_labels: Vec<String>,
@@ -85,10 +85,10 @@ pub struct NuNER {
     /// 4096-token models use ~16000.
     max_input_chars: usize,
     /// ONNX session (when feature enabled)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     session: Option<std::sync::Mutex<ort::session::Session>>,
     /// Tokenizer (when feature enabled)
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     tokenizer: Option<tokenizers::Tokenizer>,
 }
 
@@ -112,7 +112,7 @@ impl Model for NuNER {
             return Ok(vec![]);
         }
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             if self.session.is_some() {
                 let labels: Vec<&str> = self.default_labels.iter().map(|s| s.as_str()).collect();
@@ -144,7 +144,7 @@ impl Model for NuNER {
             ))
         }
 
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             Err(Error::FeatureNotAvailable(
                 "NuNER requires the 'onnx' feature. Build with: cargo build --features onnx"
@@ -161,11 +161,11 @@ impl Model for NuNER {
     }
 
     fn is_available(&self) -> bool {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             self.session.is_some()
         }
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             false
         }
@@ -186,18 +186,18 @@ impl Model for NuNER {
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
         // The `ZeroShotNER` impl below is gated on `onnx`; the default `None`
         // applies when `onnx` is off.
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             Some(self)
         }
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         {
             None
         }
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl crate::backends::inference::ZeroShotNER for NuNER {
     fn extract_with_types(
         &self,

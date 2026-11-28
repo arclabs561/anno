@@ -176,7 +176,7 @@ enum Resolution {
 /// **Composing with ML backends** (requires `onnx` or `candle` feature):
 ///
 /// ```rust,no_run
-/// #[cfg(feature = "onnx")]
+/// #[cfg(feature = "onnx-local")]
 /// {
 /// use anno::{Model, StackedNER, GLiNEROnnx, RegexNER, HeuristicNER};
 /// use anno::backends::stacked::ConflictStrategy;
@@ -550,7 +550,7 @@ impl Default for StackedNER {
     /// 2. NuNER (if `onnx` feature and model cached/downloadable) — handles lowercase/informal text
     /// 3. Pattern + Heuristic (always available) — zero dependencies
     fn default() -> Self {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             // Try ML backends independently: each is useful on its own.
             use crate::backends::onnx::BertNEROnnx;

@@ -28,7 +28,7 @@ pub use traits::{
 };
 
 pub(crate) mod span;
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(crate) use span::{
     decode_span_logits_3d, decode_span_logits_4d, decode_token_logits_4d, span_width_from_flat_len,
 };

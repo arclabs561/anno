@@ -29,7 +29,7 @@
 ///     action  : discovered
 ///     target  : radium
 /// ```
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn main() -> anno::Result<()> {
     use anno::backends::gliner_multitask::{GLiNERMultitaskOnnx, TaskSchema};
     use anno::DEFAULT_GLINER_MULTITASK_MODEL;
@@ -73,7 +73,7 @@ fn main() -> anno::Result<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 fn main() {
     eprintln!("This example requires the `onnx` feature. Run with:");
     eprintln!("  cargo run --example gliner_multitask --features onnx");

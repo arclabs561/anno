@@ -14,7 +14,7 @@
 //! export LD_LIBRARY_PATH=$ORT_LIB_LOCATION ANNO_BH7_ORT_LIB=$ORT_LIB_LOCATION
 //! cargo test -p anno --test bughunt7
 //! ```
-#![cfg(feature = "onnx")]
+#![cfg(feature = "onnx-local")]
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

@@ -43,21 +43,21 @@
 //! )?;
 //! ```
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod onnx;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub use onnx::GLiREL;
 
 // Stub when ONNX feature is not enabled.
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 #[derive(Debug)]
 /// GLiREL stub (requires `onnx` feature).
 pub struct GLiREL {
     _private: (),
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(feature = "onnx-local"))]
 impl GLiREL {
     /// Load model (requires `onnx` feature).
     pub fn from_pretrained(_model_id: &str) -> crate::Result<Self> {

@@ -34,6 +34,12 @@ For overlapping or nested mentions, inspect W2NER’s word-grid output and the s
 
 The extraction default `stacked` combines rules and available models. Its ONNX configuration attempts BERT and NuNER, then tries GLiNER if neither loads. Its rule layers can still extract entities without a neural model. For a deterministic rule-only run, select `pattern` explicitly. `ANNO_NO_DOWNLOADS=1` permits cached weights. Evaluation IDs can differ from CLI names, for example `bert_onnx` and `gliner_onnx` in evaluations versus `--model bert-onnx` and `--model gliner` in extraction. [Evaluation panels](../scripts/qa/core-panel.json) · [CLI model selectors](../crates/anno-cli/src/cli/parser.rs)
 
+### Build the Rust library for local ONNX weights
+
+Use `default-features = false, features = ["onnx-local"]` on the `anno` dependency when your deployment supplies the model files. For example, `BertNEROnnx::new("/models/bert-ner")` loads a prepared directory. Backends that accept Hub model IDs can also read an installed snapshot through its `refs/main` entry. A cache miss returns an error.
+
+The default `onnx` feature includes model downloads. Cargo combines features across dependencies, so enabling `onnx`, `candle`, or `hub-downloads` elsewhere brings the Hub client back into the build. ONNX Runtime still needs its native library at build and run time.
+
 ### Which mentions should coreference use?
 
 | Resolver | Input → output | Calling and interpreting it |

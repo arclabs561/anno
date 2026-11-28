@@ -287,7 +287,7 @@ impl FCoref {
         config.validate_limits(max_doc_tokens)?;
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Helper to download a file, returning Ok(None) if not found

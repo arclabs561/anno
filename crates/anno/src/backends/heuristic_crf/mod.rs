@@ -154,7 +154,7 @@ pub struct HeuristicCrfNER {
     /// Word vocabulary (word -> embedding index).
     vocab: HashMap<String, usize>,
     /// ONNX session for inference (when onnx feature enabled).
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     session: Option<ort::session::Session>,
 }
 
@@ -223,13 +223,13 @@ impl HeuristicCrfNER {
             label_to_idx,
             transitions,
             vocab: HashMap::new(),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             session: None,
         }
     }
 
     /// Load from ONNX model file.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn from_onnx(model_path: &str) -> Result<Self> {
         use crate::Error;
         use ort::session::{builder::GraphOptimizationLevel, Session};

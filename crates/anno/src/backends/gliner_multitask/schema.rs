@@ -19,16 +19,16 @@ use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, Zer
 // =============================================================================
 
 /// <<ENT>> token - entity type marker (class_token_index in config)
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(super) const TOKEN_ENT: u32 = 128002;
 /// <<SEP>> separator token
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(super) const TOKEN_SEP: u32 = 128003;
 /// Start token [CLS]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(super) const TOKEN_START: u32 = 1;
 /// End token [SEP]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub(super) const TOKEN_END: u32 = 2;
 
 /// Default max span width

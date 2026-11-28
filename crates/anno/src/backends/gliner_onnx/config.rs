@@ -36,7 +36,7 @@ pub(crate) enum EncoderMode {
 /// Pre-computed label embedding for bi-encoder mode.
 ///
 /// Cached per label string so that label encoding is amortized across calls.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone)]
 pub(crate) struct LabelEmbedding {
     /// The dense embedding vector produced by the label encoder.
@@ -45,7 +45,7 @@ pub(crate) struct LabelEmbedding {
     pub(crate) embedding: Vec<f32>,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl Default for GLiNERConfig {
     fn default() -> Self {
         Self {
@@ -62,7 +62,7 @@ impl Default for GLiNERConfig {
 ///
 /// Keyed by (text_hash, entity_types_hash, model_id) to ensure cache hits
 /// only when text, entity types, and model are identical.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct PromptCacheKey {
     pub(super) text_hash: u64,
@@ -71,7 +71,7 @@ pub(super) struct PromptCacheKey {
 }
 
 /// Cached prompt encoding result.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone)]
 pub(super) struct PromptCacheValue {
     pub(super) input_ids: Vec<i64>,

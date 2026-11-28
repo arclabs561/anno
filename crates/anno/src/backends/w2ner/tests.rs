@@ -2,7 +2,7 @@ use super::*;
 use crate::backends::inference::HandshakingCell;
 use crate::EntityCategory;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn offline_mode_never_auto_exports_w2ner() {
     assert!(!w2ner_auto_export_enabled(true, false, Some("true")));

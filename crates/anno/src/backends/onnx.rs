@@ -18,14 +18,14 @@
 #![allow(clippy::manual_strip)] // Complex BIO tag parsing
 
 use crate::{Entity, Error, Language, Result};
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use crate::{EntityCategory, EntityType};
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 use {ndarray::Array2, ort::session::Session, std::collections::HashMap, tokenizers::Tokenizer};
 
 /// Configuration for BERT NER model loading.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone)]
 pub struct BertNERConfig {
     /// Prefer quantized models (INT8) for faster CPU inference.
@@ -42,7 +42,7 @@ pub struct BertNERConfig {
 /// reproducible evaluation receipts: callers can hash the returned files
 /// without guessing which Hugging Face cache entry was selected. The paths are
 /// local implementation details and may cease to exist if a cache is cleaned.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BertNerArtifactPaths {
     /// The ONNX graph passed to ONNX Runtime, including the selected quantized
@@ -57,7 +57,7 @@ pub struct BertNerArtifactPaths {
 }
 
 /// A content-addressed BERT artifact used for one diagnostic trace.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct BertNerTraceArtifact {
     /// The exact local file that was hashed.
@@ -67,7 +67,7 @@ pub struct BertNerTraceArtifact {
 }
 
 /// Content-addressed artifacts used by a [`BertNerTrace`].
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct BertNerTraceArtifacts {
     /// The ONNX graph executed by the trace.
@@ -85,7 +85,7 @@ pub struct BertNerTraceArtifacts {
 /// decoded spans inspectable when comparing anno with another ONNX Runtime
 /// host. Long inputs are rejected so the trace always corresponds to exactly
 /// one graph invocation.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BertNerTrace {
     /// Content hashes of the exact graph, tokenizer, and configuration used.
@@ -116,7 +116,7 @@ pub struct BertNerTrace {
 }
 
 /// An entity in a [`BertNerTrace`].
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
 pub struct BertNerTraceEntity {
     /// Extracted surface text.
@@ -131,7 +131,7 @@ pub struct BertNerTraceEntity {
     pub confidence: f64,
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl Default for BertNERConfig {
     fn default() -> Self {
         Self {
@@ -146,7 +146,7 @@ impl Default for BertNERConfig {
 ///
 /// Uses standard BERT models fine-tuned for NER with BIO tagging scheme.
 /// Thread-safe with `Arc<Tokenizer>` for efficient sharing.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 pub struct BertNEROnnx {
     session: std::sync::Mutex<Session>,
     /// Arc-wrapped tokenizer for cheap cloning across threads.
@@ -165,7 +165,7 @@ pub struct BertNEROnnx {
 /// the same lexical word. An inside tag continues only an equal entity type;
 /// comparing enum discriminants would incorrectly merge distinct `Custom`
 /// labels because they share the same variant.
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn continues_bio_entity(
     bio: &str,
     is_subword_continuation: bool,
@@ -179,7 +179,7 @@ fn continues_bio_entity(
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn local_model_dir(model_name: &str) -> Result<Option<&std::path::Path>> {
     use std::{ffi::OsStr, io::ErrorKind, path::Path};
 
@@ -210,7 +210,7 @@ fn local_model_dir(model_name: &str) -> Result<Option<&std::path::Path>> {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl BertNEROnnx {
     /// Check mandatory input files using the same directory precedence and Hub
     /// graph variants as the default constructor. Hosted BERT requires config.json;
@@ -269,7 +269,7 @@ impl BertNEROnnx {
 
         use crate::backends::hf_loader;
 
-        let api = hf_loader::hf_api()?;
+        let api = hf_loader::model_source()?;
         let repo = crate::backends::hf_loader::hub_model(&api, model_name);
 
         // Download model - try quantized first if preferred
@@ -1238,7 +1238,7 @@ impl BertNEROnnx {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 impl crate::Model for BertNEROnnx {
     fn extract_entities(&self, text: &str, language: Option<Language>) -> Result<Vec<Entity>> {
         self.extract_entities(text, language)
@@ -1281,7 +1281,7 @@ impl crate::Model for BertNEROnnx {
 // Stub implementation when feature is disabled
 crate::backends::macros::define_feature_stub! {
     struct BertNEROnnx;
-    feature = "onnx";
+    feature = "onnx-local";
     name = "bert-onnx (unavailable)";
     description = "BERT-based NER using ONNX Runtime - requires 'onnx' feature";
     error_msg = "BERT NER ONNX requires the 'onnx' feature";
@@ -1293,7 +1293,7 @@ crate::backends::macros::define_feature_stub! {
 }
 
 #[cfg(test)]
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 mod tests {
     use super::*;
 
