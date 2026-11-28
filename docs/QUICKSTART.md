@@ -185,49 +185,23 @@ ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved t
 
 ## Visualize evaluation results
 
-Start with a dataset name. Run these commands in an Anno checkout or an
-unpacked `dataset-figures` CI artifact. Each has a dated research catalog with
-the registry evidence and native chart inputs used in that build.
-
-```sh
-anno dataset evidence WikiGold --status scored
-anno viz list --dataset WikiGold
-anno viz render wikigold-routing-paired -o routing.html
-```
-
-Use `anno dataset evidence --status unindexed` to find gaps, or add `--backend`,
-`--task` and `--split` to require a match on the same recorded run. Add `--json`
-for sample sizes and source receipts. A loader check establishes that an input
-opened. Only a scored record establishes that a backend was evaluated.
-
-`anno viz render` also recognizes portable report files by schema. For example,
-`anno viz render my-study.json -o my-study.svg` redraws your own comparison.
-An installed binary can read your own report from any directory. To run named
-studies against a particular research snapshot, pass `--catalog PATH` or set
-`ANNO_FIGURE_CATALOG=/path/to/figure-catalog.json`. This pins the evidence
-independently of the Anno version. [All figure generators and CI downloads](figures/README.md)
-
-For ordinary extraction output, `anno viz overlap documents.jsonl -o overlap.svg`
-measures how many mentions share a character and which labels are affected.
-It reads grounded documents directly and works without a gold reference.
-[Grounded extraction example and full GENIA replay](EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
-
-In this checkout, inspect what an extraction got wrong by piping its evaluation
-directly into the errors view. This example produces one wrong entity type and one
-missed name. Use `--metric char-masking` on `anno eval` to also see Unicode
-character coverage. An errors input may also contain a whitespace-separated
-stream of reports, including JSONL. It pools their counts before computing
-percentages and counts a repeated input once per report. Save a compact,
-replayable summary with `anno viz errors reports.jsonl --title 'Validation errors' -o summary.json`,
-then use `anno viz errors summary.json -o errors.svg` to redraw it.
-Current native reports break errors down by gold label and record whether a
-partial boundary match also had the wrong type. A pooled report needs that
-detail in every input before it can show the per-type result.
+To see what an extraction got wrong, pipe its evaluation into the errors view.
+This example runs offline and produces one wrong entity type and one missed name.
 
 ```sh
 anno eval --model pattern --text 'Mail x@y.com to Ada.' \
   --gold 'x@y.com:ORG:5:12' --gold 'Ada:PER:16:19' --json | anno viz errors -o errors.svg
 ```
+
+Use `--metric char-masking` on `anno eval` to also see Unicode
+character coverage. An errors input may also contain a whitespace-separated
+stream of reports, including JSONL. It pools their counts before computing
+percentages and counts a repeated input once per report. Save a compact,
+replayable summary with `anno viz errors reports.jsonl --title 'Validation errors' -o summary.json`,
+then use `anno viz render summary.json -o errors.svg` to redraw it from any directory.
+Current native reports break errors down by gold label and record whether a
+partial boundary match also had the wrong type. A pooled report needs that
+detail in every input before it can show the per-type result.
 
 To decide whether a change helps, compare a baseline and candidate on the same
 documents. The following example scores two offline backends on identical gold
@@ -241,7 +215,6 @@ done
 anno viz paired pattern.jsonl --against heuristic.jsonl \
   --baseline-name Pattern --candidate-name Heuristic --cohort 'Mail fixture' \
   --role 'Worked example' -o comparison.html
-anno viz paired docs/eval/crossre-full-test-paired.json -o crossre.svg
 ```
 
 Each JSONL stream may contain multiple documents in any order. Current
@@ -277,6 +250,11 @@ On the pinned WikiGold release this example pairs 1,696 sentences, including
 pattern backend scores zero against WikiGold's typed gold spans. Pattern is a
 useful control here. Its structured identifiers fall outside much of this label
 inventory. Per-case timings cover extraction on the machine running the command.
+
+For ordinary extraction output, `anno viz overlap documents.jsonl -o overlap.svg`
+measures how many mentions share a character and which labels are affected.
+It reads grounded documents directly and works without a gold reference.
+[Grounded extraction example and full GENIA replay](EXTRACTION_WORKFLOWS.md#review-overlapping-highlights)
 
 For a sweep over several operating points, plot correct matches against total
 suggestions with `--x-axis suggestions`. The default horizontal axis counts
@@ -317,6 +295,26 @@ writes a reusable count summary (`anno.paired/v1`, `anno.tradeoff/v1`,
 `anno.errors/v1` or `anno.overlap/v1`). Rust callers can use `paired::Paired`,
 `Tradeoff`, `errors::EvalErrors` or `overlap::Overlap` from `anno::viz`. Each exposes `from_json`, `render_svg`
 and `render_html`. Rendering runs offline in the standard CLI.
+
+### Browse the published studies
+
+Run these commands in an Anno checkout or unpacked `dataset-figures` CI artifact.
+Each includes a dated catalog of the studies and registry evidence in that build.
+
+```sh
+anno dataset evidence WikiGold --status scored
+anno viz list --dataset WikiGold
+anno viz render wikigold-routing-paired -o routing.html
+```
+
+Use `anno dataset evidence --status unindexed` to find gaps, or add `--backend`,
+`--task` and `--split` to require a match on the same recorded run. Add `--json`
+for sample sizes and source receipts. A loader check establishes that an input
+opened. A scored record identifies the backend and measured outcome.
+
+To select a particular research snapshot, pass `--catalog PATH` or set
+`ANNO_FIGURE_CATALOG=/path/to/figure-catalog.json`. The catalog and the
+installed Anno version can be updated independently. [Figure generators and CI downloads](figures/README.md)
 
 ## CLI: batch processing
 

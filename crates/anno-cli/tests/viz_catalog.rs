@@ -181,6 +181,18 @@ fn downloaded_catalog_file_precedence_and_safe_output() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path();
     let report = trial();
+    let minimal =
+        json!({"schema":"anno.figure-catalog/v1", "studies":[{"id":"personal","report":report}]});
+    fs::write(path.join("personal.json"), minimal.to_string()).unwrap();
+    assert_eq!(
+        success(viz(
+            path,
+            &["list", "--catalog", "personal.json"],
+            &[],
+            None
+        )),
+        b"personal\n  Local study\n"
+    );
     let catalog = json!({"schema":"anno.figure-catalog/v1","ci_survey_day":"2026-11-27","datasets":[],
         "studies":[{"id":"local.v1","datasets":["WikiGold", "ENer"],"guide":"docs/QA.md","report":report},
                    {"id":"other","datasets":["ENER"],"guide":"docs/QA.md","report":report}]});

@@ -108,15 +108,15 @@ impl ListArgs {
             )
         } else {
             for row in studies {
-                writeln!(
-                    output,
-                    "{}  [{}]\n  {}\n  {}",
-                    row.id,
-                    row.datasets.join(", "),
-                    row.title,
-                    row.guide
-                )
-                .map_err(|e| e.to_string())?;
+                let label = if row.datasets.is_empty() {
+                    row.id.to_owned()
+                } else {
+                    format!("{}  [{}]", row.id, row.datasets.join(", "))
+                };
+                writeln!(output, "{label}\n  {}", row.title).map_err(|e| e.to_string())?;
+                if !row.guide.is_empty() {
+                    writeln!(output, "  {}", row.guide).map_err(|e| e.to_string())?;
+                }
             }
             Ok(())
         }

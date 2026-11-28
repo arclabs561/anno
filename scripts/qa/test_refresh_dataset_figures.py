@@ -9,10 +9,20 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import figure_catalog
 import refresh_dataset_figures as figures
 
 
 class PublishedFigureChecks(unittest.TestCase):
+    def test_catalog_reports_a_named_study_whose_input_was_removed(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "figure-studies.csv").write_text(
+                "study,datasets,guide\nheldout-paired,WikiGold,guide.md\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValueError, "Missing native inputs.*heldout-paired"):
+                list(figure_catalog.studies(root, []))
+
     @unittest.skipUnless(
         importlib.util.find_spec("PIL"), "pixel comparison requires Pillow"
     )
@@ -87,7 +97,7 @@ class PublishedFigureChecks(unittest.TestCase):
                 binary, viz, kind, source, option, dest = command
                 self.assertEqual(
                     (binary, viz, kind, option),
-                    (cli, "viz", source.stem.rsplit("-", 1)[1], "--output"),
+                    (cli, "viz", "render", "--output"),
                 )
                 self.assertTrue(check)
                 title = json.loads(source.read_text(encoding="utf-8"))["title"]

@@ -70,7 +70,7 @@ def native_paths(directory, extension):
 
 
 def render_native(inputs, directory, anno):
-    """The final name component identifies the public anno viz command."""
+    """Render each portable input through the same schema reader as a user's report."""
     from resvg_py import svg_to_bytes
 
     executable = anno.resolve() if anno else build_anno()
@@ -85,9 +85,8 @@ def render_native(inputs, directory, anno):
         html = svg.with_suffix(".html")
         if svg.exists() or png.exists() or html.exists():
             raise ValueError(f"More than one figure has the name {source.stem!r}.")
-        view = source.stem.rsplit("-", 1)[1]
         for target in (svg, html):
-            subprocess.run([executable, "viz", view, source, "--output", target], check=True)
+            subprocess.run([executable, "viz", "render", source, "--output", target], check=True)
         png.write_bytes(
             svg_to_bytes(
                 svg_path=str(svg),

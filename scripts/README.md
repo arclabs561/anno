@@ -48,6 +48,15 @@ The build discovers study inputs under `docs/eval/`. Name each file `<study>-<vi
 anno viz paired docs/eval/wikigold-routing-paired.json --output wikigold.html
 ```
 
+For a single portable report, use `anno viz render my-study.json -o review.html`.
+If you keep several named reports in another project, a catalog can contain
+just a schema version and studies. This example uses `jq` to add one.
+
+```sh
+jq '{schema:"anno.figure-catalog/v1",studies:[{id:"trial",report:.}]}' my-study.json > figure-catalog.json
+anno viz render trial -o review.html
+```
+
 For new data or model runs, regenerate the relevant measurements, run `--update`, review the figure and its caption, then commit the inputs, code and changed outputs together. CI compares PNG pixels, native SVG and HTML reports, the offline dataset explorer, derived CSVs and the numerical sections of the coverage guide. [CI workflow](../.github/workflows/dataset-figures.yml)
 
 Each build saves PNGs, SVGs, HTML reports, portable chart JSON and derived CSVs in the `dataset-figures` Actions artifact for 30 days. Start a manual run on the default branch to also verify the live cache in the trusted S3 job. The `s3-dataset-cache-figures` artifact contains the live inventory figure and WikiGold verification. The `cache-source-evidence` artifact contains the broader publisher-file matches, with their figure and counts. That comparison also refreshes after changes to the measured-file ledgers on `main`. [Actions runs and downloads](https://github.com/arclabs561/anno/actions/workflows/dataset-figures.yml)

@@ -14,7 +14,11 @@ def studies(evidence, native_inputs):
     guides = {row["study"]: row for row in descriptors}
     if len(guides) != len(descriptors):
         raise ValueError("Duplicate study ID in figure-studies.csv")
-    for path in sorted(native_inputs):
+    paths = sorted(native_inputs)
+    missing = guides.keys() - {p.stem for p in paths}
+    if missing:
+        raise ValueError(f"Missing native inputs listed in figure-studies.csv: {', '.join(sorted(missing))}")
+    for path in paths:
         descriptor = guides.get(path.stem, {})
         yield {
             "id": path.stem,
