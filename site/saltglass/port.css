@@ -20,3 +20,8 @@ mark[role=button]{cursor:pointer}select{font:inherit}#content button+button{marg
 button:not(.tile){border-radius:3px;border:2px outset #796b68;background:linear-gradient(#74383f,#50262c 44%,#411d22 46%,#51262c);text-shadow:1px 1px #1d1617}
 nav button[aria-current=true]{border-style:inset;box-shadow:inset 3px 0 #d7c98e}
 @media(max-width:650px){.console nav{padding:8px;gap:6px}.harbor-strip{gap:7px;font-size:11px}}
+.watch-ledger{border-top:1px solid #49483e;padding-top:5px;color:#d6d2ba;font-size:13px}
+.watch-ledger ol{padding-left:2em}.watch-ledger li::marker{color:#bdb096}
+mark[aria-pressed=true]{background:#353832;outline:1px solid currentColor}
+.manifest{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;background:#10120f;border-left:2px solid #817853;padding:8px;font:13px/1.45 monospace}
+article,.details{min-width:0}

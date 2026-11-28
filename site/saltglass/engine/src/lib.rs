@@ -3,6 +3,11 @@ use wasm_bindgen::prelude::*;
 
 fn mentions(text: &str, reader: &str, vessels: bool) -> Result<Vec<anno::Entity>, JsValue> {
     if text.len() > 32_000 { return Err(JsValue::from_str("Log exceeds 32 KB")); }
+    if reader == "crf" {
+        thread_local! { static READER: anno::backends::CrfNER = anno::backends::CrfNER::new(); }
+        return READER.with(|model| model.extract_entities(text, None))
+            .map_err(|e| JsValue::from_str(&e.to_string()));
+    }
     let model: Box<dyn Model> = match reader {
         "registry" => {
             let mut lexicon = HashMapLexicon::new("Saltglass port registry");
@@ -46,6 +51,11 @@ pub fn inspect(text: &str, reader: &str, vessels: bool, task: &str) -> Result<St
         return Ok(anno::pii::redact_patterns(text));
     }
     let entities = mentions(text, reader, vessels)?;
+    match task {
+        "brat" => return Ok(anno::export::to_brat(text, &entities, false)),
+        "conll" => return Ok(anno::export::to_conll(text, &entities)),
+        _ => {}
+    }
     if entities.len() > 96 {
         return Err(JsValue::from_str("Choose a shorter passage for pair analysis (up to 96 mentions)."));
     }

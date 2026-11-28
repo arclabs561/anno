@@ -3,17 +3,18 @@ import init, {extract, inspect} from './engine/pkg/saltglass_reader.js';
 const $ = selector => document.querySelector(selector);
 const log = "From the landing field at Saltglass Reach you can usually see two of the three moons. To find the third, stand beside the mail shed and look through the gap in the observatory stairs. Iona Vale painted a white mark on the step for visitors. She touches it up every spring.\n\nVale captains the Kestrel for the Brackwater Packet Company. Yesterday she brought the company’s new tide tables over from Low Bell, along with one passenger and a crate of dry socks. The tables say the mail road stays dry until noon. The passenger walked in at eleven with his boots full of water.";
 const catalog = {
+  crf: ['CRF reader', 2, 'A trained sequence model for people, organizations and places. Its weights come from Anno’s English WikiANN model. It reads the words around a name, so unfamiliar ports can have their own entries.'],
   registry: ['Port gazetteer', 0, 'Anno LexiconNER looks up local names in the Saltglass registry. The vessel register adds the Kestrel to its vocabulary.'],
   heuristic: ['Heuristic reader', 1, 'Anno HeuristicNER uses capitalization, nearby words and other cues. Try names and organizations from beyond the Reach.'],
   patterns: ['Pattern reader', 4, 'Anno RegexNER recognizes structured text. Try a date, a sum of money or a (fictional) email address in the reader lab.'],
   vessels: ['Vessel register', 6, 'The harbor supplement lists ships by name. Fit it alongside the port gazetteer to identify the Kestrel in the dispatch.']
 };
-const readers = ['registry','heuristic','patterns'];
+const readers = ['crf','registry','heuristic','patterns'];
 const key = 'anno.saltglass.v1';
 let saved;
 try { saved = JSON.parse(localStorage.getItem(key)); } catch {}
 const state = {
-  reader: readers.includes(saved?.reader) ? saved.reader : 'registry',
+  reader: readers.includes(saved?.reader) ? saved.reader : 'crf',
   vessels: saved?.vessels === true,
   mission: ['accepted','delivered'].includes(saved?.mission) ? saved.mission : 'open',
   sample: log,
@@ -27,6 +28,8 @@ const experiments = {
   compare:['Compare readers', '🌙 Iona Vale reached Low Bell. Contact iona@example.org on May 12, 2026.'],
   links:['Linked mentions', 'Iona Vale sailed to Low Bell. Iona Vale returned to Saltglass Reach.'],
   relations:['Relation candidates', 'Iona Vale founded Brackwater Packet Company.'],
+  brat:['Standoff manifest (.ann)', '🌙 Iona Vale reached Low Bell.'],
+  conll:['Token manifest (BIO)', 'Iona Vale reached Low Bell.'],
   redact:['Redact contacts', 'Reach the fictional harbor clerk at iona@example.org.']
 };
 function save() { try { localStorage.setItem(key, JSON.stringify({reader:state.reader,vessels:state.vessels,mission:state.mission,away:state.away})); } catch {} }
@@ -60,8 +63,11 @@ function annotated(text,entities) {
     plain(chars.slice(cursor,e.start).join(''));
     const type=category(e.label);
     const mark=el('mark',chars.slice(e.start,e.end).join(''),type);
-    const reveal=()=>{detail.textContent=e.text+' · '+type+' · characters ['+e.start+', '+e.end+')';};
-    mark.tabIndex=0;mark.setAttribute('role','button');mark.onclick=reveal;
+    const reveal=()=>{
+      part.querySelector('[aria-pressed="true"]')?.setAttribute('aria-pressed','false');
+      mark.setAttribute('aria-pressed','true');
+      detail.textContent=e.text+' · '+type+' · characters ['+e.start+', '+e.end+')';};
+    mark.setAttribute('aria-pressed','false');mark.tabIndex=0;mark.setAttribute('role','button');mark.onclick=reveal;
     mark.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();reveal();}};
     mark.title=type;mark.setAttribute('aria-label',mark.textContent+', '+type);
     paragraph.append(mark);cursor=e.end;
@@ -78,6 +84,7 @@ function analyze(text) {
   }
   if(experiment==='mentions') return {experiment,entities:read(text)};
   const value=inspect(text,state.reader,state.vessels,experiment);
+  if(experiment==='brat'||experiment==='conll') return {experiment,manifest:value};
   return experiment==='redact'?{experiment,redacted:value}:{experiment,groups:JSON.parse(value)};
 }
 
@@ -91,12 +98,22 @@ function showAnalysis(result,text,report){
       group.append(el('summary',catalog[id][0]+' · '+rows.length),annotated(text,rows));
       result.append(group);
     }
+  } else if('manifest' in report){
+    result.append(el('pre',report.manifest || 'No records in this manifest.','manifest'));
   } else if(report.experiment==='redact'){
     result.append(el('p','Pattern-based redaction · review before sharing','small'),el('p',report.redacted));
   } else {
     const links=report.experiment==='links';
     result.append(el('p',links?'Rule-based links among detected mentions':'Heuristic candidates · founded, works for, located in','small'));
-    if(!report.groups.length)result.append(el('p',links?'No repeated mentions linked.':'No matching relation found.'));
+    if(!report.groups.length){
+      result.append(el('p',links?'No repeated mentions linked.':'No matching relation found.'));
+      if(state.reader!=='registry'){
+        result.append(action('Fit port gazetteer and rerun',()=>{
+          state.reader='registry';save();draw();$('#heading').focus();
+          $('#signal').textContent='Anno WebAssembly · '+catalog.registry[0];
+        }));
+      }
+    }
     for(const row of report.groups){
       result.append(el('p',links?row.map(m=>m.text+' ['+m.start+', '+m.end+')').join(' ↔ '):[row.head,row.predicate,row.tail].join(' → ')));
     }
@@ -110,8 +127,31 @@ function draw() {
   $('#heading').textContent=({log:'Saltglass Reach',lab:'Reader lab',board:'Mission BBS'})[screen];
   document.querySelectorAll('[data-screen]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.screen===screen)));
   $('#export').disabled=!ready || (screen==='board' && state.mission!=='accepted');
-  $('#export').textContent=screen==='board'?'Export dispatch':'Export log';
-  if(screen==='log') content.append(annotated(log,ready?read(log):[]));
+  const formatLabel = {brat:'Download .ann',conll:'Download BIO'};
+  $('#export').textContent=screen==='board'?'Export dispatch':(screen==='lab' && formatLabel[experiment])||'Export log';
+  if(screen==='log'){
+    const rows=ready?read(log):[];
+    content.append(annotated(log,rows));
+    if(ready){
+      const ledger=el('details',undefined,'watch-ledger');
+      ledger.append(el('summary','Watch ledger · trace the captain'));
+      ledger.ontoggle=()=>{
+        if(!ledger.open || ledger.children.length>1)return;
+        const chain=JSON.parse(inspect(log,state.reader,state.vessels,'links'));
+        const record=el('ol');
+        for(const match of log.matchAll(/Iona Vale|\bVale\b|\b[Ss]he\b/g)){
+          const start=Array.from(log.slice(0,match.index)).length;
+          const end=start+Array.from(match[0]).length;
+          const mention=rows.find(e=>e.start===start && e.end===end);
+          const linked=chain.find(g=>g.some(m=>m.start===start && m.end===end));
+          const status=linked?'linked to '+linked.filter(m=>m.start!==start).map(m=>m.text).join(', '):mention?'detected · '+category(mention.label):'missed';
+          record.append(el('li',match[0]+' · '+status));
+        }
+        ledger.append(el('p','Clerk’s reading, in passage order, checked against the '+catalog[state.reader][0]+'.','small'),record);
+      };
+      content.append(ledger);
+    }
+  }
   if(screen==='lab') {
     const input=el('textarea');input.id='sample';input.rows=5;input.maxLength=6000;input.value=state.sample;
     const caption=el('label','Local text · '+catalog[state.reader][0]);caption.htmlFor=input.id;
@@ -131,7 +171,7 @@ function draw() {
       const option=el('option',name);option.value=value;selector.append(option);
     }
     selector.value=experiment;
-    selector.onchange=()=>{experiment=selector.value;labResult=null;result.replaceChildren();};
+    selector.onchange=()=>{experiment=selector.value;$('#export').textContent=formatLabel[experiment]||'Export log';labResult=null;result.replaceChildren();};
     const mode=el('label','Experiment ');mode.append(selector);
     const example=action('Load example',()=>{
       input.value=experiments[experiment][1]; input.oninput(); if(ready)run();
@@ -188,8 +228,9 @@ $('#export').onclick=()=>{
     report=screen==='lab'?analyze(text):{entities:read(text)};
   } catch(error) {$('#signal').textContent=String(error);return;}
   if(screen!=='lab'||experiment!=='redact')report.text=text;
-  const blob=new Blob([JSON.stringify({reader:state.reader,vessel_register:state.vessels,...report},null,2)],{type:'application/json'});
-  const a=el('a');a.href=URL.createObjectURL(blob);a.download='saltglass-log.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const manifest='manifest' in report;
+  const blob=new Blob([manifest?report.manifest:JSON.stringify({reader:state.reader,vessel_register:state.vessels,...report},null,2)],{type:manifest?'text/plain':'application/json'});
+  const a=el('a');a.href=URL.createObjectURL(blob);a.download=manifest?(experiment==='brat'?'saltglass.ann':'saltglass.bio'):'saltglass-log.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 draw();
 try {await init();ready=true;draw();$('#signal').textContent='Anno WebAssembly · '+catalog[state.reader][0];}
