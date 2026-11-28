@@ -78,7 +78,7 @@ def main():
     parser.add_argument("--base-config", type=Path, help="existing pinned DeBERTa-v3-base config.json")
     args = parser.parse_args()
     dest = args.output.resolve()
-    if dest.exists():
+    if dest.exists() or args.output.is_symlink():
         parser.error("output already exists; choose a new directory")
     from huggingface_hub import hf_hub_download, snapshot_download
     source = args.source or Path(snapshot_download(READER, revision=REVISION,

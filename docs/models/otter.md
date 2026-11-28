@@ -17,7 +17,7 @@ export OTTER_BI_MODEL_DIR="$PWD/models/otter-bi-mmbert"
 "$ANNO_OTTER_PYTHON" scripts/prepare_otter.py bi "$OTTER_BI_MODEL_DIR"
 ```
 
-Each selector needs its own snapshot. The preparation script downloads the pinned inference files, including upstream Python model code, tokenizers and safetensors. The worker verifies them against the bundled manifest before loading the model offline. The cross weights are 1.24 GB and the bi weights are 1.91 GB. Both checkpoints use Apache-2.0. [Cross checkpoint](https://huggingface.co/whoisjones/otter-cross-mmbert/tree/8729188e4f5fc7948d0e9dfd7d7e6d36c2e7270d) · [Bi checkpoint](https://huggingface.co/whoisjones/otter-bi-mmbert/tree/53e10a09bc71a2e45980a7a257233a28305a5777)
+Each selector needs its own snapshot. The preparation script verifies the pinned inference files, including upstream Python model code, tokenizers and safetensors. Rerunning it repairs missing or damaged files from the local Hugging Face cache or the pinned release. The worker verifies them against the bundled manifest before loading the model offline. The cross weights are 1.24 GB and the bi weights are 1.91 GB. Both checkpoints use Apache-2.0. [Cross checkpoint](https://huggingface.co/whoisjones/otter-cross-mmbert/tree/8729188e4f5fc7948d0e9dfd7d7e6d36c2e7270d) · [Bi checkpoint](https://huggingface.co/whoisjones/otter-bi-mmbert/tree/53e10a09bc71a2e45980a7a257233a28305a5777)
 
 ## Extract
 

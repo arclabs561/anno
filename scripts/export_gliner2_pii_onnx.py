@@ -13,6 +13,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+from _prepare_snapshot import pinned_inputs
 from huggingface_hub import snapshot_download
 
 MODEL = "fastino/gliner2-privacy-filter-PII-multi"
@@ -63,17 +64,16 @@ def main():
         "--converter", type=Path, help="Local copy of the pinned upstream export script"
     )
     args = parser.parse_args()
-    if args.output.exists():
+    if args.output.exists() or args.output.is_symlink():
         parser.error(f"Output already exists: {args.output}")
-    source = args.source_dir or Path(
+    checkpoint = args.source_dir or Path(
         snapshot_download(MODEL, revision=REVISION, allow_patterns=list(SOURCE_FILES))
     )
-    for name, expected in SOURCE_FILES.items():
-        check_digest(source / name, expected)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.output.parent) as work:
         work = Path(work)
+        source = pinned_inputs(checkpoint, work / "input", SOURCE_FILES)
         converter = work / "export.py"
         if args.converter:
             shutil.copyfile(args.converter, converter)

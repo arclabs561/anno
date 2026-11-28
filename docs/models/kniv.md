@@ -13,6 +13,8 @@ anno extract --model kniv --extract-relations --relation-types 'place of birth' 
   --text 'Ada Lovelace was born in London.' --format json
 ```
 
+Rerun the preparation command to repair missing or damaged files. It reuses verified files in the model directory and the Hugging Face cache before downloading from the pinned release.
+
 The fixed-label extractor scores the 18 OntoNotes-style classes. Anno applies its standard tag mapping, including PERSON → PER and both GPE and LOC → LOC. Each mention's confidence is the geometric mean of its decoded token tag scores. For relations, Kniv uses a separate set of grouped entity occurrences. Supply node and predicate names with `--extract-types` and `--relation-types` in the relation command. The standard triple output represents each endpoint by the group's first source occurrence and includes positive, asserted facts. Its score is the sigmoid of the upstream calibrated margin. The upstream runtime rounds the margin to three decimals. Upstream supplies no node membership scores. Anno's generic relation nodes use zero as the unavailable-confidence sentinel.
 
 For complete fact attributes, call `anno::backends::kniv::Kniv::from_env()?.analyze(text, &["place of birth"])`. The document retains all grouped occurrences, including repeated names, and every upstream fact with polarity, modality, holder, time and raw margin. Node indices belong to their individual window. All spans use half-open Unicode scalar offsets into the full source. A fact cannot directly link nodes across windows.

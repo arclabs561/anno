@@ -5,7 +5,6 @@
 """Export the published Arabic AdaptNER development checkpoint as local FP32 ONNX."""
 
 import argparse
-import hashlib
 import json
 import shutil
 import tempfile
@@ -14,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 import torch
+from _prepare_snapshot import pinned_inputs
 from huggingface_hub import snapshot_download
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 
@@ -45,24 +45,23 @@ def main():
         help="Use a previously downloaded pinned snapshot",
     )
     args = parser.parse_args()
-    source = args.checkpoint_dir or Path(
+    if args.output.exists() or args.output.is_symlink():
+        parser.error(f"Output already exists: {args.output}")
+    checkpoint = args.checkpoint_dir or Path(
         snapshot_download(REPO, revision=REVISION, allow_patterns=list(FILES))
     )
-    for filename, digest in FILES.items():
-        with (source / filename).open("rb") as f:
-            if hashlib.file_digest(f, "sha256").hexdigest() != digest:
-                raise ValueError(f"Unexpected checksum for {filename}")
-    cfg = json.loads((source / "config.json").read_text())
-    labels = [cfg["id2label"][str(i)] for i in range(42)]
-    model = TokenClassifier(
-        AutoModelForTokenClassification.from_pretrained(
-            source, local_files_only=True, attn_implementation="eager"
-        )
-    ).eval()
-    tok = AutoTokenizer.from_pretrained(source, local_files_only=True)
-    torch.set_num_threads(2)
     args.output.parent.mkdir(exist_ok=True, parents=True)
     with tempfile.TemporaryDirectory(dir=args.output.parent) as scratch:
+        source = pinned_inputs(checkpoint, Path(scratch) / "input", FILES)
+        cfg = json.loads((source / "config.json").read_text())
+        labels = [cfg["id2label"][str(i)] for i in range(42)]
+        model = TokenClassifier(
+            AutoModelForTokenClassification.from_pretrained(
+                source, local_files_only=True, attn_implementation="eager"
+            )
+        ).eval()
+        tok = AutoTokenizer.from_pretrained(source, local_files_only=True)
+        torch.set_num_threads(2)
         dest = Path(scratch) / "export"
         dest.mkdir()
         words = "حرب 1948 ( النكبة )".split()
