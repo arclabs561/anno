@@ -57,6 +57,25 @@ def panel():
     return rows
 
 
+def reflexive_panel():
+    """Contrast the subject of a matrix clause with the subject of a reported clause."""
+    rows = []
+    for names, pronoun in [(("Ada", "Béa"), "herself"), (("Leo", "Max"), "himself")]:
+        for a, b in (names, names[::-1]):
+            for action in ("praised", "blamed", "introduced"):
+                pair = f"clause-{a}-{b}-{action}"
+                passages = (f"Yesterday {a}, who saw {b}, had {action} {pronoun}.",
+                            f"Yesterday {a} said how {b} once {action} {pronoun}.")
+                for gold_name, text in zip("AB", passages, strict=True):
+                    rows.append({"ID": f"{pair}-{gold_name}", "pair": pair, "family": "reflexive_clause",
+                                 "Text": text, "Pronoun": pronoun, "Pronoun-offset": text.index(pronoun),
+                                 "A": a, "A-offset": text.index(a), "B": b, "B-offset": text.index(b),
+                                 "gold": gold_name})
+                if gap.spans(rows[-2]) != gap.spans(rows[-1]):
+                    raise ValueError(f"marked endpoints moved in {pair}")
+    return rows
+
+
 def observe(row, result, producer, mode):
     bits, status = gap.from_clusters(row, result, producer, mode)
     if bits is None:
@@ -178,15 +197,22 @@ def main():
     parser.add_argument("output", type=Path, help="aggregate replay receipt")
     parser.add_argument("--arm", choices=ARMS, required=True, action="append")
     parser.add_argument("--details", type=Path, help="optional per-question evidence")
+    parser.add_argument("--panel", choices=("signer", "reflexive"), default="signer")
+    parser.add_argument("--check", type=Path, help="compare the selected arms with a saved receipt")
     args = parser.parse_args()
     if len(set(args.arm)) != len(args.arm):
         parser.error("each arm can be requested once")
-    rows = panel()
+    rows = reflexive_panel() if args.panel == "reflexive" else panel()
     result, details = {}, {}
     for arm in args.arm:
         result[arm], details[arm] = replay(rows, args.binary, arm)
     receipt = {"panel_sha256": digest(rows), "documents": len(rows), "arms": result}
     args.output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    if args.check:
+        expected = json.loads(args.check.read_bytes())
+        if (expected["panel_sha256"] != receipt["panel_sha256"] or expected["documents"] != len(rows)
+                or any(result[arm] != expected["arms"].get(arm) for arm in args.arm)):
+            raise ValueError("panel or backend decisions differ from the stored receipt")
     if args.details:
         args.details.write_text(json.dumps(details, indent=2, sort_keys=True) + "\n")
 
