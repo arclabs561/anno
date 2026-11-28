@@ -21,6 +21,10 @@ CASES = [(511, 521), (512, 521), (513, 521), (520, 521),
 CALLER_CASES = [(521, 521), (4097, 4096), (4096, 4096)]
 
 
+class VerificationError(RuntimeError):
+    """A fixed diagnostic that can be retained in a shared resource receipt."""
+
+
 def sha(path):
     with path.open("rb") as file:
         return hashlib.file_digest(file, "sha256").hexdigest()
@@ -43,7 +47,7 @@ def docker(*args):
 def require_controls(info):
     required = ["CpuCfsQuota", "CPUSet", "MemoryLimit", "SwapLimit"]
     if str(info.get("CgroupVersion")) != "2" or not all(info.get(k) is True for k in required):
-        raise RuntimeError("Docker must support cgroup v2 CPU quota, cpuset, memory and swap limits")
+        raise VerificationError("Docker must support cgroup v2 CPU quota, cpuset, memory and swap limits")
 
 
 def run_case(args, image, threads, tokens, budget):
@@ -87,7 +91,7 @@ def run_case(args, image, threads, tokens, budget):
 
 def verify(row, cpu):
     if row["timed_out"] or row["state"]["OOMKilled"] or row["state"]["ExitCode"] != 0:
-        raise RuntimeError("container did not complete successfully")
+        raise VerificationError("container did not complete successfully")
     m = row["measurement"]
     cg = m["cgroup"]
     quota, period = cg["cpu.max"].split()
@@ -95,39 +99,39 @@ def verify(row, cpu):
             and cg["memory.swap.max"].strip() == "0"
             and cg["cpuset.cpus.effective"].strip() == str(cpu)
             and set(m["thread_affinities"]) == {str(cpu)}):
-        raise RuntimeError("unexpected resource controls reported by the measured process")
+        raise VerificationError("unexpected resource controls reported by the measured process")
     if (m["encoded_tokens"], m["budget"], m["threads_configured"]) != (
             row["tokens"], row["budget"], row["threads"]):
-        raise RuntimeError("benchmark output belongs to a different case")
+        raise VerificationError("benchmark output belongs to a different case")
     events = dict(line.split() for line in cg["memory.events"].splitlines())
     if int(events["oom_kill"]) or int(events["oom"]):
-        raise RuntimeError("kernel recorded a cgroup OOM")
+        raise VerificationError("kernel recorded a cgroup OOM")
     if len(m["warm_ms"]) != 5:
-        raise RuntimeError("expected five warm calls")
+        raise VerificationError("expected five warm calls")
     durations = [row["wall_seconds"], m["load_ms"], m["first_call_ms"], *m["warm_ms"]]
     if any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0
            for value in durations):
-        raise RuntimeError("expected finite positive timings")
+        raise VerificationError("expected finite positive timings")
 
     tokens, budget = row["tokens"], row["budget"]
     suffix = "Alice reviewed the proposal. She approved it. Bob objected. She overruled him."
     text = ("\u00a0" if tokens >= 4096 else "") + "x " * (tokens - 19) + suffix
     if m["text"] != text:
-        raise RuntimeError("unexpected fixture text for this token count")
+        raise VerificationError("unexpected fixture text for this token count")
     predictions = m["predictions"]
     if tokens > budget:
         expected = f"Invalid input: coreference document has {tokens} tokens, exceeding max_doc_tokens {budget}"
         if predictions != {"error": expected}:
-            raise RuntimeError("expected the document-budget rejection for this case")
+            raise VerificationError("expected the document-budget rejection for this case")
         return
 
     if "error" in predictions or not predictions.get("mentions"):
-        raise RuntimeError("expected successful predictions for this budget")
+        raise VerificationError("expected successful predictions for this budget")
     mentions = predictions["mentions"]
     for start, end, surface, score in mentions:
         if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text)
                 or text[start:end] != surface or type(score) not in (int, float) or not math.isfinite(score)):
-            raise RuntimeError("unexpected mention span or score")
+            raise VerificationError("unexpected mention span or score")
 
     if (tokens, budget) == (4096, 4096):
         # The caller-boundary fixture has no gold clusters. Check the public
@@ -136,12 +140,12 @@ def verify(row, cpu):
         starts, ends = {word.start() for word in words}, {word.end() for word in words}
         spans = [(start, end) for start, end, _, _ in mentions]
         if spans != sorted(set(spans)) or any(s not in starts or e not in ends for s, e in spans):
-            raise RuntimeError("long-document mentions must be unique, sorted word ranges")
+            raise VerificationError("long-document mentions must be unique, sorted word ranges")
         observed = set(spans)
         for cluster in predictions["clusters"]:
             members = [tuple(span) for span in cluster]
             if len(members) < 2 or len(set(members)) != len(members) or not observed.issuperset(members):
-                raise RuntimeError("long-document clusters must link distinct source mentions")
+                raise VerificationError("long-document clusters must link distinct source mentions")
         return
 
     # Only the repeated ASCII prefix changes; the discourse and its three
@@ -154,15 +158,15 @@ def verify(row, cpu):
     mention_spans = {(m[0], m[1]) for m in mentions}
     if predictions["clusters"] != expected or any(
             tuple(span) not in mention_spans for cluster in expected for span in cluster):
-        raise RuntimeError("unexpected reference clusters")
+        raise VerificationError("unexpected reference clusters")
     if tokens == 521:
         reference_path = Path(__file__).resolve().parents[3] / "crates/anno/tests/fixtures/fcoref_word_budget.json"
         reference = json.loads(reference_path.read_text())
         if len(mentions) != len(reference):
-            raise RuntimeError("unexpected reference mention count")
+            raise VerificationError("unexpected reference mention count")
         for (start, end, _, logit), (gold_start, gold_end, gold_logit) in zip(mentions, reference):
             if (start, end) != (gold_start, gold_end) or not abs(logit - gold_logit) < 0.01:
-                raise RuntimeError("unexpected reference mention or score")
+                raise VerificationError("unexpected reference mention or score")
 
 
 def checkpoint(path, receipt, *, create=False):
@@ -183,6 +187,49 @@ def checkpoint(path, receipt, *, create=False):
             temporary.unlink(missing_ok=True)
 
 
+def resource_state(row):
+    state = row.get("state", {})
+    return {key: state[key] for key, kind in (("OOMKilled", bool), ("ExitCode", int))
+            if type(state.get(key)) is kind}
+
+
+def aggregate_run(row):
+    """Publish timings, numeric resource controls and verified reference counts."""
+    run = {key: row[key] for key in ("threads", "tokens", "budget", "repeat", "wall_seconds", "timed_out")}
+    run["state"] = resource_state(row)
+    m = row["measurement"]
+    measured = {key: m[key] for key in ("threads_configured", "encoded_tokens", "budget", "load_ms",
+                                        "first_call_ms", "warm_ms", "thread_affinities")}
+    measured.update({key: m[key] for key in ("special_tokens", "word_count") if type(m.get(key)) is int})
+    cg = m["cgroup"]
+    resources = {}
+    for key in ("cpu.max", "cpuset.cpus.effective", "memory.max", "memory.swap.max", "memory.peak"):
+        if isinstance(cg.get(key), str) and re.fullmatch(r"[0-9]+(?: [0-9]+)?", cg[key].strip()):
+            resources[key] = cg[key].strip()
+    for key, counters in (
+        ("memory.events", r"low|high|max|oom|oom_kill|oom_group_kill"),
+        ("cpu.stat", r"usage_usec|user_usec|system_usec|nr_periods|nr_throttled|throttled_usec|nr_bursts|burst_usec"),
+    ):
+        if isinstance(cg.get(key), str):
+            resources[key] = "\n".join(line for line in cg[key].splitlines()
+                                       if re.fullmatch(rf"(?:{counters}) [0-9]+", line))
+    measured["cgroup"] = resources
+    status = m.get("proc_status", "")
+    measured["proc_status"] = "\n".join(line for line in status.splitlines()
+                                        if re.fullmatch(r"Vm(?:HWM|RSS):\s+[0-9]+ kB", line))
+    prediction = m["predictions"]
+    measured["predictions"] = {
+        "outcome": "budget_exceeded" if "error" in prediction else "accepted",
+        "mention_count": len(prediction.get("mentions", [])),
+        "cluster_count": len(prediction.get("clusters", [])),
+    }
+    delta = prediction.get("max_reference_score_delta")
+    if type(delta) in (int, float) and math.isfinite(delta):
+        measured["predictions"]["max_reference_score_delta"] = delta
+    run["measurement"] = measured
+    return run
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--image", required=True, help="local image with matching Linux C runtime and /bin/sh")
@@ -195,22 +242,30 @@ def main():
                    help="run the pinned 521-token control and 4097/4096 inputs at a 4096-token cap")
     p.add_argument("--timeout", type=int, default=180)
     p.add_argument("--output", required=True, type=Path, help="new JSON receipt path")
+    p.add_argument("--aggregate", action="store_true", help="retain quantitative resource and reference checks for CI")
     args = p.parse_args()
     if args.cpu < 0 or args.timeout < 1:
         p.error("CPU must be nonnegative and timeout must be positive")
     cases = CALLER_CASES if args.caller_budget else CASES
     receipt = {"status": "incomplete", "runs": [], "cases": cases}
     checkpoint(args.output, receipt, create=True)
+    stage = "Docker resource preflight"
     try:
         info = json.loads(docker("info", "--format", "{{json .}}"))
         receipt["daemon"] = {k: info.get(k) for k in
                              ("CgroupVersion", "CpuCfsQuota", "CPUSet", "MemoryLimit", "SwapLimit", "Warnings")}
+        if args.aggregate:
+            receipt["daemon"] = {key: value for key, value in receipt["daemon"].items()
+                                 if type(value) is bool or (key == "CgroupVersion" and value in ("1", "2", 1, 2))}
         require_controls(info)
+        stage = "pinned image, model and runtime verification"
         image = docker("image", "inspect", "--format", "{{.Id}}", args.image)
         hashes = pinned_fp32_hashes(args.model)
         ort_hash = sha(args.ort)
         if ort_hash != "2d518e11c7767f9fdc4413bdbeb45acf30db504ff76a82fc19d9238a3f9f6c24":
-            raise RuntimeError("expected the pinned Linux x86_64 ONNX Runtime CPU library 1.24.4")
+            raise VerificationError("expected the pinned Linux x86_64 ONNX Runtime CPU library 1.24.4")
+        if args.aggregate and not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
+            raise VerificationError("expected a content-addressed Docker image")
         receipt.update(image=image, model_sha256=hashes, ort_sha256=ort_hash,
                        binary_sha256=sha(args.binary), cpu=args.cpu, repeats=args.repeats)
         receipt["status"] = "in_progress"
@@ -219,26 +274,34 @@ def main():
                 for t in ((1, 2) if (rep+n) % 2 == 0 else (2, 1)):
                     receipt["active_case"] = {"repeat": rep + 1, "threads": t, "tokens": n, "budget": b}
                     checkpoint(args.output, receipt)
+                    stage = "container execution"
                     row = run_case(args, image, t, n, b)
+                    stage = "resource, timing and prediction verification"
                     row["repeat"] = rep + 1
                     try:
                         if (row["threads"], row["tokens"], row["budget"]) != (t, n, b):
-                            raise RuntimeError("container row belongs to a different scheduled case")
+                            raise VerificationError("container row belongs to a different scheduled case")
                         verify(row, args.cpu)
                         # Ancillary Docker/model diagnostics must also be valid receipt JSON.
                         json.dumps(row, allow_nan=False)
                     except Exception:
                         # Retain the container failure details even when its
                         # measurement is malformed and cannot be serialized.
-                        receipt["failed_run"] = {k: row[k] for k in ("state", "stderr", "stdout", "timed_out") if k in row}
+                        if args.aggregate:
+                            receipt["failed_run"] = {"state": resource_state(row), "timed_out": row.get("timed_out") is True}
+                        else:
+                            receipt["failed_run"] = {k: row[k] for k in ("state", "stderr", "stdout", "timed_out") if k in row}
                         raise
-                    receipt["runs"].append(row)
+                    receipt["runs"].append(aggregate_run(row) if args.aggregate else row)
                     del receipt["active_case"]
                     checkpoint(args.output, receipt)
         receipt["status"] = "completed"
     except Exception as exc:
-        receipt.update(status="failed", error=str(exc))
+        message = str(exc) if isinstance(exc, VerificationError) or not args.aggregate else f"failed during {stage}"
+        receipt.update(status="failed", error=message)
         checkpoint(args.output, receipt)
+        if args.aggregate:
+            raise RuntimeError(receipt["error"]) from None
         raise
     checkpoint(args.output, receipt)
 
