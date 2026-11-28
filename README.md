@@ -14,16 +14,10 @@ offline extractor. Put this in `src/main.rs` and run `cargo run`:
 use anno::extract;
 
 fn main() -> anno::Result<()> {
-    let text =
-        "Lynn Conway worked at IBM.";
-    for mention in extract(text)? {
-        println!(
-            "{} [{}] {}..{}",
-            mention.text,
-            mention.entity_type,
-            mention.start(),
-            mention.end()
-        );
+    let text = "Lynn Conway worked at IBM.";
+    for m in extract(text)? {
+        let span = m.start()..m.end();
+        println!("{} [{}] {span:?}", m.text, m.entity_type);
     }
     Ok(())
 }
