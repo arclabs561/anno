@@ -55,7 +55,7 @@ fn export_preserves_edits_without_starting_the_selected_model() {
     // Both records retain the same original document ID and must get distinct files.
     let row = doc.to_string();
     fs::write(dir.join("review.jsonl"), format!("{row}\n{row}\n")).unwrap();
-    for fmt in ["brat", "graph-csv"] {
+    for fmt in ["brat", "graph-csv", "jsonl"] {
         ok(
             dir,
             &[
@@ -73,10 +73,20 @@ fn export_preserves_edits_without_starting_the_selected_model() {
     }
     for number in [1, 2] {
         let prefix = format!("out/review-{number}");
+        let label = format!("review.jsonl#record={number}");
+        let rows = fs::read_to_string(dir.join(format!("{prefix}.jsonl"))).unwrap();
+        assert!(!rows.is_empty());
+        for row in rows.lines() {
+            assert_eq!(serde_json::from_str::<Value>(row).unwrap()["source"], label);
+        }
+        let nodes = fs::read_to_string(dir.join(format!("{prefix}-nodes.csv"))).unwrap();
+        assert!(nodes.lines().count() > 1);
+        assert!(nodes.lines().skip(1).all(|row| row.ends_with(&label)));
         let ann = fs::read_to_string(dir.join(format!("{prefix}.ann"))).unwrap();
         assert!(ann.contains("REVIEWED Arg1:T1 Arg2:T2"), "{ann}");
         let edges = fs::read_to_string(dir.join(format!("{prefix}-edges.csv"))).unwrap();
         assert!(edges.contains("Marie,org:1_Acme_Inc,REVIEWED,"), "{edges}");
+        assert!(edges.lines().skip(1).all(|edge| edge.ends_with(&label)));
         assert!(!edges.contains("CO_OCCURS"));
     }
 }
@@ -771,6 +781,44 @@ fn export_reads_a_whole_grounded_batch_and_preserves_its_tree() {
             .contains(date));
     }
     assert!(!dir.join("saved/brat/brat").exists());
+}
+
+#[test]
+fn duplicate_stdin_ids_can_stream_but_cannot_overwrite_a_saved_document() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    let input = dir.join("rows.jsonl");
+    fs::write(
+        &input,
+        r#"{"id":"first","text":"First."}
+{"id":"notice","text":"Earlier edition."}
+{"id":"notice","text":"Later edition."}
+"#,
+    )
+    .unwrap();
+    let run = |extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_anno"))
+            .args([
+                "batch", "--stdin", "--model", "pattern", "--format", "jsonl",
+            ])
+            .args(extra)
+            .current_dir(dir)
+            .stdin(fs::File::open(&input).unwrap())
+            .output()
+            .unwrap()
+    };
+    let streamed = run(&[]);
+    assert!(streamed.status.success());
+    assert_eq!(
+        String::from_utf8(streamed.stdout).unwrap().lines().count(),
+        3
+    );
+
+    let saved = run(&["--output", "out"]);
+    assert!(!saved.status.success());
+    assert!(String::from_utf8_lossy(&saved.stderr).contains("notice.jsonl"));
+    assert!(!dir.join("out/first.jsonl").exists());
+    assert!(!dir.join("out/notice.jsonl").exists());
 }
 
 #[test]

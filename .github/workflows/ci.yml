@@ -1315,15 +1315,16 @@ jobs:
         run: |
           set -o pipefail
           scripts/validate-publish.sh 2>&1 | tee publish-validation.log
-      # bundled-* features include_str! these; the include whitelist once
-      # shipped without them (broken on crates.io despite green local builds)
-      - name: bundled assets in cargo package
+      - name: Check packaged sources and bundled fixture
         if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        working-directory: crates/anno
         run: |
           cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
-          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
-          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
-          grep -Fxq 'tests/fixtures/tplinker_plus_tags.json' /tmp/pkg.txt
+          git ls-files src > /tmp/expected-anno-files.txt
+          echo 'tests/fixtures/tplinker_plus_tags.json' >> /tmp/expected-anno-files.txt
+          while IFS= read -r path; do
+            grep -Fxq "$path" /tmp/pkg.txt || { echo "Missing from anno package: $path"; exit 1; }
+          done < /tmp/expected-anno-files.txt
       - name: Upload publish validation log
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

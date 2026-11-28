@@ -12,20 +12,14 @@ readme = "../../README.md"
 keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
-  "/src/**/*.rs",
-  "/src/viz/report.css",
-  "/src/backends/coref/maverick_worker.py",
-  "/src/backends/coref/maverick_models.json",
+  # Ship the source tree with its compile-time assets, including feature-gated models.
+  "/src/",
   "/tests/fixtures/maverick-worker.sh",
   "/tests/fixtures/tplinker_plus_tags.json",
   "/examples/fcoref_word_spans.rs",
   "/examples/coref_gap_panel.rs",
   "/examples/maverick_export.rs",
   "/examples/import_dwie_relations.rs",
-  # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
-  # whitelist shipped 0.10.0 without them, breaking those features on crates.io
-  "/src/backends/hmm_params.json",
-  "/src/backends/crf_weights.json",
   "/Cargo.toml",
   "/Cargo.lock",
   "/LICENSE",

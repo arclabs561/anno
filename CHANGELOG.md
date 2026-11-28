@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Export format migration
+
+- Graph CSV edges now have a fifth column, `source`. Importers with a fixed schema should add this column. When combining documents, join each edge endpoint to a node by `(source, id)`. For multi-record input, graph CSV and entity JSONL source labels include the one-based record number, such as `reviews.jsonl#record=2`.
+
 ### Rust and grounded JSON migration
 
 - Building the workspace now requires Rust 1.95 or newer.
