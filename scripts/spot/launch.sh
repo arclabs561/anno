@@ -15,10 +15,15 @@ FLEET_SIZE="${1:-4}"
 PROFILE="${2:-full}"
 
 # Load config if exists
-if [[ -f "$SCRIPT_DIR/config.env" ]]; then
-    source "$SCRIPT_DIR/config.env"
-fi
+source "$SCRIPT_DIR/../s3_bucket.sh"
+anno_spot_config "$SCRIPT_DIR/config.env"
 
+if [[ ${1:-} == --help || ${1:-} == -h || ${1:-} == help ]]; then
+    sed -n '2,/^$/s/^# *//p' "${BASH_SOURCE[0]}"
+    exit 0
+fi
+BUCKET=$(anno_bucket_name "${ANNO_SPOT_BUCKET:-}" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+export ANNO_SPOT_BUCKET="$BUCKET"
 REGION="${ANNO_SPOT_REGION:-us-east-1}"
 
 echo "========================================"
