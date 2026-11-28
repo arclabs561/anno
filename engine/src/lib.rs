@@ -19,7 +19,7 @@ fn mentions(text: &str, reader: &str, vessels: bool) -> Result<Vec<anno::Entity>
         return Ok(rows);
     }
     if reader == "crf" {
-        thread_local! { static READER: anno::backends::CrfNER = anno::backends::CrfNER::new(); }
+        thread_local! { static READER: anno::backends::CrfNER = anno::backends::CrfNER::new_heuristic(); }
         return READER.with(|model| model.extract_entities(text, None))
             .map_err(|e| JsValue::from_str(&e.to_string()));
     }

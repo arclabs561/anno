@@ -5,7 +5,7 @@ const log = "From the landing field at Saltglass Reach you can usually see two o
 const catalog = {
   neural:['Survey receiver',9,'Tune the receiver to the kinds of names you want to find. Its GLiNER-small-v2 cartridge runs locally on the survey bench.'],
   pilot: ['Harbor pilot', 7, 'Splices the port index and stamp reader into the CRF feed. A registered name gets first claim on its span.'],
-  crf: ['CRF reader', 2, 'Reads a name by its neighbors. The sequence weights were trained on English WikiANN. Try moving the same signature between two sentences.'],
+  crf: ['CRF reader', 2, 'Reads a name by its neighbors. Uses Anno’s hand-tuned sequence rules. Try moving the same signature between two sentences.'],
   registry: ['Port gazetteer', 0, 'A drum index of local names. The clerk cut a second groove for Vale under her surname.'],
   heuristic: ['Heuristic reader', 1, 'Picks names from capitals and nearby words. The carbon-copy test drops the case from an incoming wire.'],
   patterns: ['Pattern reader', 4, 'Finds dates and contact marks in the mail. Pull the privacy shutter to see what survives on a public copy.'],
