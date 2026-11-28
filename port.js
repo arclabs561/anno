@@ -3,6 +3,7 @@ import init, {extract, inspect} from './engine/pkg/saltglass_reader.js';
 const $ = selector => document.querySelector(selector);
 const log = "From the landing field at Saltglass Reach you can usually see two of the three moons. To find the third, stand beside the mail shed and look through the gap in the observatory stairs. Iona Vale painted a white mark on the step for visitors. She touches it up every spring.\n\nVale captains the Kestrel for the Brackwater Packet Company. Yesterday she brought the company’s new tide tables over from Low Bell, along with one passenger and a crate of dry socks. The tables say the mail road stays dry until noon. The passenger walked in at eleven with his boots full of water.";
 const catalog = {
+  neural:['Survey receiver',9,'Tune the receiver to the kinds of names you want to find. Its GLiNER-small-v2 cartridge runs locally on the survey bench.'],
   pilot: ['Harbor pilot', 7, 'Splices the port index and stamp reader into the CRF feed. A registered name gets first claim on its span.'],
   crf: ['CRF reader', 2, 'Reads a name by its neighbors. The sequence weights were trained on English WikiANN. Try moving the same signature between two sentences.'],
   registry: ['Port gazetteer', 0, 'A drum index of local names. The clerk cut a second groove for Vale under her surname.'],
@@ -35,11 +36,14 @@ const state = {
 };
 let screen = 'log', selected = state.reader, ready = false, labResult = null;
 let experiment = 'mentions';
+let surveyCutoff=0.5;
+let surveyLabels='person, vessel, location, organization';
 const notices = {
   posted: {number:'41', text:'14 May 2026 · 12:00. The mail road dries at noon. Hold the Kestrel at Low Bell until the carts arrive.'},
   amended: {number:'42', text:'15 May 2026 · 11:00. 🌙 Iona Vale sounded the west berth. She reports the mail road underwater. Send the Kestrel by the Low Bell channel.'}
 };
 const experiments = {
+  neural:['Neural survey · GLiNER','🌙 Iona Vale sounded the west berth. She reports the mail road underwater. Send the Kestrel by the Low Bell channel.'],
   mentions:['Mentions', log],
   compare:['Compare readers', '🌙 Iona Vale reached Low Bell. Contact iona@example.org on May 12, 2026.'],
   links:['Linked mentions', 'Iona Vale sailed to Low Bell. Iona Vale returned to Saltglass Reach.'],
@@ -82,7 +86,7 @@ function annotated(text,entities) {
     const reveal=()=>{
       part.querySelector('[aria-pressed="true"]')?.setAttribute('aria-pressed','false');
       mark.setAttribute('aria-pressed','true');
-      detail.textContent=e.text+' · '+type+' · characters ['+e.start+', '+e.end+')';};
+      detail.textContent=e.text+' · '+type+' · characters ['+e.start+', '+e.end+')'+(Number.isFinite(e.score)?' · model score '+e.score.toFixed(2):'');};
     mark.setAttribute('aria-pressed','false');mark.tabIndex=0;mark.setAttribute('role','button');mark.onclick=reveal;
     mark.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();reveal();}};
     mark.title=type;mark.setAttribute('aria-label',mark.textContent+', '+type);
@@ -109,7 +113,13 @@ function cancelAnalysis() {
 function showAnalysis(result,text,report){
   result.replaceChildren();
   if(report.entities){
-    result.append(el('p',report.entities.length+' mentions','small'),annotated(text,report.entities));
+    const summary=report.experiment==='neural'?'GLiNER · '+report.entities.length+(report.entities.length===1?' return':' returns')+' · '+report.scan_ms+' ms':report.entities.length+' mentions';
+    result.append(el('p',summary,'small'),annotated(text,report.entities));
+    if(report.baseline){
+      const comparison=el('details');
+      comparison.append(el('summary','Compare '+catalog[report.baseline_reader][0]+' · '+report.baseline.length+' returns'),annotated(text,report.baseline));
+      result.append(comparison);
+    }
   } else if(report.readers){
     for(const [id,rows] of Object.entries(report.readers)){
       const group=el('details');group.open=true;
@@ -183,7 +193,7 @@ function draw(rerun=false) {
     const exporter=$('#export');
     const reset=()=>{
       cancelAnalysis();labResult=null;result.replaceChildren();
-      scan.disabled=!ready;exporter.disabled=!ready;
+      scan.disabled=!ready;exporter.disabled=!ready || experiment==='neural';stop.hidden=true;
     };
     const run=(download=false)=>{
       if(pending)return;
@@ -194,16 +204,18 @@ function draw(rerun=false) {
         return;
       }
       const fail=message=>{
-        cancelAnalysis();result.textContent=message;scan.disabled=false;exporter.disabled=false;
+        cancelAnalysis();result.textContent=message;scan.disabled=false;exporter.disabled=experiment==='neural';stop.hidden=true;
       };
       try {
         const module = labWorker ? undefined : readerModule;
         labWorker ??= new Worker(new URL('./reader-worker.js',import.meta.url),{type:'module'});
         const worker=labWorker;
         pending=true;scan.disabled=true;exporter.disabled=true;
-        result.textContent='Reading manifest…';
+        stop.hidden=false;result.textContent=experiment==='neural'?'Opening survey receiver…':'Reading manifest…';
         worker.onmessage=({data})=>{
           if(worker!==labWorker || !pending)return;
+          if(data.status){result.textContent=data.status;return;}
+          stop.hidden=true;
           if(data.error){fail(data.error);return;}
           pending=false;scan.disabled=false;exporter.disabled=false;
           labResult=data.report;
@@ -213,11 +225,15 @@ function draw(rerun=false) {
         worker.onerror=()=>{
           if(worker===labWorker)fail('Reader interrupted. Run Anno to retry.');
         };
-        worker.postMessage({module,text,experiment,reader:state.reader,vessels:state.vessels,readers});
+        worker.postMessage({module,text,experiment,threshold:surveyCutoff,labels:[...new Set(surveyLabels.split(',').map(s=>s.trim()).filter(Boolean))],reader:state.reader,vessels:state.vessels,readers});
       } catch(error){fail(String(error));}
     };
     input.oninput=()=>{state.sample=input.value;reset();};
-    const scan=action('Run Anno',()=>run());scan.disabled=!ready;
+    const neural=experiment==='neural';
+    if(neural)$('#heading').textContent='Survey receiver';
+    const scan=action(neural?'Run local survey':'Run Anno',()=>run());scan.disabled=!ready;
+    const stop=action('Cancel scan',()=>{reset();result.textContent='Scan canceled.';scan.focus();});stop.hidden=true;
+    if(neural)exporter.disabled=!labResult || !ready;
     exporter.onclick=()=>run(true);
     const selector=el('select');
     selector.id='experiment';
@@ -225,12 +241,28 @@ function draw(rerun=false) {
       const option=el('option',name);option.value=value;selector.append(option);
     }
     selector.value=experiment;
-    selector.onchange=()=>{experiment=selector.value;$('#export').textContent=formatLabel[experiment]||'Export log';reset();};
+    selector.onchange=()=>{experiment=selector.value;labResult=null;draw();$('#experiment').focus();};
     const mode=el('label','Experiment ');mode.append(selector);
     const example=action('Load example',()=>{
-      input.value=experiments[experiment][1]; input.oninput(); if(ready)run();
+      input.value=experiments[experiment][1]; input.oninput(); if(ready && !neural)run();
     });
-    content.append(mode,caption,input,scan,example,result);
+    content.append(mode);
+    if(neural){
+      caption.textContent='Survey passage · up to 1,200 characters';
+      const label=el('label','Scan for (comma-separated)');
+      const tuning=el('input');tuning.value=surveyLabels;tuning.id='survey-labels';label.htmlFor=tuning.id;
+      tuning.oninput=()=>{surveyLabels=tuning.value;reset();};
+      const cutoff=el('label','Minimum score ');
+      const dial=el('select');dial.id='survey-cutoff';
+      for(const value of [0.5,0.7,0.85]){
+        const option=el('option',value.toFixed(2));option.value=value;dial.append(option);
+      }
+      dial.value=surveyCutoff;
+      dial.onchange=()=>{surveyCutoff=Number(dial.value);reset();};
+      cutoff.append(dial);
+      content.append(label,tuning,cutoff,el('p','First scan downloads 183 MB of weights plus runtime and tokenizer. Your passage stays in this browser.','small'));
+    }
+    content.append(caption,input,scan,example,stop,result);
     if(ready && !state.away && (rerun || labResult)) run();
   }
   if(screen==='board') drawBoard(content);
@@ -301,6 +333,17 @@ function shop(){
   sprite($('#large-icon'),index);
   $('#equipment').textContent=isFitted(selected)?'Fitted':'Available';
   $('#fit').disabled=!ready||isFitted(selected);$('#remove').disabled=!ready||selected!=='vessels'||!state.vessels;
+  $('#fit').textContent=selected==='neural'?'Open bench':'Fit';
+  if(selected==='neural'){
+    $('#preview').replaceChildren(el('strong','Variable-label survey','bench-label'),el('p','Set the dial to vessel and try the tide sounding without the ship roll.'));
+    const plate=el('dl',undefined,'spec-plate');
+    for(const [name,value] of [['Cartridge','GLiNER-small-v2'],['Weights','183 MB · int8'],['Label channels','1–8'],['Processor','Local CPU']]){
+      plate.append(el('dt',name),el('dd',value));
+    }
+    $('#equipment').replaceChildren(plate);
+    $('#fit').disabled=!ready;
+    return;
+  }
   const [test,first,second,front,back]=benchCards[selected];
   const atDesk=screen==='board' && state.mission==='accepted';
   const preview=$('#preview');preview.replaceChildren();
@@ -338,7 +381,11 @@ function updateFit(){
   labResult=null;save();shop();draw();
   $('#signal').textContent='Anno WebAssembly · '+catalog[state.reader][0];
 }
-$('#fit').onclick=()=>{if(selected==='vessels'){state.vessels=true;if(state.reader!=='pilot')state.reader='registry';}else state.reader=selected;updateFit();};
+$('#fit').onclick=()=>{if(selected==='neural'){
+  if(screen==='board' && state.mission==='accepted')state.sample=notices[state.notice].text;
+  else if(state.sample===log)state.sample=experiments.neural[1];
+  screen='lab';experiment='neural';labResult=null;$('#outfitter').close();draw();$('#heading').focus();return;
+}if(selected==='vessels'){state.vessels=true;if(state.reader!=='pilot')state.reader='registry';}else state.reader=selected;updateFit();};
 $('#remove').onclick=()=>{state.vessels=false;updateFit();};
 $('#shop').onclick=()=>{selected=state.reader;benchSide=0;useNotice=screen==='board' && state.mission==='accepted';shop();$('#outfitter').showModal();};
 $('#done').onclick=()=>$('#outfitter').close();
@@ -358,7 +405,7 @@ function exportPortLog(){
 function saveReport(report,text){
   const source=report.experiment==='redact'?{}:{text};
   const manifest='manifest' in report;
-  const blob=new Blob([manifest?report.manifest:JSON.stringify({reader:state.reader,vessel_register:state.vessels,...report,...source},null,2)],{type:manifest?'text/plain':'application/json'});
+  const blob=new Blob([manifest?report.manifest:JSON.stringify({reader:report.experiment==='neural'?report.model:state.reader,vessel_register:state.vessels,...report,...source},null,2)],{type:manifest?'text/plain':'application/json'});
   const a=el('a');a.href=URL.createObjectURL(blob);a.download=manifest?(experiment==='brat'?'saltglass.ann':'saltglass.bio'):'saltglass-log.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 draw();
