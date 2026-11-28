@@ -20,13 +20,13 @@ anno export --input documents.jsonl --output annotations-from-pipeline --format 
 To export an entire tree, save one grounded document per input file:
 
 ```sh
-anno batch --dir testdata/fixtures --model heuristic --format grounded --output saved
+anno batch --dir docs/examples/computing-history --model heuristic --format grounded --output saved
 anno export --input saved --format brat --output annotations
 ```
 
-Open `annotations/cross_doc/doc3.txt` next to `doc3.ann` in the same
-directory. The text contains both Sundar Pichai and Jensen Huang. The
-annotation file gives the character range for each name.
+Open `annotations/processors/arm.txt` alongside `arm.ann` in the same
+directory. The note credits Sophie Wilson and Steve Furber. The annotation
+file locates their names at character ranges `0..13` and `18..30`.
 
 Compact extraction JSON omits the complete source text. Grounded JSON retains
 it, so conversion can reproduce whitespace and character offsets. Pipeline

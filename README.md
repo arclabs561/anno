@@ -35,23 +35,30 @@ The range ends just before the period. Anno counts Unicode scalar values.
 
 ## Extract a directory
 
-Who appears in all three reports? From the root of this checkout, extract the
-people in the sample documents. Each row carries its source and character range.
+Lynn Conway co-wrote a textbook on chip design. Years later, she used her
+website to share other trans women’s stories. Which notes in a computing
+history collection mention her? From the root of this checkout, build an
+index of names across three short catalog notes.
 
 ```sh
 cargo install --locked --path crates/anno-cli \
   --no-default-features --features extractor-readability
-anno batch --dir testdata/fixtures --model heuristic --format jsonl |
+anno batch --dir docs/examples/computing-history --model heuristic --format jsonl |
   jq -r '.id as $doc | .entities[] | select(.type == "PER") |
          [$doc, .text, .start, .end] | @tsv'
 ```
 
 | Document | Person | Character range |
 | --- | --- | --- |
-| `cross_doc/doc1` | Jensen Huang | `0..12` |
-| `cross_doc/doc2` | Jensen Huang | `0..12` |
-| `cross_doc/doc3` | Sundar Pichai | `0..13` |
-| `cross_doc/doc3` | Jensen Huang | `18..30` |
+| `archives/trans-history` | Lynn Conway | `0..11` |
+| `books/chip-design` | Lynn Conway | `0..11` |
+| `books/chip-design` | Carver Mead | `16..27` |
+| `processors/arm` | Sophie Wilson | `0..13` |
+| `processors/arm` | Steve Furber | `18..30` |
+
+The sample notes draw on [Conway’s own collection](https://ai.eecs.umich.edu/people/conway/TSsuccesses/TSsuccesses.html)
+and the Computer History Museum’s accounts of [the textbook](https://www.computerhistory.org/revolution/digital-logic/12/287/1613)
+and [the first ARM processor](https://computerhistory.org/profile/sophie-wilson/).
 
 For your own archive, pass `--dir notes --output results` to save one
 annotation file per document. A source at `notes/letters/bio.txt` becomes
