@@ -1,7 +1,8 @@
 # anno
 
-Information extraction for Rust. Find named entities, link mentions, and
-extract relations. Keep the words behind each result.
+Anno finds named entities in text, links mentions, and extracts relations.
+Use the Rust library in an application or the `anno` command on a directory
+of documents. Each mention points back to the words in its source.
 
 [Rust](#find-mentions-in-rust) · [CLI](#extract-a-directory) · [Python](#compare-two-notices-in-python) · [Models](#choose-what-to-extract) · [API](https://docs.rs/anno)
 
@@ -42,10 +43,19 @@ anno batch --model heuristic \
   --dir notes --output results
 ```
 
-`notes/bio.txt` becomes `results/bio.json`. Open it to see the original text,
-the extracted mentions, and the source range for each one. This run needs no model weights.
-For a stream of documents, pass one JSON object per line on standard input.
-[Batch options and JSONL input](docs/QUICKSTART.md#cli-batch-processing)
+`anno batch` reads files directly inside `notes/`. Each document gets a JSON
+file containing its text and annotations. If `notes/bio.txt` contains the
+Lynn Conway sentence above, who appears in `results/bio.json`?
+
+```sh
+jq -r '.signals[] | select(.label == "PER") | .surface' results/bio.json
+```
+
+```text
+Lynn Conway
+```
+
+The heuristic backend runs without model weights. [Parallel workers, caching, and JSONL input](docs/QUICKSTART.md#cli-batch-processing)
 
 ## Choose what to extract
 
@@ -88,6 +98,9 @@ Select *She* in the cue at **14.9 seconds**. FCoref links it to *Émilie
 Durand* in the cue at **12.3 seconds**. The caption adapter returns both cue
 ranges so an editor can jump to the earlier line.
 [Reproduce with FCoref](crates/anno/examples/caption_links/README.md)
+
+Already have word boundaries? Aurelius passes its document text and word
+spans to Anno’s `analyze_words`. [Read the caller](https://github.com/arlyon/aurelius/blob/1319bcdcee28ee5b668b41a2a4f85dd0722b460f/lanes/src/language.rs#L317)
 
 ## Compare two notices in Python
 
