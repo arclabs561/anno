@@ -27,13 +27,13 @@ FIELDS = ("ID", "Text", "Pronoun", "Pronoun-offset", "A", "A-offset", "A-coref",
           "B", "B-offset", "B-coref", "URL")
 
 
-def choices(work, text, mentions, counts):
+def choices(work, text, mentions, counts, *, pronouns=PRONOUNS):
     names = sorted((m for m in mentions if m.tag == "PROP_PER"),
                    key=lambda m: (m.span[1], m.span[0]), reverse=True)
     for pronoun in sorted(mentions):
         start, end = pronoun.span
         form = text[start:end]
-        if pronoun.tag != "PRON_PER" or form.casefold() not in PRONOUNS:
+        if pronoun.tag != "PRON_PER" or form.casefold() not in pronouns:
             continue
         counts["targets"] += 1
         left = max(0, start - 500)
@@ -74,7 +74,7 @@ def phrases(text):
     return {tuple(words[i:i + 20]) for i in range(len(words) - 19)}
 
 
-def prepare(source, gap):
+def prepare(source, gap, *, pronouns=PRONOUNS):
     fold_zero = json.loads((ROOT / "docs/eval/coref-panels.json").read_text())["litbank"]["documents"]
     previous_works = litbank.WORKS | {int(row["id"].split("_")[0]) for row in fold_zero}
     if WORKS & previous_works:
@@ -91,7 +91,7 @@ def prepare(source, gap):
     for work in sorted(works, key=int):
         text, coref, entities, _ = works[work]
         mentions, _ = litbank._mentions(text, coref, entities)
-        for row in choices(work, text, mentions, counts):
+        for row in choices(work, text, mentions, counts, pronouns=pronouns):
             normalized = " ".join(row["Text"].casefold().split())
             if row["URL"] in gap_urls or normalized in gap_texts or phrases(row["Text"]) & gap_phrases:
                 counts["overlap_with_gap"] += 1

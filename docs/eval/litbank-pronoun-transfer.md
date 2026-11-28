@@ -81,3 +81,24 @@ cargo build --locked -p anno --no-default-features --example coref_gap_panel
 python3 scripts/qa/native_pronoun_person_evidence.py "$gap" target/debug/examples/coref_gap_panel \
   --litbank-panel "$private/panel.tsv" --check
 ```
+
+## How often is the nearer name correct for a literary reflexive?
+
+On the same 63 LitBank works, the aligned person mentions include 176 occurrences of *himself* or *herself*. We changed only the target forms in the preceding-name selector. Forty-three occurrences lacked a prior proper name within 500 Unicode scalars, 67 lacked a second distinct name, and 14 offered two names from the same annotated chain. The resulting 52 occurrences span 25 works and include 27 instances of *himself* and 25 of *herself*. Six refer to the earlier name, 34 to the nearer name and 12 to neither. These target occurrences are disjoint from the six-form study above, but come from the same books. LitBank chain identity supplies the answer even when the matching form is emphatic, as in “the captain himself”. The annotations do not label clause structure or distinguish reflexive and emphatic uses. [Source and attribution](#reproduction-and-attribution) · [Selection and decision counts](litbank-reflexives.json)
+
+| Answer source | Correct unique name | Wrong competing name | Wrong when neither is correct | Both names | No exact named link |
+|---|---:|---:|---:|---:|---:|
+| Always choose the nearer name | 34 | 6 | 12 | 0 | 0 |
+| Native, three supplied spans | 5 | 0 | 0 | 0 | 47 |
+| Native, raw text | 3 | 0 | 0 | 0 | 49 |
+| FCoref FP32, raw text | 18 | 1 | 0 | 0 | 33 |
+
+FCoref chose the correct earlier name on one of six such cases and the correct nearer name on 17 of 34. Its one incorrect choice picked the earlier name. Native raw output included the exact target span in 19 queries, compared with 50 for FCoref. On 12 of the latter 50, FCoref returned the exact reflexive but neither exact offered name in its public clusters. These counts combine the model's mention and linking behavior. A missing span can have been proposed internally and subsequently omitted from its public output. The nearer-name baseline receives the annotated candidate positions, an advantage over either raw model. Every unique choice is evaluated at exact character coordinates. None of the 52 cases were used to tune a model or a threshold. Among the 31 FCoref cases with an exact reflexive and no exact linked candidate, a longer span in the reflexive's own cluster strictly enclosed exactly one marked name nine times. Eight of those enclosed names matched the annotated chain and one was the wrong competing name. Both names were enclosed in one other case and neither in 21. Checking an enclosing span therefore recovers some correct candidates but can also assign the wrong person. The diagnostic leaves the exact answer counts above unchanged. [Scorer](../../scripts/qa/litbank_reflexives.py)
+
+With the same local corpus directories as above and a freshly built `coref_gap_panel` example, run:
+
+```sh
+python3 scripts/qa/litbank_reflexives.py "$litbank" "$gap" "$worker" --check
+```
+
+For FCoref, build the example with Anno's `onnx` feature, set `FCOREF_MODEL_PATH` to the pinned FP32 export, and add `--fcoref`. The replay checks the source manifest, reference offsets, weights and ordered decision digests. Only aggregates are stored in the repository. [Pinned model and runtime](../../.github/workflows/fcoref-cli.yml)
