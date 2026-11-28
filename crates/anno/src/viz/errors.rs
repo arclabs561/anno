@@ -1,8 +1,8 @@
 //! Visualize the one-to-one matches produced by the entity evaluator.
 //!
 //! The two columns have different denominators. A partially overlapping pair
-//! can also disagree on its label. Only a same-span type mismatch records the
-//! two labels in the portable evaluation report.
+//! can also disagree on its label. When the labeled signals are available,
+//! reports include per-gold-type counts and the label agreement of partial pairs.
 
 use super::{check_label, escape, html_document, integer, wrap};
 use crate::core::grounded::{EvalComparison, EvalMatch, SignalId};
@@ -12,7 +12,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
 use std::io::Read;
 
+mod labels;
 mod summary;
+pub use labels::{GoldLabelOutcomes, LabelOutcomes, PartialLabelAgreement};
 pub use summary::ERRORS_SCHEMA;
 
 #[derive(Default, Deserialize, Serialize)]
@@ -24,17 +26,18 @@ enum Metric {
 }
 
 #[derive(Deserialize)]
-struct Report {
+pub(super) struct Report {
     #[serde(default)]
     metric: Metric,
-    gold_count: usize,
-    predicted_count: usize,
-    correct: usize,
+    pub(super) gold_count: usize,
+    pub(super) predicted_count: usize,
+    pub(super) correct: usize,
     errors: usize,
-    matches: Vec<EvalMatch>,
+    pub(super) matches: Vec<EvalMatch>,
     model: Option<String>,
     predictions: Option<PredictionSource>,
     char_masking: Option<MaskReport>,
+    label_outcomes: Option<LabelOutcomes>,
 }
 
 #[derive(Deserialize)]
@@ -107,6 +110,7 @@ pub struct EvalErrors {
     missed: u64,
     extra: u64,
     label_pairs: BTreeMap<(String, String), u64>,
+    label_outcomes: Option<LabelOutcomes>,
     masking: Option<MaskCounts>,
     source: Source,
     title: Option<String>,
@@ -143,7 +147,7 @@ impl EvalErrors {
         pooled.ok_or_else(|| "expected at least one `anno eval --json` report".into())
     }
 
-    fn from_report(report: Report) -> Result<Self, String> {
+    pub(super) fn from_report(report: Report) -> Result<Self, String> {
         let (mut chart, ids) = Self::tally(&report.matches)?;
         for (field, reported, actual) in [
             ("gold_count", report.gold_count, ids[0].len()),
@@ -162,6 +166,7 @@ impl EvalErrors {
             }
         }
         chart.masking = Self::masking(report.metric, report.char_masking)?;
+        chart.set_label_outcomes(report.label_outcomes)?;
         chart.source = match (report.model, report.predictions) {
             (Some(model), _) => Source::Model(model),
             (_, Some(source)) => Source::Saved(source.document_id),
@@ -199,17 +204,23 @@ impl EvalErrors {
 
     /// Summarize existing matches without running a model or reassigning any pair.
     pub fn from_comparison(comparison: &EvalComparison) -> Result<Self, String> {
-        let (chart, ids) = Self::tally(&comparison.matches)?;
-        for (side, signals, seen) in [
-            ("gold", &comparison.gold, &ids[0]),
-            ("predicted", &comparison.predicted, &ids[1]),
-        ] {
-            let declared: HashSet<_> = signals.iter().map(|s| s.id).collect();
-            if declared.len() != signals.len() || &declared != seen {
-                return Err(format!("match IDs do not account for the {side} signals"));
-            }
-        }
+        let (mut chart, ids) = Self::tally(&comparison.matches)?;
+        chart.label_outcomes = Some(LabelOutcomes::from_comparison(comparison, &ids)?);
         Ok(chart)
+    }
+
+    /// Labeled outcomes are available for native comparisons and reports that recorded them.
+    #[must_use]
+    pub fn label_outcomes(&self) -> Option<&LabelOutcomes> {
+        self.label_outcomes.as_ref()
+    }
+
+    fn set_label_outcomes(&mut self, labeled: Option<LabelOutcomes>) -> Result<(), String> {
+        if let Some(detail) = &labeled {
+            detail.validate(self)?;
+        }
+        self.label_outcomes = labeled;
+        Ok(())
     }
 
     fn tally(matches: &[EvalMatch]) -> Result<(Self, [HashSet<SignalId>; 2]), String> {
@@ -221,6 +232,7 @@ impl EvalErrors {
             missed: 0,
             extra: 0,
             label_pairs: BTreeMap::new(),
+            label_outcomes: None,
             masking: None,
             source: Source::Unspecified,
             title: None,
@@ -316,6 +328,10 @@ impl EvalErrors {
         for (pair, count) in other.label_pairs {
             *self.label_pairs.entry(pair).or_default() += count;
         }
+        match (&mut self.label_outcomes, other.label_outcomes) {
+            (Some(left), Some(right)) => left.add(right),
+            _ => self.label_outcomes = None,
+        }
         if self.source != other.source {
             self.source = match (&self.source, &other.source) {
                 (
@@ -372,7 +388,10 @@ impl EvalErrors {
                     "#a34646",
                 ),
             ],
-            note: "A partial span overlap may also involve a different label.".into(),
+            note: self.label_outcomes.as_ref().map_or_else(
+                || "A partial span overlap may also involve a different label. Label agreement is unavailable for these reports.".into(),
+                LabelOutcomes::partial_note,
+            ),
         }
     }
 
@@ -417,24 +436,20 @@ impl EvalErrors {
         let mask = self.mask_panel();
         let pairs = self.label_pairs();
         let pair_rows = pairs.len().min(5);
-        let pair_height = if pair_rows == 0 {
-            0
-        } else {
-            87 + 27 * pair_rows
-        };
         let title = self.title();
-        let title_lines = wrap(title, if title.is_ascii() { 52 } else { 32 });
-        let title_extra = (title_lines.len() - 1) * 34;
-        let height = 115
-            + title_extra
-            + entities.height()
-            + mask.as_ref().map_or(0, Panel::height)
-            + pair_height;
         let mut description = format!(
             "{} exact matches, {} same-span label errors, {} partial overlaps, {} missed gold entities and {} extra predictions. There are {} gold entities and {} predictions.",
             self.exact, self.wrong_label, self.partial, self.missed, self.extra,
             entities.totals[0], entities.totals[1]
         );
+        write!(description, " {}", entities.note).unwrap();
+        if let Some(label) = self
+            .label_outcomes
+            .as_ref()
+            .and_then(LabelOutcomes::leading_description)
+        {
+            write!(description, " {label}").unwrap();
+        }
         if let Some(m) = &self.masking {
             write!(
                 description,
@@ -449,99 +464,83 @@ impl EvalErrors {
             )
             .unwrap();
         }
-        let mut svg = format!(
-            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 {height}" width="980" height="{height}" role="img" aria-labelledby="eval-title eval-desc">
+        let mut body = String::new();
+        let mut y = svg_text(&mut body, title, 20, 33, 460, 24, 700);
+        if let Some(source) = self.source_label() {
+            y = svg_text(&mut body, &source, 20, y + 2, 460, 17, 400);
+        }
+        for panel in std::iter::once(&entities).chain(mask.as_ref()) {
+            y = panel.svg(&mut body, y + 20);
+        }
+        if let Some(labels) = &self.label_outcomes {
+            y = labels.svg(&mut body, y);
+        }
+        if pair_rows > 0 {
+            y = svg_text(
+                &mut body,
+                "Same-span label confusions",
+                20,
+                y + 20,
+                460,
+                21,
+                700,
+            );
+            let subtitle = if pairs.len() > pair_rows {
+                format!(
+                    "Top {pair_rows} of {} pairs by frequency",
+                    integer(pairs.len())
+                )
+            } else {
+                "Ranked by frequency".to_owned()
+            };
+            y = svg_text(&mut body, &subtitle, 20, y, 460, 17, 400);
+            y += 4;
+            for (x, width, label) in [
+                (20, 164, "Gold label"),
+                (196, 187, "Predicted label"),
+                (397, 83, "Pairs"),
+            ] {
+                svg_text(&mut body, label, x, y, width, 17, 700);
+            }
+            y += 26;
+            for ((gold, pred), count) in pairs.into_iter().take(pair_rows) {
+                let gold_end = svg_text(&mut body, gold, 20, y, 164, 17, 400);
+                let pred_end = svg_text(&mut body, pred, 196, y, 187, 17, 400);
+                let count_end = svg_text(&mut body, &integer(*count), 397, y, 83, 17, 400);
+                y = gold_end.max(pred_end).max(count_end) + 3;
+            }
+        }
+        let height = y + 12;
+        format!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 {height}" width="500" height="{height}" role="img" aria-labelledby="eval-title eval-desc">
 <title id="eval-title">{}</title>
 <desc id="eval-desc">{}</desc>
-<rect width="980" height="{height}" fill="white"/>
+<rect width="500" height="{height}" fill="white"/>
 <g font-family="DejaVu Sans, sans-serif" fill="#183541">
+{body}</g>
+</svg>
 "##,
             escape(title),
             escape(&description)
-        );
-        for (i, line) in title_lines.iter().enumerate() {
-            writeln!(
-                svg,
-                r#"<text x="36" y="{}" font-size="28" font-weight="700">{}</text>"#,
-                42 + i * 34,
-                escape(line)
-            )
-            .unwrap();
-        }
-        writeln!(svg, r##"<text x="36" y="{}" font-size="15" fill="#456371">Each column shows a count and its share of that column. A dash means the column is empty.</text>"##, 68 + title_extra).unwrap();
-        if let Some(source) = self.source_label() {
-            writeln!(
-                svg,
-                r##"<text x="36" y="{}" font-size="14" fill="#456371"><title>{}</title>{}</text>"##,
-                90 + title_extra,
-                escape(&source),
-                escape(&visible_label(&source, 58))
-            )
-            .unwrap();
-        }
-        let mut top = 119 + title_extra;
-        for panel in std::iter::once(&entities).chain(mask.as_ref()) {
-            panel.svg(&mut svg, top);
-            top += panel.height();
-        }
-        if pair_rows > 0 {
-            writeln!(svg, r#"<text x="36" y="{top}" font-size="20" font-weight="700">Same-span label confusions</text>"#).unwrap();
-            let subtitle = if pairs.len() > pair_rows {
-                format!(
-                    "{} of {} label pairs, ranked by count",
-                    pair_rows,
-                    integer(pairs.len() as u64)
-                )
-            } else {
-                "Label pairs ranked by count".to_owned()
-            };
-            writeln!(
-                svg,
-                r##"<text x="36" y="{}" font-size="14" fill="#456371">{subtitle}</text>"##,
-                top + 23
-            )
-            .unwrap();
-            for (x, label) in [(36, "Gold label"), (375, "Predicted label"), (720, "Pairs")] {
-                writeln!(
-                    svg,
-                    r#"<text x="{x}" y="{}" font-size="14" font-weight="700">{label}</text>"#,
-                    top + 50
-                )
-                .unwrap();
-            }
-            for (i, ((gold, pred), count)) in pairs.iter().take(pair_rows).enumerate() {
-                let y = top + 77 + i * 27;
-                for (x, label) in [(36, gold), (375, pred)] {
-                    writeln!(
-                        svg,
-                        r#"<text x="{x}" y="{y}" font-size="15"><title>{}</title>{}</text>"#,
-                        escape(label),
-                        escape(&visible_label(label, 21))
-                    )
-                    .unwrap();
-                }
-                writeln!(
-                    svg,
-                    r#"<text x="720" y="{y}" font-size="15">{}</text>"#,
-                    integer(**count)
-                )
-                .unwrap();
-            }
-        }
-        svg.push_str("</g>\n</svg>\n");
-        svg
+        )
     }
 
     /// Render self-contained HTML with the chart, both denominators in table
     /// headers, and every observed same-span label confusion ordered by frequency.
     #[must_use]
     pub fn render_html(&self) -> String {
-        let mut tables = String::new();
+        let mut tables = format!(
+            r#"<section class="errors-report"><h1 class="mobile-intro">{}</h1>"#,
+            escape(self.title())
+        );
         if let Some(source) = self.source_label() {
             writeln!(tables, "<p>{}</p>", escape(&source)).unwrap();
         }
         for panel in std::iter::once(self.entity_panel()).chain(self.mask_panel()) {
             panel.html(&mut tables);
+        }
+        if let Some(labels) = &self.label_outcomes {
+            labels.html(&mut tables);
         }
         if !self.label_pairs.is_empty() {
             tables.push_str("<table><caption>All same-span label confusions</caption><thead><tr><th scope=\"col\">Gold label</th><th scope=\"col\">Predicted label</th><th scope=\"col\">Pairs</th></tr></thead><tbody>\n");
@@ -557,19 +556,39 @@ impl EvalErrors {
             }
             tables.push_str("</tbody></table>\n");
         }
+        tables.push_str("</section>");
         html_document(self.title(), &self.render_svg(), &tables)
     }
 }
 
-// Label text can come from a saved report. SVG titles and HTML tables keep the full value.
-fn visible_label(label: &str, max_chars: usize) -> String {
-    let normalized = label.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut chars = normalized.chars();
-    let mut short: String = chars.by_ref().take(max_chars).collect();
-    if chars.next().is_some() {
-        short.push('…');
+// Return the next baseline so user-provided text can grow without colliding with later rows.
+fn svg_text(
+    svg: &mut String,
+    text: &str,
+    x: usize,
+    mut y: usize,
+    width: usize,
+    size: usize,
+    weight: usize,
+) -> usize {
+    // Leave room for DejaVu Sans's widest advances. Symbols such as & and #
+    // occupy more space per display cell than ordinary words and digits.
+    let scale = if text.contains(['&', '#', '~', '+', '<', '>', '=', '^']) {
+        13
+    } else {
+        16
+    };
+    let columns = (width * scale / (size * 10)).max(1);
+    for line in wrap(text, columns) {
+        writeln!(
+            svg,
+            r#"<text x="{x}" y="{y}" font-size="{size}" font-weight="{weight}">{}</text>"#,
+            escape(&line)
+        )
+        .unwrap();
+        y += size + 5;
     }
-    short
+    y
 }
 
 struct Row(&'static str, [u64; 2], &'static str);
@@ -583,57 +602,45 @@ struct Panel {
 }
 
 impl Panel {
-    fn height(&self) -> usize {
-        90 + self.rows.len() * 46 + (wrap(&self.note, 110).len() - 1) * 18
-    }
-
     fn header(&self, side: usize) -> String {
         format!("{} ({})", self.columns[side], integer(self.totals[side]))
     }
 
-    fn svg(&self, svg: &mut String, top: usize) {
-        let columns = [310, 642];
-        writeln!(
-            svg,
-            r#"<text x="36" y="{top}" font-size="20" font-weight="700">{}</text>"#,
-            self.title
-        )
-        .unwrap();
-        for (side, x) in columns.iter().enumerate() {
-            writeln!(svg, r#"<text x="{x}" y="{top}" font-size="15" font-weight="700">{}<tspan x="{x}" dy="19" font-size="14" font-weight="400">{} total</tspan></text>"#, self.columns[side], integer(self.totals[side])).unwrap();
+    fn svg(&self, svg: &mut String, top: usize) -> usize {
+        let columns = [20, 258];
+        let mut y = svg_text(svg, self.title, 20, top, 460, 21, 700) + 3;
+        let mut header_end = y;
+        for (side, x) in columns.into_iter().enumerate() {
+            let end = svg_text(svg, self.columns[side], x, y, 220, 17, 700);
+            header_end = header_end.max(svg_text(
+                svg,
+                &format!("{} total", integer(self.totals[side])),
+                x,
+                end,
+                220,
+                17,
+                400,
+            ));
         }
-        writeln!(
-            svg,
-            r##"<path d="M36 {} H944" stroke="#d5e0e2"/>"##,
-            top + 30
-        )
-        .unwrap();
-        for (i, Row(label, counts, color)) in self.rows.iter().enumerate() {
-            let y = top + 56 + i * 46;
-            writeln!(svg, r#"<text x="36" y="{y}" font-size="15">{label}</text>"#).unwrap();
-            for (side, x) in columns.iter().enumerate() {
+        y = header_end + 6;
+        for Row(label, counts, color) in &self.rows {
+            writeln!(svg, r##"<path d="M20 {} H480" stroke="#d5e0e2"/>"##, y - 14).unwrap();
+            y = svg_text(svg, label, 20, y + 8, 460, 18, 700);
+            let mut end = y;
+            for (side, x) in columns.into_iter().enumerate() {
                 let value = count_share(counts[side], self.totals[side]);
-                writeln!(
-                    svg,
-                    r#"<text x="{x}" y="{y}" font-size="15">{value}</text>"#
-                )
-                .unwrap();
+                end = end.max(svg_text(svg, &value, x, y, 220, 17, 400));
+            }
+            for (side, x) in columns.into_iter().enumerate() {
                 if self.totals[side] != 0 {
-                    let bar_y = y + 6;
-                    let width = 237.0 * counts[side] as f64 / self.totals[side] as f64;
-                    writeln!(svg, r##"<rect x="{x}" y="{bar_y}" width="237" height="7" fill="#e6eeef"/><rect x="{x}" y="{bar_y}" width="{width:.3}" height="7" fill="{color}"/>"##).unwrap();
+                    let bar_y = end - 11;
+                    let width = 207.0 * counts[side] as f64 / self.totals[side] as f64;
+                    writeln!(svg, r##"<rect x="{x}" y="{bar_y}" width="207" height="6" fill="#e6eeef"/><rect x="{x}" y="{bar_y}" width="{width:.3}" height="6" fill="{color}"/>"##).unwrap();
                 }
             }
+            y = end + 18;
         }
-        for (i, line) in wrap(&self.note, 110).iter().enumerate() {
-            writeln!(
-                svg,
-                r##"<text x="36" y="{}" font-size="14" fill="#456371">{}</text>"##,
-                top + 57 + self.rows.len() * 46 + i * 18,
-                escape(line)
-            )
-            .unwrap();
-        }
+        svg_text(svg, &self.note, 20, y, 460, 17, 400)
     }
 
     fn html(&self, table: &mut String) {

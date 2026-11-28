@@ -1,0 +1,74 @@
+{
+  "baseline": "Confidence",
+  "candidate": "Both margins",
+  "rows": [
+    {
+      "baseline": {
+        "correct": 196,
+        "unmatched": 1517
+      },
+      "candidate": {
+        "correct": 194,
+        "unmatched": 1519
+      },
+      "gained": 53,
+      "interval": {
+        "lower": -20,
+        "method": "95% paired bootstrap within domains at fixed review slots",
+        "upper": 15
+      },
+      "label": "Additional distinct test texts",
+      "lost": 55,
+      "observations": 2047,
+      "role": "Held out from the original study"
+    },
+    {
+      "baseline": {
+        "correct": 20,
+        "unmatched": 140
+      },
+      "candidate": {
+        "correct": 24,
+        "unmatched": 136
+      },
+      "gained": 5,
+      "label": "Original balanced panel",
+      "lost": 1,
+      "observations": 192,
+      "role": "Previously examined"
+    },
+    {
+      "baseline": {
+        "correct": 18,
+        "unmatched": 131
+      },
+      "candidate": {
+        "correct": 20,
+        "unmatched": 129
+      },
+      "gained": 3,
+      "label": "Outside the text holdout",
+      "lost": 1,
+      "observations": 207,
+      "role": "Separate release occurrences"
+    },
+    {
+      "baseline": {
+        "correct": 234,
+        "unmatched": 1788
+      },
+      "candidate": {
+        "correct": 238,
+        "unmatched": 1784
+      },
+      "gained": 61,
+      "label": "Complete official test release",
+      "lost": 57,
+      "observations": 2446,
+      "role": "Total of the preceding three rows"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "Extra CrossRE matches at equal review budgets",
+  "unit": "sentences"
+}

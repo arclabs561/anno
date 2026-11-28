@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>How much do extra CrossRE relation suggestions recover?</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" width="560" height="1283" viewBox="0 0 560 1283" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">How much do extra CrossRE relation suggestions recover?</title><desc id="chart-desc">Horizontal position counts predictions without a reference match. Rates are per 100 sentences. Settings with identical counts share a mark. Development · six domains has 96 sentences and 397 gold items. Stock has 129 correct, 297 unmatched, and 426 total suggestions. Confidence has 142 correct, 364 unmatched, and 506 total suggestions. Both margins has 141 correct, 365 unmatched, and 506 total suggestions. All above 0.40 has 148 correct, 431 unmatched, and 579 total suggestions. Held-out test · six domains has 192 sentences and 646 gold items. Stock has 211 correct, 526 unmatched, and 737 total suggestions. Confidence has 231 correct, 666 unmatched, and 897 total suggestions. Both margins has 235 correct, 662 unmatched, and 897 total suggestions. All above 0.40 has 234 correct, 732 unmatched, and 966 total suggestions. </desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:15px}.heading{font-size:24px;font-weight:700}.cohort{font-size:20px;font-weight:700}.scope,.counts,.axis{fill:#405963}.label,.axis-title{font-weight:700}.axis{font-size:16px}.grid,.rule{fill:none;stroke:#d8e2e3}.frontier{fill:none;stroke:#41877f;stroke-width:2}.optimal{fill:#006867;stroke:white;stroke-width:1.4}.dominated{fill:white;stroke:#425b63;stroke-width:1.6}.leader{fill:none;stroke:#9aaeb0;stroke-width:.9}</style>
+<rect width="560" height="1283" fill="white"/><text x="18" y="31" class="heading">How much do extra CrossRE</text>
+<text x="18" y="59" class="heading">relation suggestions recover?</text>
+<text x="18" y="87" class="scope">Horizontal position counts predictions without a reference</text>
+<text x="18" y="106" class="scope">match. Rates are per 100 sentences.</text>
+<text x="18" y="125" class="scope">Filled points give the most correct matches at or below the</text>
+<text x="18" y="144" class="scope">stated budget.</text>
+<path d="M18 170H542" class="rule"/>
+<text x="18" y="196" class="cohort">Development · six domains</text>
+<text x="18" y="219" class="scope">96 sentences · 397 gold</text>
+<text x="69" y="250" class="axis-title">Correct / 100</text>
+<path d="M69 664.00H299" class="grid"/><text x="62" y="669.00" text-anchor="end" class="axis">0</text>
+<path d="M69 564.00H299" class="grid"/><text x="62" y="569.00" text-anchor="end" class="axis">50</text>
+<path d="M69 464.00H299" class="grid"/><text x="62" y="469.00" text-anchor="end" class="axis">100</text>
+<path d="M69 364.00H299" class="grid"/><text x="62" y="369.00" text-anchor="end" class="axis">150</text>
+<path d="M69 264.00H299" class="grid"/><text x="62" y="269.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 264V664" class="grid"/><text x="69.00" y="683" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 264V664" class="grid"/><text x="145.67" y="683" text-anchor="middle" class="axis">200</text>
+<path d="M222.33 264V664" class="grid"/><text x="222.33" y="683" text-anchor="middle" class="axis">400</text>
+<path d="M299.00 264V664" class="grid"/><text x="299.00" y="683" text-anchor="middle" class="axis">600</text>
+<text x="299" y="704" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M187.59 395.25H214.35V368.17H241.10V355.67H299" class="frontier"/>
+<path d="M241.10 355.67L320 273" class="leader"/>
+<text x="325" y="277" class="label">All above 0.40</text>
+<text x="325" y="295" class="counts">148 correct · 431</text>
+<text x="325" y="313" class="counts">unmatched</text>
+<text x="325" y="331" class="counts">579 suggestions · 37.3%</text>
+<text x="325" y="349" class="counts">recall</text>
+<path d="M214.35 368.17L320 373" class="leader"/>
+<text x="325" y="377" class="label">Confidence</text>
+<text x="325" y="395" class="counts">142 correct · 364</text>
+<text x="325" y="413" class="counts">unmatched</text>
+<text x="325" y="431" class="counts">506 suggestions · 35.8%</text>
+<text x="325" y="449" class="counts">recall</text>
+<path d="M214.75 370.25L320 473" class="leader"/>
+<text x="325" y="477" class="label">Both margins</text>
+<text x="325" y="495" class="counts">141 correct · 365</text>
+<text x="325" y="513" class="counts">unmatched</text>
+<text x="325" y="531" class="counts">506 suggestions · 35.5%</text>
+<text x="325" y="549" class="counts">recall</text>
+<path d="M187.59 395.25L320 573" class="leader"/>
+<text x="325" y="577" class="label">Stock</text>
+<text x="325" y="595" class="counts">129 correct · 297</text>
+<text x="325" y="613" class="counts">unmatched</text>
+<text x="325" y="631" class="counts">426 suggestions · 32.5%</text>
+<text x="325" y="649" class="counts">recall</text>
+<g><title>All above 0.40 · 148 correct · 431 unmatched</title><circle cx="241.10" cy="355.67" r="4.5" class="optimal"/></g>
+<g><title>Confidence · 142 correct · 364 unmatched</title><circle cx="214.35" cy="368.17" r="4.5" class="optimal"/></g>
+<g><title>Both margins · 141 correct · 365 unmatched</title><circle cx="214.75" cy="370.25" r="4.5" class="dominated"/></g>
+<g><title>Stock · 129 correct · 297 unmatched</title><circle cx="187.59" cy="395.25" r="4.5" class="optimal"/></g>
+<path d="M18 725H542" class="rule"/>
+<text x="18" y="751" class="cohort">Held-out test · six domains</text>
+<text x="18" y="774" class="scope">192 sentences · 646 gold</text>
+<text x="69" y="805" class="axis-title">Correct / 100</text>
+<path d="M69 1219.00H299" class="grid"/><text x="62" y="1224.00" text-anchor="end" class="axis">0</text>
+<path d="M69 1119.00H299" class="grid"/><text x="62" y="1124.00" text-anchor="end" class="axis">50</text>
+<path d="M69 1019.00H299" class="grid"/><text x="62" y="1024.00" text-anchor="end" class="axis">100</text>
+<path d="M69 919.00H299" class="grid"/><text x="62" y="924.00" text-anchor="end" class="axis">150</text>
+<path d="M69 819.00H299" class="grid"/><text x="62" y="824.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 819V1219" class="grid"/><text x="69.00" y="1238" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 819V1219" class="grid"/><text x="145.67" y="1238" text-anchor="middle" class="axis">200</text>
+<path d="M222.33 819V1219" class="grid"/><text x="222.33" y="1238" text-anchor="middle" class="axis">400</text>
+<path d="M299.00 819V1219" class="grid"/><text x="299.00" y="1238" text-anchor="middle" class="axis">600</text>
+<text x="299" y="1259" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M174.02 999.21H201.17V974.21H299" class="frontier"/>
+<path d="M201.17 974.21L320 828" class="leader"/>
+<text x="325" y="832" class="label">Both margins</text>
+<text x="325" y="850" class="counts">235 correct · 662</text>
+<text x="325" y="868" class="counts">unmatched</text>
+<text x="325" y="886" class="counts">897 suggestions · 36.4%</text>
+<text x="325" y="904" class="counts">recall</text>
+<path d="M215.15 975.25L320 928" class="leader"/>
+<text x="325" y="932" class="label">All above 0.40</text>
+<text x="325" y="950" class="counts">234 correct · 732</text>
+<text x="325" y="968" class="counts">unmatched</text>
+<text x="325" y="986" class="counts">966 suggestions · 36.2%</text>
+<text x="325" y="1004" class="counts">recall</text>
+<path d="M201.97 978.38L320 1028" class="leader"/>
+<text x="325" y="1032" class="label">Confidence</text>
+<text x="325" y="1050" class="counts">231 correct · 666</text>
+<text x="325" y="1068" class="counts">unmatched</text>
+<text x="325" y="1086" class="counts">897 suggestions · 35.8%</text>
+<text x="325" y="1104" class="counts">recall</text>
+<path d="M174.02 999.21L320 1128" class="leader"/>
+<text x="325" y="1132" class="label">Stock</text>
+<text x="325" y="1150" class="counts">211 correct · 526</text>
+<text x="325" y="1168" class="counts">unmatched</text>
+<text x="325" y="1186" class="counts">737 suggestions · 32.7%</text>
+<text x="325" y="1204" class="counts">recall</text>
+<g><title>Both margins · 235 correct · 662 unmatched</title><circle cx="201.17" cy="974.21" r="4.5" class="optimal"/></g>
+<g><title>All above 0.40 · 234 correct · 732 unmatched</title><circle cx="215.15" cy="975.25" r="4.5" class="dominated"/></g>
+<g><title>Confidence · 231 correct · 666 unmatched</title><circle cx="201.97" cy="978.38" r="4.5" class="dominated"/></g>
+<g><title>Stock · 211 correct · 526 unmatched</title><circle cx="174.02" cy="999.21" r="4.5" class="optimal"/></g>
+</svg>
+<div class="scroll"><section class="operating-points"><header class="mobile-intro"><h1>How much do extra CrossRE relation suggestions recover?</h1><p>Horizontal position counts predictions without a reference match. Filled points identify the greatest correct count observed at or below that budget.</p></header><table><caption>Development · six domains <span>· 96 sentences · 397 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">426</td><td data-label="Correct">129</td><td data-label="Unmatched">297</td><td data-label="Correct / 100">134.375</td><td data-label="Unmatched / 100">309.375</td><td data-label="Recall">32.5%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Confidence</th><td data-label="Suggestions">506</td><td data-label="Correct">142</td><td data-label="Unmatched">364</td><td data-label="Correct / 100">147.917</td><td data-label="Unmatched / 100">379.167</td><td data-label="Recall">35.8%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Both margins</th><td data-label="Suggestions">506</td><td data-label="Correct">141</td><td data-label="Unmatched">365</td><td data-label="Correct / 100">146.875</td><td data-label="Unmatched / 100">380.208</td><td data-label="Recall">35.5%</td><td data-label="On frontier">No</td></tr><tr><th scope="row">All above 0.40</th><td data-label="Suggestions">579</td><td data-label="Correct">148</td><td data-label="Unmatched">431</td><td data-label="Correct / 100">154.167</td><td data-label="Unmatched / 100">448.958</td><td data-label="Recall">37.3%</td><td data-label="On frontier">Yes</td></tr></tbody></table><table><caption>Held-out test · six domains <span>· 192 sentences · 646 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">737</td><td data-label="Correct">211</td><td data-label="Unmatched">526</td><td data-label="Correct / 100">109.896</td><td data-label="Unmatched / 100">273.958</td><td data-label="Recall">32.7%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Confidence</th><td data-label="Suggestions">897</td><td data-label="Correct">231</td><td data-label="Unmatched">666</td><td data-label="Correct / 100">120.312</td><td data-label="Unmatched / 100">346.875</td><td data-label="Recall">35.8%</td><td data-label="On frontier">No</td></tr><tr><th scope="row">Both margins</th><td data-label="Suggestions">897</td><td data-label="Correct">235</td><td data-label="Unmatched">662</td><td data-label="Correct / 100">122.396</td><td data-label="Unmatched / 100">344.792</td><td data-label="Recall">36.4%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">All above 0.40</th><td data-label="Suggestions">966</td><td data-label="Correct">234</td><td data-label="Unmatched">732</td><td data-label="Correct / 100">121.875</td><td data-label="Unmatched / 100">381.250</td><td data-label="Recall">36.2%</td><td data-label="On frontier">No</td></tr></tbody></table></section></div></main></body></html>

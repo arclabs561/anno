@@ -1,0 +1,10 @@
+diff --git a/crates/anno/examples/stacked_nuner_routing.rs b/crates/anno/examples/stacked_nuner_routing.rs
+--- a/crates/anno/examples/stacked_nuner_routing.rs
++++ b/crates/anno/examples/stacked_nuner_routing.rs
+@@ -41,3 +41,6 @@ fn main() -> Result<(), Box<dyn Error>> {
+             NuNER::from_pretrained(&arg)?
+         };
++        let nuner = nuner.with_labels(
++            ["person", "organization", "location", "miscellaneous"].map(String::from).to_vec(),
++        );
+         let mut builder = StackedNER::builder();

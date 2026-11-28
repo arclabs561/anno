@@ -1,161 +1,126 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="984" height="1341" viewBox="0 0 984 1341" role="img" aria-labelledby="chart-title chart-desc">
-<title id="chart-title">Running NuNER on stock-skipped sentences</title><desc id="chart-desc">Correct matches and unmatched predictions per 100 sentences. Each panel shares the correct and unmatched rate axes. The numbered points identify the exact counts and recall in its table. Identical counts share a point. WNUT-17 test · BERT absent has 295 sentences and 264 gold items. Stock has 31 correct, 257 unmatched, and 11.7% recall. Run NuNER has 111 correct, 397 unmatched, and 42.0% recall. WNUT-17 test · BERT loaded has 295 sentences and 264 gold items. Stock has 87 correct, 263 unmatched, and 33.0% recall. Run NuNER has 101 correct, 382 unmatched, and 38.3% recall. WikiGold · BERT absent has 313 sentences and 731 gold items. Stock has 231 correct, 307 unmatched, and 31.6% recall. Run NuNER has 435 correct, 274 unmatched, and 59.5% recall. WikiGold · BERT loaded has 313 sentences and 731 gold items. Stock has 563 correct, 233 unmatched, and 77.0% recall. Run NuNER has 567 correct, 254 unmatched, and 77.6% recall.</desc>
-<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:13px}.heading{font-size:24px;font-weight:700}.subtitle{font-size:15px;fill:#456371}.cohort{font-size:19px;font-weight:700}.scope,.axis{fill:#456371}.small,.axis{font-size:11px}.col{font-weight:700;font-size:12px}.num{text-anchor:end;font-variant-numeric:tabular-nums}.key{font-size:12px;font-weight:700;fill:#006867}.plot-key{paint-order:stroke;stroke:white;stroke-width:2;stroke-linejoin:round}.rule,.grid{fill:none;stroke:#d5e0e2;stroke-width:1}.frontier{fill:none;stroke:#6da8a2;stroke-width:1.6}.optimal{fill:#006867;stroke:white;stroke-width:1.2}.dominated{fill:white;stroke:#456371;stroke-width:1.5}.leader{stroke:#658384;stroke-width:.8}</style>
-<rect width="984" height="1341" fill="white"/><text x="32" y="38" class="heading">Running NuNER on stock-skipped sentences</text>
-<text x="32" y="67" class="subtitle">Correct matches and unmatched predictions per 100 sentences.</text>
-<text x="32" y="86" class="scope">Filled points trace the best match count at each unmatched budget. Open points have a better alternative.</text>
-<g><title>WNUT-17 test · BERT absent</title><path d="M32 109H952" class="rule"/>
-<text x="32" y="137" class="cohort">WNUT-17 test · BERT absent</text>
-<text x="32" y="159" class="scope">295 sentences · 264 gold</text>
-<text x="477" y="192" class="col">Operating point</text>
-<text x="789" y="192" class="col num">Correct</text>
-<text x="879" y="192" class="col num">Unmatched</text>
-<text x="952" y="192" class="col num">Recall</text>
-<g><title>Stock</title>
-<circle cx="426" cy="212" r="4" class="optimal"/><text x="436" y="216" class="key">1</text>
-<text x="477" y="216" class="label">Stock</text>
-<text x="789" y="216" class="num">31</text>
-<text x="879" y="216" class="num">257</text>
-<text x="952" y="216" class="num">11.7%</text>
-</g>
-<g><title>Run NuNER</title>
-<circle cx="426" cy="237" r="4" class="optimal"/><text x="436" y="241" class="key">2</text>
-<text x="477" y="241" class="label">Run NuNER</text>
-<text x="789" y="241" class="num">111</text>
-<text x="879" y="241" class="num">397</text>
-<text x="952" y="241" class="num">42.0%</text>
-</g>
-<text x="80" y="192" class="col">Correct / 100</text>
-<path d="M80 352.00H390" class="grid"/><text x="71" y="356.00" class="axis num">0</text>
-<path d="M80 315.50H390" class="grid"/><text x="71" y="319.50" class="axis num">50</text>
-<path d="M80 279.00H390" class="grid"/><text x="71" y="283.00" class="axis num">100</text>
-<path d="M80 242.50H390" class="grid"/><text x="71" y="246.50" class="axis num">150</text>
-<path d="M80 206.00H390" class="grid"/><text x="71" y="210.00" class="axis num">200</text>
-<path d="M80.00 206V352" class="grid"/><text x="80.00" y="368" class="axis" text-anchor="middle">0</text>
-<path d="M183.33 206V352" class="grid"/><text x="183.33" y="368" class="axis" text-anchor="middle">50</text>
-<path d="M286.67 206V352" class="grid"/><text x="286.67" y="368" class="axis" text-anchor="middle">100</text>
-<path d="M390.00 206V352" class="grid"/><text x="390.00" y="368" class="axis" text-anchor="middle">150</text>
-<text x="390" y="388" class="col num">Unmatched / 100</text>
-<path d="M260.05 344.33H358.12V324.53H390" class="frontier"/>
-<g><title>Point 1 · 31 correct · 257 unmatched</title><circle cx="260.05" cy="344.33" r="4" class="optimal"/></g>
-<g><title>Point 2 · 111 correct · 397 unmatched</title><circle cx="358.12" cy="324.53" r="4" class="optimal"/></g>
-<text x="270.05" y="348.33" class="key plot-key">1</text>
-<text x="368.12" y="328.53" class="key plot-key">2</text>
-</g>
-<g><title>WNUT-17 test · BERT loaded</title><path d="M32 417H952" class="rule"/>
-<text x="32" y="445" class="cohort">WNUT-17 test · BERT loaded</text>
-<text x="32" y="467" class="scope">295 sentences · 264 gold</text>
-<text x="477" y="500" class="col">Operating point</text>
-<text x="789" y="500" class="col num">Correct</text>
-<text x="879" y="500" class="col num">Unmatched</text>
-<text x="952" y="500" class="col num">Recall</text>
-<g><title>Stock</title>
-<circle cx="426" cy="520" r="4" class="optimal"/><text x="436" y="524" class="key">1</text>
-<text x="477" y="524" class="label">Stock</text>
-<text x="789" y="524" class="num">87</text>
-<text x="879" y="524" class="num">263</text>
-<text x="952" y="524" class="num">33.0%</text>
-</g>
-<g><title>Run NuNER</title>
-<circle cx="426" cy="545" r="4" class="optimal"/><text x="436" y="549" class="key">2</text>
-<text x="477" y="549" class="label">Run NuNER</text>
-<text x="789" y="549" class="num">101</text>
-<text x="879" y="549" class="num">382</text>
-<text x="952" y="549" class="num">38.3%</text>
-</g>
-<text x="80" y="500" class="col">Correct / 100</text>
-<path d="M80 660.00H390" class="grid"/><text x="71" y="664.00" class="axis num">0</text>
-<path d="M80 623.50H390" class="grid"/><text x="71" y="627.50" class="axis num">50</text>
-<path d="M80 587.00H390" class="grid"/><text x="71" y="591.00" class="axis num">100</text>
-<path d="M80 550.50H390" class="grid"/><text x="71" y="554.50" class="axis num">150</text>
-<path d="M80 514.00H390" class="grid"/><text x="71" y="518.00" class="axis num">200</text>
-<path d="M80.00 514V660" class="grid"/><text x="80.00" y="676" class="axis" text-anchor="middle">0</text>
-<path d="M183.33 514V660" class="grid"/><text x="183.33" y="676" class="axis" text-anchor="middle">50</text>
-<path d="M286.67 514V660" class="grid"/><text x="286.67" y="676" class="axis" text-anchor="middle">100</text>
-<path d="M390.00 514V660" class="grid"/><text x="390.00" y="676" class="axis" text-anchor="middle">150</text>
-<text x="390" y="696" class="col num">Unmatched / 100</text>
-<path d="M264.25 638.47H347.62V635.01H390" class="frontier"/>
-<line x1="264.25" y1="638.47" x2="272.25" y2="652.01" class="leader"/>
-<g><title>Point 1 · 87 correct · 263 unmatched</title><circle cx="264.25" cy="638.47" r="4" class="optimal"/></g>
-<g><title>Point 2 · 101 correct · 382 unmatched</title><circle cx="347.62" cy="635.01" r="4" class="optimal"/></g>
-<text x="274.25" y="656.01" class="key plot-key">1</text>
-<text x="357.62" y="639.01" class="key plot-key">2</text>
-</g>
-<g><title>WikiGold · BERT absent</title><path d="M32 725H952" class="rule"/>
-<text x="32" y="753" class="cohort">WikiGold · BERT absent</text>
-<text x="32" y="775" class="scope">313 sentences · 731 gold</text>
-<text x="477" y="808" class="col">Operating point</text>
-<text x="789" y="808" class="col num">Correct</text>
-<text x="879" y="808" class="col num">Unmatched</text>
-<text x="952" y="808" class="col num">Recall</text>
-<g><title>Stock</title>
-<circle cx="426" cy="828" r="4" class="dominated"/><text x="436" y="832" class="key">1</text>
-<text x="477" y="832" class="label">Stock</text>
-<text x="789" y="832" class="num">231</text>
-<text x="879" y="832" class="num">307</text>
-<text x="952" y="832" class="num">31.6%</text>
-</g>
-<g><title>Run NuNER</title>
-<circle cx="426" cy="853" r="4" class="optimal"/><text x="436" y="857" class="key">2</text>
-<text x="477" y="857" class="label">Run NuNER</text>
-<text x="789" y="857" class="num">435</text>
-<text x="879" y="857" class="num">274</text>
-<text x="952" y="857" class="num">59.5%</text>
-</g>
-<text x="80" y="808" class="col">Correct / 100</text>
-<path d="M80 968.00H390" class="grid"/><text x="71" y="972.00" class="axis num">0</text>
-<path d="M80 931.50H390" class="grid"/><text x="71" y="935.50" class="axis num">50</text>
-<path d="M80 895.00H390" class="grid"/><text x="71" y="899.00" class="axis num">100</text>
-<path d="M80 858.50H390" class="grid"/><text x="71" y="862.50" class="axis num">150</text>
-<path d="M80 822.00H390" class="grid"/><text x="71" y="826.00" class="axis num">200</text>
-<path d="M80.00 822V968" class="grid"/><text x="80.00" y="984" class="axis" text-anchor="middle">0</text>
-<path d="M183.33 822V968" class="grid"/><text x="183.33" y="984" class="axis" text-anchor="middle">50</text>
-<path d="M286.67 822V968" class="grid"/><text x="286.67" y="984" class="axis" text-anchor="middle">100</text>
-<path d="M390.00 822V968" class="grid"/><text x="390.00" y="984" class="axis" text-anchor="middle">150</text>
-<text x="390" y="1004" class="col num">Unmatched / 100</text>
-<path d="M260.92 866.55H390" class="frontier"/>
-<g><title>Point 1 · 231 correct · 307 unmatched</title><circle cx="282.71" cy="914.12" r="4" class="dominated"/></g>
-<g><title>Point 2 · 435 correct · 274 unmatched</title><circle cx="260.92" cy="866.55" r="4" class="optimal"/></g>
-<text x="292.71" y="918.12" class="key plot-key">1</text>
-<text x="270.92" y="870.55" class="key plot-key">2</text>
-</g>
-<g><title>WikiGold · BERT loaded</title><path d="M32 1033H952" class="rule"/>
-<text x="32" y="1061" class="cohort">WikiGold · BERT loaded</text>
-<text x="32" y="1083" class="scope">313 sentences · 731 gold</text>
-<text x="477" y="1116" class="col">Operating point</text>
-<text x="789" y="1116" class="col num">Correct</text>
-<text x="879" y="1116" class="col num">Unmatched</text>
-<text x="952" y="1116" class="col num">Recall</text>
-<g><title>Stock</title>
-<circle cx="426" cy="1136" r="4" class="optimal"/><text x="436" y="1140" class="key">1</text>
-<text x="477" y="1140" class="label">Stock</text>
-<text x="789" y="1140" class="num">563</text>
-<text x="879" y="1140" class="num">233</text>
-<text x="952" y="1140" class="num">77.0%</text>
-</g>
-<g><title>Run NuNER</title>
-<circle cx="426" cy="1161" r="4" class="optimal"/><text x="436" y="1165" class="key">2</text>
-<text x="477" y="1165" class="label">Run NuNER</text>
-<text x="789" y="1165" class="num">567</text>
-<text x="879" y="1165" class="num">254</text>
-<text x="952" y="1165" class="num">77.6%</text>
-</g>
-<text x="80" y="1116" class="col">Correct / 100</text>
-<path d="M80 1276.00H390" class="grid"/><text x="71" y="1280.00" class="axis num">0</text>
-<path d="M80 1239.50H390" class="grid"/><text x="71" y="1243.50" class="axis num">50</text>
-<path d="M80 1203.00H390" class="grid"/><text x="71" y="1207.00" class="axis num">100</text>
-<path d="M80 1166.50H390" class="grid"/><text x="71" y="1170.50" class="axis num">150</text>
-<path d="M80 1130.00H390" class="grid"/><text x="71" y="1134.00" class="axis num">200</text>
-<path d="M80.00 1130V1276" class="grid"/><text x="80.00" y="1292" class="axis" text-anchor="middle">0</text>
-<path d="M183.33 1130V1276" class="grid"/><text x="183.33" y="1292" class="axis" text-anchor="middle">50</text>
-<path d="M286.67 1130V1276" class="grid"/><text x="286.67" y="1292" class="axis" text-anchor="middle">100</text>
-<path d="M390.00 1130V1276" class="grid"/><text x="390.00" y="1292" class="axis" text-anchor="middle">150</text>
-<text x="390" y="1312" class="col num">Unmatched / 100</text>
-<path d="M233.84 1144.69H247.71V1143.76H390" class="frontier"/>
-<line x1="233.84" y1="1144.69" x2="241.84" y2="1160.76" class="leader"/>
-<g><title>Point 1 · 563 correct · 233 unmatched</title><circle cx="233.84" cy="1144.69" r="4" class="optimal"/></g>
-<g><title>Point 2 · 567 correct · 254 unmatched</title><circle cx="247.71" cy="1143.76" r="4" class="optimal"/></g>
-<text x="243.84" y="1164.76" class="key plot-key">1</text>
-<text x="257.71" y="1147.76" class="key plot-key">2</text>
-</g>
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="1593" viewBox="0 0 560 1593" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Running NuNER on stock-skipped sentences</title><desc id="chart-desc">Horizontal position counts predictions without a reference match. Rates are per 100 sentences. Settings with identical counts share a mark. WNUT-17 test · BERT absent has 295 sentences and 264 gold items. Stock has 31 correct, 257 unmatched, and 288 total suggestions. Run NuNER has 111 correct, 397 unmatched, and 508 total suggestions. WNUT-17 test · BERT loaded has 295 sentences and 264 gold items. Stock has 87 correct, 263 unmatched, and 350 total suggestions. Run NuNER has 101 correct, 382 unmatched, and 483 total suggestions. WikiGold · BERT absent has 313 sentences and 731 gold items. Stock has 231 correct, 307 unmatched, and 538 total suggestions. Run NuNER has 435 correct, 274 unmatched, and 709 total suggestions. WikiGold · BERT loaded has 313 sentences and 731 gold items. Stock has 563 correct, 233 unmatched, and 796 total suggestions. Run NuNER has 567 correct, 254 unmatched, and 821 total suggestions. </desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:15px}.heading{font-size:24px;font-weight:700}.cohort{font-size:20px;font-weight:700}.scope,.counts,.axis{fill:#405963}.label,.axis-title{font-weight:700}.axis{font-size:16px}.grid,.rule{fill:none;stroke:#d8e2e3}.frontier{fill:none;stroke:#41877f;stroke-width:2}.optimal{fill:#006867;stroke:white;stroke-width:1.4}.dominated{fill:white;stroke:#425b63;stroke-width:1.6}.leader{fill:none;stroke:#9aaeb0;stroke-width:.9}</style>
+<rect width="560" height="1593" fill="white"/><text x="18" y="31" class="heading">Running NuNER on stock-skipped</text>
+<text x="18" y="59" class="heading">sentences</text>
+<text x="18" y="87" class="scope">Horizontal position counts predictions without a reference</text>
+<text x="18" y="106" class="scope">match. Rates are per 100 sentences.</text>
+<text x="18" y="125" class="scope">Filled points give the most correct matches at or below the</text>
+<text x="18" y="144" class="scope">stated budget.</text>
+<path d="M18 170H542" class="rule"/>
+<text x="18" y="196" class="cohort">WNUT-17 test · BERT absent</text>
+<text x="18" y="219" class="scope">295 sentences · 264 gold</text>
+<text x="69" y="250" class="axis-title">Correct / 100</text>
+<path d="M69 464.00H299" class="grid"/><text x="62" y="469.00" text-anchor="end" class="axis">0</text>
+<path d="M69 414.00H299" class="grid"/><text x="62" y="419.00" text-anchor="end" class="axis">50</text>
+<path d="M69 364.00H299" class="grid"/><text x="62" y="369.00" text-anchor="end" class="axis">100</text>
+<path d="M69 314.00H299" class="grid"/><text x="62" y="319.00" text-anchor="end" class="axis">150</text>
+<path d="M69 264.00H299" class="grid"/><text x="62" y="269.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 264V464" class="grid"/><text x="69.00" y="483" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 264V464" class="grid"/><text x="145.67" y="483" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 264V464" class="grid"/><text x="222.33" y="483" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 264V464" class="grid"/><text x="299.00" y="483" text-anchor="middle" class="axis">150</text>
+<text x="299" y="504" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M202.58 453.49H275.35V426.37H299" class="frontier"/>
+<path d="M275.35 426.37L320 273" class="leader"/>
+<text x="325" y="277" class="label">Run NuNER</text>
+<text x="325" y="295" class="counts">111 correct · 397</text>
+<text x="325" y="313" class="counts">unmatched</text>
+<text x="325" y="331" class="counts">508 suggestions · 42.0%</text>
+<text x="325" y="349" class="counts">recall</text>
+<path d="M202.58 453.49L320 373" class="leader"/>
+<text x="325" y="377" class="label">Stock</text>
+<text x="325" y="395" class="counts">31 correct · 257</text>
+<text x="325" y="413" class="counts">unmatched</text>
+<text x="325" y="431" class="counts">288 suggestions · 11.7%</text>
+<text x="325" y="449" class="counts">recall</text>
+<g><title>Run NuNER · 111 correct · 397 unmatched</title><circle cx="275.35" cy="426.37" r="4.5" class="optimal"/></g>
+<g><title>Stock · 31 correct · 257 unmatched</title><circle cx="202.58" cy="453.49" r="4.5" class="optimal"/></g>
+<path d="M18 525H542" class="rule"/>
+<text x="18" y="551" class="cohort">WNUT-17 test · BERT loaded</text>
+<text x="18" y="574" class="scope">295 sentences · 264 gold</text>
+<text x="69" y="605" class="axis-title">Correct / 100</text>
+<path d="M69 819.00H299" class="grid"/><text x="62" y="824.00" text-anchor="end" class="axis">0</text>
+<path d="M69 769.00H299" class="grid"/><text x="62" y="774.00" text-anchor="end" class="axis">50</text>
+<path d="M69 719.00H299" class="grid"/><text x="62" y="724.00" text-anchor="end" class="axis">100</text>
+<path d="M69 669.00H299" class="grid"/><text x="62" y="674.00" text-anchor="end" class="axis">150</text>
+<path d="M69 619.00H299" class="grid"/><text x="62" y="624.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 619V819" class="grid"/><text x="69.00" y="838" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 619V819" class="grid"/><text x="145.67" y="838" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 619V819" class="grid"/><text x="222.33" y="838" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 619V819" class="grid"/><text x="299.00" y="838" text-anchor="middle" class="axis">150</text>
+<text x="299" y="859" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M205.70 789.51H267.55V784.76H299" class="frontier"/>
+<path d="M267.55 784.76L320 628" class="leader"/>
+<text x="325" y="632" class="label">Run NuNER</text>
+<text x="325" y="650" class="counts">101 correct · 382</text>
+<text x="325" y="668" class="counts">unmatched</text>
+<text x="325" y="686" class="counts">483 suggestions · 38.3%</text>
+<text x="325" y="704" class="counts">recall</text>
+<path d="M205.70 789.51L320 728" class="leader"/>
+<text x="325" y="732" class="label">Stock</text>
+<text x="325" y="750" class="counts">87 correct · 263</text>
+<text x="325" y="768" class="counts">unmatched</text>
+<text x="325" y="786" class="counts">350 suggestions · 33.0%</text>
+<text x="325" y="804" class="counts">recall</text>
+<g><title>Run NuNER · 101 correct · 382 unmatched</title><circle cx="267.55" cy="784.76" r="4.5" class="optimal"/></g>
+<g><title>Stock · 87 correct · 263 unmatched</title><circle cx="205.70" cy="789.51" r="4.5" class="optimal"/></g>
+<path d="M18 880H542" class="rule"/>
+<text x="18" y="906" class="cohort">WikiGold · BERT absent</text>
+<text x="18" y="929" class="scope">313 sentences · 731 gold</text>
+<text x="69" y="960" class="axis-title">Correct / 100</text>
+<path d="M69 1174.00H299" class="grid"/><text x="62" y="1179.00" text-anchor="end" class="axis">0</text>
+<path d="M69 1124.00H299" class="grid"/><text x="62" y="1129.00" text-anchor="end" class="axis">50</text>
+<path d="M69 1074.00H299" class="grid"/><text x="62" y="1079.00" text-anchor="end" class="axis">100</text>
+<path d="M69 1024.00H299" class="grid"/><text x="62" y="1029.00" text-anchor="end" class="axis">150</text>
+<path d="M69 974.00H299" class="grid"/><text x="62" y="979.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 974V1174" class="grid"/><text x="69.00" y="1193" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 974V1174" class="grid"/><text x="145.67" y="1193" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 974V1174" class="grid"/><text x="222.33" y="1193" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 974V1174" class="grid"/><text x="299.00" y="1193" text-anchor="middle" class="axis">150</text>
+<text x="299" y="1214" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M203.23 1035.02H299" class="frontier"/>
+<path d="M203.23 1035.02L320 983" class="leader"/>
+<text x="325" y="987" class="label">Run NuNER</text>
+<text x="325" y="1005" class="counts">435 correct · 274</text>
+<text x="325" y="1023" class="counts">unmatched</text>
+<text x="325" y="1041" class="counts">709 suggestions · 59.5%</text>
+<text x="325" y="1059" class="counts">recall</text>
+<path d="M219.39 1100.20L320 1083" class="leader"/>
+<text x="325" y="1087" class="label">Stock</text>
+<text x="325" y="1105" class="counts">231 correct · 307</text>
+<text x="325" y="1123" class="counts">unmatched</text>
+<text x="325" y="1141" class="counts">538 suggestions · 31.6%</text>
+<text x="325" y="1159" class="counts">recall</text>
+<g><title>Run NuNER · 435 correct · 274 unmatched</title><circle cx="203.23" cy="1035.02" r="4.5" class="optimal"/></g>
+<g><title>Stock · 231 correct · 307 unmatched</title><circle cx="219.39" cy="1100.20" r="4.5" class="dominated"/></g>
+<path d="M18 1235H542" class="rule"/>
+<text x="18" y="1261" class="cohort">WikiGold · BERT loaded</text>
+<text x="18" y="1284" class="scope">313 sentences · 731 gold</text>
+<text x="69" y="1315" class="axis-title">Correct / 100</text>
+<path d="M69 1529.00H299" class="grid"/><text x="62" y="1534.00" text-anchor="end" class="axis">0</text>
+<path d="M69 1479.00H299" class="grid"/><text x="62" y="1484.00" text-anchor="end" class="axis">50</text>
+<path d="M69 1429.00H299" class="grid"/><text x="62" y="1434.00" text-anchor="end" class="axis">100</text>
+<path d="M69 1379.00H299" class="grid"/><text x="62" y="1384.00" text-anchor="end" class="axis">150</text>
+<path d="M69 1329.00H299" class="grid"/><text x="62" y="1334.00" text-anchor="end" class="axis">200</text>
+<path d="M69.00 1329V1529" class="grid"/><text x="69.00" y="1548" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 1329V1529" class="grid"/><text x="145.67" y="1548" text-anchor="middle" class="axis">50</text>
+<path d="M222.33 1329V1529" class="grid"/><text x="222.33" y="1548" text-anchor="middle" class="axis">100</text>
+<path d="M299.00 1329V1529" class="grid"/><text x="299.00" y="1548" text-anchor="middle" class="axis">150</text>
+<text x="299" y="1569" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M183.14 1349.13H193.43V1347.85H299" class="frontier"/>
+<path d="M193.43 1347.85L320 1338" class="leader"/>
+<text x="325" y="1342" class="label">Run NuNER</text>
+<text x="325" y="1360" class="counts">567 correct · 254</text>
+<text x="325" y="1378" class="counts">unmatched</text>
+<text x="325" y="1396" class="counts">821 suggestions · 77.6%</text>
+<text x="325" y="1414" class="counts">recall</text>
+<path d="M183.14 1349.13L320 1438" class="leader"/>
+<text x="325" y="1442" class="label">Stock</text>
+<text x="325" y="1460" class="counts">563 correct · 233</text>
+<text x="325" y="1478" class="counts">unmatched</text>
+<text x="325" y="1496" class="counts">796 suggestions · 77.0%</text>
+<text x="325" y="1514" class="counts">recall</text>
+<g><title>Run NuNER · 567 correct · 254 unmatched</title><circle cx="193.43" cy="1347.85" r="4.5" class="optimal"/></g>
+<g><title>Stock · 563 correct · 233 unmatched</title><circle cx="183.14" cy="1349.13" r="4.5" class="optimal"/></g>
 </svg>

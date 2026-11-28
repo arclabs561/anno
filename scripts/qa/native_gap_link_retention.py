@@ -1,13 +1,14 @@
 """Replay native supplied-mention decisions with competing-name and threshold margins."""
 
 import argparse
-from collections import Counter
-from dataclasses import dataclass
 import json
 import math
 import os
-from pathlib import Path
+import random
 import subprocess
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
 
 import audit_gap_decisions as gap
 from coref_corpora import winogender
@@ -15,8 +16,10 @@ from coref_gap import REVISION as GAP_REVISION
 from gap_receipts import digest
 from native_gap_neutral_type import (
     PATCH as NEUTRAL_PATCH,
-    ROOT,
+)
+from native_gap_neutral_type import (
     PRODUCER,
+    ROOT,
     file_hash,
     paired,
     read_sources,
@@ -217,6 +220,7 @@ def winogender_rows(directory):
             row = {
                 "ID": case["id"],
                 "Text": case["text"],
+                "template": case["group"],
                 "A-coref": str(case["gold"] == "A").upper(),
                 "B-coref": str(case["gold"] == "B").upper(),
             }
@@ -303,6 +307,52 @@ def select(dev_curve):
     )["margin"]
 
 
+def paired_interval(rows, before, after, group_field, draws=5000):
+    """Resample paired clusters of the same size, holding the excerpt count fixed."""
+    by_group = {}
+    for row, old, new in zip(rows, before, after, strict=True):
+        # Two candidate-name links share a target. Keep both with the source article or template.
+        group = by_group.setdefault(row[group_field], [0, 0, 0, 0])
+        group[0] += 1
+        for gold, prev, curr in zip(gap.gold(row), old[3:], new[3:], strict=True):
+            if gold:
+                group[1] += prev == "1"
+                group[2] += curr == "1"
+                group[3] += prev == curr == "1"
+    strata = {}
+    for key in sorted(by_group):
+        size, baseline, candidate, kept = by_group[key]
+        strata.setdefault(size, []).append((baseline, candidate - baseline, kept))
+    rng = random.Random(428)
+    net, retention = [], []
+    for _ in range(draws):
+        baseline = delta = retained = 0
+        for values in strata.values():
+            for original, change, kept in rng.choices(values, k=len(values)):
+                baseline += original
+                delta += change
+                retained += kept
+        net.append(delta)
+        if baseline:
+            retention.append(100 * retained / baseline)
+
+    def bounds(values):
+        values = sorted(values)
+        return [
+            round(values[math.ceil(q * len(values)) - 1], 2) for q in (0.025, 0.975)
+        ]
+
+    return {
+        "cluster": "article URL" if group_field == "URL" else "Winogender template",
+        "clusters": len(by_group),
+        "draws": draws,
+        "seed": 428,
+        "net_correct_95": bounds(net),
+        "retention_defined_draws": len(retention),
+        "retention_percent_95": bounds(retention) if retention else None,
+    }
+
+
 def chart(panels):
     panel = panels["GAP test"]
     points = []
@@ -338,6 +388,56 @@ def chart(panels):
     }
 
 
+def paired_chart(receipt):
+    cutoff = receipt["selected_development_margins"]["threshold"]
+    target = receipt["development_true_link_retention"]
+    labels = (
+        ("GAP development", "GAP development", "Cutoff selection"),
+        ("GAP validation", "GAP validation", "Fixed cutoff"),
+        ("GAP test", "GAP test", "Fixed cutoff"),
+        ("Winogender phrases", "Full role phrases", "Winogender · same sentences"),
+        ("Winogender heads", "Bare role heads", "Winogender · same sentences"),
+    )
+    rows = []
+    for key, label, role in labels:
+        group = receipt["panels"][key]
+        arms = group["operating_points"]
+        baseline, candidate = arms["Neutral type"], arms["Threshold margin"]
+        pair = group["paired_vs_neutral"]["Threshold margin"]
+        row = {
+            "label": label,
+            "role": role,
+            "observations": group["rows"],
+            "baseline": {"correct": baseline["tp"], "unmatched": baseline["fp"]},
+            "candidate": {"correct": candidate["tp"], "unmatched": candidate["fp"]},
+            "gained": pair["correct_gained"],
+            "lost": pair["correct_lost"],
+        }
+        if ci := group.get("threshold_pair_resampling"):
+            row["interval"] = {
+                "lower": ci["net_correct_95"][0],
+                "upper": ci["net_correct_95"][1],
+                "method": f"95% paired bootstrap by {ci['cluster']}, within cluster size",
+            }
+        rows.append(row)
+    validation = next(row for row in rows if row["label"] == "GAP validation")
+    correct = validation["baseline"]["correct"]
+    retained = correct - validation["lost"]
+    title = (
+        f"GAP validation retained {retained / correct:.1%} of correct links (target {target:.0%})"
+        if correct
+        else "GAP validation had no baseline correct links to retain"
+    )
+    return {
+        "schema": "anno.paired/v1",
+        "title": title,
+        "unit": "supplied-span examples",
+        "baseline": "Neutral mention type",
+        "candidate": f"Threshold margin {cutoff:g}",
+        "rows": rows,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in (
@@ -350,6 +450,11 @@ def main():
         "chart",
     ):
         parser.add_argument("--" + arg, type=Path, required=True)
+    parser.add_argument(
+        "--paired-chart",
+        type=Path,
+        help="Write development, validation, test and both Winogender boundary comparisons",
+    )
     args = parser.parse_args()
     gap_splits, pins = read_sources(args.gap)
     panels = {
@@ -374,9 +479,10 @@ def main():
                 raise ValueError(
                     f"{label}: earlier full-split native partitions did not reproduce"
                 )
-        stock_masks, neutral_masks = [x.mask() for x in stock], [
-            x.mask() for x in neutral
-        ]
+        stock_masks, neutral_masks = (
+            [x.mask() for x in stock],
+            [x.mask() for x in neutral],
+        )
         curves = sweep(rows, neutral)
         if label == "GAP development":
             cutoffs = {rule: select(curves[rule]) for rule in RULES}
@@ -396,6 +502,12 @@ def main():
                 for k, v in outputs.items()
                 if k != "Neutral type"
             },
+            "threshold_pair_resampling": paired_interval(
+                rows,
+                neutral_masks,
+                outputs["Threshold margin"],
+                "URL" if label.startswith("GAP ") else "template",
+            ),
             "sweeps": curves,
             "native_partitions_sha256": {
                 "stock": stock_digest,
@@ -432,7 +544,10 @@ def main():
             "margin": file_hash(args.margin_worker),
         },
     }
-    for target, value in ((args.output, receipt), (args.chart, chart(results))):
+    files = [(args.output, receipt), (args.chart, chart(results))]
+    if args.paired_chart:
+        files.append((args.paired_chart, paired_chart(receipt)))
+    for target, value in files:
         target.write_text(
             json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )

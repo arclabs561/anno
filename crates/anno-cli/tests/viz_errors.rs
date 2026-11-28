@@ -93,7 +93,10 @@ fn masking_uses_unicode_union_counts_and_keeps_entity_diagnostics() {
     ]);
     let html = success(viz(&report, &["--format", "html"]));
     assert!(html.contains("Partial span overlap</th><td>1 (100.0%)</td><td>1 (100.0%)</td>"));
-    assert!(html.contains("A partial span overlap may also involve a different label."));
+    assert!(html.contains("also had a different label"));
+    assert!(html.contains(
+        r#"<th scope="row">ORG</th><td data-label="Gold mentions">1</td><td data-label="Exact">0 (0.0%)</td><td data-label="Same span, wrong type">0 (0.0%)</td><td data-label="Partial span">1 (100.0%)</td>"#
+    ));
     assert!(!html.contains("Same-span label confusions"));
     assert!(html.contains("Gold mask characters (3)</th>"));
     assert!(html.contains("Predicted mask characters (7)</th>"));
@@ -198,6 +201,9 @@ fn sparse_ids_and_escaped_labels_work_in_the_native_library() {
         .render_html()
         .contains(">P&lt;&amp;</th><td>OTHER</td><td>1</td>"));
     assert!(chart.render_svg().contains("P&lt;&amp;"));
+    let labels = chart.label_outcomes().unwrap();
+    assert_eq!(labels.by_gold_label()["P<&"].same_span_wrong_label, 1);
+    assert_eq!(labels.partial_labels().different, 0);
     comparison.matches[0] = EvalMatch::Correct {
         gold_id: SignalId::new(17),
         pred_id: SignalId::new(0),
@@ -317,6 +323,10 @@ fn portable_summary_round_trips_the_real_stream_and_rejects_changed_counts() {
         serde_json::from_str(&success(viz(&doubled, &["--format", "json"]))).unwrap();
     assert_eq!(combined["reports"], 4);
     assert!(combined.get("metadata").is_none());
+    assert_eq!(
+        combined["label_outcomes"]["by_gold_label"]["ORG"]["same_span_wrong_label"],
+        4
+    );
     let pairs = summary["same_span_label_confusions"][0].clone();
     for (key, value, expected) in [
         (
@@ -359,5 +369,57 @@ fn portable_summary_round_trips_the_real_stream_and_rejects_changed_counts() {
             "{key}: {}",
             String::from_utf8_lossy(&run.stderr)
         );
+    }
+}
+
+#[test]
+fn label_details_require_complete_evidence_and_reconcile_with_the_matches() {
+    let mut current: Value = serde_json::from_slice(&eval(&[
+        "--text",
+        "📬 x@y.com now",
+        "--gold",
+        "x@y:ORG:2:5",
+    ]))
+    .unwrap();
+    let input = serde_json::to_vec(&current).unwrap();
+    assert_eq!(
+        current["label_outcomes"]["partial_labels"],
+        json!({"same":0,"different":1})
+    );
+    let outcomes = current
+        .as_object_mut()
+        .unwrap()
+        .remove("label_outcomes")
+        .unwrap();
+    let legacy = serde_json::to_vec(&current).unwrap();
+    for mixed in [legacy.clone(), [input, legacy].concat()] {
+        let summary: Value =
+            serde_json::from_str(&success(viz(&mixed, &["--format", "json"]))).unwrap();
+        assert!(summary.get("label_outcomes").is_none());
+        assert!(success(viz(&mixed, &[])).contains("Label agreement is unavailable"));
+    }
+    current["label_outcomes"] = outcomes;
+    for (field, value, error) in [
+        (
+            "/label_outcomes/by_gold_label/ORG/missed",
+            json!(1),
+            "do not sum",
+        ),
+        (
+            "/label_outcomes/by_gold_label/ORG/same_span_wrong_label",
+            json!(1),
+            "confusions",
+        ),
+        (
+            "/label_outcomes/partial_labels/same",
+            json!(u64::MAX),
+            "does not sum",
+        ),
+    ] {
+        let mut bad = current.clone();
+        *bad.pointer_mut(field).unwrap() = value;
+        let run = viz(&serde_json::to_vec(&bad).unwrap(), &[]);
+        assert!(!run.status.success());
+        assert!(String::from_utf8_lossy(&run.stderr).contains(error));
     }
 }

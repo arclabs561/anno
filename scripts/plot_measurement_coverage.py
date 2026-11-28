@@ -28,9 +28,25 @@ def selection_plot(rows, output):
         if row["result"] in {"BIO token counts", "Tagged token counts"}
     ]
     stages = [rows, read, measured]
-    stage_names = ["Registered", "File read", "Token counts"]
-    colors = ["#36536a", "#009987", "#d57725", "#826a9e", "#c2c9cf"]
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4), layout="constrained")
+    stage_names = ["Registered IDs", "IDs with files read", "IDs with tagged counts"]
+    colors = ["#36536a", "#17746b", "#97501e", "#765c91", "#d8e0e3"]
+    fig, axes = plt.subplots(2, 1, figsize=(6.6, 6.0))
+    fig.subplots_adjust(left=0.335, right=0.96, top=0.78, bottom=0.16, hspace=1.0)
+    fig.text(
+        0.035,
+        0.94,
+        "Which IDs reach the direct reader?",
+        size=17,
+        weight="bold",
+        color="#1e3440",
+    )
+    fig.text(
+        0.035,
+        0.88,
+        "Each row counts registry IDs at one stage. Numbers on the bars count IDs.",
+        size=10,
+        color="#4b616a",
+    )
 
     top_formats = [
         label for label, _ in Counter(row["format"] for row in rows).most_common(4)
@@ -40,7 +56,9 @@ def selection_plot(rows, output):
         (axes[1], "language", ["en", "mul"], "Registry language code"),
     ]:
         start = [0.0] * len(stages)
-        for label, color in zip(labels + ["Other"], colors):
+        for label, color in zip(
+            labels + ["Other"], colors[: len(labels)] + [colors[-1]]
+        ):
             counts = [
                 sum(
                     (
@@ -55,7 +73,9 @@ def selection_plot(rows, output):
             widths = [
                 100 * n / len(stage) if stage else 0 for n, stage in zip(counts, stages)
             ]
-            bars = ax.barh(stage_names, widths, left=start, color=color, label=label)
+            bars = ax.barh(
+                stage_names, widths, left=start, color=color, label=label, height=0.64
+            )
             for bar, count, width in zip(bars, counts, widths):
                 if width >= 8:
                     ax.text(
@@ -65,23 +85,37 @@ def selection_plot(rows, output):
                         ha="center",
                         va="center",
                         fontsize=10,
-                        color="black" if color == "#c2c9cf" else "white",
+                        color="#203842" if color == colors[-1] else "white",
                     )
             start = [x + w for x, w in zip(start, widths)]
         ax.set_xlim(0, 100)
         ax.invert_yaxis()
         ax.spines[:].set_visible(False)
         ax.tick_params(length=0)
-        ax.set_title(title, loc="left")
+        ax.set_title(
+            title, loc="left", size=11.2, weight="bold", pad=8, color="#1e3440"
+        )
         ax.set_yticks(
             range(3),
             [f"{name} ({len(stage)})" for name, stage in zip(stage_names, stages)],
         )
-        ax.set_xlabel("Share of entries at each stage (%)")
+        ax.set_xticks([0, 25, 50, 75, 100], ["0%", "25%", "50%", "75%", "100%"], size=9)
         ax.legend(
-            loc="upper center", bbox_to_anchor=(0.5, -0.23), ncol=3, frameon=False
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.23),
+            ncol=len(labels) + 1,
+            frameon=False,
+            handlelength=1.15,
+            columnspacing=0.75,
+            fontsize=9,
         )
-    fig.suptitle("Which datasets reach token-level analysis?", fontsize=17)
+    fig.text(
+        0.035,
+        0.025,
+        "Format and language come from the registry declaration.",
+        size=9.5,
+        color="#4b616a",
+    )
     for extension in ("png", "svg"):
         fig.savefig(output / f"anno-selection.{extension}", dpi=160)
     plt.close(fig)
@@ -496,12 +530,17 @@ def coverage_plot(domains, output):
         1,
         2,
         sharey=True,
-        figsize=(8.8, 2.55 + 0.30 * len(groups)),
+        figsize=(7.5, 2.55 + 0.30 * len(groups)),
         gridspec_kw={"width_ratios": (2.2, 1.2)},
     )
-    fig.subplots_adjust(left=0.19, right=0.98, bottom=0.14, top=0.76, wspace=0.06)
+    fig.subplots_adjust(left=0.196, right=0.98, bottom=0.14, top=0.76, wspace=0.06)
     fig.text(
-        0.025, 0.95, "Dataset coverage by domain", size=18, weight="bold", color=ink
+        0.025,
+        0.95,
+        "Which domains have measured corpus content?",
+        size=17,
+        weight="bold",
+        color=ink,
     )
     fig.text(
         0.025,

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="1546" viewBox="0 0 520 1546" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">What does a skipped NuNER call buy?</title><desc id="paired-desc">Baseline Skip NuNER compared with candidate Run NuNER on the same inputs. Total suggestions include exact and unmatched predictions. WikiGold · BERT absent. Complete release · 4 scored WikiGold types · 313 stock-skipped sentences. +204 net exact matches · 231 → 435. Gained 220 · lost 16. Retained 215 of 231 baseline matches (93.1%). Change in total suggestions is +171 (538 to 709). Change in unmatched is −33 (307 to 274). Change in model calls is +313 (0 to 313). Change in median latency (ms) is +640.52 (0.19 to 640.71). WikiGold · BERT loaded. Complete release · 4 scored WikiGold types · 313 stock-skipped sentences. +4 net exact matches · 563 → 567. Gained 4 · lost 0. Retained 563 of 563 baseline matches (100.0%). Change in total suggestions is +25 (796 to 821). Change in unmatched is +21 (233 to 254). Change in model calls is +313 (0 to 313). Change in median latency (ms) is +751.13 (77.99 to 829.12). WNUT-17 test · BERT absent. Official test · 5 mapped WNUT types · 295 stock-skipped sentences. +80 net exact matches · 31 → 111. Gained 82 · lost 2. Retained 29 of 31 baseline matches (93.5%). Change in total suggestions is +220 (288 to 508). Change in unmatched is +140 (257 to 397). Change in model calls is +295 (0 to 295). Change in median latency (ms) is +190.84 (0.22 to 191.06). WNUT-17 test · BERT loaded. Official test · 5 mapped WNUT types · 295 stock-skipped sentences. +14 net exact matches · 87 → 101. Gained 14 · lost 0. Retained 87 of 87 baseline matches (100.0%). Change in total suggestions is +133 (350 to 483). Change in unmatched is +119 (263 to 382). Change in model calls is +295 (0 to 295). Change in median latency (ms) is +236.42 (66.23 to 302.65). WNUT-17 development · BERT absent. Development · 5 mapped WNUT types · 165 stock-skipped sentences. +41 net exact matches · 14 → 55. Gained 43 · lost 2. Retained 12 of 14 baseline matches (85.7%). Change in total suggestions is +60 (105 to 165). Change in unmatched is +19 (91 to 110). Change in model calls is +165 (0 to 165). Change in median latency (ms) is +147.77 (0.16 to 147.93). WNUT-17 development · BERT loaded. Development · 5 mapped WNUT types · 165 stock-skipped sentences. +7 net exact matches · 43 → 50. Gained 7 · lost 0. Retained 43 of 43 baseline matches (100.0%). Change in total suggestions is +24 (140 to 164). Change in unmatched is +17 (97 to 114). Change in model calls is +165 (0 to 165). Change in median latency (ms) is +185.51 (50.63 to 236.14).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">What does a skipped NuNER call</text>
+<text x="18" y="61" class="heading">buy?</text>
+<text x="18" y="90" class="scope">Baseline · Skip NuNER → Candidate · Run NuNER</text>
+<text x="18" y="110" class="scope">Net exact matches · −204 to +204 · center is zero</text>
+<path d="M18 130H502" stroke="#bdcec9"/>
+<text x="18" y="155" class="cohort">WikiGold · BERT absent</text>
+<text x="18" y="179" class="scope">Complete release · 4 scored WikiGold types · 313</text>
+<text x="18" y="199" class="scope">stock-skipped sentences</text>
+<path d="M390 216H494" stroke="#d2deda"/><path d="M442 206v20" stroke="#688079"/>
+<circle cx="494.00" cy="216" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="221" class="score">+204 net exact matches · 231 → 435</text>
+<text x="18" y="243" class="scope">Gained 220 · lost 16 · retained 215/231 (93.1%)</text>
+<text x="18" y="263" class="measure">Total suggestions</text>
+<text x="18" y="282" class="scope">538 → 709 (change +171)</text>
+<text x="267" y="263" class="measure">Unmatched</text>
+<text x="267" y="282" class="scope">307 → 274 (change −33)</text>
+<text x="18" y="304" class="measure">Model calls</text>
+<text x="18" y="323" class="scope">0 → 313 (change +313)</text>
+<text x="267" y="304" class="measure">Median latency (ms)</text>
+<text x="267" y="323" class="scope">0.19 → 640.71 (change</text>
+<text x="267" y="342" class="scope">+640.52)</text>
+<path d="M18 366H502" stroke="#bdcec9"/>
+<text x="18" y="391" class="cohort">WikiGold · BERT loaded</text>
+<text x="18" y="415" class="scope">Complete release · 4 scored WikiGold types · 313</text>
+<text x="18" y="435" class="scope">stock-skipped sentences</text>
+<path d="M390 452H494" stroke="#d2deda"/><path d="M442 442v20" stroke="#688079"/>
+<circle cx="443.02" cy="452" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="457" class="score">+4 net exact matches · 563 → 567</text>
+<text x="18" y="479" class="scope">Gained 4 · lost 0 · retained 563/563 (100.0%)</text>
+<text x="18" y="499" class="measure">Total suggestions</text>
+<text x="18" y="518" class="scope">796 → 821 (change +25)</text>
+<text x="267" y="499" class="measure">Unmatched</text>
+<text x="267" y="518" class="scope">233 → 254 (change +21)</text>
+<text x="18" y="540" class="measure">Model calls</text>
+<text x="18" y="559" class="scope">0 → 313 (change +313)</text>
+<text x="267" y="540" class="measure">Median latency (ms)</text>
+<text x="267" y="559" class="scope">77.99 → 829.12 (change</text>
+<text x="267" y="578" class="scope">+751.13)</text>
+<path d="M18 602H502" stroke="#bdcec9"/>
+<text x="18" y="627" class="cohort">WNUT-17 test · BERT absent</text>
+<text x="18" y="651" class="scope">Official test · 5 mapped WNUT types · 295</text>
+<text x="18" y="671" class="scope">stock-skipped sentences</text>
+<path d="M390 688H494" stroke="#d2deda"/><path d="M442 678v20" stroke="#688079"/>
+<circle cx="462.39" cy="688" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="693" class="score">+80 net exact matches · 31 → 111</text>
+<text x="18" y="715" class="scope">Gained 82 · lost 2 · retained 29/31 (93.5%)</text>
+<text x="18" y="735" class="measure">Total suggestions</text>
+<text x="18" y="754" class="scope">288 → 508 (change +220)</text>
+<text x="267" y="735" class="measure">Unmatched</text>
+<text x="267" y="754" class="scope">257 → 397 (change +140)</text>
+<text x="18" y="776" class="measure">Model calls</text>
+<text x="18" y="795" class="scope">0 → 295 (change +295)</text>
+<text x="267" y="776" class="measure">Median latency (ms)</text>
+<text x="267" y="795" class="scope">0.22 → 191.06 (change</text>
+<text x="267" y="814" class="scope">+190.84)</text>
+<path d="M18 838H502" stroke="#bdcec9"/>
+<text x="18" y="863" class="cohort">WNUT-17 test · BERT loaded</text>
+<text x="18" y="887" class="scope">Official test · 5 mapped WNUT types · 295</text>
+<text x="18" y="907" class="scope">stock-skipped sentences</text>
+<path d="M390 924H494" stroke="#d2deda"/><path d="M442 914v20" stroke="#688079"/>
+<circle cx="445.57" cy="924" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="929" class="score">+14 net exact matches · 87 → 101</text>
+<text x="18" y="951" class="scope">Gained 14 · lost 0 · retained 87/87 (100.0%)</text>
+<text x="18" y="971" class="measure">Total suggestions</text>
+<text x="18" y="990" class="scope">350 → 483 (change +133)</text>
+<text x="267" y="971" class="measure">Unmatched</text>
+<text x="267" y="990" class="scope">263 → 382 (change +119)</text>
+<text x="18" y="1012" class="measure">Model calls</text>
+<text x="18" y="1031" class="scope">0 → 295 (change +295)</text>
+<text x="267" y="1012" class="measure">Median latency (ms)</text>
+<text x="267" y="1031" class="scope">66.23 → 302.65 (change</text>
+<text x="267" y="1050" class="scope">+236.42)</text>
+<path d="M18 1074H502" stroke="#bdcec9"/>
+<text x="18" y="1099" class="cohort">WNUT-17 development · BERT absent</text>
+<text x="18" y="1123" class="scope">Development · 5 mapped WNUT types · 165</text>
+<text x="18" y="1143" class="scope">stock-skipped sentences</text>
+<path d="M390 1160H494" stroke="#d2deda"/><path d="M442 1150v20" stroke="#688079"/>
+<circle cx="452.45" cy="1160" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="1165" class="score">+41 net exact matches · 14 → 55</text>
+<text x="18" y="1187" class="scope">Gained 43 · lost 2 · retained 12/14 (85.7%)</text>
+<text x="18" y="1207" class="measure">Total suggestions</text>
+<text x="18" y="1226" class="scope">105 → 165 (change +60)</text>
+<text x="267" y="1207" class="measure">Unmatched</text>
+<text x="267" y="1226" class="scope">91 → 110 (change +19)</text>
+<text x="18" y="1248" class="measure">Model calls</text>
+<text x="18" y="1267" class="scope">0 → 165 (change +165)</text>
+<text x="267" y="1248" class="measure">Median latency (ms)</text>
+<text x="267" y="1267" class="scope">0.16 → 147.93 (change</text>
+<text x="267" y="1286" class="scope">+147.77)</text>
+<path d="M18 1310H502" stroke="#bdcec9"/>
+<text x="18" y="1335" class="cohort">WNUT-17 development · BERT loaded</text>
+<text x="18" y="1359" class="scope">Development · 5 mapped WNUT types · 165</text>
+<text x="18" y="1379" class="scope">stock-skipped sentences</text>
+<path d="M390 1396H494" stroke="#d2deda"/><path d="M442 1386v20" stroke="#688079"/>
+<circle cx="443.78" cy="1396" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="1401" class="score">+7 net exact matches · 43 → 50</text>
+<text x="18" y="1423" class="scope">Gained 7 · lost 0 · retained 43/43 (100.0%)</text>
+<text x="18" y="1443" class="measure">Total suggestions</text>
+<text x="18" y="1462" class="scope">140 → 164 (change +24)</text>
+<text x="267" y="1443" class="measure">Unmatched</text>
+<text x="267" y="1462" class="scope">97 → 114 (change +17)</text>
+<text x="18" y="1484" class="measure">Model calls</text>
+<text x="18" y="1503" class="scope">0 → 165 (change +165)</text>
+<text x="267" y="1484" class="measure">Median latency (ms)</text>
+<text x="267" y="1503" class="scope">50.63 → 236.14 (change</text>
+<text x="267" y="1522" class="scope">+185.51)</text>
+</svg>

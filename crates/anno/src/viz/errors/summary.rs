@@ -1,7 +1,7 @@
 //! The aggregate wire format has no per-mention records. It can be checked
 //! and rendered directly when a report stream is unavailable.
 
-use super::{check_label, EvalErrors, MaskReport, Metric, Source};
+use super::{check_label, EvalErrors, LabelOutcomes, MaskReport, Metric, Source};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -20,6 +20,8 @@ struct Summary {
     title: Option<String>,
     entities: Entities,
     same_span_label_confusions: Vec<LabelPair>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_outcomes: Option<LabelOutcomes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     char_masking: Option<MaskReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -93,7 +95,7 @@ impl EvalErrors {
         if labeled != e.same_span_wrong_label {
             return Err("label confusion counts do not sum to same_span_wrong_label".into());
         }
-        let chart = Self {
+        let mut chart = Self {
             reports: summary.reports,
             exact: e.exact,
             wrong_label: e.same_span_wrong_label,
@@ -101,11 +103,13 @@ impl EvalErrors {
             missed: e.missed_gold,
             extra: e.extra_predictions,
             label_pairs,
+            label_outcomes: None,
             masking: Self::masking(summary.metric, summary.char_masking)?,
             source: summary.prediction_source,
             title: summary.title,
             metadata: summary.metadata,
         };
+        chart.set_label_outcomes(summary.label_outcomes)?;
         chart.check_context()?;
         Ok(chart)
     }
@@ -143,6 +147,7 @@ impl EvalErrors {
                 })
                 .collect(),
             char_masking: self.masking.clone().map(|counts| MaskReport { counts }),
+            label_outcomes: self.label_outcomes.clone(),
             metadata: self.metadata.clone(),
         };
         serde_json::to_string_pretty(&summary)

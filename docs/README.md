@@ -34,11 +34,11 @@ For clients that load a local Agent Plugins package, select the checkout’s `.a
 
 | Task | Guide |
 |---|---|
-| Inspect evaluation mistakes or compare extractor settings at a given unmatched-prediction budget | [Visualize evaluation results](QUICKSTART.md#visualize-evaluation-results) |
+| Find the exact matches a change gained or lost, inspect errors, or compare settings at a fixed review budget | [Visualize evaluation results](QUICKSTART.md#visualize-evaluation-results) |
 | Find an experiment’s notes, results and replay command, or record a new trial | [Experiment records](eval/README.md) |
 | Choose a regression fixture, a labeled comparison or a live check | [Fixtures, datasets and QA](QA.md) |
 | Choose a benchmark for mention spans, clusters or directed relations | [Worked example](QA.md#find-a-dataset-or-add-a-case) |
-| Find the files and splits behind a figure and see which datasets were left out | [Dataset coverage and exclusions](eval/dataset-coverage.md) |
+| Look up a dataset, its measured splits, recorded backend runs and exclusions | [Searchable dataset explorer](eval/dataset-explorer.html) · [Dataset coverage and exclusions](eval/dataset-coverage.md) |
 | Browse the figures in the guides or rebuild them for publication | [Figure index, generators and CI downloads](figures/README.md) |
 | Compare extraction across labeled domains or test recognition of unfamiliar names | [Domain QA](DOMAIN_QA.md) · [WNUT-17 example](DOMAIN_QA.md#test-recognition-of-unfamiliar-names) |
 | Decide whether a change of NER backend held up across languages and input lengths | [Paired RED-FM and MultiNERD results](eval/ner-language-length.md#paired-glinerel-and-heuristic-results) |

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Anno dataset evidence</title>
+  <style>
+    * {box-sizing:border-box}
+    body {max-width:62rem;margin:0 auto;padding:2.5rem clamp(.9rem,4vw,3rem) 4rem;color:#19333d;background:#fff;font:1rem/1.5 "Source Sans 3",system-ui,sans-serif}
+    h1,h2,h3 {line-height:1.15;margin:0 0 .6em} h1 {font-size:clamp(2rem,5vw,2.8rem)} h2 {font-size:1.35rem} h3 {font-size:1.05rem;margin:1.2rem 0 .3rem}
+    p {max-width:78ch;margin:.6rem 0;overflow-wrap:anywhere} a {color:#075d62;text-underline-offset:.15em}
+    fieldset {margin:1.3rem 0 .6rem;padding:.8rem 1rem 1rem;border:1px solid #c8d5d6;border-radius:4px}
+    legend {font-weight:650;padding:0 .35rem}.fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.7rem}
+    .fields > div {min-width:0} label {display:block;font-weight:600;font-size:.9rem} input,select {display:block;width:100%;margin-top:.25rem;padding:.4rem;border:1px solid #98acaf;border-radius:3px;color:inherit;background:#fff;font:inherit}
+    button {margin-top:.7rem;padding:.35rem .7rem;background:white;border:1px solid #98acaf;border-radius:3px;color:#075d62;font:inherit;cursor:pointer}
+    :focus-visible {outline:2px solid #9b4b09;outline-offset:2px} [hidden] {display:none!important}
+    #count {color:#435d65;margin:.65rem 0;font-variant-numeric:tabular-nums}
+    .dataset {border-top:1px solid #c8d5d6;padding:.55rem 0} summary {cursor:pointer;font-weight:650}
+    summary span {font-weight:400;color:#48636a;font-size:.92rem;margin-left:.6em}
+    .dataset[open] {padding-bottom:1rem}.dataset details {margin-top:.7rem}
+    .scroll {max-width:100%;overflow-x:auto} td small {display:block;overflow-wrap:anywhere;color:#49646c} table {border-collapse:collapse;min-width:100%;font-size:.9rem} td,th {padding:.4rem .55rem;text-align:left;vertical-align:top;border-bottom:1px solid #dee5e5} th {color:#344e56;background:#f0f5f4}
+    @media (max-width:450px) {body{padding-top:1.3rem}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}summary span{display:block;margin-left:1rem}}
+  </style>
+</head>
+<body>
+  <h1>Anno dataset evidence</h1>
+  <p>Explore {{count}} registry IDs, their measured corpus content and the scoring receipts for specific backends and splits. The density reference includes {{units}} measured file or partition units across {{tagged_ids}} IDs.</p>
+  <p>A scored row identifies a completed evaluation on its stated inputs. A backend failure produced no score. A passed load check records that the sampler found a readable input for the task. Load rejections also occur before scoring. An exporter replay used supplied gold annotations. An unreported backend or split means the source did not establish it. An ID without an indexed outcome may have other evaluations.</p>
+  <p>Repeated trials can use the same examples. A sample from a digest-matched publisher split describes only the examples scored. Registry tasks and splits describe the catalog declaration. The receipt identifies the task and population actually tested.</p>
+  <p><a href="dataset-evaluation-coverage.csv">Evaluation CSV</a> · <a href="dataset-density-units.csv">Partition density CSV</a> · <a href="https://github.com/arclabs561/anno/blob/main/docs/eval/dataset-coverage.md">Coverage guide and source scope</a></p>
+  <form id="filters" hidden>
+    <fieldset><legend>Filter datasets</legend><div class="fields">
+      <div><label for="query">Dataset or declared task</label><input id="query" type="search" placeholder="Name, ID or task"></div>
+      <div><label for="domain">Domain</label><select id="domain"><option value="">All domains</option>{{domains}}</select></div>
+      <div><label for="measurement">Corpus measurement</label><select id="measurement"><option value="">All measurements</option>{{measurements}}</select></div>
+      <div><label for="scheme">Annotation unit</label><select id="scheme"><option value="">All units</option>{{schemes}}</select></div>
+      <div><label for="task">Recorded task</label><select id="task"><option value="">All scored or attempted tasks</option>{{tasks}}</select></div>
+      <div><label for="split">Recorded split</label><select id="split"><option value="">All splits</option>{{splits}}</select></div>
+      <div><label for="backend">Backend</label><select id="backend"><option value="">All backends</option>{{backends}}</select></div>
+      <div><label for="state">Outcome</label><select id="state"><option value="">All outcomes</option>{{states}}</select></div>
+    </div><button type="reset">Clear filters</button></fieldset>
+  </form>
+  <p id="count" role="status">{{count}} datasets</p>
+  <section aria-label="Dataset evidence">{{datasets}}</section>
+  <script>
+    const filters = document.getElementById("filters");
+    const datasets = [...document.querySelectorAll(".dataset")];
+    const count = document.getElementById("count");
+    function filterRows() {
+      const query = document.getElementById("query").value.trim().toLowerCase();
+      const domain = document.getElementById("domain").value;
+      const measurement = document.getElementById("measurement").value;
+      const task = document.getElementById("task").value;
+      const split = document.getElementById("split").value;
+      const scheme = document.getElementById("scheme").value;
+      const backend = document.getElementById("backend").value;
+      const state = document.getElementById("state").value;
+      let matches = 0;
+      for (const details of datasets) {
+        const dataset = details.dataset;
+        const eligible = dataset.keywords.includes(query) && (!domain || domain === dataset.domain)
+                      && (!scheme || scheme === dataset.annotation)
+                      && (!measurement || measurement === dataset.measurement);
+        let hasRecord = false;
+        for (const row of details.querySelectorAll(".outcome")) {
+          const outcome = row.dataset;
+          const reported = (outcome.reported || "").split(" | ");
+          row.hidden = (state && outcome.status !== state)
+            || (task && outcome.task !== task) || (split && outcome.split !== split)
+            || (backend && outcome.backend !== backend && !reported.includes(backend));
+          if (!row.hidden) hasRecord = true;
+        }
+        details.hidden = !eligible || !hasRecord;
+        if (!details.hidden) matches++;
+      }
+      count.textContent = matches + " of " + datasets.length + " datasets";
+    }
+    filters.hidden = false;
+    filters.addEventListener("input",filterRows);
+    filters.addEventListener("reset",() => requestAnimationFrame(filterRows));
+    filters.addEventListener("submit",event => event.preventDefault());
+  </script>
+</body>
+</html>

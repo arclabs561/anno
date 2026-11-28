@@ -1,0 +1,2117 @@
+{
+  "budgets_percent_of_eligible": [
+    25,
+    50,
+    100
+  ],
+  "entity_gate": 0.5,
+  "panels": {
+    "additional_test": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "both_correct_changed_relation": 3,
+            "confidence_correct": 196,
+            "confidence_suggestions": 1713,
+            "confidence_unmatched": 1517,
+            "confidence_unmatched_with_inexact_endpoint": 1066,
+            "endpoint_correct": 214,
+            "endpoint_suggestions": 1713,
+            "endpoint_unmatched": 1499,
+            "endpoint_unmatched_with_inexact_endpoint": 1005,
+            "gained_correct_relations": 29,
+            "lost_correct_relations": 11,
+            "sentences": 2047
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 24,
+              "confidence_suggestions": 187,
+              "confidence_unmatched": 163,
+              "confidence_unmatched_with_inexact_endpoint": 116,
+              "endpoint_correct": 24,
+              "endpoint_suggestions": 187,
+              "endpoint_unmatched": 163,
+              "endpoint_unmatched_with_inexact_endpoint": 114,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 1,
+              "sentences": 268
+            },
+            "literature": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 36,
+              "confidence_suggestions": 357,
+              "confidence_unmatched": 321,
+              "confidence_unmatched_with_inexact_endpoint": 221,
+              "endpoint_correct": 37,
+              "endpoint_suggestions": 357,
+              "endpoint_unmatched": 320,
+              "endpoint_unmatched_with_inexact_endpoint": 207,
+              "gained_correct_relations": 6,
+              "lost_correct_relations": 5,
+              "sentences": 383
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 33,
+              "confidence_suggestions": 306,
+              "confidence_unmatched": 273,
+              "confidence_unmatched_with_inexact_endpoint": 188,
+              "endpoint_correct": 41,
+              "endpoint_suggestions": 306,
+              "endpoint_unmatched": 265,
+              "endpoint_unmatched_with_inexact_endpoint": 172,
+              "gained_correct_relations": 8,
+              "lost_correct_relations": 0,
+              "sentences": 341
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 7,
+              "confidence_suggestions": 255,
+              "confidence_unmatched": 248,
+              "confidence_unmatched_with_inexact_endpoint": 181,
+              "endpoint_correct": 9,
+              "endpoint_suggestions": 255,
+              "endpoint_unmatched": 246,
+              "endpoint_unmatched_with_inexact_endpoint": 173,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 0,
+              "sentences": 342
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 51,
+              "confidence_suggestions": 325,
+              "confidence_unmatched": 274,
+              "confidence_unmatched_with_inexact_endpoint": 182,
+              "endpoint_correct": 53,
+              "endpoint_suggestions": 325,
+              "endpoint_unmatched": 272,
+              "endpoint_unmatched_with_inexact_endpoint": 170,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 2,
+              "sentences": 362
+            },
+            "science": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 45,
+              "confidence_suggestions": 283,
+              "confidence_unmatched": 238,
+              "confidence_unmatched_with_inexact_endpoint": 178,
+              "endpoint_correct": 50,
+              "endpoint_suggestions": 283,
+              "endpoint_unmatched": 233,
+              "endpoint_unmatched_with_inexact_endpoint": 169,
+              "gained_correct_relations": 8,
+              "lost_correct_relations": 3,
+              "sentences": 351
+            }
+          },
+          "review_slots": 1713,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 169,
+            "both_reviewed_with_same_relation": 1544
+          }
+        },
+        "25": {
+          "counts": {
+            "both_correct_changed_relation": 1,
+            "confidence_correct": 58,
+            "confidence_suggestions": 428,
+            "confidence_unmatched": 370,
+            "confidence_unmatched_with_inexact_endpoint": 260,
+            "endpoint_correct": 76,
+            "endpoint_suggestions": 428,
+            "endpoint_unmatched": 352,
+            "endpoint_unmatched_with_inexact_endpoint": 194,
+            "gained_correct_relations": 26,
+            "lost_correct_relations": 8,
+            "sentences": 2047
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 5,
+              "confidence_suggestions": 34,
+              "confidence_unmatched": 29,
+              "confidence_unmatched_with_inexact_endpoint": 22,
+              "endpoint_correct": 5,
+              "endpoint_suggestions": 23,
+              "endpoint_unmatched": 18,
+              "endpoint_unmatched_with_inexact_endpoint": 9,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 1,
+              "sentences": 268
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 11,
+              "confidence_suggestions": 95,
+              "confidence_unmatched": 84,
+              "confidence_unmatched_with_inexact_endpoint": 58,
+              "endpoint_correct": 14,
+              "endpoint_suggestions": 89,
+              "endpoint_unmatched": 75,
+              "endpoint_unmatched_with_inexact_endpoint": 43,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 1,
+              "sentences": 383
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 8,
+              "confidence_suggestions": 85,
+              "confidence_unmatched": 77,
+              "confidence_unmatched_with_inexact_endpoint": 60,
+              "endpoint_correct": 15,
+              "endpoint_suggestions": 95,
+              "endpoint_unmatched": 80,
+              "endpoint_unmatched_with_inexact_endpoint": 49,
+              "gained_correct_relations": 8,
+              "lost_correct_relations": 1,
+              "sentences": 341
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 48,
+              "confidence_unmatched": 46,
+              "confidence_unmatched_with_inexact_endpoint": 31,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 43,
+              "endpoint_unmatched": 41,
+              "endpoint_unmatched_with_inexact_endpoint": 20,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 342
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 16,
+              "confidence_suggestions": 95,
+              "confidence_unmatched": 79,
+              "confidence_unmatched_with_inexact_endpoint": 46,
+              "endpoint_correct": 23,
+              "endpoint_suggestions": 108,
+              "endpoint_unmatched": 85,
+              "endpoint_unmatched_with_inexact_endpoint": 39,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 2,
+              "sentences": 362
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 16,
+              "confidence_suggestions": 71,
+              "confidence_unmatched": 55,
+              "confidence_unmatched_with_inexact_endpoint": 43,
+              "endpoint_correct": 17,
+              "endpoint_suggestions": 70,
+              "endpoint_unmatched": 53,
+              "endpoint_unmatched_with_inexact_endpoint": 34,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 3,
+              "sentences": 351
+            }
+          },
+          "review_slots": 428,
+          "sentence_allocation": {
+            "baseline_only_sentence": 124,
+            "both_reviewed_with_different_relation": 20,
+            "both_reviewed_with_same_relation": 284,
+            "candidate_only_sentence": 124
+          }
+        },
+        "50": {
+          "counts": {
+            "both_correct_changed_relation": 2,
+            "confidence_correct": 108,
+            "confidence_suggestions": 856,
+            "confidence_unmatched": 748,
+            "confidence_unmatched_with_inexact_endpoint": 521,
+            "endpoint_correct": 144,
+            "endpoint_suggestions": 856,
+            "endpoint_unmatched": 712,
+            "endpoint_unmatched_with_inexact_endpoint": 422,
+            "gained_correct_relations": 46,
+            "lost_correct_relations": 10,
+            "sentences": 2047
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 10,
+              "confidence_suggestions": 72,
+              "confidence_unmatched": 62,
+              "confidence_unmatched_with_inexact_endpoint": 43,
+              "endpoint_correct": 13,
+              "endpoint_suggestions": 63,
+              "endpoint_unmatched": 50,
+              "endpoint_unmatched_with_inexact_endpoint": 28,
+              "gained_correct_relations": 5,
+              "lost_correct_relations": 2,
+              "sentences": 268
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 19,
+              "confidence_suggestions": 192,
+              "confidence_unmatched": 173,
+              "confidence_unmatched_with_inexact_endpoint": 123,
+              "endpoint_correct": 25,
+              "endpoint_suggestions": 193,
+              "endpoint_unmatched": 168,
+              "endpoint_unmatched_with_inexact_endpoint": 98,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 3,
+              "sentences": 383
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 18,
+              "confidence_suggestions": 162,
+              "confidence_unmatched": 144,
+              "confidence_unmatched_with_inexact_endpoint": 100,
+              "endpoint_correct": 27,
+              "endpoint_suggestions": 162,
+              "endpoint_unmatched": 135,
+              "endpoint_unmatched_with_inexact_endpoint": 83,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 0,
+              "sentences": 341
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 105,
+              "confidence_unmatched": 102,
+              "confidence_unmatched_with_inexact_endpoint": 75,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 103,
+              "endpoint_unmatched": 100,
+              "endpoint_unmatched_with_inexact_endpoint": 64,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 342
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 30,
+              "confidence_suggestions": 176,
+              "confidence_unmatched": 146,
+              "confidence_unmatched_with_inexact_endpoint": 88,
+              "endpoint_correct": 42,
+              "endpoint_suggestions": 188,
+              "endpoint_unmatched": 146,
+              "endpoint_unmatched_with_inexact_endpoint": 75,
+              "gained_correct_relations": 13,
+              "lost_correct_relations": 1,
+              "sentences": 362
+            },
+            "science": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 28,
+              "confidence_suggestions": 149,
+              "confidence_unmatched": 121,
+              "confidence_unmatched_with_inexact_endpoint": 92,
+              "endpoint_correct": 34,
+              "endpoint_suggestions": 147,
+              "endpoint_unmatched": 113,
+              "endpoint_unmatched_with_inexact_endpoint": 74,
+              "gained_correct_relations": 10,
+              "lost_correct_relations": 4,
+              "sentences": 351
+            }
+          },
+          "review_slots": 856,
+          "sentence_allocation": {
+            "baseline_only_sentence": 130,
+            "both_reviewed_with_different_relation": 58,
+            "both_reviewed_with_same_relation": 668,
+            "candidate_only_sentence": 130
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 2047,
+        "eligible_for_one_suggestion": 1713,
+        "gold_missed_by_stock": 5404,
+        "gold_relations": 7895,
+        "input_sha256": "3329151afadae66a6a605eb55bd63c673da0dcf286a5b39aaf6d135f9b27d109",
+        "sentences": 2047,
+        "stock_correct": 2491,
+        "stock_predictions": 9041
+      }
+    },
+    "balanced_test": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "confidence_correct": 20,
+            "confidence_suggestions": 160,
+            "confidence_unmatched": 140,
+            "confidence_unmatched_with_inexact_endpoint": 86,
+            "endpoint_correct": 21,
+            "endpoint_suggestions": 160,
+            "endpoint_unmatched": 139,
+            "endpoint_unmatched_with_inexact_endpoint": 82,
+            "gained_correct_relations": 1,
+            "sentences": 192
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 4,
+              "confidence_suggestions": 26,
+              "confidence_unmatched": 22,
+              "confidence_unmatched_with_inexact_endpoint": 13,
+              "endpoint_correct": 4,
+              "endpoint_suggestions": 26,
+              "endpoint_unmatched": 22,
+              "endpoint_unmatched_with_inexact_endpoint": 14,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 29,
+              "confidence_unmatched": 27,
+              "confidence_unmatched_with_inexact_endpoint": 17,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 29,
+              "endpoint_unmatched": 27,
+              "endpoint_unmatched_with_inexact_endpoint": 16,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 6,
+              "confidence_suggestions": 28,
+              "confidence_unmatched": 22,
+              "confidence_unmatched_with_inexact_endpoint": 15,
+              "endpoint_correct": 7,
+              "endpoint_suggestions": 28,
+              "endpoint_unmatched": 21,
+              "endpoint_unmatched_with_inexact_endpoint": 14,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 24,
+              "confidence_unmatched": 24,
+              "confidence_unmatched_with_inexact_endpoint": 16,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 24,
+              "endpoint_unmatched": 24,
+              "endpoint_unmatched_with_inexact_endpoint": 15,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 6,
+              "confidence_suggestions": 27,
+              "confidence_unmatched": 21,
+              "confidence_unmatched_with_inexact_endpoint": 8,
+              "endpoint_correct": 6,
+              "endpoint_suggestions": 27,
+              "endpoint_unmatched": 21,
+              "endpoint_unmatched_with_inexact_endpoint": 7,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 26,
+              "confidence_unmatched": 24,
+              "confidence_unmatched_with_inexact_endpoint": 17,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 26,
+              "endpoint_unmatched": 24,
+              "endpoint_unmatched_with_inexact_endpoint": 16,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            }
+          },
+          "review_slots": 160,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 17,
+            "both_reviewed_with_same_relation": 143
+          }
+        },
+        "25": {
+          "counts": {
+            "confidence_correct": 6,
+            "confidence_suggestions": 40,
+            "confidence_unmatched": 34,
+            "confidence_unmatched_with_inexact_endpoint": 23,
+            "endpoint_correct": 7,
+            "endpoint_suggestions": 40,
+            "endpoint_unmatched": 33,
+            "endpoint_unmatched_with_inexact_endpoint": 16,
+            "gained_correct_relations": 1,
+            "sentences": 192
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 5,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 4,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 10,
+              "confidence_unmatched": 9,
+              "confidence_unmatched_with_inexact_endpoint": 7,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 10,
+              "endpoint_unmatched": 9,
+              "endpoint_unmatched_with_inexact_endpoint": 6,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 8,
+              "confidence_unmatched": 6,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 5,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 4,
+              "confidence_unmatched": 4,
+              "confidence_unmatched_with_inexact_endpoint": 3,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 3,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 8,
+              "confidence_unmatched": 5,
+              "confidence_unmatched_with_inexact_endpoint": 1,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 9,
+              "endpoint_unmatched": 6,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 5,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 6,
+              "endpoint_unmatched_with_inexact_endpoint": 4,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            }
+          },
+          "review_slots": 40,
+          "sentence_allocation": {
+            "baseline_only_sentence": 11,
+            "both_reviewed_with_different_relation": 4,
+            "both_reviewed_with_same_relation": 25,
+            "candidate_only_sentence": 11
+          }
+        },
+        "50": {
+          "counts": {
+            "confidence_correct": 10,
+            "confidence_suggestions": 80,
+            "confidence_unmatched": 70,
+            "confidence_unmatched_with_inexact_endpoint": 43,
+            "endpoint_correct": 12,
+            "endpoint_suggestions": 80,
+            "endpoint_unmatched": 68,
+            "endpoint_unmatched_with_inexact_endpoint": 38,
+            "gained_correct_relations": 2,
+            "sentences": 192
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 9,
+              "confidence_unmatched": 9,
+              "confidence_unmatched_with_inexact_endpoint": 6,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 10,
+              "endpoint_unmatched": 10,
+              "endpoint_unmatched_with_inexact_endpoint": 7,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 16,
+              "confidence_unmatched": 14,
+              "confidence_unmatched_with_inexact_endpoint": 9,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 17,
+              "endpoint_unmatched": 15,
+              "endpoint_unmatched_with_inexact_endpoint": 9,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 13,
+              "confidence_unmatched_with_inexact_endpoint": 8,
+              "endpoint_correct": 4,
+              "endpoint_suggestions": 16,
+              "endpoint_unmatched": 12,
+              "endpoint_unmatched_with_inexact_endpoint": 6,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 12,
+              "confidence_unmatched": 12,
+              "confidence_unmatched_with_inexact_endpoint": 7,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 10,
+              "endpoint_unmatched": 10,
+              "endpoint_unmatched_with_inexact_endpoint": 6,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 4,
+              "confidence_suggestions": 13,
+              "confidence_unmatched": 9,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 4,
+              "endpoint_suggestions": 15,
+              "endpoint_unmatched": 11,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 13,
+              "confidence_unmatched_with_inexact_endpoint": 11,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 12,
+              "endpoint_unmatched": 10,
+              "endpoint_unmatched_with_inexact_endpoint": 7,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 32
+            }
+          },
+          "review_slots": 80,
+          "sentence_allocation": {
+            "baseline_only_sentence": 8,
+            "both_reviewed_with_different_relation": 9,
+            "both_reviewed_with_same_relation": 63,
+            "candidate_only_sentence": 8
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 192,
+        "eligible_for_one_suggestion": 160,
+        "gold_missed_by_stock": 435,
+        "gold_relations": 646,
+        "input_sha256": "3fe9fad43fb3b6de6319c5cbaa65ce2fd26045a7ad000094e09899e0c4148a5c",
+        "sentences": 192,
+        "stock_correct": 211,
+        "stock_predictions": 737
+      }
+    },
+    "calibration": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "confidence_correct": 13,
+            "confidence_suggestions": 80,
+            "confidence_unmatched": 67,
+            "confidence_unmatched_with_inexact_endpoint": 37,
+            "endpoint_correct": 14,
+            "endpoint_suggestions": 80,
+            "endpoint_unmatched": 66,
+            "endpoint_unmatched_with_inexact_endpoint": 36,
+            "gained_correct_relations": 1,
+            "sentences": 96
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 13,
+              "confidence_unmatched": 11,
+              "confidence_unmatched_with_inexact_endpoint": 6,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 13,
+              "endpoint_unmatched": 10,
+              "endpoint_unmatched_with_inexact_endpoint": 4,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 11,
+              "confidence_unmatched": 8,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 11,
+              "endpoint_unmatched": 8,
+              "endpoint_unmatched_with_inexact_endpoint": 5,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 14,
+              "confidence_unmatched_with_inexact_endpoint": 5,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 15,
+              "endpoint_unmatched": 14,
+              "endpoint_unmatched_with_inexact_endpoint": 5,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 14,
+              "confidence_unmatched_with_inexact_endpoint": 10,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 15,
+              "endpoint_unmatched": 14,
+              "endpoint_unmatched_with_inexact_endpoint": 10,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 12,
+              "confidence_unmatched_with_inexact_endpoint": 7,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 15,
+              "endpoint_unmatched": 12,
+              "endpoint_unmatched_with_inexact_endpoint": 7,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 11,
+              "confidence_unmatched": 8,
+              "confidence_unmatched_with_inexact_endpoint": 5,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 11,
+              "endpoint_unmatched": 8,
+              "endpoint_unmatched_with_inexact_endpoint": 5,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            }
+          },
+          "review_slots": 80,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 6,
+            "both_reviewed_with_same_relation": 74
+          }
+        },
+        "25": {
+          "counts": {
+            "confidence_correct": 3,
+            "confidence_suggestions": 20,
+            "confidence_unmatched": 17,
+            "confidence_unmatched_with_inexact_endpoint": 7,
+            "endpoint_correct": 4,
+            "endpoint_suggestions": 20,
+            "endpoint_unmatched": 16,
+            "endpoint_unmatched_with_inexact_endpoint": 6,
+            "gained_correct_relations": 2,
+            "lost_correct_relations": 1,
+            "sentences": 96
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 4,
+              "confidence_unmatched": 4,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 4,
+              "endpoint_unmatched": 3,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 3,
+              "confidence_unmatched": 2,
+              "confidence_unmatched_with_inexact_endpoint": 1,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 1,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 3,
+              "confidence_unmatched": 3,
+              "confidence_unmatched_with_inexact_endpoint": 1,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 4,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 4,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 3,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 1,
+              "sentences": 16
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 1,
+              "confidence_unmatched": 1,
+              "confidence_unmatched_with_inexact_endpoint": 0,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 4,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 2,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 4,
+              "confidence_unmatched": 3,
+              "confidence_unmatched_with_inexact_endpoint": 1,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 2,
+              "endpoint_unmatched": 1,
+              "endpoint_unmatched_with_inexact_endpoint": 0,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            }
+          },
+          "review_slots": 20,
+          "sentence_allocation": {
+            "baseline_only_sentence": 6,
+            "both_reviewed_with_different_relation": 2,
+            "both_reviewed_with_same_relation": 12,
+            "candidate_only_sentence": 6
+          }
+        },
+        "50": {
+          "counts": {
+            "confidence_correct": 4,
+            "confidence_suggestions": 40,
+            "confidence_unmatched": 36,
+            "confidence_unmatched_with_inexact_endpoint": 21,
+            "endpoint_correct": 7,
+            "endpoint_suggestions": 40,
+            "endpoint_unmatched": 33,
+            "endpoint_unmatched_with_inexact_endpoint": 16,
+            "gained_correct_relations": 3,
+            "sentences": 96
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 6,
+              "confidence_unmatched": 6,
+              "confidence_unmatched_with_inexact_endpoint": 3,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 6,
+              "endpoint_unmatched": 5,
+              "endpoint_unmatched_with_inexact_endpoint": 2,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 6,
+              "confidence_unmatched": 4,
+              "confidence_unmatched_with_inexact_endpoint": 3,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 6,
+              "confidence_unmatched": 6,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 7,
+              "endpoint_unmatched_with_inexact_endpoint": 2,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 8,
+              "confidence_unmatched": 7,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 6,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 7,
+              "confidence_unmatched": 7,
+              "confidence_unmatched_with_inexact_endpoint": 5,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 7,
+              "endpoint_unmatched_with_inexact_endpoint": 4,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 7,
+              "confidence_unmatched": 6,
+              "confidence_unmatched_with_inexact_endpoint": 4,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 6,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 2,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 16
+            }
+          },
+          "review_slots": 40,
+          "sentence_allocation": {
+            "baseline_only_sentence": 8,
+            "both_reviewed_with_different_relation": 4,
+            "both_reviewed_with_same_relation": 28,
+            "candidate_only_sentence": 8
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 96,
+        "eligible_for_one_suggestion": 80,
+        "gold_missed_by_stock": 268,
+        "gold_relations": 397,
+        "input_sha256": "271b91e9c48c6e2d261dad4eef02f1d5bf9dbb420cabe2b5fafdcf7a0570f3a7",
+        "sentences": 96,
+        "stock_correct": 129,
+        "stock_predictions": 426
+      }
+    },
+    "confirmation": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "both_correct_changed_relation": 3,
+            "confidence_correct": 198,
+            "confidence_suggestions": 1651,
+            "confidence_unmatched": 1453,
+            "confidence_unmatched_with_inexact_endpoint": 968,
+            "endpoint_correct": 212,
+            "endpoint_suggestions": 1651,
+            "endpoint_unmatched": 1439,
+            "endpoint_unmatched_with_inexact_endpoint": 921,
+            "gained_correct_relations": 21,
+            "lost_correct_relations": 7,
+            "sentences": 1989
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 25,
+              "confidence_suggestions": 233,
+              "confidence_unmatched": 208,
+              "confidence_unmatched_with_inexact_endpoint": 142,
+              "endpoint_correct": 28,
+              "endpoint_suggestions": 233,
+              "endpoint_unmatched": 205,
+              "endpoint_unmatched_with_inexact_endpoint": 140,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 1,
+              "sentences": 331
+            },
+            "literature": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 36,
+              "confidence_suggestions": 345,
+              "confidence_unmatched": 309,
+              "confidence_unmatched_with_inexact_endpoint": 201,
+              "endpoint_correct": 38,
+              "endpoint_suggestions": 345,
+              "endpoint_unmatched": 307,
+              "endpoint_unmatched_with_inexact_endpoint": 186,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 2,
+              "sentences": 380
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 41,
+              "confidence_suggestions": 278,
+              "confidence_unmatched": 237,
+              "confidence_unmatched_with_inexact_endpoint": 160,
+              "endpoint_correct": 44,
+              "endpoint_suggestions": 278,
+              "endpoint_unmatched": 234,
+              "endpoint_unmatched_with_inexact_endpoint": 151,
+              "gained_correct_relations": 5,
+              "lost_correct_relations": 2,
+              "sentences": 311
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 8,
+              "confidence_suggestions": 231,
+              "confidence_unmatched": 223,
+              "confidence_unmatched_with_inexact_endpoint": 151,
+              "endpoint_correct": 8,
+              "endpoint_suggestions": 231,
+              "endpoint_unmatched": 223,
+              "endpoint_unmatched_with_inexact_endpoint": 149,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 316
+            },
+            "politics": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 49,
+              "confidence_suggestions": 312,
+              "confidence_unmatched": 263,
+              "confidence_unmatched_with_inexact_endpoint": 160,
+              "endpoint_correct": 54,
+              "endpoint_suggestions": 312,
+              "endpoint_unmatched": 258,
+              "endpoint_unmatched_with_inexact_endpoint": 147,
+              "gained_correct_relations": 6,
+              "lost_correct_relations": 1,
+              "sentences": 332
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 39,
+              "confidence_suggestions": 252,
+              "confidence_unmatched": 213,
+              "confidence_unmatched_with_inexact_endpoint": 154,
+              "endpoint_correct": 40,
+              "endpoint_suggestions": 252,
+              "endpoint_unmatched": 212,
+              "endpoint_unmatched_with_inexact_endpoint": 148,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 1,
+              "sentences": 319
+            }
+          },
+          "review_slots": 1651,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 146,
+            "both_reviewed_with_same_relation": 1505
+          }
+        },
+        "25": {
+          "counts": {
+            "both_correct_changed_relation": 1,
+            "confidence_correct": 68,
+            "confidence_suggestions": 412,
+            "confidence_unmatched": 344,
+            "confidence_unmatched_with_inexact_endpoint": 221,
+            "endpoint_correct": 77,
+            "endpoint_suggestions": 412,
+            "endpoint_unmatched": 335,
+            "endpoint_unmatched_with_inexact_endpoint": 177,
+            "gained_correct_relations": 26,
+            "lost_correct_relations": 17,
+            "sentences": 1989
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 6,
+              "confidence_suggestions": 48,
+              "confidence_unmatched": 42,
+              "confidence_unmatched_with_inexact_endpoint": 24,
+              "endpoint_correct": 8,
+              "endpoint_suggestions": 43,
+              "endpoint_unmatched": 35,
+              "endpoint_unmatched_with_inexact_endpoint": 19,
+              "gained_correct_relations": 3,
+              "lost_correct_relations": 1,
+              "sentences": 331
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 17,
+              "confidence_suggestions": 94,
+              "confidence_unmatched": 77,
+              "confidence_unmatched_with_inexact_endpoint": 57,
+              "endpoint_correct": 14,
+              "endpoint_suggestions": 81,
+              "endpoint_unmatched": 67,
+              "endpoint_unmatched_with_inexact_endpoint": 42,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 4,
+              "sentences": 380
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 17,
+              "confidence_suggestions": 92,
+              "confidence_unmatched": 75,
+              "confidence_unmatched_with_inexact_endpoint": 48,
+              "endpoint_correct": 18,
+              "endpoint_suggestions": 89,
+              "endpoint_unmatched": 71,
+              "endpoint_unmatched_with_inexact_endpoint": 34,
+              "gained_correct_relations": 6,
+              "lost_correct_relations": 5,
+              "sentences": 311
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 34,
+              "confidence_unmatched": 32,
+              "confidence_unmatched_with_inexact_endpoint": 18,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 35,
+              "endpoint_unmatched": 32,
+              "endpoint_unmatched_with_inexact_endpoint": 13,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 1,
+              "sentences": 316
+            },
+            "politics": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 15,
+              "confidence_suggestions": 81,
+              "confidence_unmatched": 66,
+              "confidence_unmatched_with_inexact_endpoint": 38,
+              "endpoint_correct": 22,
+              "endpoint_suggestions": 105,
+              "endpoint_unmatched": 83,
+              "endpoint_unmatched_with_inexact_endpoint": 38,
+              "gained_correct_relations": 10,
+              "lost_correct_relations": 3,
+              "sentences": 332
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 11,
+              "confidence_suggestions": 63,
+              "confidence_unmatched": 52,
+              "confidence_unmatched_with_inexact_endpoint": 36,
+              "endpoint_correct": 12,
+              "endpoint_suggestions": 59,
+              "endpoint_unmatched": 47,
+              "endpoint_unmatched_with_inexact_endpoint": 31,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 3,
+              "sentences": 319
+            }
+          },
+          "review_slots": 412,
+          "sentence_allocation": {
+            "baseline_only_sentence": 104,
+            "both_reviewed_with_different_relation": 25,
+            "both_reviewed_with_same_relation": 283,
+            "candidate_only_sentence": 104
+          }
+        },
+        "50": {
+          "counts": {
+            "both_correct_changed_relation": 2,
+            "confidence_correct": 123,
+            "confidence_suggestions": 825,
+            "confidence_unmatched": 702,
+            "confidence_unmatched_with_inexact_endpoint": 463,
+            "endpoint_correct": 139,
+            "endpoint_suggestions": 825,
+            "endpoint_unmatched": 686,
+            "endpoint_unmatched_with_inexact_endpoint": 403,
+            "gained_correct_relations": 25,
+            "lost_correct_relations": 9,
+            "sentences": 1989
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 12,
+              "confidence_suggestions": 109,
+              "confidence_unmatched": 97,
+              "confidence_unmatched_with_inexact_endpoint": 61,
+              "endpoint_correct": 16,
+              "endpoint_suggestions": 105,
+              "endpoint_unmatched": 89,
+              "endpoint_unmatched_with_inexact_endpoint": 52,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 0,
+              "sentences": 331
+            },
+            "literature": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 26,
+              "confidence_suggestions": 175,
+              "confidence_unmatched": 149,
+              "confidence_unmatched_with_inexact_endpoint": 105,
+              "endpoint_correct": 24,
+              "endpoint_suggestions": 173,
+              "endpoint_unmatched": 149,
+              "endpoint_unmatched_with_inexact_endpoint": 91,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 4,
+              "sentences": 380
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 29,
+              "confidence_suggestions": 163,
+              "confidence_unmatched": 134,
+              "confidence_unmatched_with_inexact_endpoint": 88,
+              "endpoint_correct": 33,
+              "endpoint_suggestions": 164,
+              "endpoint_unmatched": 131,
+              "endpoint_unmatched_with_inexact_endpoint": 77,
+              "gained_correct_relations": 6,
+              "lost_correct_relations": 2,
+              "sentences": 311
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 4,
+              "confidence_suggestions": 84,
+              "confidence_unmatched": 80,
+              "confidence_unmatched_with_inexact_endpoint": 49,
+              "endpoint_correct": 5,
+              "endpoint_suggestions": 82,
+              "endpoint_unmatched": 77,
+              "endpoint_unmatched_with_inexact_endpoint": 43,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 316
+            },
+            "politics": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 30,
+              "confidence_suggestions": 177,
+              "confidence_unmatched": 147,
+              "confidence_unmatched_with_inexact_endpoint": 89,
+              "endpoint_correct": 38,
+              "endpoint_suggestions": 186,
+              "endpoint_unmatched": 148,
+              "endpoint_unmatched_with_inexact_endpoint": 73,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 1,
+              "sentences": 332
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 22,
+              "confidence_suggestions": 117,
+              "confidence_unmatched": 95,
+              "confidence_unmatched_with_inexact_endpoint": 71,
+              "endpoint_correct": 23,
+              "endpoint_suggestions": 115,
+              "endpoint_unmatched": 92,
+              "endpoint_unmatched_with_inexact_endpoint": 67,
+              "gained_correct_relations": 3,
+              "lost_correct_relations": 2,
+              "sentences": 319
+            }
+          },
+          "net_match_interval": {
+            "eligible_sentences_by_domain": {
+              "ai": 233,
+              "literature": 345,
+              "music": 278,
+              "news": 231,
+              "politics": 312,
+              "science": 252
+            },
+            "fixed_review_slots": 825,
+            "lower": 5,
+            "method": "95% paired bootstrap with both global review queues reselected",
+            "replicates": 10000,
+            "sampling": "Eligible sentences sampled with replacement within each domain at its observed count; both arms share each draw; empirical inverse-CDF percentiles of candidate minus baseline exact matches.",
+            "seed": 20261128,
+            "upper": 26
+          },
+          "review_slots": 825,
+          "sentence_allocation": {
+            "baseline_only_sentence": 85,
+            "both_reviewed_with_different_relation": 64,
+            "both_reviewed_with_same_relation": 676,
+            "candidate_only_sentence": 85
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 1989,
+        "eligible_for_one_suggestion": 1651,
+        "gold_missed_by_stock": 4996,
+        "gold_relations": 7519,
+        "input_sha256": "399978f2421f4a4fbcecdf5a6b08d4f7e2bf8c5ca798b3b05dc80e1cc0cf74b7",
+        "sentences": 1989,
+        "stock_correct": 2523,
+        "stock_predictions": 8386
+      }
+    },
+    "full_official_test": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "both_correct_changed_relation": 3,
+            "confidence_correct": 234,
+            "confidence_suggestions": 2022,
+            "confidence_unmatched": 1788,
+            "confidence_unmatched_with_inexact_endpoint": 1253,
+            "endpoint_correct": 253,
+            "endpoint_suggestions": 2022,
+            "endpoint_unmatched": 1769,
+            "endpoint_unmatched_with_inexact_endpoint": 1187,
+            "gained_correct_relations": 30,
+            "lost_correct_relations": 11,
+            "sentences": 2446
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 37,
+              "confidence_suggestions": 303,
+              "confidence_unmatched": 266,
+              "confidence_unmatched_with_inexact_endpoint": 187,
+              "endpoint_correct": 37,
+              "endpoint_suggestions": 303,
+              "endpoint_unmatched": 266,
+              "endpoint_unmatched_with_inexact_endpoint": 185,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 1,
+              "sentences": 431
+            },
+            "literature": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 38,
+              "confidence_suggestions": 387,
+              "confidence_unmatched": 349,
+              "confidence_unmatched_with_inexact_endpoint": 238,
+              "endpoint_correct": 39,
+              "endpoint_suggestions": 387,
+              "endpoint_unmatched": 348,
+              "endpoint_unmatched_with_inexact_endpoint": 223,
+              "gained_correct_relations": 6,
+              "lost_correct_relations": 5,
+              "sentences": 416
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 46,
+              "confidence_suggestions": 359,
+              "confidence_unmatched": 313,
+              "confidence_unmatched_with_inexact_endpoint": 217,
+              "endpoint_correct": 55,
+              "endpoint_suggestions": 359,
+              "endpoint_unmatched": 304,
+              "endpoint_unmatched_with_inexact_endpoint": 200,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 0,
+              "sentences": 399
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 7,
+              "confidence_suggestions": 294,
+              "confidence_unmatched": 287,
+              "confidence_unmatched_with_inexact_endpoint": 212,
+              "endpoint_correct": 9,
+              "endpoint_suggestions": 294,
+              "endpoint_unmatched": 285,
+              "endpoint_unmatched_with_inexact_endpoint": 203,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 0,
+              "sentences": 400
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 58,
+              "confidence_suggestions": 357,
+              "confidence_unmatched": 299,
+              "confidence_unmatched_with_inexact_endpoint": 192,
+              "endpoint_correct": 60,
+              "endpoint_suggestions": 357,
+              "endpoint_unmatched": 297,
+              "endpoint_unmatched_with_inexact_endpoint": 179,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 2,
+              "sentences": 400
+            },
+            "science": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 48,
+              "confidence_suggestions": 322,
+              "confidence_unmatched": 274,
+              "confidence_unmatched_with_inexact_endpoint": 207,
+              "endpoint_correct": 53,
+              "endpoint_suggestions": 322,
+              "endpoint_unmatched": 269,
+              "endpoint_unmatched_with_inexact_endpoint": 197,
+              "gained_correct_relations": 8,
+              "lost_correct_relations": 3,
+              "sentences": 400
+            }
+          },
+          "review_slots": 2022,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 201,
+            "both_reviewed_with_same_relation": 1821
+          }
+        },
+        "25": {
+          "counts": {
+            "both_correct_changed_relation": 1,
+            "confidence_correct": 72,
+            "confidence_suggestions": 505,
+            "confidence_unmatched": 433,
+            "confidence_unmatched_with_inexact_endpoint": 304,
+            "endpoint_correct": 92,
+            "endpoint_suggestions": 505,
+            "endpoint_unmatched": 413,
+            "endpoint_unmatched_with_inexact_endpoint": 227,
+            "gained_correct_relations": 29,
+            "lost_correct_relations": 9,
+            "sentences": 2446
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 9,
+              "confidence_suggestions": 50,
+              "confidence_unmatched": 41,
+              "confidence_unmatched_with_inexact_endpoint": 31,
+              "endpoint_correct": 9,
+              "endpoint_suggestions": 40,
+              "endpoint_unmatched": 31,
+              "endpoint_unmatched_with_inexact_endpoint": 15,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 2,
+              "sentences": 431
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 12,
+              "confidence_suggestions": 107,
+              "confidence_unmatched": 95,
+              "confidence_unmatched_with_inexact_endpoint": 66,
+              "endpoint_correct": 15,
+              "endpoint_suggestions": 102,
+              "endpoint_unmatched": 87,
+              "endpoint_unmatched_with_inexact_endpoint": 50,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 1,
+              "sentences": 416
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 13,
+              "confidence_suggestions": 105,
+              "confidence_unmatched": 92,
+              "confidence_unmatched_with_inexact_endpoint": 70,
+              "endpoint_correct": 21,
+              "endpoint_suggestions": 114,
+              "endpoint_unmatched": 93,
+              "endpoint_unmatched_with_inexact_endpoint": 56,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 1,
+              "sentences": 399
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 2,
+              "confidence_suggestions": 55,
+              "confidence_unmatched": 53,
+              "confidence_unmatched_with_inexact_endpoint": 37,
+              "endpoint_correct": 2,
+              "endpoint_suggestions": 50,
+              "endpoint_unmatched": 48,
+              "endpoint_unmatched_with_inexact_endpoint": 25,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 400
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 19,
+              "confidence_suggestions": 107,
+              "confidence_unmatched": 88,
+              "confidence_unmatched_with_inexact_endpoint": 49,
+              "endpoint_correct": 27,
+              "endpoint_suggestions": 118,
+              "endpoint_unmatched": 91,
+              "endpoint_unmatched_with_inexact_endpoint": 40,
+              "gained_correct_relations": 10,
+              "lost_correct_relations": 2,
+              "sentences": 400
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 17,
+              "confidence_suggestions": 81,
+              "confidence_unmatched": 64,
+              "confidence_unmatched_with_inexact_endpoint": 51,
+              "endpoint_correct": 18,
+              "endpoint_suggestions": 81,
+              "endpoint_unmatched": 63,
+              "endpoint_unmatched_with_inexact_endpoint": 41,
+              "gained_correct_relations": 4,
+              "lost_correct_relations": 3,
+              "sentences": 400
+            }
+          },
+          "review_slots": 505,
+          "sentence_allocation": {
+            "baseline_only_sentence": 141,
+            "both_reviewed_with_different_relation": 25,
+            "both_reviewed_with_same_relation": 339,
+            "candidate_only_sentence": 141
+          }
+        },
+        "50": {
+          "counts": {
+            "both_correct_changed_relation": 2,
+            "confidence_correct": 131,
+            "confidence_suggestions": 1011,
+            "confidence_unmatched": 880,
+            "confidence_unmatched_with_inexact_endpoint": 610,
+            "endpoint_correct": 173,
+            "endpoint_suggestions": 1011,
+            "endpoint_unmatched": 838,
+            "endpoint_unmatched_with_inexact_endpoint": 500,
+            "gained_correct_relations": 52,
+            "lost_correct_relations": 10,
+            "sentences": 2446
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 17,
+              "confidence_suggestions": 117,
+              "confidence_unmatched": 100,
+              "confidence_unmatched_with_inexact_endpoint": 68,
+              "endpoint_correct": 20,
+              "endpoint_suggestions": 103,
+              "endpoint_unmatched": 83,
+              "endpoint_unmatched_with_inexact_endpoint": 49,
+              "gained_correct_relations": 5,
+              "lost_correct_relations": 2,
+              "sentences": 431
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 23,
+              "confidence_suggestions": 214,
+              "confidence_unmatched": 191,
+              "confidence_unmatched_with_inexact_endpoint": 135,
+              "endpoint_correct": 29,
+              "endpoint_suggestions": 215,
+              "endpoint_unmatched": 186,
+              "endpoint_unmatched_with_inexact_endpoint": 109,
+              "gained_correct_relations": 9,
+              "lost_correct_relations": 3,
+              "sentences": 416
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 24,
+              "confidence_suggestions": 195,
+              "confidence_unmatched": 171,
+              "confidence_unmatched_with_inexact_endpoint": 119,
+              "endpoint_correct": 36,
+              "endpoint_suggestions": 195,
+              "endpoint_unmatched": 159,
+              "endpoint_unmatched_with_inexact_endpoint": 97,
+              "gained_correct_relations": 12,
+              "lost_correct_relations": 0,
+              "sentences": 399
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 3,
+              "confidence_suggestions": 120,
+              "confidence_unmatched": 117,
+              "confidence_unmatched_with_inexact_endpoint": 85,
+              "endpoint_correct": 3,
+              "endpoint_suggestions": 116,
+              "endpoint_unmatched": 113,
+              "endpoint_unmatched_with_inexact_endpoint": 73,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 400
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 34,
+              "confidence_suggestions": 193,
+              "confidence_unmatched": 159,
+              "confidence_unmatched_with_inexact_endpoint": 94,
+              "endpoint_correct": 48,
+              "endpoint_suggestions": 212,
+              "endpoint_unmatched": 164,
+              "endpoint_unmatched_with_inexact_endpoint": 82,
+              "gained_correct_relations": 15,
+              "lost_correct_relations": 1,
+              "sentences": 400
+            },
+            "science": {
+              "both_correct_changed_relation": 1,
+              "confidence_correct": 30,
+              "confidence_suggestions": 172,
+              "confidence_unmatched": 142,
+              "confidence_unmatched_with_inexact_endpoint": 109,
+              "endpoint_correct": 37,
+              "endpoint_suggestions": 170,
+              "endpoint_unmatched": 133,
+              "endpoint_unmatched_with_inexact_endpoint": 90,
+              "gained_correct_relations": 11,
+              "lost_correct_relations": 4,
+              "sentences": 400
+            }
+          },
+          "review_slots": 1011,
+          "sentence_allocation": {
+            "baseline_only_sentence": 140,
+            "both_reviewed_with_different_relation": 74,
+            "both_reviewed_with_same_relation": 797,
+            "candidate_only_sentence": 140
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 2408,
+        "eligible_for_one_suggestion": 2022,
+        "gold_missed_by_stock": 6281,
+        "gold_relations": 9168,
+        "input_sha256": "891422f21228d695ee98fb8854246644d93781e31fcc8a58f5dca301d5c076f8",
+        "sentences": 2446,
+        "stock_correct": 2887,
+        "stock_predictions": 10405
+      }
+    },
+    "outside_content_holdout": {
+      "budgets": {
+        "100": {
+          "counts": {
+            "confidence_correct": 18,
+            "confidence_suggestions": 149,
+            "confidence_unmatched": 131,
+            "confidence_unmatched_with_inexact_endpoint": 101,
+            "endpoint_correct": 18,
+            "endpoint_suggestions": 149,
+            "endpoint_unmatched": 131,
+            "endpoint_unmatched_with_inexact_endpoint": 100,
+            "sentences": 207
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 9,
+              "confidence_suggestions": 90,
+              "confidence_unmatched": 81,
+              "confidence_unmatched_with_inexact_endpoint": 58,
+              "endpoint_correct": 9,
+              "endpoint_suggestions": 90,
+              "endpoint_unmatched": 81,
+              "endpoint_unmatched_with_inexact_endpoint": 57,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 131
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 1,
+              "confidence_unmatched": 1,
+              "confidence_unmatched_with_inexact_endpoint": 0,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 1,
+              "endpoint_unmatched": 1,
+              "endpoint_unmatched_with_inexact_endpoint": 0,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 1
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 7,
+              "confidence_suggestions": 25,
+              "confidence_unmatched": 18,
+              "confidence_unmatched_with_inexact_endpoint": 14,
+              "endpoint_correct": 7,
+              "endpoint_suggestions": 25,
+              "endpoint_unmatched": 18,
+              "endpoint_unmatched_with_inexact_endpoint": 14,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 15,
+              "confidence_unmatched_with_inexact_endpoint": 15,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 15,
+              "endpoint_unmatched": 15,
+              "endpoint_unmatched_with_inexact_endpoint": 15,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 4,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 5,
+              "endpoint_unmatched": 4,
+              "endpoint_unmatched_with_inexact_endpoint": 2,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 6
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 13,
+              "confidence_unmatched": 12,
+              "confidence_unmatched_with_inexact_endpoint": 12,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 13,
+              "endpoint_unmatched": 12,
+              "endpoint_unmatched_with_inexact_endpoint": 12,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 17
+            }
+          },
+          "review_slots": 149,
+          "sentence_allocation": {
+            "both_reviewed_with_different_relation": 15,
+            "both_reviewed_with_same_relation": 134
+          }
+        },
+        "25": {
+          "counts": {
+            "confidence_correct": 9,
+            "confidence_suggestions": 37,
+            "confidence_unmatched": 28,
+            "confidence_unmatched_with_inexact_endpoint": 22,
+            "endpoint_correct": 10,
+            "endpoint_suggestions": 37,
+            "endpoint_unmatched": 27,
+            "endpoint_unmatched_with_inexact_endpoint": 17,
+            "gained_correct_relations": 2,
+            "lost_correct_relations": 1,
+            "sentences": 207
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 5,
+              "confidence_suggestions": 16,
+              "confidence_unmatched": 11,
+              "confidence_unmatched_with_inexact_endpoint": 7,
+              "endpoint_correct": 6,
+              "endpoint_suggestions": 18,
+              "endpoint_unmatched": 12,
+              "endpoint_unmatched_with_inexact_endpoint": 5,
+              "gained_correct_relations": 2,
+              "lost_correct_relations": 1,
+              "sentences": 131
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 1,
+              "confidence_unmatched": 1,
+              "confidence_unmatched_with_inexact_endpoint": 0,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 1,
+              "endpoint_unmatched": 1,
+              "endpoint_unmatched_with_inexact_endpoint": 0,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 1
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 4,
+              "confidence_suggestions": 11,
+              "confidence_unmatched": 7,
+              "confidence_unmatched_with_inexact_endpoint": 6,
+              "endpoint_correct": 4,
+              "endpoint_suggestions": 12,
+              "endpoint_unmatched": 8,
+              "endpoint_unmatched_with_inexact_endpoint": 6,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 3,
+              "confidence_unmatched": 3,
+              "confidence_unmatched_with_inexact_endpoint": 3,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 3,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 1,
+              "confidence_unmatched": 1,
+              "confidence_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 6
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 5,
+              "confidence_unmatched_with_inexact_endpoint": 5,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 3,
+              "endpoint_unmatched_with_inexact_endpoint": 3,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 17
+            }
+          },
+          "review_slots": 37,
+          "sentence_allocation": {
+            "baseline_only_sentence": 9,
+            "both_reviewed_with_different_relation": 1,
+            "both_reviewed_with_same_relation": 27,
+            "candidate_only_sentence": 9
+          }
+        },
+        "50": {
+          "counts": {
+            "confidence_correct": 12,
+            "confidence_suggestions": 74,
+            "confidence_unmatched": 62,
+            "confidence_unmatched_with_inexact_endpoint": 43,
+            "endpoint_correct": 13,
+            "endpoint_suggestions": 74,
+            "endpoint_unmatched": 61,
+            "endpoint_unmatched_with_inexact_endpoint": 43,
+            "gained_correct_relations": 1,
+            "sentences": 207
+          },
+          "domains": {
+            "ai": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 7,
+              "confidence_suggestions": 42,
+              "confidence_unmatched": 35,
+              "confidence_unmatched_with_inexact_endpoint": 20,
+              "endpoint_correct": 7,
+              "endpoint_suggestions": 42,
+              "endpoint_unmatched": 35,
+              "endpoint_unmatched_with_inexact_endpoint": 22,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 131
+            },
+            "literature": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 1,
+              "confidence_unmatched": 1,
+              "confidence_unmatched_with_inexact_endpoint": 0,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 1,
+              "endpoint_unmatched": 1,
+              "endpoint_unmatched_with_inexact_endpoint": 0,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 1
+            },
+            "music": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 4,
+              "confidence_suggestions": 15,
+              "confidence_unmatched": 11,
+              "confidence_unmatched_with_inexact_endpoint": 9,
+              "endpoint_correct": 5,
+              "endpoint_suggestions": 16,
+              "endpoint_unmatched": 11,
+              "endpoint_unmatched_with_inexact_endpoint": 8,
+              "gained_correct_relations": 1,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "news": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 5,
+              "confidence_unmatched": 5,
+              "confidence_unmatched_with_inexact_endpoint": 5,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 5,
+              "endpoint_unmatched": 5,
+              "endpoint_unmatched_with_inexact_endpoint": 5,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 26
+            },
+            "politics": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 1,
+              "confidence_suggestions": 4,
+              "confidence_unmatched": 3,
+              "confidence_unmatched_with_inexact_endpoint": 2,
+              "endpoint_correct": 1,
+              "endpoint_suggestions": 3,
+              "endpoint_unmatched": 2,
+              "endpoint_unmatched_with_inexact_endpoint": 1,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 6
+            },
+            "science": {
+              "both_correct_changed_relation": 0,
+              "confidence_correct": 0,
+              "confidence_suggestions": 7,
+              "confidence_unmatched": 7,
+              "confidence_unmatched_with_inexact_endpoint": 7,
+              "endpoint_correct": 0,
+              "endpoint_suggestions": 7,
+              "endpoint_unmatched": 7,
+              "endpoint_unmatched_with_inexact_endpoint": 7,
+              "gained_correct_relations": 0,
+              "lost_correct_relations": 0,
+              "sentences": 17
+            }
+          },
+          "review_slots": 74,
+          "sentence_allocation": {
+            "baseline_only_sentence": 6,
+            "both_reviewed_with_different_relation": 5,
+            "both_reviewed_with_same_relation": 63,
+            "candidate_only_sentence": 6
+          }
+        }
+      },
+      "scope": {
+        "distinct_texts": 189,
+        "eligible_for_one_suggestion": 149,
+        "gold_missed_by_stock": 442,
+        "gold_relations": 627,
+        "input_sha256": "c314ce5926377887ac8b80a0e89a39f073017856610981d1b911d9a6820bc2d7",
+        "sentences": 207,
+        "stock_correct": 185,
+        "stock_predictions": 627
+      }
+    }
+  },
+  "ranking": "relation probability multiplied by the lesser predicted endpoint probability raised to the selected weight; rank one per sentence, then rank nominees across the cohort",
+  "relation_confidence_lower_exclusive": 0.3,
+  "relation_confidence_upper_inclusive": 0.5,
+  "selection": {
+    "crossre_revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+    "model_files_sha256": {
+      "added_tokens.json": "14fedd7e9f345ea45fd9b74245468121d5ccac83e523cad1680529d00bb0e8e8",
+      "gliner_config.json": "009031313c27dbdc255d4e9d85bdfb89f17259ccf4c82e8982ac763c249c1cdb",
+      "model.safetensors": "7c5bd751e1b24e4254d70fe4355a986cd65400676ce3735f7752429fcc26960a",
+      "special_tokens_map.json": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21",
+      "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+      "tokenizer.json": "d9f64f3126faa24e3ef6bdc47e7120eef528a49cd8b447bdd6865bcf2043cd65",
+      "tokenizer_config.json": "ee20eaa4db6f56045339841383f83e98cb79f1672a93bb76a9735243ca65d0fa"
+    },
+    "model_revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290",
+    "packages": {
+      "gliner": "0.2.30",
+      "tokenizers": "0.23.3",
+      "torch": "2.15.0+cpu",
+      "transformers": "5.22.2"
+    },
+    "primary_budget_percent_of_eligible": 50,
+    "scope": {
+      "distinct_texts": 96,
+      "eligible_for_one_suggestion": 80,
+      "gold_missed_by_stock": 268,
+      "gold_relations": 397,
+      "input_sha256": "271b91e9c48c6e2d261dad4eef02f1d5bf9dbb420cabe2b5fafdcf7a0570f3a7",
+      "sentences": 96,
+      "stock_correct": 129,
+      "stock_predictions": 426
+    },
+    "selected_endpoint_weight": 0.5,
+    "selection": "Among positive weights, most exact development additions at the primary budget; tie to smaller weight. Zero is the independent confidence baseline.",
+    "source_sha256": {
+      "ai-dev.json": "52fa53bf57b51b63f49ee58420188e49c5bd04a34cd6e0b99089676b0ba2264a",
+      "ai-test.json": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+      "ai-train.json": "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
+      "literature-dev.json": "2ada55425867b63613c07b79c0370139018978757509d6543c667826bad43c21",
+      "literature-test.json": "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a",
+      "literature-train.json": "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
+      "music-dev.json": "dd046e83e655a11a6456ff13a9afd2e5bb9679419e643fc2924a3f1eec670830",
+      "music-test.json": "647d2edbb47d8793339bd6e21b88d3a4059f1464ca3e08597bf4bd333910a4b4",
+      "music-train.json": "b6229afa107f7b64a5fc7ceda09eaffa98bb30dae05d51aeb60eef5ab3e73500",
+      "news-dev.json": "e087bb168732b8e923e32bb4ee9b2ab582342f9962eaf9487e1a43d7e361f5e0",
+      "news-test.json": "0378cb359dfd37e0ac46d0488baf3809ae7a06dbbe99d19af570af9a2de41535",
+      "news-train.json": "a8e206fa6f1a449e9af0a85ed349bc98b82e89771b4735a1856044c744abcc97",
+      "politics-dev.json": "9ae8b87114774d0a78b6a9dcac0f434e59c38ba9fb243eaaff2f7df75ffa4fab",
+      "politics-test.json": "95e2432cd6aac170f17019ec96aea60bd2674a7a8583ce4d7d8aaf3c37e0d441",
+      "politics-train.json": "63061d1abd26e9a7f8ef84f9b6aba9c5a1c2f37697270666a3c33b5925b9f125",
+      "science-dev.json": "6a2b5ed08528b504ca7eefa7cec1354d3d2f7f3f0bebeb7f43f82bed077f4d45",
+      "science-test.json": "d1c0bace45532227b44de23121394bc660690b6f1e3c3f011f633eb2c9bd5a42",
+      "science-train.json": "1f860783dc2f05b09ac85447f523b6fafdddc6d861995994ac7bdcba9a01a5f6"
+    },
+    "weights_checked": [
+      {
+        "correct": 4,
+        "review_slots": 40,
+        "weight": 0
+      },
+      {
+        "correct": 7,
+        "review_slots": 40,
+        "weight": 0.5
+      },
+      {
+        "correct": 7,
+        "review_slots": 40,
+        "weight": 1
+      },
+      {
+        "correct": 6,
+        "review_slots": 40,
+        "weight": 2
+      }
+    ]
+  }
+}

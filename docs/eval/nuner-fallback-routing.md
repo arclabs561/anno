@@ -2,7 +2,9 @@
 
 The default stack tries BERT and NuNER independently. When NuNER loads, Anno can skip it on a sentence based on length and casing. If BERT failed to load, this can leave regex and heuristics as the only layers that processed that sentence. We tested whether paying for the skipped inference improves the entities a caller actually receives. [Stack construction and per-sentence scheduling](../../crates/anno/src/backends/stacked/mod.rs)
 
-![Net additional exact matches and unmatched predictions for each 100 skipped WNUT sentences, by split and BERT availability.](../figures/nuner-routing-tradeoff.png)
+![Changes in exact and unmatched predictions per 100 skipped WNUT sentences, with net mapped suggestions in each split and the warm median stack latency.](../figures/nuner-routing-tradeoff.png)
+
+On the 295 stock-skipped test sentences, a reviewer would receive **220 more mapped suggestions without BERT** and **133 more with BERT**. All 295 extra NuNER calls contribute to each timing comparison. The warm median changed from 0.2 to 191.1 ms without BERT and from 66.2 to 302.7 ms with BERT. Each total includes correct and unmatched suggestions in the mapped WNUT inventory. An application displaying all native types would see 475 → 657 suggestions without BERT (+182) and 616 → 715 with BERT (+99). Those counts include output labels such as URL and DATE outside WNUT’s five mapped types. [Paired costs for every measured condition](../figures/wikigold-routing-paired.svg) · [Input counts](wikigold-routing-paired.json)
 
 | WNUT split | BERT | NuNER calls added | Exact gained | Exact lost | In-schema unmatched added | In-schema unmatched removed | Warm p95, stock → extra call |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -11,9 +13,11 @@ The default stack tries BERT and NuNER independently. When NuNER loads, Anno can
 | Test | Unavailable | 295 | 82 | 2 | 186 | 46 | 1.5 → 327.3 ms |
 | Test | Available | 295 | 14 | 0 | 126 | 7 | 112.4 → 478.4 ms |
 
-Keep the fast path when BERT succeeds. On test, running NuNER anyway recovered 14 exact mentions for 119 net extra unmatched predictions. Full-split projected F1 fell from 37.0% to 36.2%. Without BERT, the extra calls recovered 82 exact mentions, lost two and produced 140 net extra unmatched predictions. Full-split projected F1 rose from 35.2% to 38.0%. Rust callers can enable the fallback when BERT is unavailable. The WikiGold comparison below tests that configuration on encyclopedia text. An independent two-stack study measures how the tradeoff changes when BERT loads successfully. [WikiGold counts, warm timings and routing figure](wikigold-nuner-routing.md)
+**Reject forcing NuNER after BERT succeeds on WNUT.** On test, running NuNER anyway recovered 14 exact mentions for 119 net extra unmatched predictions. Full-split projected F1 fell from 37.0% to 36.2%. Without BERT, the extra calls recovered 82 exact mentions, lost two and produced 140 net extra unmatched predictions. Full-split projected F1 rose from 35.2% to 38.0%. Keep the BERT-absent fallback opt-in for callers who value the 80 net exact gains enough to review 220 additional mapped suggestions over these 295 sentences. The WikiGold comparison below tests that configuration on encyclopedia text. An independent two-stack study measures how the tradeoff changes when BERT loads successfully. [WikiGold counts, warm timings and routing figure](wikigold-nuner-routing.md)
 
 What should developers inspect next? Without BERT, 132 of the 186 newly unmatched test outputs did not overlap any annotated name. Of the other 54, 27 had the right boundary and wrong type, and 27 overlapped with a different boundary. A boundary-only fix could address a minority of these outputs. Of the 82 exact gains, 75 were names unseen in training. With BERT, 107 of 126 newly unmatched outputs had no reference overlap. Human review of a sample from that group can distinguish spurious suggestions from legitimate unannotated names.
+
+A separate test held the stock routing gate fixed and added the prompt `miscellaneous`. On all 1,287 WNUT test sentences it gained five exact matches, lost seven and emitted ten suggestions in a class WNUT does not score. On WikiGold it corrected two of 263 preidentified same-span MISC errors. Keep the three stock prompts for these tasks. [Fourth-prompt trial, including raw and mapped workloads](wikigold-nuner-routing.md#does-a-fourth-prompt-recover-misc)
 
 ## Does the fallback help on encyclopedia text?
 

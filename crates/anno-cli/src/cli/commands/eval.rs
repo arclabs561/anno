@@ -10,7 +10,7 @@ use super::super::output::print_matches;
 use super::super::output::{color, metric_colored};
 use super::super::parser::ModelBackend;
 use super::super::utils::{
-    get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document, source_sha256,
+    get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document,
 };
 
 use anno::core::grounded::html_source::HtmlRenderer;
@@ -84,6 +84,10 @@ pub struct EvalArgs {
     #[arg(long)]
     pub json: bool,
 
+    /// Stable observation ID in the JSON pairing evidence (defaults to the source document ID or text digest)
+    #[arg(long, value_name = "ID", requires = "json")]
+    pub pair_id: Option<String>,
+
     /// Output format (overrides default text output)
     #[arg(long, conflicts_with = "json")]
     pub html: bool,
@@ -100,7 +104,7 @@ pub struct EvalArgs {
     pub positional: Vec<String>,
 }
 
-enum PredictionSource {
+pub(super) enum PredictionSource {
     Live {
         model: ModelBackend,
         elapsed: Duration,
@@ -109,6 +113,78 @@ enum PredictionSource {
         document_id: String,
         html_source: Option<(String, HtmlRenderer)>,
     },
+}
+
+pub(super) fn prediction_signals(entities: &[anno::Entity]) -> Vec<Signal<Location>> {
+    entities
+        .iter()
+        .enumerate()
+        .map(|(i, entity)| {
+            let mut signal = Signal::from(entity);
+            signal.id = SignalId::new(i as u64);
+            signal
+        })
+        .collect()
+}
+
+/// The per-observation JSON contract shared by single-document and corpus evaluation.
+pub(super) fn comparison_report(
+    cmp: &EvalComparison,
+    metric: MetricKind,
+    document_id: Option<&str>,
+    source: &PredictionSource,
+    char_masking: Option<&anno_eval::eval::metrics::CharMaskingMetrics>,
+) -> Result<serde_json::Value, String> {
+    let saved_id = match source {
+        PredictionSource::Saved { document_id, .. } => Some(document_id.as_str()),
+        PredictionSource::Live { .. } => None,
+    };
+    let pairing = anno::viz::paired::EvalPairing::from_comparison(cmp, document_id.or(saved_id))?;
+    let mut output = serde_json::json!({
+        "pairing": &pairing,
+        "metric": metric.name(),
+        "gold_count": cmp.gold.len(),
+        "predicted_count": cmp.predicted.len(),
+        "correct": cmp.correct_count(),
+        "errors": cmp.error_count(),
+        "matches": cmp.matches,
+        "precision": cmp.precision(),
+        "recall": cmp.recall(),
+        "f1": cmp.f1(),
+    });
+
+    match source {
+        PredictionSource::Live { model, elapsed } => {
+            output["model"] = serde_json::json!(model.name());
+            output["elapsed_ms"] = serde_json::json!(elapsed.as_secs_f64() * 1000.0);
+        }
+        PredictionSource::Saved {
+            document_id,
+            html_source,
+        } => {
+            output["model"] = serde_json::Value::Null;
+            output["elapsed_ms"] = serde_json::Value::Null;
+            output["predictions"] = serde_json::json!({
+                "document_id": document_id,
+                "source_sha256": pairing.source_sha256(),
+            });
+            if let Some((original_sha256, renderer)) = html_source {
+                output["predictions"]["html_source"] = serde_json::json!({
+                    "source_sha256": original_sha256,
+                    "renderer": renderer,
+                });
+            }
+        }
+    }
+
+    let label_breakdown = anno::viz::errors::EvalErrors::from_comparison(cmp)?;
+    output["label_outcomes"] = serde_json::json!(label_breakdown.label_outcomes());
+    if let Some(char_metrics) = char_masking {
+        output["char_masking"] =
+            serde_json::to_value(char_metrics).unwrap_or(serde_json::Value::Null);
+    }
+
+    Ok(output)
 }
 
 /// Execute the eval command.
@@ -196,15 +272,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             .extract_entities(&text, None)
             .map_err(|e| format!("Extraction failed: {e}"))?;
         let elapsed = start.elapsed();
-        let signals = entities
-            .iter()
-            .enumerate()
-            .map(|(i, entity)| {
-                let mut signal = Signal::from(entity);
-                signal.id = SignalId::new(i as u64);
-                signal
-            })
-            .collect();
+        let signals = prediction_signals(&entities);
         (
             entities,
             signals,
@@ -267,47 +335,13 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
 
     // Output
     if args.json {
-        let mut output = serde_json::json!({
-            "metric": args.metric.name(),
-            "gold_count": cmp.gold.len(),
-            "predicted_count": cmp.predicted.len(),
-            "correct": cmp.correct_count(),
-            "errors": cmp.error_count(),
-            "matches": cmp.matches,
-            "precision": cmp.precision(),
-            "recall": cmp.recall(),
-            "f1": cmp.f1(),
-        });
-
-        match &prediction_source {
-            PredictionSource::Live { model, elapsed } => {
-                output["model"] = serde_json::json!(model.name());
-                output["elapsed_ms"] = serde_json::json!(elapsed.as_secs_f64() * 1000.0);
-            }
-            PredictionSource::Saved {
-                document_id,
-                html_source,
-            } => {
-                output["model"] = serde_json::Value::Null;
-                output["elapsed_ms"] = serde_json::Value::Null;
-                output["predictions"] = serde_json::json!({
-                    "document_id": document_id,
-                    "source_sha256": source_sha256(&text),
-                });
-                if let Some((original_sha256, renderer)) = html_source {
-                    output["predictions"]["html_source"] = serde_json::json!({
-                        "source_sha256": original_sha256,
-                        "renderer": renderer,
-                    });
-                }
-            }
-        }
-
-        if let Some(char_metrics) = &char_masking {
-            output["char_masking"] =
-                serde_json::to_value(char_metrics).unwrap_or(serde_json::Value::Null);
-        }
-
+        let output = comparison_report(
+            &cmp,
+            args.metric,
+            args.pair_id.as_deref().or(gold_id.as_deref()),
+            &prediction_source,
+            char_masking.as_ref(),
+        )?;
         let json = serde_json::to_string_pretty(&output).map_err(|e| e.to_string())?;
         if let Some(path) = &args.output {
             fs::write(path, json).map_err(|e| format!("Failed to write {path}: {e}"))?;

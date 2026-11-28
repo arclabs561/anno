@@ -142,7 +142,7 @@ pub enum Commands {
     #[command(visible_alias = "d")]
     Debug(commands::DebugArgs),
 
-    /// Visualize signal overlap, evaluation errors and operating-point comparisons
+    /// Discover and render dataset studies, compare paired runs, and inspect evaluation errors or overlapping spans
     Viz(commands::viz::VizArgs),
 
     /// Evaluate predictions against gold annotations
@@ -160,7 +160,7 @@ pub enum Commands {
     /// Deliver and review grounded documents in a durable local corpus
     Corpus(commands::corpus::CorpusArgs),
 
-    /// Work with NER datasets
+    /// Browse datasets, inspect recorded evidence, and evaluate extraction models
     #[command(visible_alias = "ds")]
     Dataset(commands::DatasetArgs),
 

@@ -37,7 +37,13 @@ generate co-occurrence edges when extraction yields no semantic relations.
 
 ### Review overlapping highlights
 
-Measure how often extracted signals compete for the same highlight before inspecting individual examples. Pipe one grounded extraction into the chart, or save counts across a pipeline run for later comparison.
+**Use JSONL alongside flat HTML when reviewing nested annotations.** A flat highlight can hide an entire gold mention. In GENIA test sentence 600, two mentions start at character 67. The native HTML exporter highlights **cyclophilin gene** once as DNA, covering `[67, 83)`. JSONL contains that DNA interval and the nested protein **cyclophilin** at `[67, 78)`. Both exports preserve a separate DNA mention later in the sentence. [Exported example and source fingerprint](eval/genia-native-exports.json)
+
+![In test sentence 600, HTML marks cyclophilin gene as DNA. JSONL contains both that DNA span and the nested protein span cyclophilin. Across all splits, HTML displays 50,709 of 55,740 gold mentions and JSONL preserves every mention. The split rows give hidden mentions and affected sentences.](figures/anno-genia-nesting.png)
+
+On **18,546 sentences** from all three GENIA splits, the HTML exporter hid **5,031 of 55,740 mentions (9.0%)**. At least one mention disappeared from **3,816 sentences (20.6%)**. The replay checked every visible HTML interval and every JSONL row against four published gold annotation layers, including the 1,983 sentences without gold mentions. [Native replay and split counts](eval/genia-native-exports.json)
+
+To measure how often spans compete for a highlight in your own data, pipe grounded extraction output into the overlap view. Save the aggregate counts to compare labels or reopen them in a browser.
 
 ```sh
 anno extract --model pattern --format grounded --text 'Mail Ada at ada@example.org.' \
@@ -46,19 +52,30 @@ anno viz overlap documents.jsonl --title 'Support ticket extractions' -o overlap
 anno viz overlap overlap-counts.json -o overlap.html
 ```
 
-The chart counts documents and signals sharing at least one character with another signal. It also counts every Unicode scalar position in the grounded document text, including whitespace and text with no signals. Touching spans share zero characters. Gaps between segments of a discontinuous signal retain their own coverage. The label table shows how many signals participate and the percentage for each label. JSON and HTML retain every label. The saved counts contain label names and the chart title. Source text, surfaces and document identifiers stay in the input.
+In GENIA, **9,652 of 55,740 mentions (17.3%)** shared a character with another mention. Those overlaps covered **47,678 of 3,103,238 character positions (1.54%)**. Sampling by mention will expose more overlapping cases than sampling random character offsets. Within the 47,678 shared positions, **855 (1.79%)** lay under at least three mentions. Protein supplies the most overlapping mentions (5,738 of 34,097). RNA has the highest affected share (418 of 933, or 44.8%). [Overlap counts](eval/genia-span-overlap.json) · [Grounded replay](../scripts/genia_grounded_overlap.py)
 
-On all three GENIA splits, **9,652 of 55,740 gold mentions (17.3%)** shared at least one character with another mention. Those overlaps occupied **47,678 of 3,103,238 characters (1.54%)**. A review that samples character offsets would rarely hit the overlaps that affect roughly one in six mentions. Protein had the most affected mentions (5,738 of 34,097). RNA had the highest affected share (418 of 933, or 44.8%). The study used four published annotation layers and included the 1,983 sentences without gold mentions. The counts describe annotation geometry and can be computed on predictions using the same command. [All label and character counts](eval/genia-span-overlap.json) · [Replay from the three pinned splits](../scripts/genia_grounded_overlap.py)
+![GENIA overlap by mention, sentence and character. A depth table shows 855 positions with at least three mentions. A separate bar and percentages use all 47,678 shared positions as the denominator. RNA leads the label table by affected share and protein has the largest affected count.](figures/genia-span-overlap.svg)
 
-![GENIA span overlap across all 18,546 sentences. Four bars show the source character counts covered by zero, one, two, or at least three gold mentions. A table gives affected and total mentions for each of the five labels.](figures/genia-span-overlap.svg)
+Character counts use Unicode scalar positions and include whitespace. Touching spans share zero characters. Gaps between segments of a discontinuous signal keep their own coverage. The SVG lists up to eight labels by affected share. HTML gives complete rankings by share and count. Saved summaries contain aggregate counts, label names and the chart title. [CLI examples](QUICKSTART.md#visualize-evaluation-results)
 
-When a name seems to be missing from an HTML preview, inspect the entity list that produced it. In the GENIA test split, “cyclophilin gene” is a DNA mention and “cyclophilin” is a protein mention at the same start. Given both, `anno::export::to_html` highlights the longer phrase once. `anno::export::to_jsonl` writes a separate row for each mention. Use those rows and their offsets to review a suspected miss or score an extraction.
+<details>
+<summary>Token-layer depths and common nested label pairs</summary>
 
-Across all **18,546 sentences** in this GENIA release, the native HTML exporter hid at least one gold mention in **3,816 sentences (20.6%)**. It displayed 50,709 gold mentions and hid 5,031 (9.0%). The JSONL exporter preserved all 55,740 with their original labels, surfaces and offsets. Both exporters received the gold annotations directly, so the results measure what a reviewer can see when the supplied entities overlap. [Verified split counts and source files](eval/genia-native-exports.json)
+Of **148,148 annotated tokens**, 136,462 belonged to one active layer, 11,447 to two and 239 to three. These denominators count publisher tokens. The overlap view above counts character positions in reconstructed text.
 
-![GENIA HTML hid 8.9% of train mentions, 8.6% of dev mentions and 10.8% of test mentions. The share of sentences with any hidden mention was 20.5%, 18.4% and 23.1% respectively. Additional panels show annotation depths and the seven most frequent nested label pairs.](figures/anno-genia-nesting.png)
+| Outer label | Inner label | Strict containment pairs |
+|---|---|---:|
+| protein | protein | 1,863 |
+| DNA | protein | 1,533 |
+| DNA | DNA | 383 |
+| RNA | protein | 360 |
+| cell_type | cell_type | 316 |
+| cell_line | protein | 195 |
+| protein | DNA | 89 |
 
-The test split’s most frequent nesting was a protein inside a DNA mention (190 pairs). Across train, dev and test, protein inside protein led (1,863 pairs). The figure counts strictly contained mention pairs. A mention can belong to more than one pair. [Nesting counts by split and label](eval/genia-nesting-counts.json)
+The table pools all three splits. On test alone, DNA containing protein led with 190 pairs. A mention can participate in multiple pairs. [Complete split and label counts](eval/genia-nesting-counts.json)
+
+</details>
 
 To replay the exports, build the example and run the figure script from the repository root.
 
@@ -70,7 +87,7 @@ python3 scripts/genia_grounded_overlap.py target/genia-review/genia-span-overlap
 anno viz overlap target/genia-review/genia-span-overlap.json -o target/genia-review/genia-span-overlap.svg
 ```
 
-The script checks all three publisher files against their SHA-256 digests. The Rust example reads each of the four IOB2 layers with `AnnotatedSentence::entities()` and passes the original labels to both exporters. Character offsets refer to a sentence reconstructed with one space between tokens. An independent decoder checks the entire text recovered from the HTML, the span and label of every highlight, and each JSONL row. All checks agreed on every sentence, including the 1,983 with no gold mentions. [Replay example](../crates/anno-eval/examples/genia_export.rs) · [Figure and checks](../scripts/plot_genia_nesting.py)
+The script checks all three publisher files against their SHA-256 digests. The Rust example reads each of the four IOB2 layers with `AnnotatedSentence::entities()` and passes the original labels to both exporters. Character offsets refer to a sentence reconstructed with one space between tokens. An independent decoder checks the entire text recovered from the HTML, the span and label of every highlight, and each JSONL row. [Replay example](../crates/anno-eval/examples/genia_export.rs) · [Figure and checks](../scripts/plot_genia_nesting.py)
 
 ## Offline deterministic profile
 

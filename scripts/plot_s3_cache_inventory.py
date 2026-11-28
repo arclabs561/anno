@@ -66,8 +66,8 @@ def draw(report):
     fig.text(
         0.025,
         0.82,
-        f"{report['objects']:,} objects listed. Registered payload names resolve to "
-        f"{report['registry_ids_with_payload']:,} distinct dataset IDs.",
+        f"{report['objects']:,} objects listed   ·   {payloads:,} payload objects   ·   "
+        f"{report['registry_ids_with_payload']:,} distinct registry IDs with a payload",
         size=11.5,
         color=INK,
     )
@@ -80,9 +80,18 @@ def draw(report):
         color=INK,
     )
     ax = fig.add_axes([0.207, 0.250, 0.275, 0.365])
-    counts = [report[key] for key in OBJECTS]
+    groups = (
+        ("Payload files", payloads, TEAL),
+        (
+            "Metadata records",
+            report["registered_manifests"] + report["registered_pointers"],
+            "#52749a",
+        ),
+        ("Unrecognized names", report["unrecognized_keys"], "#8b989f"),
+    )
+    counts = [count for _, count, _ in groups]
     bars = ax.barh(
-        range(len(counts)), counts, height=0.58, color=[c for _, c in OBJECTS.values()]
+        range(len(counts)), counts, height=0.58, color=[color for _, _, color in groups]
     )
     ax.bar_label(
         bars,
@@ -93,7 +102,7 @@ def draw(report):
     )
     ax.set_xlim(0, max(max(counts), 1) * 1.22)
     ax.set_ylim(len(counts) - 0.5, -0.5)
-    ax.set_yticks(range(len(counts)), [label for label, _ in OBJECTS.values()])
+    ax.set_yticks(range(len(counts)), [label for label, _, _ in groups])
     ax.tick_params(axis="y", labelcolor=INK, length=0, labelsize=10.5)
     ax.set_xticks([])
     ax.spines[:].set_visible(False)
@@ -125,7 +134,8 @@ def draw(report):
     fig.text(
         0.025,
         0.051,
-        "The listing counts come from object names. Byte verification requires reading a payload.",
+        f"Metadata includes {report['registered_pointers']:,} pointers and {report['registered_manifests']:,} manifests. "
+        "The publisher comparison reports the broader payload reads.",
         size=10,
         color=MUTED,
     )

@@ -1,10 +1,20 @@
 # How many correct pronoun links survive abstention?
 
-On the 2,000 GAP test excerpts, requiring a winning score to clear the native link threshold by an extra 0.025 removed 33 wrong links and lost 23 correct ones. Requiring a lead of 0.15 over the other name removed 13 wrong links and lost 25 correct ones. Both cutoffs were chosen on development articles. On test, the threshold rule returned more correct links with fewer wrong assignments than the competing-name rule. On validation it returned nine fewer correct links and four fewer wrong ones. Neither result supports enabling a margin by default. [Aggregate results and all cutoffs](native-gap-link-retention.json)
+**Reject the 0.025 margin as the default for supplied-span pronoun linking.** It missed its declared 80% retention target on GAP validation. With the pronoun and both candidate names supplied, it retained 103/123 previously correct links on development (83.7%), 23/37 on validation (62.2%) and 108/131 on test (82.4%). Pairing each pronoun–name link shows the margin gained zero correct links and lost 20, 14 and 23 respectively. [Source, paired outcomes and selection rule](native-gap-link-retention.json)
 
-![Operating points for nine pronoun-link settings on the 2,000 GAP test excerpts. The development-selected threshold rule returned 108 correct and 108 wrong links. The development-selected competing-name rule returned 106 correct and 128 wrong links.](../figures/native-gap-margin-tradeoff.svg)
+![Paired link outcomes for the neutral ranker and threshold margin 0.025. Development, validation and test are shown separately. The two Winogender rows reuse the same 720 sentences with different supplied name boundaries.](../figures/native-gap-retention-paired.svg)
 
-Each point is one policy run on the same articles. Moving right adds wrong links. Moving up recovers correct ones. A filled point gives the highest correct-link count observed at or below that wrong-link budget among the displayed policies. The plot includes additional cutoffs so a caller can see the cost of stricter abstention. The marked development choices were fixed before comparing these policies on validation and test. The earlier neutral-type study had already examined all three splits. [Reusable chart input](native-gap-margin-tradeoff.json) · [Earlier neutral-type experiment](native-gap-neutral-mention.md)
+| Supplied spans | Previously correct links retained | Wrong links before → after | Total returned links before → after |
+|---|---:|---:|---:|
+| GAP development · cutoff selection | 103 / 123 (83.7%) | 138 → 103 | 261 → 206 |
+| GAP validation | **23 / 37 (62.2%)** | 39 → 34 | 76 → 57 |
+| GAP test | 108 / 131 (82.4%) | 141 → 108 | 272 → 216 |
+| Winogender · full role phrases | 52 / 65 (80.0%) | 57 → 48 | 122 → 100 |
+| Winogender · bare role heads | 2 / 3 (66.7%) | 3 → 2 | 6 → 4 |
+
+On validation, discarding 19 returned links removed five wrong assignments at the cost of 14 correct ones. The candidate recovered just **23 of all 392 gold links (5.9% recall)**. On test it removed 33 wrong assignments at the cost of 23 correct ones, recovering **108 of 1,773 gold links (6.1% recall)**. Total returned links count every pronoun-to-name assignment a reviewer would see. The two Winogender rows reuse the same 720 sentences from 120 templates and must be read separately. Every arm uses supplied mentions. Raw-text extraction also has to detect the names. [Portable paired input](native-gap-retention-paired.json) · [Native raw-text and supplied-span trials](native-gap-loss.md)
+
+Across 5,000 paired resamples, the central 95% range for retained correct links was **46.3–78.0% on validation** and **75.8–88.6% on test**. The three GAP splits have disjoint article URLs. Each draw resampled whole articles within groups of equal excerpt count, preserving the original split size and both name decisions. The cutoff stayed fixed. For Winogender the sampling unit was a whole template with its six variants. With bare role heads the baseline had only three correct links. In 705 of 5,000 draws it had zero, leaving the retention percentage undefined. The figure’s intervals are changes in the count of correct links. [Cluster counts, net changes and retention ranges](native-gap-link-retention.json)
 
 ## Where the native ranker loses the person
 
@@ -28,6 +38,12 @@ Cells report **correct / wrong** pronoun-to-candidate links. Each example contri
 
 Winogender contributes 720 distinct English sentences from 120 templates. Its last two rows reuse the same sentences with different mention boundaries. Under the threshold policy, switching from bare heads to full phrases changed the result from 2 correct and 2 wrong links to 52 correct and 48 wrong. Boundary conventions must accompany a coreference comparison. All 4,454 released GAP rows and all 720 Winogender sentences entered this study. These are supplied-span decisions. Automatic mention detection, other languages and calibrated confidence probabilities are outside its scope. [GAP files](https://github.com/google-research-datasets/gap-coreference/tree/83135f26025cdd705c04f77e940d0c9201116b80) · [Winogender files and template design](https://github.com/rudinger/winogender-schemas/tree/1c7f8b481ad8a234b41e9f76a424d6e856e13f7f)
 
+## Sensitivity to the cutoff on GAP test
+
+The threshold-margin cutoff of 0.025 and the competing-name cutoff of 0.15 were fixed on development. On test the latter removed 13 wrong assignments at the cost of 25 correct links. A filled point marks the most correct links observed at or below that wrong-link count. The wrong-link count is known after scoring against the reference. The earlier neutral-type study had examined all three splits. [All measured cutoffs](native-gap-margin-tradeoff.json) · [Earlier neutral-type experiment](native-gap-neutral-mention.md)
+
+![Secondary test-only sweep across nine supplied-span settings. The development-selected threshold rule returned 108 correct and 108 wrong links. The competing-name rule returned 106 correct and 128 wrong links.](../figures/native-gap-margin-tradeoff.svg)
+
 ## Reproduce the trace, intervention and figure
 
 Use a disposable checkout, the three pinned GAP TSVs in `$GAP` and Winogender's `templates.tsv` and `all_sentences.tsv` in `$WINOGENDER`. The example uses the repository's ONNX build feature. The native ranker requires no model weights. The runner verifies the source hashes, reconstructs the native connected components, and compares the complete partitions to independent Rust runs at all eight margins for both rules. At zero margin the GAP results must also match both earlier native partition fingerprints. [Runner](../../scripts/qa/native_gap_link_retention.py) · [Neutral-type patch](../../scripts/qa/fixtures/native-gap-neutral-mention.patch) · [Native margin patch](../../scripts/qa/fixtures/native-gap-score-margin.patch)
@@ -47,7 +63,8 @@ git apply -R scripts/qa/fixtures/native-gap-score-margin.patch
 git apply -R scripts/qa/fixtures/native-gap-neutral-mention.patch
 python3 scripts/qa/native_gap_link_retention.py --gap "$GAP" --winogender "$WINOGENDER" \
     --stock "$trial/stock" --neutral "$trial/neutral" --margin-worker "$trial/margin" \
-    --output "$trial/results.json" --chart "$trial/points.json"
+    --output "$trial/results.json" --chart "$trial/points.json" --paired-chart "$trial/paired.json"
+anno viz paired "$trial/paired.json" -o "$trial/retention.svg"
 anno viz tradeoff "$trial/points.json" -o "$trial/margins.svg"
 ```
 
