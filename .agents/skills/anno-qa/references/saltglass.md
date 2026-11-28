@@ -19,3 +19,5 @@ Run a 6,000-character CRF passage. Time the click handler and the completed resu
 Compare the landing window and equipment dialog at the same desktop viewport with published gameplay captures. Check the relative widths of the vista, service banks and cockpit rail, inventory column count, instrument preview and bottom action row. Recheck legibility at phone width.
 
 On a fresh visit open the Survey receiver and verify that the neural assets load only when a scan starts. Compare the fitted reader with GLiNER on the same sounding, tune to vessel alone, then inspect the exported score and the character offsets following the moon. Measure first use and repeat inference separately. Check cancellation and an unavailable checkpoint.
+
+Check the shipped files and the materialized WASM for embedded trained parameters before publishing. Keep the port dependency's bundled weight features disabled. Inspect the browser request host for the neural checkpoint: it should be fetched from the pinned upstream URL, with only browser-local caching. Git LFS and opaque WASM binaries both count as distribution when served by the project.
