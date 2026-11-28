@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["boto3>=1.34"]
+# dependencies = []
 # ///
 """
 Aggregate spot evaluation results into hierarchical summary.
@@ -21,6 +21,11 @@ import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+
+if __package__:
+    from .storage import selected_bucket
+else:
+    from storage import selected_bucket
 
 # ============================================================================
 # Parsing
@@ -253,9 +258,6 @@ def get_recall(r: dict) -> float:
 
 def build_summary(results: list[dict]) -> dict:
     """Build hierarchical summary from flat results."""
-    if not results:
-        return {'generated': datetime.now(timezone.utc).isoformat(), 'backends': {}, 'datasets': {}}
-    
     # Group by backend
     by_backend = {}
     for r in results:
@@ -510,7 +512,7 @@ def download_from_s3(bucket: str, prefix: str, local_dir: Path) -> list[Path]:
     
     result = subprocess.run(
         ['aws', 's3', 'ls', f's3://{bucket}/{prefix}', '--recursive'],
-        capture_output=True, text=True
+        stdout=subprocess.PIPE, text=True, check=True
     )
     
     files = []
@@ -524,7 +526,7 @@ def download_from_s3(bucket: str, prefix: str, local_dir: Path) -> list[Path]:
                 local_path = local_dir / key.replace('/', '_')
                 subprocess.run(
                     ['aws', 's3', 'cp', f's3://{bucket}/{key}', str(local_path)],
-                    capture_output=True
+                    stdout=subprocess.PIPE, check=True
                 )
                 files.append(local_path)
     return files
@@ -539,7 +541,7 @@ def main():
     parser.add_argument('--download', action='store_true', help='Download from S3')
     parser.add_argument('--open', action='store_true', help='Open HTML in browser')
     parser.add_argument('--llm', action='store_true', help='Generate LLM summary')
-    parser.add_argument('--bucket', default='arc-anno-data')
+    parser.add_argument('--bucket', help='S3 bucket name or root URI (overrides ANNO_SPOT_BUCKET and ANNO_S3_BUCKET)')
     parser.add_argument('--prefix', default='results/')
     parser.add_argument('--local-dir', default='reports/spot/')
     parser.add_argument('--output', default='reports/eval-results.jsonl')
@@ -549,6 +551,12 @@ def main():
     
     args = parser.parse_args()
     
+    if args.download:
+        try:
+            args.bucket = selected_bucket(args.bucket)
+        except ValueError as exc:
+            parser.error(str(exc))
+
     output_path = Path(args.output)
     summary_path = Path(args.summary)
     markdown_path = Path(args.markdown)

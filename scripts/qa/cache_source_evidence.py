@@ -422,7 +422,10 @@ def run(output, bucket, role):
         .get_paginator("list_objects_v2")
         .paginate(Bucket=bucket, Prefix="datasets/")
     )
-    listing = [obj for page in pages for obj in page.get("Contents", [])]
+    try:
+        listing = [obj for page in pages for obj in page.get("Contents", [])]
+    except (BotoCoreError, ClientError):
+        raise SystemExit("Could not list the configured dataset prefix. Check role access, bucket and region.") from None
 
     def read_entries(objects):
         for group in batches(bucket, objects):

@@ -12,7 +12,12 @@
 
 set -e
 
-S3_BUCKET="${ANNO_S3_BUCKET:-arc-anno-data}"
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    printf 'Usage: ANNO_S3_BUCKET=bucket %s\n' "$0"
+    exit 0
+fi
+source "$(dirname "${BASH_SOURCE[0]}")/s3_bucket.sh"
+S3_BUCKET=$(anno_bucket_name "${ANNO_S3_BUCKET:-}" ANNO_S3_BUCKET)
 HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}/hub"
 CONVERT_SCRIPT="$(dirname "$0")/convert_pytorch_to_safetensors.py"
 

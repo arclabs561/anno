@@ -1,0 +1,141 @@
+{
+  "schema": "anno.agcner-source-coordinates/v1",
+  "collection": "https://springernature.figshare.com/collections/AgCNER_the_First_Large-Scale_Chinese_Named_Entity_Recognition_Dataset_for_Agricultural_Diseases_and_Pests/6807873",
+  "scope": "All three Figshare v1 splits. The independent reader hashes original strings and each labelled half-open Unicode scalar range, then checks every native per-case report in release order.",
+  "protocol": "Each original is evaluated through the repaired BIO reader. Both executables also evaluate equivalent legacy JSONL rows. Counts are exact entity-span and label matches from the heuristic model.",
+  "command": "anno dataset eval --dataset AgCNER --task ner --model heuristic --cached-only --reports <file>",
+  "splits": {
+    "dev": {
+      "source_url": "https://ndownloader.figshare.com/files/42188211",
+      "source_sha256": "5096006714dc84e9f5131c8abae65ed3130c8db3eae416cf6ef9e7723101b2c0",
+      "source_bytes": 2976863,
+      "before_jsonl": {
+        "all_case_gold_exact": 1,
+        "artificial_separators": 388880,
+        "cases": 5963,
+        "correct": 0,
+        "gold_spans": 20782,
+        "gold_spans_exact_source_label_and_offsets": 8,
+        "non_bmp_tokens": 0,
+        "predicted": 1770,
+        "source_characters": 394843,
+        "source_text_exact": 0,
+        "whitespace_tokens": 0
+      },
+      "after_original_bio": {
+        "all_case_gold_exact": 5963,
+        "artificial_separators": 0,
+        "cases": 5963,
+        "correct": 0,
+        "gold_spans": 20782,
+        "gold_spans_exact_source_label_and_offsets": 20782,
+        "non_bmp_tokens": 0,
+        "predicted": 150,
+        "source_characters": 394843,
+        "source_text_exact": 5963,
+        "whitespace_tokens": 0
+      },
+      "after_legacy_jsonl": {
+        "all_case_gold_exact": 5963,
+        "artificial_separators": 0,
+        "cases": 5963,
+        "correct": 0,
+        "gold_spans": 20782,
+        "gold_spans_exact_source_label_and_offsets": 20782,
+        "non_bmp_tokens": 0,
+        "predicted": 150,
+        "source_characters": 394843,
+        "source_text_exact": 5963,
+        "whitespace_tokens": 0
+      }
+    },
+    "test": {
+      "source_url": "https://ndownloader.figshare.com/files/42188208",
+      "source_sha256": "f520109a9bc89cda1d6a2928fbf06157908358909ea3a7b73de46ad23eefb7b4",
+      "source_bytes": 2923714,
+      "before_jsonl": {
+        "all_case_gold_exact": 2,
+        "artificial_separators": 380499,
+        "cases": 5974,
+        "correct": 0,
+        "gold_spans": 20524,
+        "gold_spans_exact_source_label_and_offsets": 9,
+        "non_bmp_tokens": 0,
+        "predicted": 1548,
+        "source_characters": 386473,
+        "source_text_exact": 0,
+        "whitespace_tokens": 0
+      },
+      "after_original_bio": {
+        "all_case_gold_exact": 5974,
+        "artificial_separators": 0,
+        "cases": 5974,
+        "correct": 0,
+        "gold_spans": 20524,
+        "gold_spans_exact_source_label_and_offsets": 20524,
+        "non_bmp_tokens": 0,
+        "predicted": 155,
+        "source_characters": 386473,
+        "source_text_exact": 5974,
+        "whitespace_tokens": 0
+      },
+      "after_legacy_jsonl": {
+        "all_case_gold_exact": 5974,
+        "artificial_separators": 0,
+        "cases": 5974,
+        "correct": 0,
+        "gold_spans": 20524,
+        "gold_spans_exact_source_label_and_offsets": 20524,
+        "non_bmp_tokens": 0,
+        "predicted": 155,
+        "source_characters": 386473,
+        "source_text_exact": 5974,
+        "whitespace_tokens": 0
+      }
+    },
+    "train": {
+      "source_url": "https://ndownloader.figshare.com/files/42188205",
+      "source_sha256": "08b41babefc61ed26560cd6d922e98e0b6a32ea65acd50760737bb6d98db811f",
+      "source_bytes": 23602170,
+      "before_jsonl": {
+        "all_case_gold_exact": 30,
+        "artificial_separators": 3080138,
+        "cases": 47839,
+        "correct": 0,
+        "gold_spans": 165686,
+        "gold_spans_exact_source_label_and_offsets": 88,
+        "non_bmp_tokens": 0,
+        "predicted": 12971,
+        "source_characters": 3127977,
+        "source_text_exact": 0,
+        "whitespace_tokens": 0
+      },
+      "after_original_bio": {
+        "all_case_gold_exact": 47839,
+        "artificial_separators": 0,
+        "cases": 47839,
+        "correct": 0,
+        "gold_spans": 165686,
+        "gold_spans_exact_source_label_and_offsets": 165686,
+        "non_bmp_tokens": 0,
+        "predicted": 1153,
+        "source_characters": 3127977,
+        "source_text_exact": 47839,
+        "whitespace_tokens": 0
+      },
+      "after_legacy_jsonl": {
+        "all_case_gold_exact": 47839,
+        "artificial_separators": 0,
+        "cases": 47839,
+        "correct": 0,
+        "gold_spans": 165686,
+        "gold_spans_exact_source_label_and_offsets": 165686,
+        "non_bmp_tokens": 0,
+        "predicted": 1153,
+        "source_characters": 3127977,
+        "source_text_exact": 47839,
+        "whitespace_tokens": 0
+      }
+    }
+  }
+}

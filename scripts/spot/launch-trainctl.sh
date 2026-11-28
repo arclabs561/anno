@@ -17,12 +17,16 @@ NUM_WORKERS="${1:-1}"
 PROFILE="${2:-full}"
 
 # Load config if exists
-if [[ -f "$SCRIPT_DIR/config.env" ]]; then
-    source "$SCRIPT_DIR/config.env"
-fi
+source "$SCRIPT_DIR/../s3_bucket.sh"
+anno_spot_config "$SCRIPT_DIR/config.env"
 
+if [[ ${1:-} == --help || ${1:-} == -h || ${1:-} == help ]]; then
+    sed -n '2,/^$/s/^# *//p' "${BASH_SOURCE[0]}"
+    exit 0
+fi
 REGION="${ANNO_SPOT_REGION:-us-east-1}"
-BUCKET="${ANNO_SPOT_BUCKET:-arc-anno-data}"
+BUCKET=$(anno_bucket_name "${ANNO_SPOT_BUCKET:-}" "ANNO_SPOT_BUCKET or ANNO_S3_BUCKET")
+export ANNO_SPOT_BUCKET="$BUCKET"
 INSTANCE_TYPE="${ANNO_SPOT_INSTANCE_TYPE:-c7i.xlarge}"
 
 # Check for trainctl
@@ -112,8 +116,9 @@ for i in $(seq 1 "$NUM_WORKERS"); do
     echo "Starting worker on $INSTANCE_ID..."
     
     # Use SSM to run the worker setup and start
-    "$TRAINCTL" aws ssh "$INSTANCE_ID" << 'WORKER_SETUP'
-#!/bin/bash
+    {
+        printf 'export ANNO_SPOT_BUCKET=%q ANNO_SPOT_REGION=%q\n' "$BUCKET" "$REGION"
+        cat <<'WORKER_SETUP'
 set -e
 
 # Install dependencies
@@ -127,14 +132,13 @@ if ! command -v cargo &>/dev/null; then
     source $HOME/.cargo/env
 fi
 
-# Clone or update anno
-if [[ ! -d ~/anno ]]; then
-    git clone --depth 1 https://github.com/your-org/anno.git ~/anno
-else
-    cd ~/anno && git pull --ff-only
-fi
-
-cd ~/anno
+# Use the same checked-in worker source as the launch-template path.
+mkdir -p "$HOME/anno"
+archive=$(mktemp)
+aws s3 cp "s3://$ANNO_SPOT_BUCKET/src/anno-src.tar.gz" "$archive" --region "$ANNO_SPOT_REGION"
+tar xzf "$archive" -C "$HOME/anno"
+rm -f "$archive"
+cd "$HOME/anno"
 
 # Set up environment
 export ANNO_CACHE_DIR=/tmp/anno-cache
@@ -142,21 +146,25 @@ export CARGO_HOME=/tmp/cargo
 mkdir -p $ANNO_CACHE_DIR $CARGO_HOME
 
 # Build anno
-cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
+cargo build --locked --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
+cargo build --locked --release -p anno-eval --example public_benchmark_report --features "eval onnx" 2>&1 | tail -5
 
 echo "Worker ready on $(hostname)"
 WORKER_SETUP
-    
+    } | "$TRAINCTL" aws ssh "$INSTANCE_ID"
+
     # Start the actual worker process in background
     echo "Launching worker process on $INSTANCE_ID..."
-    "$TRAINCTL" aws ssh "$INSTANCE_ID" --background << WORKER_RUN
-cd ~/anno
-export ANNO_SPOT_REGION=$REGION
-export ANNO_SPOT_BUCKET=$BUCKET
-export ANNO_SPOT_QUEUE=anno-eval-tasks
+    {
+        printf 'export ANNO_SPOT_REGION=%q ANNO_SPOT_BUCKET=%q ANNO_SPOT_QUEUE=%q ANNO_SPOT_QUEUE_URL=%q\n' \
+            "$REGION" "$BUCKET" "${ANNO_SPOT_QUEUE:-anno-eval-${BUCKET//./_}}" "${ANNO_SPOT_QUEUE_URL:-}"
+        cat <<'WORKER_RUN'
+cd "$HOME/anno"
+export ANNO_SOURCE_DIR="$PWD" ANNO_CACHE_MOUNT=/tmp/anno-cache CARGO_TARGET_DIR="$PWD/target"
 nohup ./scripts/spot/worker.sh > /tmp/worker.log 2>&1 &
-echo "Worker PID: \$!"
+echo "Worker PID: $!"
 WORKER_RUN
+    } | "$TRAINCTL" aws ssh "$INSTANCE_ID" --background
 
 done
 

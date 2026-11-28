@@ -27,9 +27,7 @@ use super::super::parser::{EvalTask, ModelBackend};
 use anno_eval::eval::relation::create_entity_pair_relations;
 
 #[cfg(feature = "eval")]
-use anno::core::grounded::{
-    render_eval_html_with_title, EvalComparison, EvalMatch, Location, Signal, SignalId,
-};
+use anno::core::grounded::{render_eval_html_with_title, EvalComparison, EvalMatch};
 
 #[cfg(feature = "eval")]
 use anno::core::grounded::{render_document_html, GroundedDocument};
@@ -38,6 +36,8 @@ use anno::core::grounded::{render_document_html, GroundedDocument};
 use anno_eval::eval::loader::DatasetId;
 #[cfg(feature = "eval")]
 use anno_eval::eval::loader::LoadableDatasetId;
+#[cfg(feature = "eval")]
+use anno_eval::eval::ner_scoring::{NerScoring, ReferenceCounts};
 
 #[cfg(feature = "eval")]
 use anno::CoreferenceResolver;
@@ -48,6 +48,7 @@ struct HtmlWorstCase {
     case_idx: usize,
     errors: usize,
     cmp: EvalComparison,
+    scoring: Option<(NerScoring, ReferenceCounts)>,
 }
 
 /// Work with extraction datasets and their recorded evaluations
@@ -111,6 +112,12 @@ pub enum DatasetAction {
         /// Task type: ner, coref, or relation
         #[arg(short, long, default_value = "ner")]
         task: EvalTask,
+
+        /// NER scoring policy. Dataset uses the corpus evaluation convention
+        /// (including HistNERo's person and product aliases). Source compares the
+        /// exact authored label and boundaries against the emitted model label.
+        #[arg(long, value_name = "MODE", value_parser = ["dataset", "source"])]
+        ner_scoring: Option<String>,
 
         /// Write an HTML error explorer (index + per-example eval pages).
         ///
@@ -308,6 +315,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             dataset,
             model,
             task,
+            ner_scoring,
             html,
             output,
             reports,
@@ -319,6 +327,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             min_gold_relations,
             coref_oracle_mentions,
         } => {
+            if ner_scoring.is_some() && !matches!(task, EvalTask::Ner) {
+                return Err("--ner-scoring applies to --task ner only".into());
+            }
             if reports.is_some() && !matches!(task, EvalTask::Ner) {
                 return Err("--reports supports --task ner only. Use --html --output PATH for coreference or relation review.".into());
             }
@@ -402,6 +413,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 // Route to appropriate evaluation based on task
                 match task {
                     EvalTask::Ner => {
+                        let mode = if ner_scoring.as_deref() == Some("source") {
+                            NerScoring::Source
+                        } else {
+                            NerScoring::Dataset
+                        };
+                        let describe_scoring =
+                            ner_scoring.is_some() || dataset_id == Some(DatasetId::HistNERo);
+                        let mut reference = ReferenceCounts::default();
                         let m = model.create_model()?;
                         println!();
                         println!("Evaluating {} on {} dataset (NER)...", model.name(), name);
@@ -467,101 +486,59 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 .map_err(|e| format!("Entity extraction failed: {e}"))?;
                             let elapsed = case_start.map(|start| start.elapsed());
 
-                            total_gold += gold.len();
-                            total_pred += entities.len();
-
-                            if html_output_path.is_some() || reports.is_some() {
-                                let gold_signals: Vec<Signal<Location>> = gold
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, g)| {
-                                        Signal::new(
-                                            SignalId::new(i as u64),
-                                            Location::text(g.start, g.end),
-                                            g.text.as_str(),
-                                            g.original_label.as_str(),
-                                            1.0,
-                                        )
-                                    })
-                                    .collect();
-
-                                let pred_signals = super::eval::prediction_signals(&entities);
-                                let cmp = EvalComparison::compare(text, gold_signals, pred_signals);
-                                if let (Some(writer), Some(elapsed)) = (&mut reports, elapsed) {
-                                    let id = format!("{dataset_key}:{}", case_idx + 1);
-                                    writer.record(&cmp, &id, model, elapsed)?;
-                                }
-                                let errors = cmp.error_count();
-                                if html_output_path.is_some() && errors >= ner_min_errors {
-                                    worst_cases.push(HtmlWorstCase {
-                                        case_idx,
-                                        errors,
-                                        cmp,
-                                    });
-                                    // Keep memory bounded on large datasets (retain only the worst cases).
-                                    if worst_cases.len() > max_cases.saturating_mul(5) {
-                                        worst_cases.sort_by(|a, b| {
-                                            b.errors
-                                                .cmp(&a.errors)
-                                                .then_with(|| a.case_idx.cmp(&b.case_idx))
-                                        });
-                                        worst_cases.truncate(max_cases);
+                            let (gold_signals, counts) = mode.reference(dataset_id, gold);
+                            reference.accumulate(counts);
+                            let mut pred_signals = super::eval::prediction_signals(&entities);
+                            mode.predictions(&mut pred_signals);
+                            let cmp = EvalComparison::compare(text, gold_signals, pred_signals);
+                            let correct_ids: std::collections::HashSet<_> = cmp
+                                .matches
+                                .iter()
+                                .filter_map(|m| {
+                                    if let EvalMatch::Correct { gold_id, .. } = m {
+                                        Some(*gold_id)
+                                    } else {
+                                        None
                                     }
-                                }
+                                })
+                                .collect();
+                            total_gold += cmp.gold.len();
+                            total_pred += cmp.predicted.len();
+                            total_correct += correct_ids.len();
+                            for signal in &cmp.gold {
+                                let entry =
+                                    per_type_stats.entry(signal.label().to_owned()).or_default();
+                                entry.0 += 1;
+                                entry.2 += usize::from(correct_ids.contains(&signal.id));
                             }
-
-                            // Track which predictions have been matched to prevent double-counting
-                            let mut matched_pred = vec![false; entities.len()];
-
-                            for gold_entity in gold {
-                                let gold_type =
-                                    anno::EntityType::from_label(&gold_entity.original_label);
-
-                                // Canonicalize once via `EntityType::from_label` + `as_label()`.
-                                let gold_type_key = gold_type.as_label().to_string();
-
-                                // Track per-type gold counts using normalized type
+                            for signal in &cmp.predicted {
                                 per_type_stats
-                                    .entry(gold_type_key.clone())
-                                    .or_insert((0, 0, 0))
-                                    .0 += 1;
-
-                                // Match: exact span + type match (with flexible type matching)
-                                // Find first unmatched prediction that matches
-                                let matched = entities.iter().enumerate().any(|(i, e)| {
-                                    if matched_pred[i] {
-                                        return false; // Already matched
-                                    }
-
-                                    let span_match = e.start() == gold_entity.start
-                                        && e.end() == gold_entity.end;
-                                    if !span_match {
-                                        return false;
-                                    }
-
-                                    // Type match on canonical labels.
-                                    let pred_type_str = e.entity_type.as_label();
-                                    let gold_type_str = gold_type.as_label();
-
-                                    if pred_type_str == gold_type_str {
-                                        matched_pred[i] = true; // Mark as matched
-                                        return true;
-                                    }
-
-                                    false
-                                });
-
-                                if matched {
-                                    total_correct += 1;
-                                    // Track per-type correct count
-                                    per_type_stats.entry(gold_type_key).or_insert((0, 0, 0)).2 += 1;
-                                }
+                                    .entry(signal.label().to_owned())
+                                    .or_default()
+                                    .1 += 1;
                             }
-
-                            // Track per-type pred counts using canonical labels.
-                            for e in &entities {
-                                let type_key = e.entity_type.as_label().to_string();
-                                per_type_stats.entry(type_key).or_insert((0, 0, 0)).1 += 1;
+                            if let (Some(writer), Some(elapsed)) = (&mut reports, elapsed) {
+                                let id = format!("{dataset_key}:{}", case_idx + 1);
+                                writer.record(
+                                    &cmp,
+                                    &id,
+                                    model,
+                                    elapsed,
+                                    describe_scoring.then_some((mode, counts)),
+                                )?;
+                            }
+                            let errors = cmp.error_count();
+                            if html_output_path.is_some() && errors >= ner_min_errors {
+                                worst_cases.push(HtmlWorstCase {
+                                    case_idx,
+                                    errors,
+                                    cmp,
+                                    scoring: describe_scoring.then_some((mode, counts)),
+                                });
+                                if worst_cases.len() > max_cases.saturating_mul(5) {
+                                    worst_cases.sort_by_key(|x| std::cmp::Reverse(x.errors));
+                                    worst_cases.truncate(max_cases);
+                                }
                             }
                         }
 
@@ -589,6 +566,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             (p, r, f1)
                         };
 
+                        let scope = describe_scoring.then(|| reference.description(mode));
+                        if let Some(scope) = &scope {
+                            println!("{scope}");
+                        }
                         println!("Results:");
                         println!(
                             "  Gold: {}  Predicted: {}  Correct: {}",
@@ -680,6 +661,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 total_gold,
                                 total_pred,
                                 total_correct,
+                                scope.as_deref(),
                                 &worst_cases,
                             )?;
                             println!(
@@ -1562,6 +1544,7 @@ fn write_ner_error_explorer_html(
     total_gold: usize,
     total_pred: usize,
     total_correct: usize,
+    scoring_scope: Option<&str>,
     worst_cases: &[HtmlWorstCase],
 ) -> Result<(), String> {
     let directory_name = ner_html_directory_name(output_path);
@@ -1572,7 +1555,11 @@ fn write_ner_error_explorer_html(
     for case in worst_cases {
         let case_filename = ner_case_filename(case.case_idx);
         let case_path = files_dir.join(&case_filename);
-        let title = format!("{model_name} — {dataset_name} — case {}", case.case_idx);
+        let mut title = format!("{model_name} — {dataset_name} — case {}", case.case_idx);
+        if let Some((mode, counts)) = case.scoring {
+            title.push_str(" — ");
+            title.push_str(&counts.description(mode));
+        }
         let case_html = render_eval_html_with_title(&case.cmp, &title);
         fs::write(&case_path, case_html)
             .map_err(|e| format!("Failed to write {:?}: {}", case_path, e))?;
@@ -1620,6 +1607,9 @@ code{color:var(--code)}
         total_pred,
         total_correct
     ));
+    if let Some(scope) = scoring_scope {
+        index.push_str(&format!("<p>{}</p>", html_escape(scope)));
+    }
     index.push_str(
         r#"<div class="row">
   <input id="case-filter" placeholder="filter (case id, label, text…)" />
