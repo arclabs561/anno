@@ -49,6 +49,10 @@ name = "journey_pick"
 required-features = ["eval"]
 
 [[example]]
+name = "public_benchmark_report"
+required-features = ["eval"]
+
+[[example]]
 name = "cache_inventory"
 required-features = ["eval"]
 

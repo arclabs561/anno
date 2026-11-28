@@ -142,11 +142,11 @@ class CacheSourceEvidenceTest(unittest.TestCase):
             for i in reasons
             if reasons[i] == "eligible"
         ]
-        groups = list(evidence.batches("arc-anno-data", objects))
+        groups = list(evidence.batches("fixture-data-bucket", objects))
         self.assertGreater(len(groups), 1)
         self.assertEqual([o.key for batch in groups for o in batch], [o.key for o in objects])
         for batch in groups:
-            policy = evidence.policy_for("arc-anno-data", [o.key for o in batch])
+            policy = evidence.policy_for("fixture-data-bucket", [o.key for o in batch])
             self.assertLessEqual(len(policy), 2048)
             self.assertNotIn("*", policy)
             (statement,) = json.loads(policy)["Statement"]

@@ -760,8 +760,12 @@ fn env_usize(name: &str, default: usize) -> usize {
     mh::env_usize(name, default)
 }
 
-fn trunc(s: &str, max_chars: usize) -> String {
-    s.chars().take(max_chars).collect()
+// Dataset parsers and model runtimes can include source passages in their errors.
+fn public_outcome_error(row: &crate::eval::task_evaluator::TaskEvalResult) -> &'static str {
+    row.skip_reason().map_or_else(
+        || row.error.as_deref().map_or("-", mh::classify_failure_kind),
+        |reason| reason.code(),
+    )
 }
 
 #[test]
@@ -4643,7 +4647,10 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         Ok(r) => r,
         Err(e) => {
             // If the requested slice has no valid combinations, treat as non-fatal.
-            eprintln!("matrix-muxer: evaluation returned error: {}", e);
+            eprintln!(
+                "matrix-muxer: evaluation returned error: {}",
+                dataset_rejection_message(e)
+            );
             return;
         }
     };
@@ -4661,11 +4668,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         // These are not actionable regressions for the routing policy; they’re configuration.
         if r.is_skipped() {
             if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
-                let err = r
-                    .error
-                    .as_deref()
-                    .map(|s| trunc(s, 200))
-                    .unwrap_or_else(|| "-".to_string());
+                let err = public_outcome_error(r);
                 eprintln!(
                     "matrix-muxer: skipped task={:?} dataset={:?} backend={} err={}",
                     r.task, r.dataset, r.backend, err
@@ -4686,11 +4689,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
 
         let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
         if verbose {
-            let err = r
-                .error
-                .as_deref()
-                .map(|s| trunc(s, 200))
-                .unwrap_or_else(|| "-".to_string());
+            let err = public_outcome_error(r);
             let rel_counts = if matches!(r.task, Task::RelationExtraction) {
                 let gold = r.metrics.get("num_gold_relations").copied().unwrap_or(0.0) as u64;
                 let pred = r
@@ -5173,10 +5172,11 @@ fn test_matrix_sweep_all_backends_once() {
     let results = match eval.evaluate_all(config) {
         Ok(r) => r,
         Err(e) => {
+            let reason = dataset_rejection_message(e);
             if strict {
-                panic!("matrix-sweep: evaluation returned error: {e}");
+                panic!("matrix-sweep: evaluation returned error: {reason}");
             } else {
-                eprintln!("matrix-sweep: evaluation returned error: {e}");
+                eprintln!("matrix-sweep: evaluation returned error: {reason}");
                 return;
             }
         }
@@ -5185,11 +5185,7 @@ fn test_matrix_sweep_all_backends_once() {
     let mut bad: Vec<String> = Vec::new();
     for r in &results.results {
         if r.is_skipped() || !r.success {
-            let err = r
-                .error
-                .as_deref()
-                .map(|s| trunc(s, 200))
-                .unwrap_or_else(|| "-".to_string());
+            let err = public_outcome_error(r);
             bad.push(format!(
                 "task={:?} dataset={:?} backend={} skipped={} success={} err={}",
                 r.task,
