@@ -8,6 +8,7 @@ For clients that load a local Agent Plugins package, select the checkout’s `.a
 
 | Goal | Skill |
 |---|---|
+| Read a rendered README or research result and report what a reader can see | [Read Anno](../.agents/skills/anno-read/SKILL.md) |
 | Run an operation with the installed binary and inspect its output | [Anno CLI](../.agents/skills/anno-cli/SKILL.md) |
 | Use Anno from Rust or Python, highlight a source occurrence or exchange annotations | [Integrate Anno](../.agents/skills/anno-integrate/SKILL.md) |
 | Reproduce a failure or compare two backend or scorer revisions | [Anno QA](../.agents/skills/anno-qa/SKILL.md) |
