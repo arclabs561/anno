@@ -1,10 +1,13 @@
+import csv
 import io
 import json
 import sys
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_offline_native_cache as native
@@ -21,6 +24,12 @@ class NativeCacheTest(unittest.TestCase):
             rows[0], {"tokens": ["稻", "虫"], "ner_tags": ["B-PET", "I-PET"]}
         )
         self.assertEqual(rows[1], {"tokens": ["新"], "ner_tags": ["O"]})
+
+    def test_agcner_preserves_explicit_whitespace_and_supplementary_characters(self):
+        raw = "𠀀 B-PET\r\n  I-PET\r\n\t O\r\n\u2028 O".encode()
+        row = json.loads(native.native_bytes("agcner-jsonl", raw))
+        self.assertEqual(row["tokens"], ["𠀀", " ", "\t", "\u2028"])
+        self.assertEqual(row["ner_tags"], ["B-PET", "I-PET", "O", "O"])
 
     def test_histnero_preserves_empty_labelled_tokens_and_metadata(self):
         original = [
@@ -85,6 +94,219 @@ class NativeCacheTest(unittest.TestCase):
             self.assertRaisesRegex(ValueError, "Unsafe archive path"),
         ):
             native.member(archive, "notices/../outside", b"x")
+
+    def test_cli_fetches_only_selected_variant_and_restores_it_as_default(self):
+        counts = {"sentences": 1, "tokens": 1, "native_labels": 1}
+        payloads = {
+            "test": b"Ann B-PER\n",
+            "train": b"Ivy B-PER\n",
+            "NOTICE": b"Publisher terms",
+        }
+
+        def source(name):
+            return {
+                "url": f"https://example.org/{name}",
+                "sha256": native.digest(payloads[name]),
+            }
+
+        data = {
+            "id": "SECFilingsNER",
+            "usage": "general",
+            "registry_url": "https://example.org/test",
+            "attribution": "test publisher",
+            "license": "CC BY 3.0",
+            "interpretation": "BIO",
+            "inputs": [
+                {
+                    "variant": split,
+                    "default": split == "test",
+                    "counts": counts,
+                    **source(split),
+                }
+                for split in ("test", "train")
+            ],
+            "notices": [{"name": "NOTICE", **source("NOTICE")}],
+        }
+        with tempfile.TemporaryDirectory() as scratch:
+            directory = Path(scratch)
+            recipe = directory / "index.json"
+            recipe.write_text(
+                json.dumps(
+                    {
+                        "snapshot_date": "2026-11-28",
+                        "datasets": [data, {**data, "id": "Other"}],
+                    }
+                )
+            )
+            group_archive = directory / "anno-native-cache-general.zip"
+            group_archive.write_bytes(b"existing complete package")
+            args = [
+                "script",
+                str(directory),
+                "--index",
+                str(recipe),
+                "--anno",
+                sys.executable,
+                "--dataset",
+                "SECFilingsNER",
+                "--variant",
+                "train",
+            ]
+            artifact = directory / "anno-native-cache-dataset-SECFilingsNER-train.zip"
+            requested = []
+
+            def fetch(request, timeout):
+                requested.append(request.full_url)
+                return io.BytesIO(payloads[request.full_url.rsplit("/", 1)[1]])
+
+            with (
+                patch.object(native, "stats", return_value=counts),
+                patch.object(
+                    native.subprocess, "check_output", return_value="anno 1.0"
+                ),
+                redirect_stdout(io.StringIO()),
+            ):
+                with (
+                    patch.object(sys, "argv", [*args, "--fetch"]),
+                    patch.object(native.urllib.request, "urlopen", side_effect=fetch),
+                ):
+                    native.main()
+                self.assertEqual(
+                    requested, [source("NOTICE")["url"], source("train")["url"]]
+                )
+                self.assertEqual(
+                    {p.name for p in (directory / "source-cache").iterdir()},
+                    {source("train")["sha256"], source("NOTICE")["sha256"]},
+                )
+                first = artifact.read_bytes()
+                with zipfile.ZipFile(artifact) as z:
+                    self.assertEqual(
+                        z.read("cache/datasets/SECFilingsNER.cache"), payloads["train"]
+                    )
+                    catalog = json.loads(z.read("sources.json"))
+                    self.assertEqual(
+                        catalog["selection"],
+                        {
+                            "dataset": "SECFilingsNER",
+                            "indexed_variants": 2,
+                            "variant": "train",
+                        },
+                    )
+                    (item,) = catalog["inputs"]
+                    self.assertTrue(item["default"])
+                    self.assertFalse(item["index_default"])
+                    self.assertEqual(item["counts"], counts)
+                    self.assertIn(
+                        "1 of 2 indexed variants (train)", z.read("README.md").decode()
+                    )
+                with (
+                    patch.object(
+                        native.urllib.request,
+                        "urlopen",
+                        side_effect=AssertionError("unexpected HTTP"),
+                    ),
+                    patch.object(sys, "argv", args),
+                ):
+                    native.main()
+                self.assertEqual(artifact.read_bytes(), first)
+                recipe.unlink()
+                with patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "script",
+                        str(artifact),
+                        "--anno",
+                        sys.executable,
+                        "--index",
+                        str(recipe),
+                        "--verify-only",
+                    ],
+                ):
+                    native.main()
+                self.assertEqual(
+                    group_archive.read_bytes(), b"existing complete package"
+                )
+
+    def test_selection_validates_scope_and_names_whole_dataset_differently(self):
+        index = json.loads(native.INDEX.read_text())
+        selected = native.select_index(index, "SECFilingsNER", None)
+        self.assertEqual(
+            [i["variant"] for i in selected["datasets"][0]["inputs"]], ["test", "train"]
+        )
+        self.assertEqual(
+            native.archive_stem(selected, "general"),
+            "anno-native-cache-dataset-SECFilingsNER",
+        )
+        self.assertEqual(
+            native.archive_stem(index, "general"), "anno-native-cache-general"
+        )
+        for dataset, variant, error in (
+            (None, "test", "requires --dataset"),
+            ("Unknown", None, "Unknown --dataset"),
+            ("SECFilingsNER", "invalid", "Available: test, train"),
+        ):
+            with (
+                self.subTest(dataset=dataset, variant=variant),
+                self.assertRaisesRegex(ValueError, error),
+            ):
+                native.select_index(index, dataset, variant)
+
+    def test_inventory_counts_distinct_profiles_across_overlapping_zips(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            directory = Path(scratch)
+            for name, variants in (
+                ("general", ["test", "train"]),
+                ("dataset-SECFilingsNER-test", ["test"]),
+            ):
+                inputs = [
+                    {"id": "SECFilingsNER", "variant": variant} for variant in variants
+                ]
+                with zipfile.ZipFile(
+                    directory / f"anno-native-cache-{name}.zip", "w"
+                ) as archive:
+                    archive.writestr("sources.json", json.dumps({"inputs": inputs}))
+            registry = directory / "registry.csv"
+            registry.write_text(
+                "id,access,url\nSECFilingsNER,Public,https://example.org\n"
+            )
+            native.write_inventory({}, registry, directory)
+            with (directory / "native-scope.csv").open() as handle:
+                (row,) = csv.DictReader(handle)
+            self.assertEqual(row["included_profiles"], "2")
+            self.assertEqual(
+                set(row["archive"].split(" | ")),
+                {
+                    "anno-native-cache-general.zip",
+                    "anno-native-cache-dataset-SECFilingsNER-test.zip",
+                },
+            )
+
+    def test_verifier_requires_registry_ids_and_canonical_cache_paths(self):
+        for ident, path, message in (
+            ("invalid id", "cache/datasets/invalid id.cache", "Invalid dataset ID"),
+            ("SECFilingsNER", "other/file", "path disagrees"),
+        ):
+            item = {
+                "id": ident,
+                "variant": "test",
+                "default": True,
+                "sha256": "0" * 64,
+                "path": path,
+            }
+            catalog = {
+                "schema": "anno.offline-native-cache/v1",
+                "dataset_ids": 1,
+                "file_count": 1,
+                "distinct_payloads": 1,
+                "inputs": [item],
+            }
+            with tempfile.TemporaryDirectory() as scratch, self.subTest(ident=ident):
+                artifact = Path(scratch) / "offered.zip"
+                with zipfile.ZipFile(artifact, "w") as archive:
+                    archive.writestr("sources.json", json.dumps(catalog))
+                with self.assertRaisesRegex(ValueError, message):
+                    native.verify(artifact, sys.executable)
 
 
 if __name__ == "__main__":

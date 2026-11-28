@@ -7,10 +7,12 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import urllib.request
 import zipfile
+from itertools import chain
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,12 +67,19 @@ def source_bytes(item, caches, online, archived=None):
         raise ValueError(f"Publisher digest changed for {url}")
     if caches:
         caches[0].mkdir(exist_ok=True, parents=True)
-        (caches[0] / key).write_bytes(raw)
+        with tempfile.TemporaryDirectory(dir=caches[0]) as tmp:
+            verified = Path(tmp) / key
+            verified.write_bytes(raw)
+            os.replace(verified, caches[0] / key)
     return raw
 
 
 def json_bytes(record):
     return (json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode()
+
+
+def counted(count, noun):
+    return f"{count:,} {noun}{'' if count == 1 else 's'}"
 
 
 def stats(anno, directory, dataset_id):
@@ -131,11 +140,13 @@ def native_bytes(kind, original):
     if kind == "agcner-jsonl":
         out = io.StringIO()
         tokens, tags = [], []
-        for line in [*text.splitlines(), ""]:
+        for line in chain(io.StringIO(text), ("",)):
+            line = line.removesuffix("\n").removesuffix("\r")
             if line.strip():
-                token, tag = line.split()
-                if not re.fullmatch(r"O|[BI]-[^\s]+", tag):
-                    raise ValueError(f"Unexpected AgCNER publisher tag {tag}")
+                match = re.fullmatch(r"(.)[ \t](O|[BI]-[^\s]+)", line, re.DOTALL)
+                if not match:
+                    raise ValueError("Invalid AgCNER publisher character/BIO pair")
+                token, tag = match.groups()
                 tokens.append(token)
                 tags.append(tag)
             elif tokens:
@@ -246,6 +257,40 @@ def validate_index(index):
                 raise ValueError(f"Invalid source URL or digest in {key}")
 
 
+def select_index(index, dataset_id, variant):
+    if not dataset_id:
+        if variant:
+            raise ValueError("--variant requires --dataset")
+        return index
+    datasets = {data["id"]: data for data in index["datasets"]}
+    if dataset_id not in datasets:
+        raise ValueError(
+            f"Unknown --dataset {dataset_id}. Available: {', '.join(datasets)}"
+        )
+    data = datasets[dataset_id]
+    inputs = data["inputs"]
+    selection = {"dataset": dataset_id, "indexed_variants": len(inputs)}
+    if variant:
+        variants = {item["variant"]: item for item in inputs}
+        if variant not in variants:
+            raise ValueError(
+                f"Unknown --variant {variant} for {dataset_id}. Available: {', '.join(variants)}"
+            )
+        source = variants[variant]
+        # A single selected split must open via the archive's ordinary cache root.
+        inputs = [{**source, "default": True, "index_default": source["default"]}]
+        selection["variant"] = variant
+    return {**index, "datasets": [{**data, "inputs": inputs}], "selection": selection}
+
+
+def archive_stem(index, group):
+    selection = index.get("selection")
+    if not selection:
+        return f"anno-native-cache-{group}"
+    stem = f"anno-native-cache-dataset-{selection['dataset']}"
+    return f"{stem}-{selection['variant']}" if "variant" in selection else stem
+
+
 def member(archive, name, raw):
     if any(part in {"", ".", ".."} for part in name.split("/")) or "\\" in name:
         raise ValueError(f"Unsafe archive path {name}")
@@ -263,7 +308,7 @@ def build(index, output, anno, caches, online, group, archived=None):
         subprocess.check_output([anno, "--version"], text=True).strip().split()[-1]
     )
     output.mkdir(parents=True, exist_ok=True)
-    stem = "anno-native-cache-" + group
+    stem = archive_stem(index, group)
     records = []
     manifests = {}
     with tempfile.TemporaryDirectory(dir=output) as work:
@@ -375,6 +420,8 @@ def build(index, output, anno, caches, online, group, archived=None):
                 "distinct_payloads": len({r["sha256"] for r in records}),
                 "inputs": records,
             }
+            if "selection" in index:
+                catalog["selection"] = index["selection"]
             member(archive, "sources.json", json_bytes(catalog))
             member(archive, "README.md", readme(catalog).encode())
         artifact = output / (stem + ".zip")
@@ -382,22 +429,51 @@ def build(index, output, anno, caches, online, group, archived=None):
         (output / (stem + ".sources.json")).write_bytes(json_bytes(catalog))
         (output / (stem + ".md")).write_text(readme(catalog))
         print(
-            f"{artifact.name}: {len(datasets)} registry IDs, {len(records)} verified inputs, {artifact.stat().st_size:,} compressed bytes"
+            f"{artifact.name}: {counted(len(datasets), 'registry ID')}, {counted(len(records), 'verified input')}, {artifact.stat().st_size:,} compressed bytes"
         )
+        if "selection" in catalog:
+            for item in records:
+                counts = item["counts"]
+                print(
+                    f"  {item['id']}/{item['variant']}: {counts['sentences']:,} sentences, {counts['tokens']:,} tokens, {counts['native_labels']:,} native labels"
+                )
     return artifact
 
 
 def verify(artifact, anno):
     """Restore one native profile at a time, including the exact manifest from the ZIP."""
     with zipfile.ZipFile(artifact) as archive, tempfile.TemporaryDirectory() as work:
+        if len(archive.namelist()) != len(archive.NameToInfo):
+            raise ValueError("Duplicate members in native ZIP")
         catalog = json.loads(archive.read("sources.json"))
+        if catalog.get("schema") != "anno.offline-native-cache/v1":
+            raise ValueError("Unsupported native cache archive schema")
+        inputs = catalog["inputs"]
+        if (
+            not inputs
+            or len({(item["id"], item["variant"]) for item in inputs}) != len(inputs)
+            or len(inputs) != catalog["file_count"]
+            or len({item["id"] for item in inputs}) != catalog["dataset_ids"]
+            or len({item["sha256"] for item in inputs}) != catalog["distinct_payloads"]
+        ):
+            raise ValueError("Native archive counts disagree with its inputs")
         cache = Path(work)
         files = cache / "datasets"
         files.mkdir()
         checked = set()
         for item in catalog["inputs"]:
-            manifest_path = str(Path(item["path"]).parent / "manifest.json")
-            manifest = archive.read(manifest_path)
+            if not re.fullmatch(
+                r"[A-Za-z][A-Za-z0-9]*", item["id"]
+            ) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", item["variant"]):
+                raise ValueError("Invalid dataset ID or variant in native ZIP")
+            expected_root = (
+                "cache"
+                if item["default"]
+                else f"profiles/{item['id']}/{item['variant']}"
+            )
+            if item["path"] != f"{expected_root}/datasets/{item['id']}.cache":
+                raise ValueError("Native cache path disagrees with its profile")
+            manifest = archive.read(f"{expected_root}/datasets/manifest.json")
             filename = f"{item['id']}.cache"
             entry = json.loads(manifest)["entries"][filename]
             raw = archive.read(item["path"])
@@ -422,7 +498,7 @@ def verify(artifact, anno):
         if bad:
             raise ValueError(f"ZIP integrity failed for {bad}")
     print(
-        f"Restored and verified {catalog['file_count']} native inputs from {artifact.name}"
+        f"Restored and verified {counted(catalog['file_count'], 'native input')} from {artifact.name}"
     )
 
 
@@ -440,11 +516,54 @@ def readme(catalog):
         "noncommercial": "anno dataset eval --dataset MasakhaNER --task ner --model heuristic --cached-only --reports yoruba.jsonl",
         "annotated-collection": "anno dataset eval --dataset NorNE --task ner --model heuristic --cached-only --reports norne.jsonl",
     }
+    example = "\n" + examples[catalog["package"]]
+    scope = ids
+    usage = 'Each ID has one selected release file in `cache/datasets`. Use `ANNO_CACHE_DIR="$PWD/profiles/ID/VARIANT"` for another split or language listed in `sources.json`.'
+    interpretation = "`native_labels` is the entity count reported by the loader. A dependency treebank normally has one part-of-speech label per word. HIPE exposes coarse literal labels and its other annotation columns remain in the original TSV. GAP's token view returns whitespace-tokenized text with zero NER labels. Use the coreference view for its supplied pronoun and candidates. Consult each source's interpretation before comparing models."
+    description = f"{catalog['dataset_ids']} registry IDs and {catalog['file_count']} release files"
+    if "selection" in catalog:
+        selection = catalog["selection"]
+        dataset = selection["dataset"]
+        variants = ", ".join(item["variant"] for item in catalog["inputs"])
+        scope = f"{dataset}. Included {catalog['file_count']} of {selection['indexed_variants']} indexed variants ({variants})."
+        restrictions = catalog["inputs"][0]["license"]
+        description = (
+            f"one registry ID and {counted(catalog['file_count'], 'release file')}"
+        )
+        lines = [
+            "| Variant | Sentences | Tokens | Native labels |",
+            "|---|---:|---:|---:|",
+        ]
+        for item in catalog["inputs"]:
+            counts = item["counts"]
+            lines.append(
+                f"| {item['variant']} | {counts['sentences']:,} | {counts['tokens']:,} | {counts['native_labels']:,} |"
+            )
+        interpretation = (
+            "\n".join(lines)
+            + "\n\n`native_labels` is the entity count reported by the dataset loader."
+        )
+        if catalog["file_count"] == 1:
+            usage = f"The {variants} variant is installed as the default at `{catalog['inputs'][0]['path']}`."
+        if dataset == "GAP":
+            example = "\nanno dataset eval --dataset GAP --task coref --model heuristic --cached-only"
+        elif dataset in {
+            "AgCNER",
+            "HIPE2022",
+            "HistNERo",
+            "MasakhaNER",
+            "MasakhaNER2",
+            "NorNE",
+            "SECFilingsNER",
+        }:
+            example = f"\nanno dataset eval --dataset {dataset} --task ner --model heuristic --cached-only --reports ner.jsonl"
+        else:
+            example = ""
     return f"""# Anno native offline cache
 
 {restrictions}
 
-The archive contains {catalog["dataset_ids"]} registry IDs and {catalog["file_count"]} release files. Each original is present in full. `sources.json` lists the source URL, split or language, publisher digest, native cache digest, rights notices, interpretation, and counts for every file. Where a format adapter is required, `original_path` points to the unchanged publisher file and `path` points to the native projection.
+The archive contains {description}. Each original is present in full. `sources.json` lists the source URL, split or language, publisher digest, native cache digest, rights notices, interpretation, and counts for every file. Where a format adapter is required, `original_path` points to the unchanged publisher file and `path` points to the native projection.
 
 ## Use the cache
 
@@ -452,17 +571,16 @@ Extract this ZIP into a dedicated directory. From that directory run an eval-ena
 
 ```sh
 export ANNO_CACHE_DIR="$PWD/cache" ANNO_S3_CACHE=0 ANNO_NO_DOWNLOADS=1
-anno dataset info --dataset {catalog["inputs"][0]["id"]}
-{examples[catalog["package"]]}
+anno dataset info --dataset {catalog["inputs"][0]["id"]}{example}
 ```
 
-Each ID has one selected release file in `cache/datasets`. Use `ANNO_CACHE_DIR="$PWD/profiles/ID/VARIANT"` for another split or language listed in `sources.json`. Keep each archive in its own directory. Loading a new release in the same directory can replace a cache file.
+{usage} Keep each archive in its own directory. Loading a new release in the same directory can replace a cache file.
 
 ## Scope
 
-{ids}
+{scope}
 
-`native_labels` is the entity count reported by the loader. A dependency treebank normally has one part-of-speech label per word. HIPE exposes coarse literal labels and its other annotation columns remain in the original TSV. GAP's token view returns whitespace-tokenized text with zero NER labels. Use the coreference view for its supplied pronoun and candidates. Consult each source's interpretation before comparing models.
+{interpretation}
 """
 
 
@@ -530,7 +648,7 @@ def write_inventory(index, registry_file, output):
                             key,
                             row["access"],
                             status,
-                            len(profiles),
+                            len({variant for _, variant in profiles}),
                             " | ".join(sorted({a for a, _ in profiles})),
                             reason,
                             row["url"],
@@ -546,10 +664,30 @@ def write_inventory(index, registry_file, output):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("output", type=Path)
-    ap.add_argument("--anno", type=Path, required=True)
+    ap.add_argument(
+        "output", type=Path, help="Output directory, or a ZIP file with --verify-only"
+    )
+    ap.add_argument(
+        "--anno",
+        default="anno",
+        help="Eval-enabled Anno executable, by default anno on PATH",
+    )
     ap.add_argument("--index", type=Path, default=INDEX)
-    ap.add_argument("--cache", type=Path, action="append", default=[])
+    ap.add_argument(
+        "--cache",
+        type=Path,
+        action="append",
+        default=[],
+        help="Reusable publisher byte cache (default: OUTPUT/source-cache). Fetches write to the first cache.",
+    )
+    ap.add_argument(
+        "--dataset",
+        help="Build only this registry ID and its associated rights notices from the pinned source index",
+    )
+    ap.add_argument(
+        "--variant",
+        help="Build one named split or language profile of --dataset, e.g. test for SECFilingsNER",
+    )
     ap.add_argument(
         "--from-archives",
         type=Path,
@@ -576,14 +714,41 @@ def main():
         help="Also map every row of the registry coverage CSV to the native ZIPs present in the output directory",
     )
     a = ap.parse_args()
+    anno = shutil.which(a.anno) or shutil.which(str(Path(a.anno).resolve()))
+    if not anno:
+        ap.error(
+            f"Cannot find executable {a.anno!r}. Build anno-cli with --features eval and pass its path with --anno."
+        )
+    anno = Path(anno).resolve()
+    if a.verify_only and (a.output.is_file() or a.output.suffix.lower() == ".zip"):
+        if not a.output.is_file():
+            ap.error(f"Cannot find native ZIP {a.output}")
+        if a.usage or a.dataset or a.variant or a.inventory:
+            ap.error(
+                "A ZIP file specifies the verification scope. Use the output directory for selection flags or --inventory."
+            )
+        verify(a.output, anno)
+        return
     index = json.loads(a.index.read_text())
     validate_index(index)
-    archived = archived_originals(a.from_archives) if a.from_archives else None
-    for group in a.usage or sorted({data["usage"] for data in index["datasets"]}):
+    try:
+        index = select_index(index, a.dataset, a.variant)
+    except ValueError as err:
+        ap.error(str(err))
+    groups = {data["usage"] for data in index["datasets"]}
+    if a.usage and not set(a.usage) <= groups:
+        ap.error(f"This source selection belongs to: {', '.join(sorted(groups))}")
+    archived = (
+        archived_originals(a.from_archives)
+        if a.from_archives and not a.verify_only
+        else None
+    )
+    caches = a.cache or [a.output / "source-cache"]
+    for group in dict.fromkeys(a.usage or sorted(groups)):
         if a.verify_only:
-            verify(a.output / f"anno-native-cache-{group}.zip", a.anno.resolve())
+            verify(a.output / (archive_stem(index, group) + ".zip"), anno)
         else:
-            build(index, a.output, a.anno.resolve(), a.cache, a.fetch, group, archived)
+            build(index, a.output, anno, caches, a.fetch, group, archived)
     if a.inventory:
         write_inventory(index, a.inventory, a.output)
 
