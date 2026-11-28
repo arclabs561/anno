@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["toml", "requests"]
+# dependencies = ["requests", "tomli; python_version < '3.11'"]
 # ///
 """
 Verify that dataset download URLs are accessible.
@@ -21,7 +21,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 import requests
-import toml
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 
 class URLResult(NamedTuple):
@@ -77,14 +80,13 @@ def main():
     toml_path = Path(__file__).parent.parent / "datasets.toml"
     
     if json_path.exists():
-        import json
         with open(json_path) as f:
             data = json.load(f)
         datasets = data.get("configs", {})
         print(f"Using generated configs from: {json_path}")
     elif toml_path.exists():
-        with open(toml_path) as f:
-            data = toml.load(f)
+        with toml_path.open("rb") as f:
+            data = tomllib.load(f)
         datasets = data.get("datasets", {})
         print(f"Warning: Using legacy TOML (generated JSON not found): {toml_path}")
     else:
