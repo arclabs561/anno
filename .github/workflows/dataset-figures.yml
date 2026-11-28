@@ -167,7 +167,7 @@ jobs:
         run: uv run --python 3.12 --with playwright==1.62.0 python scripts/qa/check_native_figure_layout.py "$RUNNER_TEMP/dataset-figures" --require-explorer
       - name: Save the rendered images and measurements
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dataset-figures
           path: ${{ runner.temp }}/dataset-figures/

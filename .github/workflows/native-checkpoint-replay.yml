@@ -76,7 +76,7 @@ jobs:
             --cli target/debug/anno --worker target/debug/examples/stacked_nuner_routing \
             --models "$RUNNER_TEMP/anno-models" --receipt stacked-receipt.json
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: native-checkpoint-receipt
           path: |

@@ -52,7 +52,7 @@ jobs:
           /tmp/smoke/bin/pip install --no-index --no-deps crates/anno-py/dist/*.whl
           sha256sum crates/anno-py/dist/*.whl >> "$GITHUB_STEP_SUMMARY"
           /tmp/smoke/bin/pytest crates/anno-py/tests -q
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-${{ matrix.platform.runner }}-${{ matrix.platform.target }}
           path: crates/anno-py/dist
@@ -69,7 +69,7 @@ jobs:
           working-directory: crates/anno-py
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-sdist
           path: crates/anno-py/dist
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: wheels-*
           path: ${{ runner.temp }}/dist
@@ -90,7 +90,7 @@ jobs:
         run: >-
           python3 crates/anno-py/tests/verify_pypi.py --inventory-only
           --release-dir "$RUNNER_TEMP/dist" --receipt "$RUNNER_TEMP/inventory.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: python-release-inventory
           path: ${{ runner.temp }}/inventory.json
@@ -109,7 +109,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wheels-*
           merge-multiple: true
