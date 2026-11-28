@@ -110,7 +110,7 @@ impl CandleNER {
         let device = super::encoder_candle::best_device()?;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Route every repo fetch through `download_model_file` so the
         // `ANNO_NO_DOWNLOADS` offline-mode contract is honored. Calling

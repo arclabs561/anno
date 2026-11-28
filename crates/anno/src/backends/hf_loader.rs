@@ -11,7 +11,7 @@
 //! use anno::backends::hf_loader::{hf_api, download_model_file, create_onnx_session, OnnxSessionConfig};
 //!
 //! let api = hf_api()?;
-//! let repo = api.model("protectai/bert-base-NER-onnx".to_string());
+//! let repo = api.model("protectai", "bert-base-NER-onnx");
 //! let model_path = download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
 //! let tokenizer_path = download_model_file(&repo, &["tokenizer.json"])?;
 //! let session = create_onnx_session(&model_path, OnnxSessionConfig::default())?;
@@ -39,18 +39,63 @@ fn no_downloads_from(value: Option<&str>) -> bool {
 }
 
 /// Initialize the Hugging Face client with the process environment's token and cache.
-pub fn hf_api() -> Result<hf_hub::api::sync::Api> {
-    use hf_hub::api::sync::ApiBuilder;
+pub fn hf_api() -> Result<hf_hub::HFClientSync> {
+    let mut builder = hf_hub::HFClient::builder().cache_dir(hub_cache_dir());
+    if let Some(token) = crate::env::hf_token() {
+        builder = builder.token(token);
+    }
+    Ok(builder.build_sync()?)
+}
 
-    let builder = ApiBuilder::from_env();
-    let builder = if let Some(token) = crate::env::hf_token() {
-        builder.with_token(Some(token))
-    } else {
-        builder
-    };
-    builder
-        .build()
-        .map_err(|e| Error::Retrieval(format!("HuggingFace API init: {}", e)))
+pub(crate) fn hub_model(
+    api: &hf_hub::HFClientSync,
+    id: &str,
+) -> hf_hub::HFRepositorySync<hf_hub::RepoTypeModel> {
+    let (owner, name) = hf_hub::split_id(id);
+    api.model(owner, name)
+}
+
+/// Preserve the native home directory on Windows when no Hub cache override is set.
+pub(crate) fn hub_cache_dir() -> std::path::PathBuf {
+    if cfg!(windows)
+        && [
+            "HF_HUB_CACHE",
+            "HUGGINGFACE_HUB_CACHE",
+            "HF_HOME",
+            "XDG_CACHE_HOME",
+            "HOME",
+        ]
+        .iter()
+        .all(|key| std::env::var_os(key).is_none())
+    {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(".cache").join("huggingface").join("hub");
+        }
+    }
+    hf_hub::resolve_cache_dir()
+}
+
+/// Directory of a model's local exports, named refs and snapshots.
+pub(crate) fn model_cache_dir(cache: &std::path::Path, model: &str) -> std::path::PathBuf {
+    cache.join(format!("models--{}", model.replace('/', "--")))
+}
+
+/// Probe the main snapshot without initializing a network client or async runtime.
+pub(crate) fn cached_main_file(
+    model_dir: &std::path::Path,
+    name: &str,
+) -> Option<std::path::PathBuf> {
+    let revision = std::fs::read_to_string(model_dir.join("refs/main")).ok()?;
+    let revision = revision.trim();
+    if revision.is_empty()
+        || !revision
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+    {
+        return None;
+    }
+    let file = model_dir.join("snapshots").join(revision).join(name);
+    file.is_file().then_some(file)
 }
 
 /// Download a file from a HuggingFace repo, trying multiple candidate paths in order.
@@ -66,94 +111,54 @@ pub fn hf_api() -> Result<hf_hub::api::sync::Api> {
 /// # Errors
 ///
 /// Returns `Error::Retrieval` if none of the candidates can be downloaded.
-pub fn download_model_file(
-    repo: &hf_hub::api::sync::ApiRepo,
+pub fn download_model_file<T: hf_hub::RepoType>(
+    repo: &hf_hub::HFRepositorySync<T>,
+    candidates: &[&str],
+) -> Result<std::path::PathBuf> {
+    download_model_file_at_revision(repo, None, candidates)
+}
+
+/// Resolve all candidates at the same revision, including in cache-only mode.
+pub fn download_model_file_at_revision<T: hf_hub::RepoType>(
+    repo: &hf_hub::HFRepositorySync<T>,
+    revision: Option<&str>,
     candidates: &[&str],
 ) -> Result<std::path::PathBuf> {
     if candidates.is_empty() {
         return Err(Error::Retrieval(
-            "download_model_file: candidates must not be empty".to_string(),
+            "download_model_file: candidates must not be empty".into(),
         ));
     }
-
-    if no_downloads() {
-        let identity = cache_repo_identity(repo)?;
-        let cache = hf_hub::Cache::from_env().repo(identity.clone());
-        for candidate in candidates {
-            if let Some(path) = cached_model_file(&cache, identity.revision(), candidate) {
-                return Ok(path);
-            }
-        }
-        return Err(Error::Retrieval(format!(
-            "ANNO_NO_DOWNLOADS is set and none of [{}] are present in the \
-             HuggingFace cache. Pre-fetch the model (unset ANNO_NO_DOWNLOADS \
-             and re-run once), or skip this backend.",
-            candidates.join(", "),
-        )));
-    }
-
-    let mut last_err = None;
-    for candidate in candidates {
-        match repo.get(candidate) {
-            Ok(path) => return Ok(path),
-            Err(e) => last_err = Some(e),
+    let offline = no_downloads();
+    let mut last_error = String::new();
+    for &filename in candidates {
+        let fetch = |local_only| {
+            repo.download_file()
+                .filename(filename)
+                .maybe_revision(revision.map(str::to_owned))
+                .local_files_only(local_only)
+                .send()
+        };
+        // Like the previous Hub client's get(), a cached named revision needs no HTTP request.
+        let result = match fetch(true) {
+            Err(_) if !offline => fetch(false),
+            cached => cached,
+        };
+        match result {
+            Ok(path) if path.is_file() => return Ok(path),
+            Ok(path) => last_error = format!("{} is not a file", path.display()),
+            Err(err) => last_error = err.to_string(),
         }
     }
-
-    Err(Error::Retrieval(format!(
-        "Failed to download any of [{}]: {}",
-        candidates.join(", "),
-        last_err
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| "unknown".to_string())
-    )))
-}
-
-/// Python's Hub client stores immutable revisions directly as snapshots, without a
-/// `refs/<commit>` file. hf-hub 0.5's `get` only resolves refs, so check the exact
-/// snapshot for a full commit ID before resolving named revisions.
-fn cached_model_file(
-    cache: &hf_hub::CacheRepo,
-    revision: &str,
-    filename: &str,
-) -> Option<std::path::PathBuf> {
-    if revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        let path = cache.pointer_path(revision).join(filename);
-        return path.is_file().then_some(path);
-    }
-    cache.get(filename).filter(|path| path.is_file())
-}
-
-/// Recover repository type and revision from hf-hub's public URL contract.
-/// Offline lookup uses the environment's cache, as does [`hf_api`]. Callers that
-/// construct an API with a custom cache directory must use local-path loading
-/// or set `HF_HOME` consistently; ApiRepo does not expose its cache directory.
-fn cache_repo_identity(repo: &hf_hub::api::sync::ApiRepo) -> Result<hf_hub::Repo> {
-    let url = repo.url("");
-    let path = url
-        .split_once("://")
-        .and_then(|(_, rest)| rest.split_once('/'))
-        .map(|(_, path)| path);
-    let identity = path.and_then(|path| path.rsplit_once("/resolve/"));
-    let Some((path, revision)) = identity else {
-        return Err(Error::Retrieval(
-            "Cannot identify offline HuggingFace repository".into(),
-        ));
-    };
-    let (kind, id) = if let Some(id) = path.strip_prefix("datasets/") {
-        (hf_hub::RepoType::Dataset, id)
-    } else if let Some(id) = path.strip_prefix("spaces/") {
-        (hf_hub::RepoType::Space, id)
+    let mode = if offline {
+        "ANNO_NO_DOWNLOADS is set; cache lookup failed"
     } else {
-        (hf_hub::RepoType::Model, path)
+        "Hub download failed"
     };
-    let revision = revision.trim_end_matches('/').replace("%2F", "/");
-    if id.is_empty() || revision.is_empty() {
-        return Err(Error::Retrieval(
-            "Cannot identify offline HuggingFace revision".into(),
-        ));
-    }
-    Ok(hf_hub::Repo::with_revision(id.into(), kind, revision))
+    Err(Error::Retrieval(format!(
+        "{mode} for [{}]: {last_error}",
+        candidates.join(", ")
+    )))
 }
 
 #[cfg(any(feature = "onnx", test))]
@@ -185,13 +190,13 @@ pub(crate) fn candle_files_available(
     if !no_downloads() {
         return true;
     }
-    let repo = hf_hub::Cache::from_env().model(model.to_owned());
+    let repo = model_cache_dir(&hub_cache_dir(), model);
     cached_candle_files(&repo, config, tokenizer, weights)
 }
 
 #[cfg(feature = "candle")]
 fn cached_candle_files(
-    repo: &hf_hub::CacheRepo,
+    repo: &std::path::Path,
     config: &[&str],
     tokenizer: &[&str],
     weights: &[&str],
@@ -199,23 +204,22 @@ fn cached_candle_files(
     let any_present = |names: &[&str]| {
         names
             .iter()
-            .any(|name| repo.get(name).is_some_and(|path| path.is_file()))
+            .any(|name| cached_main_file(repo, name).is_some())
     };
     any_present(config)
         && any_present(tokenizer)
         && (any_present(weights)
             || PYTORCH_WEIGHTS.iter().any(|name| {
-                repo.get(name).is_some_and(|path| {
-                    path.is_file() && converted_pytorch_weights(&path).is_file()
-                })
+                cached_main_file(repo, name)
+                    .is_some_and(|path| converted_pytorch_weights(&path).is_file())
             }))
 }
 
 /// Check exactly the graph variants the loader can use, without opening weights.
 #[cfg(feature = "onnx")]
 pub(crate) fn cached_hub_onnx_files(model: &str, quantized: bool, require_config: bool) -> bool {
-    let repo = hf_hub::Cache::from_env().model(model.to_owned());
-    let present = |name: &str| repo.get(name).is_some_and(|path| path.is_file());
+    let repo = model_cache_dir(&hub_cache_dir(), model);
+    let present = |name: &str| cached_main_file(&repo, name).is_some();
     present("tokenizer.json")
         && (!require_config || present("config.json"))
         && (FP32_ONNX_PATHS.iter().any(|name| present(name))
@@ -238,7 +242,7 @@ pub(crate) fn hub_onnx_files_available(model: &str, quantized: bool, require_con
 /// * `prefer_quantized` - Whether to try quantized variants first
 #[cfg(any(feature = "onnx", test))]
 pub fn download_onnx_model(
-    repo: &hf_hub::api::sync::ApiRepo,
+    repo: &hf_hub::HFRepositorySync<hf_hub::RepoTypeModel>,
     prefer_quantized: bool,
 ) -> Result<(std::path::PathBuf, bool)> {
     if prefer_quantized {
@@ -265,9 +269,10 @@ mod tests {
     #[test]
     fn offline_candle_requires_preconverted_or_native_weights() {
         let home = tempfile::tempdir().unwrap();
-        let repo = hf_hub::Cache::new(home.path().to_owned()).model("fixture/candle".into());
-        repo.create_ref("fixture").unwrap();
-        let snapshot = repo.pointer_path("fixture");
+        let repo = model_cache_dir(home.path(), "fixture/candle");
+        std::fs::create_dir_all(repo.join("refs")).unwrap();
+        std::fs::write(repo.join("refs/main"), "fixture").unwrap();
+        let snapshot = repo.join("snapshots/fixture");
         std::fs::create_dir_all(&snapshot).unwrap();
         for name in ["config.json", "tokenizer.json", "pytorch_model.bin"] {
             std::fs::write(snapshot.join(name), []).unwrap();
@@ -293,38 +298,39 @@ mod tests {
     fn immutable_snapshot_loads_without_a_ref_file() {
         let home = tempfile::tempdir().unwrap();
         let revision = "4241d7c66b648e618c89c150bf4cf418d2f83159";
-        let cache =
-            hf_hub::Cache::new(home.path().to_path_buf()).repo(hf_hub::Repo::with_revision(
-                "anno-tests/pinned".into(),
-                hf_hub::RepoType::Model,
-                revision.into(),
-            ));
-        let path = cache.pointer_path(revision).join("tokenizer.json");
+        let api = hf_hub::HFClient::builder()
+            .cache_dir(home.path())
+            .build_sync()
+            .unwrap();
+        let repo = api.model("anno-tests", "pinned");
+        let path = model_cache_dir(home.path(), "anno-tests/pinned")
+            .join("snapshots")
+            .join(revision)
+            .join("tokenizer.json");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "{}").unwrap();
-        assert!(cache.get("tokenizer.json").is_none());
-        assert_eq!(
-            cached_model_file(&cache, revision, "tokenizer.json"),
-            Some(path)
-        );
-        assert!(cached_model_file(&cache, revision, "missing.json").is_none());
-        assert!(cached_model_file(
-            &cache,
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "tokenizer.json"
-        )
-        .is_none());
+        let cached = |rev: &str, file: &str| {
+            repo.download_file()
+                .filename(file)
+                .revision(rev)
+                .local_files_only(true)
+                .send()
+        };
+        assert_eq!(cached(revision, "tokenizer.json").unwrap(), path);
+        assert!(cached(revision, "missing.json").is_err());
+        assert!(cached("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tokenizer.json").is_err());
     }
 
     #[test]
-    fn offline_quantized_lookup_preserves_revision_without_network() {
+    fn offline_candidate_lookup_preserves_revision_without_network() {
         // Isolate environment flags from tests running concurrently in this process.
         const CHILD: &str = "ANNO_TEST_OFFLINE_HF_CHILD";
         if std::env::var_os(CHILD).is_none() {
             let home = tempfile::tempdir().unwrap();
             let status = std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", "backends::hf_loader::tests::offline_quantized_lookup_preserves_revision_without_network", "--nocapture"])
+                .args(["--exact", "backends::hf_loader::tests::offline_candidate_lookup_preserves_revision_without_network", "--nocapture"])
                 .env(CHILD, "1").env("ANNO_NO_DOWNLOADS", "1")
+                .env_remove("HF_HUB_CACHE").env_remove("HUGGINGFACE_HUB_CACHE")
                 .env("HF_HOME", home.path()).status().unwrap();
             assert!(status.success());
             return;
@@ -332,26 +338,24 @@ mod tests {
         // A live local listener makes any unintended network access observable.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
-        let api = hf_hub::api::sync::ApiBuilder::from_env()
-            .with_token(None)
-            .with_progress(false)
-            .with_retries(0)
-            .with_endpoint(format!("http://{}", listener.local_addr().unwrap()))
-            .build()
+        let api = hf_hub::HFClient::builder()
+            .endpoint(format!("http://{}", listener.local_addr().unwrap()))
+            .build_sync()
             .unwrap();
-        let identity = hf_hub::Repo::with_revision(
-            "anno-tests/offline".into(),
-            hf_hub::RepoType::Model,
-            "refs/pr/7".into(),
-        );
-        let repo = api.repo(identity.clone());
+        let repo = api.model("anno-tests", "offline");
+        let lookup = || {
+            download_model_file_at_revision(
+                &repo,
+                Some("refs/pr/7"),
+                &["onnx/model_quantized.onnx", "model.onnx"],
+            )
+        };
         // No server is needed: the guarded path must return before any connection.
         // The child timeout is enforced by nextest's ordinary test timeout.
-        let error = download_onnx_model(&repo, true).unwrap_err();
+        let error = lookup().unwrap_err();
         assert!(error.to_string().contains("ANNO_NO_DOWNLOADS"));
         assert!(listener.accept().is_err());
-        let cache = hf_hub::Cache::from_env();
-        let root = cache.path().join("models--anno-tests--offline");
+        let root = model_cache_dir(&hub_cache_dir(), "anno-tests/offline");
         std::fs::create_dir_all(root.join("refs/refs/pr")).unwrap();
         std::fs::create_dir_all(root.join("snapshots/pinned")).unwrap();
         std::fs::write(root.join("refs/refs/pr/7"), "pinned").unwrap();
@@ -359,12 +363,8 @@ mod tests {
         std::fs::create_dir_all(root.join("snapshots/pinned/onnx/model_quantized.onnx")).unwrap();
         let model = root.join("snapshots/pinned/model.onnx");
         std::fs::write(&model, b"cached model fixture").unwrap();
-        assert_eq!(download_onnx_model(&repo, true).unwrap(), (model, false));
+        assert_eq!(lookup().unwrap(), model);
         assert!(listener.accept().is_err());
-        assert_eq!(
-            cache_repo_identity(&repo).unwrap().revision(),
-            identity.revision()
-        );
     }
 
     #[test]

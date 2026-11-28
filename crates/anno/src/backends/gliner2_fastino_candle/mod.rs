@@ -253,7 +253,7 @@ impl GLiNER2FastinoCandle {
         check_device(device)?;
         let api = crate::backends::hf_loader::hf_api()
             .map_err(|e| crate::Error::Backend(format!("hf_api: {e}")))?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Touch each required file so it's in the local cache. Order
         // matters: weights last so we can use its parent as the snapshot dir.

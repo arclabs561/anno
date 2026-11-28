@@ -689,7 +689,7 @@ pub use backends::inference::{
 #[cfg(feature = "onnx")]
 pub use backends::hf_loader::{
     create_onnx_session, create_onnx_session_with_provider, download_model_file,
-    OnnxExecutionProvider, OnnxSessionConfig,
+    download_model_file_at_revision, OnnxExecutionProvider, OnnxSessionConfig,
 };
 
 #[cfg(feature = "onnx")]

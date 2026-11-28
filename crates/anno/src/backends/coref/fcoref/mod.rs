@@ -288,7 +288,7 @@ impl FCoref {
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
-        let repo = api.model(model_id.to_string());
+        let repo = crate::backends::hf_loader::hub_model(&api, model_id);
 
         // Helper to download a file, returning Ok(None) if not found
         let try_get = |name: &str| -> Result<Option<std::path::PathBuf>> {

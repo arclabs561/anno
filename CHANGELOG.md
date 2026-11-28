@@ -8,6 +8,8 @@
 
 ### Rust and grounded JSON migration
 
+- Model and dataset downloads now use `hf-hub` 1.0. Pass a typed blocking repository handle to `anno::download_model_file`. To pin a branch or commit, use `anno::download_model_file_at_revision(&repo, Some(revision), candidates)`. Both helpers honor `ANNO_NO_DOWNLOADS` and read existing Hub snapshots.
+
 - Building the workspace now requires Rust 1.95 or newer.
 
 - In `anno-eval`, replace `AnnotatedSentence { tokens, source_dataset }` literals with `AnnotatedSentence::from_tokens(source_dataset, tokens)`. Call `from_tokens_with_spacing` when the source records spaces between words. Previously serialized token-only sentences retain their original coordinates.

@@ -2819,7 +2819,7 @@ impl DatasetLoader {
     #[cfg(feature = "eval")]
     fn download_hf_dataset_paginated(&self, id: DatasetId, base_url: &str) -> Result<String> {
         // Try hf-hub direct download first (if available and dataset is on HF)
-        #[cfg(feature = "onnx")] // hf-hub is available with onnx feature
+        #[cfg(feature = "hf-hub")]
         {
             if let Ok(content) = self.try_hf_hub_download(id) {
                 return Ok(content);
@@ -2991,10 +2991,8 @@ impl DatasetLoader {
     /// Returns Ok(content) if successful, Err if not available or hf-hub not enabled.
     ///
     /// Uses `HF_TOKEN` environment variable if set for accessing gated datasets.
-    #[cfg(all(feature = "eval", feature = "onnx"))]
+    #[cfg(all(feature = "eval", feature = "hf-hub"))]
     fn try_hf_hub_download(&self, id: DatasetId) -> Result<String> {
-        use hf_hub::api::sync::{Api, ApiBuilder};
-
         // Map dataset IDs to HuggingFace dataset names and file paths
         let (dataset_name, file_path) = match id {
             DatasetId::MultiNERD => ("Babelscape/multinerd", "test/test_en.jsonl"),
@@ -3015,24 +3013,22 @@ impl DatasetLoader {
         anno::env::load_dotenv();
 
         // Use HF_TOKEN from environment if available (for gated datasets)
-        let api = if let Some(token) = anno::env::hf_token() {
-            ApiBuilder::new()
-                .with_token(Some(token))
-                .build()
-                .map_err(|e| {
-                    Error::InvalidInput(format!(
-                        "Failed to initialize HuggingFace API with token: {}",
-                        e
-                    ))
-                })?
-        } else {
-            Api::new().map_err(|e| {
-                Error::InvalidInput(format!("Failed to initialize HuggingFace API: {}", e))
-            })?
+        let mut builder = hf_hub::HFClient::builder();
+        if let Some(token) = anno::env::hf_token() {
+            builder = builder.token(token);
+        }
+        let api = builder.build_sync().map_err(|err| {
+            Error::InvalidInput(format!("Failed to initialize HuggingFace API: {err}"))
+        })?;
+        let (owner, name) = hf_hub::split_id(dataset_name);
+        let repo = api.dataset(owner, name);
+        let fetch = |local_only| {
+            repo.download_file()
+                .filename(file_path)
+                .local_files_only(local_only)
+                .send()
         };
-
-        let repo = api.dataset(dataset_name.to_string());
-        let file_path_buf = repo.get(file_path).map_err(|e| {
+        let file_path_buf = fetch(true).or_else(|_| fetch(false)).map_err(|e| {
             Error::InvalidInput(format!(
                 "Failed to download {} from HuggingFace Hub: {}. \
                  Falling back to HTTP download.",
@@ -3042,13 +3038,6 @@ impl DatasetLoader {
 
         std::fs::read_to_string(&file_path_buf)
             .map_err(|e| Error::InvalidInput(format!("Failed to read downloaded file: {}", e)))
-    }
-
-    /// Placeholder for when hf-hub is not available.
-    #[cfg(not(all(feature = "eval", feature = "onnx")))]
-    #[allow(dead_code)] // Part of trait interface, may be unused in some feature combinations
-    fn try_hf_hub_download(&self, _id: DatasetId) -> Result<String> {
-        Err(Error::InvalidInput("hf-hub not available".to_string()))
     }
 
     /// Download a text object with up to three retries for transient failures.

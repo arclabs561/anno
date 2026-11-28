@@ -231,7 +231,7 @@ impl W2NER {
         } else {
             // HuggingFace download
             let api = hf_loader::hf_api()?;
-            let repo = api.model(model_path.to_string());
+            let repo = crate::backends::hf_loader::hub_model(&api, model_path);
             let no_downloads = hf_loader::no_downloads();
 
             let (model_file, tokenizer_file) = match hf_loader::download_model_file(

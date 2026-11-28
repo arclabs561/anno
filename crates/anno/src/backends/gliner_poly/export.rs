@@ -74,12 +74,12 @@ impl Export {
         matches!(Self::read(dir), Ok(Some(_)))
     }
 
-    pub(super) fn hub_dir(cache: &hf_hub::Cache, model: &str) -> Option<PathBuf> {
-        let repo = cache.model(model.to_owned());
+    pub(super) fn hub_dir(cache: &std::path::Path, model: &str) -> Option<PathBuf> {
+        let repo = crate::backends::hf_loader::model_cache_dir(cache, model);
         [FILE.to_owned(), format!("onnx/{FILE}")]
             .into_iter()
             .find_map(|name| {
-                let receipt = repo.get(&name)?;
+                let receipt = crate::backends::hf_loader::cached_main_file(&repo, &name)?;
                 // Keep the snapshot directory so data files resolve beside the graph.
                 let root = receipt.parent()?;
                 Self::ready(root).then(|| root.to_owned())
@@ -96,12 +96,13 @@ mod tests {
     #[test]
     fn fused_hub_export_requires_its_declared_sidecar_and_no_label_graph() {
         let tmp = tempfile::tempdir().unwrap();
-        let cache = hf_hub::Cache::new(tmp.path().to_owned());
+        let cache = tmp.path();
         let id = crate::models::GLINER_POLY;
-        let hf = cache.model(id.to_string());
-        let dir = hf.pointer_path("fixtures").join("onnx");
+        let hf = crate::backends::hf_loader::model_cache_dir(cache, id);
+        let dir = hf.join("snapshots/fixtures").join("onnx");
         fs::create_dir_all(&dir).unwrap();
-        hf.create_ref("fixtures").unwrap();
+        fs::create_dir_all(hf.join("refs")).unwrap();
+        fs::write(hf.join("refs/main"), "fixtures").unwrap();
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/bughunt7_data");
         let assets = fixtures.join("gliner_poly_split");
         fs::copy(assets.join("fused.onnx"), dir.join("model.onnx")).unwrap();
@@ -115,9 +116,9 @@ mod tests {
             r#"{"schema_version":1,"label_input":"token_ids","external_data":["fused.weights"]}"#,
         )
         .unwrap();
-        assert!(Export::hub_dir(&cache, id).is_none());
+        assert!(Export::hub_dir(cache, id).is_none());
         fs::copy(assets.join("fused.weights"), dir.join("fused.weights")).unwrap();
-        assert_eq!(Export::hub_dir(&cache, id), Some(dir.clone()));
+        assert_eq!(Export::hub_dir(cache, id), Some(dir.clone()));
         let model = GLiNERPoly::from_dir(&dir).unwrap();
         let out = model
             .extract("À John   Smith", &["location", "person"], 0.5)
@@ -133,7 +134,7 @@ mod tests {
             r#"{"labels_encoder":"test/labels"}"#,
         )
         .unwrap();
-        assert!(Export::hub_dir(&cache, id).is_none());
+        assert!(Export::hub_dir(cache, id).is_none());
         let explicit = GLiNERPoly::from_dir(&dir).unwrap();
         assert!(explicit.source_only_text);
         assert_eq!(
