@@ -247,7 +247,7 @@ and `render_html`. Rendering runs offline in the standard CLI.
 
 ## CLI: batch processing
 
-From the repository root, try the checkout CLI on the two harbor notices:
+From the repository root, try the checkout CLI on two versions of a notice about winter boat spaces:
 
 ```sh
 anno batch --model pattern --dir crates/anno-py/examples/bulletins --output results

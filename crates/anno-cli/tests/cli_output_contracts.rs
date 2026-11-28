@@ -734,6 +734,46 @@ fn identical_duplicate_mentions_compare_equal_in_either_order() {
 }
 
 #[test]
+fn export_reads_a_whole_grounded_batch_and_preserves_its_tree() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    for (folder, text) in [("early", "On 2026-11-18."), ("late", "On 2026-12-07.")] {
+        fs::create_dir_all(dir.join("notes").join(folder)).unwrap();
+        fs::write(dir.join(format!("notes/{folder}/report.txt")), text).unwrap();
+    }
+    ok(
+        dir,
+        &[
+            "batch", "--dir", "notes", "--model", "pattern", "--format", "grounded", "--output",
+            "saved",
+        ],
+    );
+    let args = [
+        "export",
+        "--input",
+        "saved",
+        "--output",
+        "saved/brat",
+        "--format",
+        "brat",
+        "--overwrite",
+    ];
+    ok(dir, &args);
+    ok(dir, &args);
+    for (folder, date) in [("early", "2026-11-18"), ("late", "2026-12-07")] {
+        let prefix = format!("saved/brat/{folder}/report");
+        assert_eq!(
+            fs::read_to_string(dir.join(format!("{prefix}.txt"))).unwrap(),
+            format!("On {date}.")
+        );
+        assert!(fs::read_to_string(dir.join(format!("{prefix}.ann")))
+            .unwrap()
+            .contains(date));
+    }
+    assert!(!dir.join("saved/brat/brat").exists());
+}
+
+#[test]
 fn recursive_batch_rejects_file_directory_conflicts_before_writing() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();

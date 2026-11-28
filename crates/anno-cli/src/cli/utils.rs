@@ -163,6 +163,56 @@ pub(crate) fn is_html_file(path: &str, content: &str) -> bool {
         || deformat::detect::is_html(content)
 }
 
+/// Collect supported files beneath a directory, skipping directory symlinks
+/// and an existing output subtree. Returned paths retain the caller's root.
+pub(crate) fn corpus_files(
+    root: &std::path::Path,
+    output: Option<&std::path::Path>,
+    extensions: &[&str],
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let absolute = root
+        .canonicalize()
+        .map_err(|e| format!("Cannot open '{}': {e}", root.display()))?;
+    let excluded = output
+        .and_then(|p| p.canonicalize().ok())
+        .and_then(|p| p.strip_prefix(absolute).ok().map(|r| root.join(r)));
+    let mut dirs = vec![root.to_owned()];
+    let mut files = Vec::new();
+    while let Some(dir) = dirs.pop() {
+        let entries =
+            fs::read_dir(&dir).map_err(|e| format!("Cannot read '{}': {e}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Cannot list '{}': {e}", dir.display()))?;
+            let path = entry.path();
+            let kind = entry
+                .file_type()
+                .map_err(|e| format!("Cannot inspect '{}': {e}", path.display()))?;
+            if kind.is_dir() {
+                if excluded.as_ref() != Some(&path) {
+                    dirs.push(path);
+                }
+            } else if path
+                .extension()
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| extensions.contains(&s))
+            {
+                let regular = if kind.is_symlink() {
+                    fs::metadata(&path)
+                        .map_err(|e| format!("Cannot inspect '{}': {e}", path.display()))?
+                        .is_file()
+                } else {
+                    kind.is_file()
+                };
+                if regular {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
 /// Validate a user-supplied name used as one filename component.
 pub(crate) fn validate_path_component<'a>(value: &'a str, kind: &str) -> Result<&'a str, String> {
     use std::path::{Component, Path};

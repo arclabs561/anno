@@ -330,50 +330,24 @@ fn read_directory_inputs(
     root: &Path,
     output: Option<&Path>,
 ) -> Result<Vec<(String, String)>, String> {
-    let root = root
-        .canonicalize()
-        .map_err(|e| format!("Cannot open '{}': {e}", root.display()))?;
-    let output = output.and_then(|p| p.canonicalize().ok());
-    let mut dirs = vec![root.clone()];
     let mut files = std::collections::BTreeMap::new();
-    while let Some(dir) = dirs.pop() {
-        let entries =
-            std::fs::read_dir(&dir).map_err(|e| format!("Cannot read '{}': {e}", dir.display()))?;
-        for entry in entries {
-            let entry =
-                entry.map_err(|e| format!("Cannot read entry in '{}': {e}", dir.display()))?;
-            let path = entry.path();
-            let kind = entry
-                .file_type()
-                .map_err(|e| format!("Cannot inspect '{}': {e}", path.display()))?;
-            if kind.is_dir() {
-                if output.as_ref() != Some(&path) {
-                    dirs.push(path);
-                }
-                continue;
-            }
-            // Preserve file symlinks accepted by flat batches. Never descend through a directory symlink.
-            if !path.is_file()
-                || !matches!(
-                    path.extension().and_then(|s| s.to_str()),
-                    Some("txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text")
-                )
-            {
-                continue;
-            }
-            let relative = path.strip_prefix(&root).expect("entry beneath input root");
-            let relative = relative
-                .to_str()
-                .ok_or_else(|| format!("Non-UTF-8 input path '{}'", path.display()))?;
-            let (stem, _) = relative.rsplit_once('.').expect("supported extension");
-            let id = stem.replace(std::path::MAIN_SEPARATOR, "/");
-            if let Some(other) = files.insert(id.clone(), path.clone()) {
-                return Err(format!(
-                    "Duplicate document id '{id}' for '{}' and '{}'",
-                    other.display(),
-                    path.display()
-                ));
-            }
+    for path in crate::cli::utils::corpus_files(
+        root,
+        output,
+        &["txt", "md", "html", "htm", "xhtml", "pdf", "rst", "text"],
+    )? {
+        let relative = path.strip_prefix(root).expect("entry beneath input root");
+        let relative = relative
+            .to_str()
+            .ok_or_else(|| format!("Non-UTF-8 input path '{}'", path.display()))?;
+        let (stem, _) = relative.rsplit_once('.').expect("supported extension");
+        let id = stem.replace(std::path::MAIN_SEPARATOR, "/");
+        if let Some(other) = files.insert(id.clone(), path.clone()) {
+            return Err(format!(
+                "Duplicate document id '{id}' for '{}' and '{}'",
+                other.display(),
+                path.display()
+            ));
         }
     }
     if files.is_empty() {

@@ -35,22 +35,24 @@ The range ends just before the period. Anno counts Unicode scalar values.
 
 ## Extract a directory
 
-The harbor office issued a notice, then amended it. Which date changed?
-From the root of this checkout, install the CLI and run it on the examples tree:
+Who appears in all three reports? From the root of this checkout, extract the
+people in the sample documents. Each row carries its source and character range.
 
 ```sh
 cargo install --locked --path crates/anno-cli \
   --no-default-features --features extractor-readability
-anno batch --dir crates/anno-py/examples --model pattern --format jsonl |
-  jq -r '[.id, (.entities[] | select(.type == "DATE") | .text)] | @tsv'
+anno batch --dir testdata/fixtures --model heuristic --format jsonl |
+  jq -r '.id as $doc | .entities[] | select(.type == "PER") |
+         [$doc, .text, .start, .end] | @tsv'
 ```
 
-| Document | Issued | Berth applications close | Public drawing |
-| --- | --- | --- | --- |
-| `bulletins/bulletin-edition-1` | Nov 18 | **Dec 4** | Dec 9 |
-| `bulletins/bulletin-edition-2` | Nov 18 | **Dec 7** | Dec 9 |
+| Document | Person | Character range |
+| --- | --- | --- |
+| `cross_doc/doc1` | Jensen Huang | `0..12` |
+| `cross_doc/doc2` | Jensen Huang | `0..12` |
+| `cross_doc/doc3` | Sundar Pichai | `0..13` |
+| `cross_doc/doc3` | Jensen Huang | `18..30` |
 
-The command lists dates in source order. The notices supply their meaning.
 For your own archive, pass `--dir notes --output results` to save one
 annotation file per document. A source at `notes/letters/bio.txt` becomes
 `results/letters/bio.json`. The published 0.15 CLI scans only the top level.
@@ -103,7 +105,8 @@ spans to Anno’s `analyze_words`. [Read the caller](https://github.com/arlyon/a
 
 ## Compare two notices in Python
 
-A harbor office extended its application deadline. Install the bindings with
+Two notices give different deadlines to apply for a winter boat space.
+Which sentence changed? Install the bindings with
 `python -m pip install anno-py`. From the repository root, run:
 
 ```sh
@@ -142,7 +145,7 @@ annotations directly, so the difference measures what a reviewer can see.
 
 ## What else can you do with a mention?
 
-- **Correct a namesake.** Two entries in a quay log say “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician. [Review one occurrence](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention)
+- **Correct a namesake.** Two entries in the same log say “Ora Venn.” Assign the signature to the clerk while keeping the other entry under the musician. [Review one occurrence](docs/QUICKSTART.md#review-a-catalog-link-from-a-source-mention)
 - **Hand annotations to another tool.** Save a grounded document once. Write BRAT annotations for an editor or graph CSV for analysis without rerunning the extractor. [Convert saved annotations](docs/EXTRACTION_WORKFLOWS.md#saving-and-converting-annotations)
 - **Find out what a stronger model buys.** Compare recovered labels with the extra predictions someone must review, or inspect where two labels overlap. [Visualize evaluation results](docs/QUICKSTART.md#visualize-evaluation-results)
 - **Check what the benchmark gave the model.** On CrossRE, giving the same checkpoint each test sentence’s annotated labels raised strict relation F1 from 29.5% to 58.2%. [Inspect the paired comparison](docs/eval/crossre-full-prompt-comparison.md)
