@@ -19,6 +19,9 @@ class WikiGoldRoutingTest(unittest.TestCase):
         cases, info = study.parse_release(data)
         self.assertEqual(cases[0], ("Zé Ho 🧭", [(0, 5, "PER"), (6, 7, "MISC")]))
         self.assertEqual(info["documents_with_sentences"], 2)
+        self.assertEqual(
+            study.parse_release_with_documents(data), (cases, info, [1, 2, 2])
+        )
         self.assertEqual(info["document_markers_excluded"], 2)
         self.assertEqual(info["sentence_occurrences"], 3)
         self.assertEqual(info["distinct_sentence_texts"], 2)
@@ -56,10 +59,13 @@ class WikiGoldRoutingTest(unittest.TestCase):
         args = SimpleNamespace(stock="s", candidate="c", checkpoint="w")
         empty = {"ran": False, "spans": [], "seconds": 0.001}
         hit = {"ran": True, "spans": [[0, 3, "PER"]], "seconds": 0.12}
-        with redirect_stderr(StringIO()), patch.object(
-            study.routing,
-            "run_worker",
-            side_effect=[[empty], [hit], [{**empty, "spans": hit["spans"]}]],
+        with (
+            redirect_stderr(StringIO()),
+            patch.object(
+                study.routing,
+                "run_worker",
+                side_effect=[[empty], [hit], [{**empty, "spans": hit["spans"]}]],
+            ),
         ):
             with self.assertRaisesRegex(ValueError, "repeated stock timing"):
                 study.routing.measure(
@@ -166,6 +172,40 @@ class WikiGoldRoutingTest(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "nuner_threshold"):
             study.tradeoff({**wiki, "nuner_threshold": 0.5}, wnut)
+
+    def test_paired_chart_keeps_review_and_inference_costs_on_the_same_rows(self):
+        wiki = json.loads((study.EVAL / "wikigold-nuner-routing.json").read_text())
+        wnut = json.loads(study.STUDY.read_text())
+        paired = study.paired(wiki, wnut)
+        self.assertEqual(
+            paired,
+            json.loads((study.EVAL / "wikigold-routing-paired.json").read_text()),
+        )
+        self.assertEqual(len(paired["rows"]), 6)
+        for row in paired["rows"]:
+            self.assertEqual(row["candidate"]["calls"], row["observations"])
+            self.assertEqual(row["baseline"]["calls"], 0)
+            self.assertEqual(
+                row["candidate"]["correct"] - row["baseline"]["correct"],
+                row["gained"] - row["lost"],
+            )
+        row = paired["rows"][0]
+
+        def suggestions(arm):
+            return arm["correct"] + arm["unmatched"]
+
+        self.assertEqual(
+            suggestions(row["candidate"]) - suggestions(row["baseline"]), 171
+        )
+        self.assertEqual(
+            (row["baseline"]["median_ms"], row["candidate"]["median_ms"]),
+            (0.19, 640.71),
+        )
+        wiki["arms"]["without_bert"]["warm_skipped_subset_latency"]["stock"][
+            "calls"
+        ] -= 1
+        with self.assertRaisesRegex(ValueError, "Warm stack timings"):
+            study.paired(wiki, wnut)
 
 
 if __name__ == "__main__":

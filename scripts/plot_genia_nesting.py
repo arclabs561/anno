@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs/eval/dataset-repo-files.csv"
 SPLITS = ("train", "dev", "test")
 LABELS = {"DNA", "RNA", "cell_line", "cell_type", "protein"}
+# This sentence contains two gold mentions starting at the same character.
+EXAMPLE_SENTENCE = 600
 
 
 def release_files():
@@ -178,7 +180,35 @@ def verify_export(number, tokens, token_spans, record):
     return len(gold), len(rows), len(marks)
 
 
-def replay_native(binary, data):
+def export_example(record):
+    """Read only the two nested surfaces used in the release figure."""
+    text, marks = read_html(record["html"])
+    entities = [json.loads(line) for line in record["jsonl"].splitlines()]
+    (outer,) = [
+        r for r in entities if r["text"] == "cyclophilin gene" and r["type"] == "DNA"
+    ]
+    (inner,) = [
+        r
+        for r in entities
+        if r["start"] == outer["start"]
+        and r["end"] < outer["end"]
+        and r["type"] == "protein"
+    ]
+    return {
+        "sentence": record["sentence"],
+        "jsonl": [
+            {k: row[k] for k in ("text", "type", "start", "end")}
+            for row in (outer, inner)
+        ],
+        "html": [
+            {"text": text[a:b], "type": label, "start": a, "end": b}
+            for a, b, label in marks
+            if outer["start"] <= a < b <= outer["end"]
+        ],
+    }
+
+
+def replay_native(binary, data, *, include_example=False):
     # One output record per sentence, including empty entity lists. Keep the
     # raw exports in a temporary file so large splits need no buffering in RAM.
     with tempfile.TemporaryFile() as output:
@@ -195,6 +225,7 @@ def replay_native(binary, data):
                     f"Native replay binary was built from a different {path.name}"
                 )
         counts = Counter()
+        example = {}
         for number, (source, native) in enumerate(
             zip_longest(sentences(data), output), 1
         ):
@@ -203,7 +234,10 @@ def replay_native(binary, data):
                     f"Native and gold sentence counts disagree at {number}"
                 )
             tokens, _, spans = source
-            gold, rows, marks = verify_export(number, tokens, spans, json.loads(native))
+            record = json.loads(native)
+            gold, rows, marks = verify_export(number, tokens, spans, record)
+            if include_example and number == EXAMPLE_SENTENCE:
+                example["export_example"] = export_example(record)
             counts["sentences_verified"] += 1
             counts["gold_mentions"] += gold
             counts["jsonl_rows"] += rows
@@ -211,7 +245,9 @@ def replay_native(binary, data):
             counts["hidden_mentions"] += gold - marks
             counts["sentences_with_hidden_mentions"] += gold > marks
             counts["sentences_without_gold_mentions"] += gold == 0
-    return build, dict(counts)
+    if include_example and not example:
+        raise ValueError("Missing GENIA test sentence for the export example")
+    return build, {**counts, **example}
 
 
 def source_identity(row):
@@ -341,88 +377,109 @@ def read_counts(path, selected):
     return by_split
 
 
-def plot(by_split, output):
+def plot(by_split, output, example):
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    depths = sum((counts.depths for counts in by_split.values()), Counter())
-    pairs = sum((counts.pairs for counts in by_split.values()), Counter())
+    # The checked native records show how two gold mentions at one start reach each exporter.
+    records = [
+        (name, row)
+        for name, key in (("HTML", "html"), ("JSONL", "jsonl"))
+        for row in example[key]
+    ]
     mentions = sum(c.mentions for c in by_split.values())
-    hidden = sum(c.hidden for c in by_split.values())
-    scope = "GENIA test split" if len(by_split) == 1 else "GENIA train, dev and test"
-    fig = plt.figure(figsize=(12, 6.2), layout="constrained")
-    grid = fig.add_gridspec(2, 2, width_ratios=[1.15, 1.0])
-    hidden_ax = fig.add_subplot(grid[0, 0])
-    depth_ax = fig.add_subplot(grid[1, 0])
-    pair_ax = fig.add_subplot(grid[:, 1])
-    for ax in (hidden_ax, depth_ax, pair_ax):
-        ax.spines[["top", "right", "left"]].set_visible(False)
-        ax.tick_params(axis="y", length=0)
+    visible = sum(c.highlights for c in by_split.values())
+    scope = "GENIA test" if len(by_split) == 1 else "GENIA train, dev and test"
+    ink, muted, teal, orange = "#183541", "#456371", "#126f70", "#a94e26"
+    fig, ax = plt.subplots(figsize=(6.0, 5.35 + 0.26 * (len(records) + len(by_split))))
+    fig.subplots_adjust(left=0.045, right=0.965, top=0.985, bottom=0.015)
+    ax.set(xlim=(0, 1), ylim=(0, 1))
+    ax.axis("off")
 
-    shares = [100 * c.hidden / c.mentions for c in by_split.values()]
-    if all(c.sentences for c in by_split.values()):
-        positions = range(len(by_split))
-        sentence_shares = [
-            100 * c.sentences_with_hidden / c.sentences for c in by_split.values()
-        ]
-        for rates, offset, unit, color in [
-            (shares, -0.17, "mentions", "#b86536"),
-            (sentence_shares, 0.17, "sentences", "#465f76"),
-        ]:
-            bars = hidden_ax.barh(
-                [i + offset for i in positions], rates, color=color, height=0.29
-            )
-            hidden_ax.bar_label(
-                bars,
-                padding=4,
-                labels=[f"{rate:.1f}% of {unit}" for rate in rates],
-                fontsize=9,
-            )
-        hidden_ax.set_yticks(list(positions), list(by_split))
-        hidden_ax.set_xlim(0, max(shares + sentence_shares) * 1.62)
-        hidden_ax.set_xlabel("Share of the named group in each split (%)")
-    else:
-        # Older aggregate files only recorded mention-level denominators.
-        bars = hidden_ax.barh(list(by_split), shares, color="#b86536", height=0.57)
-        hidden_ax.bar_label(bars, padding=4, labels=[f"{s:.1f}%" for s in shares])
-        hidden_ax.set_xlim(0, max(shares) * 1.25)
-        hidden_ax.set_xlabel("Share of reference mentions (%)")
-    hidden_ax.invert_yaxis()
-    hidden_ax.set_title("How often does HTML hide a gold mention?", loc="left")
+    def label(x, y, value, size=12.25, *, bold=False, ha="left", color=ink):
+        ax.text(
+            x,
+            y,
+            value,
+            fontsize=size,
+            color=color,
+            weight="bold" if bold else "normal",
+            ha=ha,
+            va="center",
+        )
 
-    active = sum(count for depth, count in depths.items() if depth)
-    levels = sorted(depth for depth in depths if depth)
-    depth_shares = [100 * depths[level] / active for level in levels]
-    bars = depth_ax.barh(
-        [f"{n} layer" if n == 1 else f"{n} layers" for n in levels],
-        depth_shares,
-        color="#187673",
-        height=0.57,
+    label(0, 0.955, "Which gold mentions survive export?", size=19, bold=True)
+    label(
+        0,
+        0.9,
+        f"GENIA test sentence {example['sentence']} · two nested gold mentions",
+        color=muted,
     )
-    depth_ax.bar_label(bars, labels=[f"{p:.2f}%" for p in depth_shares], padding=4)
-    depth_ax.set_xlim(0, 108)
-    depth_ax.invert_yaxis()
-    depth_ax.set_xlabel(f"Share of {active:,} annotated tokens")
-    depth_ax.set_title("How many annotation layers share a token?", loc="left")
+    columns = (0, 0.18, 0.56, 1)
+    for x, title, align in zip(
+        columns,
+        ("Output", "Surface", "Type", "Characters"),
+        ("left", "left", "left", "right"),
+    ):
+        label(x, 0.825, title, bold=True, ha=align)
+    ax.axhline(0.795, color="#ccd9dc", lw=1)
+    y = 0.755
+    last = None
+    for name, row in records:
+        if name != last:
+            label(0, y, name, bold=True, color=teal if name == "JSONL" else orange)
+        label(columns[1], y, row["text"])
+        label(columns[2], y, row["type"])
+        label(columns[3], y, f"[{row['start']}, {row['end']})", ha="right")
+        y -= 0.048
+        last = name
 
-    common = sorted(pairs.items(), key=lambda item: (-item[1], item[0]))[:7]
-    bars = pair_ax.barh(
-        [f"{outer} → {inner}" for (outer, inner), _ in common],
-        [count for _, count in common],
-        color="#476585",
-        height=0.6,
+    y -= 0.045
+    label(0, y, f"Visible mentions in {scope}", size=15, bold=True)
+    y -= 0.078
+    for name, total, color in (("JSONL", mentions, teal), ("HTML", visible, orange)):
+        label(0, y, name, bold=True)
+        ax.barh(y, 0.30, left=0.19, height=0.023, color="#e4ecee")
+        ax.barh(y, 0.30 * total / mentions, left=0.19, height=0.023, color=color)
+        label(
+            1,
+            y,
+            f"{total:,} / {mentions:,} ({100 * total / mentions:.1f}%)",
+            ha="right",
+        )
+        y -= 0.05
+    y -= 0.045
+    label(0, y, "Where HTML hides a gold mention", size=15, bold=True)
+    y -= 0.074
+    for x, title, align in (
+        (0, "Split", "left"),
+        (0.53, "Hidden mentions", "right"),
+        (1, "Affected sentences", "right"),
+    ):
+        label(x, y, title, bold=True, ha=align)
+    y -= 0.034
+    label(0.53, y, "of supplied mentions", ha="right", color=muted)
+    label(1, y, "of all sentences", ha="right", color=muted)
+    ax.axhline(y - 0.024, color="#ccd9dc", lw=1)
+    for split, c in by_split.items():
+        y -= 0.055
+        label(0, y, split.capitalize())
+        label(0.53, y, f"{c.hidden:,} ({100 * c.hidden / c.mentions:.1f}%)", ha="right")
+        affected = (
+            f"{c.sentences_with_hidden:,} ({100 * c.sentences_with_hidden / c.sentences:.1f}%)"
+            if c.sentences
+            else "—"
+        )
+        label(1, y, affected, ha="right")
+    label(
+        0,
+        y - 0.045,
+        "Unicode character intervals use an exclusive end.",
+        color=muted,
     )
-    pair_ax.bar_label(bars, labels=[f"{n:,}" for _, n in common], padding=4)
-    pair_ax.invert_yaxis()
-    pair_ax.margins(x=0.18)
-    pair_ax.set_xlabel("Strict containment pairs (outer → inner)")
-    pair_ax.set_title("Which mentions sit inside others?", loc="left")
-    fig.suptitle(
-        f"{scope} · {hidden:,} of {mentions:,} mentions hidden by HTML highlighting",
-        fontsize=15,
-    )
+
     output.mkdir(parents=True, exist_ok=True)
     fig.savefig(output / "anno-genia-nesting.png", dpi=160)
     with matplotlib.rc_context({"svg.hashsalt": "anno-genia-nesting"}):
@@ -456,16 +513,16 @@ def main():
     if args.native_export and (args.input or args.from_counts):
         parser.error("--native-export requires all three original publisher splits")
     selected = release_files()
+    native_splits = {}
     if args.from_counts:
         by_split = read_counts(args.from_counts, selected)
     else:
         by_split = {}
         native_build = None
-        native_splits = {}
         with tempfile.TemporaryDirectory() as tmp:
             cache = args.cache_dir or Path(tmp)
             cache.mkdir(parents=True, exist_ok=True)
-            for split in (("test",) if args.input else SPLITS):
+            for split in ("test",) if args.input else SPLITS:
                 row = selected[split]
                 data = (
                     args.input.read_bytes() if args.input else file_contents(row, cache)
@@ -478,7 +535,9 @@ def main():
                 check_counts(counts, row)
                 by_split[split] = counts
                 if args.native_export:
-                    build, verified = replay_native(args.native_export, data)
+                    build, verified = replay_native(
+                        args.native_export, data, include_example=split == "test"
+                    )
                     if native_build is not None and build != native_build:
                         raise ValueError("Native exporter build changed between splits")
                     native_build = build
@@ -508,7 +567,18 @@ def main():
             c.contained,
             sep="\t",
         )
-    plot(by_split, args.output)
+    if native_splits:
+        test_receipt = native_splits["test"]
+    else:
+        native = json.loads(
+            LEDGER.with_name("genia-native-exports.json").read_text(encoding="utf-8")
+        )
+        test_receipt = native["splits"]["test"]
+    if test_receipt["source"] != source_identity(selected["test"]):
+        raise ValueError(
+            "GENIA worked example came from a different publisher test split"
+        )
+    plot(by_split, args.output, test_receipt["export_example"])
     if not args.input and not args.from_counts:
         write_counts(args.output / "genia-nesting-counts.json", by_split, selected)
     if args.native_export:

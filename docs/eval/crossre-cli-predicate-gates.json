@@ -1,0 +1,81 @@
+{
+  "checkpoint_revision": "4aedc9226a5ac9e2f6b5ea3e91c1ee577c88a290",
+  "crossre_revision": "a58885fa760559d2dc9e176e730fe731f020d6f3",
+  "entity_and_adjacency_gate": 0.5,
+  "panels": {
+    "dev": {
+      "gold": 397,
+      "index_text_sha256_by_domain": {
+        "ai": "f78359376c121922354b327029d16bb779948af80939a2547fb8c343603ea70c",
+        "literature": "c7b2174af691dfa08c41b090340194b09f7917eecb2dbbbd0cabfb0271ffc581",
+        "music": "6825ac07b5771dcedd6654285a77583ebd46c276cf55b80e342fc056c0d1ac50",
+        "news": "d80df15789e2dfb4c621b9a6f5ecdf23c267fccd30b06eb5d0588746f3c44135",
+        "politics": "7d67d9c381245789ab1b69935058454c11bec4c815daa0c90b9aec5957084119",
+        "science": "16ecfac3efabe5a8348fce88a4d62e46713808b05388d93e7b7b861aa66cb0b6"
+      },
+      "predicate_gates": {
+        "0.40": {
+          "matched": 148,
+          "predicted": 579
+        },
+        "0.50": {
+          "matched": 129,
+          "predicted": 426
+        },
+        "0.55": {
+          "matched": 121,
+          "predicted": 371
+        }
+      },
+      "sentences": 96
+    },
+    "test": {
+      "gold": 646,
+      "index_text_sha256_by_domain": {
+        "ai": "5858a4d5a9ddc1b2180b4949ed7722356bb3fbcb7198a263666c3ead1be4de6a",
+        "literature": "5d8354e166826e5abafe4f9c252be78de89d225ddadf0f5985d83fb2e8dad02a",
+        "music": "2a57ecb04914047dd3596a20edf2c3c902674f17d5f25f28ce75607873aefcc1",
+        "news": "0d7d1cf0e7bf04e45aaffebda5a70a6d01ca2cfd8fc3afc450730d2cfa0003a3",
+        "politics": "12da4c805da521200f93611532d4041565ec30fb78e9e9ef5afb2d348bbc71df",
+        "science": "cd4b1dc2b263aee6ffd287d2c6aadb079bbbd498ed9bbdc71a03280e124c3034"
+      },
+      "predicate_gates": {
+        "0.40": {
+          "matched": 234,
+          "predicted": 966
+        },
+        "0.50": {
+          "matched": 211,
+          "predicted": 737
+        },
+        "0.55": {
+          "matched": 200,
+          "predicted": 628
+        }
+      },
+      "sentences": 192
+    }
+  },
+  "predicate_study_sha256": "97d2016f229bf0c2339ee53c0062da4f1112ba70ce74cd38639d5583acf88631",
+  "source_sha256": {
+    "ai-dev.json": "52fa53bf57b51b63f49ee58420188e49c5bd04a34cd6e0b99089676b0ba2264a",
+    "ai-test.json": "2000a4011676319f9f3f3f6044e7de356b975d81979e080460e82c2273ed55cb",
+    "ai-train.json": "44d54f2669c2a41f613aac70095aed8a3b8f2e6befde454abb99bf97c77385d3",
+    "literature-dev.json": "2ada55425867b63613c07b79c0370139018978757509d6543c667826bad43c21",
+    "literature-test.json": "05ad994143df3d2f7185c47b0b268f08c106426133c17bf70124c0e713c49c4a",
+    "literature-train.json": "31e7290ae889ffb69b65d0eca37ba8c907bb1bd15da969cd19af5a67252d3fe4",
+    "music-dev.json": "dd046e83e655a11a6456ff13a9afd2e5bb9679419e643fc2924a3f1eec670830",
+    "music-test.json": "647d2edbb47d8793339bd6e21b88d3a4059f1464ca3e08597bf4bd333910a4b4",
+    "music-train.json": "b6229afa107f7b64a5fc7ceda09eaffa98bb30dae05d51aeb60eef5ab3e73500",
+    "news-dev.json": "e087bb168732b8e923e32bb4ee9b2ab582342f9962eaf9487e1a43d7e361f5e0",
+    "news-test.json": "0378cb359dfd37e0ac46d0488baf3809ae7a06dbbe99d19af570af9a2de41535",
+    "news-train.json": "a8e206fa6f1a449e9af0a85ed349bc98b82e89771b4735a1856044c744abcc97",
+    "politics-dev.json": "9ae8b87114774d0a78b6a9dcac0f434e59c38ba9fb243eaaff2f7df75ffa4fab",
+    "politics-test.json": "95e2432cd6aac170f17019ec96aea60bd2674a7a8583ce4d7d8aaf3c37e0d441",
+    "politics-train.json": "63061d1abd26e9a7f8ef84f9b6aba9c5a1c2f37697270666a3c33b5925b9f125",
+    "science-dev.json": "6a2b5ed08528b504ca7eefa7cec1354d3d2f7f3f0bebeb7f43f82bed077f4d45",
+    "science-test.json": "d1c0bace45532227b44de23121394bc660690b6f1e3c3f011f633eb2c9bd5a42",
+    "science-train.json": "1f860783dc2f05b09ac85447f523b6fafdddc6d861995994ac7bdcba9a01a5f6"
+  },
+  "study": "Retrospective predicate thresholds with fixed retained endpoints and training prompts"
+}

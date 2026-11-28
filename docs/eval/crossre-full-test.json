@@ -508,10 +508,102 @@
           "unmatched_with_inexact_endpoint": 1066
         }
       },
+      "confidence_by_stock_pair": {
+        "stock_pair_absent": {
+          "correct": 157,
+          "suggestions": 1364
+        },
+        "stock_pair_present": {
+          "correct": 39,
+          "suggestions": 349
+        }
+      },
+      "domain_net_match_intervals": {
+        "ai": {
+          "bonferroni_family_95": {
+            "lower": -10,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 5
+          },
+          "pointwise_95": {
+            "lower": -8,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 3
+          }
+        },
+        "literature": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 11
+          },
+          "pointwise_95": {
+            "lower": -10,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 8
+          }
+        },
+        "music": {
+          "bonferroni_family_95": {
+            "lower": -2,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 21
+          },
+          "pointwise_95": {
+            "lower": 1,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 18
+          }
+        },
+        "news": {
+          "bonferroni_family_95": {
+            "lower": -8,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 0
+          },
+          "pointwise_95": {
+            "lower": -7,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 0
+          }
+        },
+        "politics": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 7
+          },
+          "pointwise_95": {
+            "lower": -11,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 4
+          }
+        },
+        "science": {
+          "bonferroni_family_95": {
+            "lower": -13,
+            "method": "99.167% paired bootstrap within domains at fixed review slots",
+            "upper": 9
+          },
+          "pointwise_95": {
+            "lower": -10,
+            "method": "95% paired bootstrap within domains at fixed review slots",
+            "upper": 6
+          }
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "148d66dc5f8c3930d3b5e5b07b1ca3fd07dbf4c4d0edd09f4fd7dfe05619a4c5",
           "one_per_sentence_upper_bound": 37,
+          "paired_review_slots": {
+            "both_correct_different_relation": 1,
+            "both_correct_same_relation": 18,
+            "both_margins_only_correct": 3,
+            "confidence_only_correct": 5,
+            "neither_correct": 160,
+            "no_suggestion": 81
+          },
           "stock": {
             "empty_gold": 63,
             "gold": 760,
@@ -565,6 +657,14 @@
         "literature": {
           "index_text_sha256": "868a8ea7ff4a45b0d725eb5dc6388a02677e7fc04cbc43f74ca2803d903a6ca4",
           "one_per_sentence_upper_bound": 103,
+          "paired_review_slots": {
+            "both_correct_different_relation": 6,
+            "both_correct_same_relation": 20,
+            "both_margins_only_correct": 9,
+            "confidence_only_correct": 10,
+            "neither_correct": 312,
+            "no_suggestion": 26
+          },
           "stock": {
             "empty_gold": 44,
             "gold": 1492,
@@ -618,6 +718,14 @@
         "music": {
           "index_text_sha256": "1a73702829582c20ea4963de3bad954fd5625c171a6ad10fb4a63cdc68175d3e",
           "one_per_sentence_upper_bound": 90,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 26,
+            "both_margins_only_correct": 14,
+            "confidence_only_correct": 5,
+            "neither_correct": 259,
+            "no_suggestion": 35
+          },
           "stock": {
             "empty_gold": 48,
             "gold": 2047,
@@ -671,6 +779,14 @@
         "news": {
           "index_text_sha256": "e965836d393c293bba9e17fea8f07a467cf1e6ab189523b40e39626b54686704",
           "one_per_sentence_upper_bound": 19,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 4,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 3,
+            "neither_correct": 248,
+            "no_suggestion": 87
+          },
           "stock": {
             "empty_gold": 193,
             "gold": 370,
@@ -724,6 +840,14 @@
         "politics": {
           "index_text_sha256": "b4ce7dd36a4db56c91df188ca03dd53398e2a57ed870fe9ade5cef6173d5bf8d",
           "one_per_sentence_upper_bound": 104,
+          "paired_review_slots": {
+            "both_correct_different_relation": 3,
+            "both_correct_same_relation": 39,
+            "both_margins_only_correct": 6,
+            "confidence_only_correct": 9,
+            "neither_correct": 268,
+            "no_suggestion": 37
+          },
           "stock": {
             "empty_gold": 61,
             "gold": 1903,
@@ -777,6 +901,14 @@
         "science": {
           "index_text_sha256": "ba4e283f680fe4170b002397648e64e53a712228d9b6d04b6d60ccd8b97d5b2e",
           "one_per_sentence_upper_bound": 80,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 34,
+            "both_margins_only_correct": 7,
+            "confidence_only_correct": 9,
+            "neither_correct": 231,
+            "no_suggestion": 68
+          },
           "stock": {
             "empty_gold": 93,
             "gold": 1323,
@@ -837,6 +969,14 @@
         "ordered_pair_not_generated": 3,
         "predicate_below_threshold": 3846,
         "predicate_outside_schema": 99
+      },
+      "paired_review_slots": {
+        "both_correct_different_relation": 14,
+        "both_correct_same_relation": 141,
+        "both_margins_only_correct": 39,
+        "confidence_only_correct": 41,
+        "neither_correct": 1478,
+        "no_suggestion": 334
       },
       "reference_structure": {
         "directed_pairs": 7456,
@@ -1170,10 +1310,28 @@
           "unmatched_with_inexact_endpoint": 1152
         }
       },
+      "confidence_by_stock_pair": {
+        "stock_pair_absent": {
+          "correct": 176,
+          "suggestions": 1503
+        },
+        "stock_pair_present": {
+          "correct": 40,
+          "suggestions": 370
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "b7351846f0c1bf4bfb7ed80bf0fbee69e8859da94128326d4082b521549ce48d",
           "one_per_sentence_upper_bound": 43,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 21,
+            "both_margins_only_correct": 3,
+            "confidence_only_correct": 5,
+            "neither_correct": 182,
+            "no_suggestion": 87
+          },
           "stock": {
             "empty_gold": 71,
             "gold": 833,
@@ -1227,6 +1385,14 @@
         "literature": {
           "index_text_sha256": "d885ffc01aa22bb024fcba1e81e4b6da55d0f05b4c45d0a141d597daab7f7323",
           "one_per_sentence_upper_bound": 107,
+          "paired_review_slots": {
+            "both_correct_different_relation": 6,
+            "both_correct_same_relation": 22,
+            "both_margins_only_correct": 9,
+            "confidence_only_correct": 10,
+            "neither_correct": 339,
+            "no_suggestion": 29
+          },
           "stock": {
             "empty_gold": 47,
             "gold": 1613,
@@ -1280,6 +1446,14 @@
         "music": {
           "index_text_sha256": "54f0f5c870bc89b25cba9d23c74eaa63e2298a02c0869d8c95cc6f89ce306ca4",
           "one_per_sentence_upper_bound": 102,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 32,
+            "both_margins_only_correct": 17,
+            "confidence_only_correct": 5,
+            "neither_correct": 278,
+            "no_suggestion": 39
+          },
           "stock": {
             "empty_gold": 53,
             "gold": 2187,
@@ -1333,6 +1507,14 @@
         "news": {
           "index_text_sha256": "4b8eb1b3bbde8318f0e755e95dc54d880cfad83fda75288af541b3d4a1b39d07",
           "one_per_sentence_upper_bound": 21,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 4,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 3,
+            "neither_correct": 272,
+            "no_suggestion": 95
+          },
           "stock": {
             "empty_gold": 210,
             "gold": 394,
@@ -1386,6 +1568,14 @@
         "politics": {
           "index_text_sha256": "c2deac0b747f7e2c3569b90d4a1ea1fffd43189ee4dfb625f3b6c7a4a93a6672",
           "one_per_sentence_upper_bound": 113,
+          "paired_review_slots": {
+            "both_correct_different_relation": 3,
+            "both_correct_same_relation": 45,
+            "both_margins_only_correct": 7,
+            "confidence_only_correct": 9,
+            "neither_correct": 288,
+            "no_suggestion": 42
+          },
           "stock": {
             "empty_gold": 63,
             "gold": 2092,
@@ -1439,6 +1629,14 @@
         "science": {
           "index_text_sha256": "e78c602fc94f6b8095e33e19f420743519d61cf94478751b8ced8df1384f9a07",
           "one_per_sentence_upper_bound": 83,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 36,
+            "both_margins_only_correct": 7,
+            "confidence_only_correct": 9,
+            "neither_correct": 255,
+            "no_suggestion": 74
+          },
           "stock": {
             "empty_gold": 105,
             "gold": 1422,
@@ -1499,6 +1697,14 @@
         "ordered_pair_not_generated": 3,
         "predicate_below_threshold": 4134,
         "predicate_outside_schema": 103
+      },
+      "paired_review_slots": {
+        "both_correct_different_relation": 15,
+        "both_correct_same_relation": 160,
+        "both_margins_only_correct": 43,
+        "confidence_only_correct": 41,
+        "neither_correct": 1614,
+        "no_suggestion": 366
       },
       "reference_structure": {
         "directed_pairs": 8059,
@@ -1836,10 +2042,28 @@
           "unmatched_with_inexact_endpoint": 86
         }
       },
+      "confidence_by_stock_pair": {
+        "stock_pair_absent": {
+          "correct": 19,
+          "suggestions": 139
+        },
+        "stock_pair_present": {
+          "correct": 1,
+          "suggestions": 21
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "5858a4d5a9ddc1b2180b4949ed7722356bb3fbcb7198a263666c3ead1be4de6a",
           "one_per_sentence_upper_bound": 6,
+          "paired_review_slots": {
+            "both_correct_different_relation": 1,
+            "both_correct_same_relation": 3,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 22,
+            "no_suggestion": 6
+          },
           "stock": {
             "empty_gold": 8,
             "gold": 73,
@@ -1893,6 +2117,14 @@
         "literature": {
           "index_text_sha256": "5d8354e166826e5abafe4f9c252be78de89d225ddadf0f5985d83fb2e8dad02a",
           "one_per_sentence_upper_bound": 4,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 2,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 27,
+            "no_suggestion": 3
+          },
           "stock": {
             "empty_gold": 3,
             "gold": 121,
@@ -1946,6 +2178,14 @@
         "music": {
           "index_text_sha256": "2a57ecb04914047dd3596a20edf2c3c902674f17d5f25f28ce75607873aefcc1",
           "one_per_sentence_upper_bound": 12,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 6,
+            "both_margins_only_correct": 3,
+            "confidence_only_correct": 0,
+            "neither_correct": 19,
+            "no_suggestion": 4
+          },
           "stock": {
             "empty_gold": 5,
             "gold": 140,
@@ -1999,6 +2239,14 @@
         "news": {
           "index_text_sha256": "0d7d1cf0e7bf04e45aaffebda5a70a6d01ca2cfd8fc3afc450730d2cfa0003a3",
           "one_per_sentence_upper_bound": 2,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 0,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 24,
+            "no_suggestion": 8
+          },
           "stock": {
             "empty_gold": 17,
             "gold": 24,
@@ -2052,6 +2300,14 @@
         "politics": {
           "index_text_sha256": "12da4c805da521200f93611532d4041565ec30fb78e9e9ef5afb2d348bbc71df",
           "one_per_sentence_upper_bound": 9,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 6,
+            "both_margins_only_correct": 1,
+            "confidence_only_correct": 0,
+            "neither_correct": 20,
+            "no_suggestion": 5
+          },
           "stock": {
             "empty_gold": 2,
             "gold": 189,
@@ -2105,6 +2361,14 @@
         "science": {
           "index_text_sha256": "cd4b1dc2b263aee6ffd287d2c6aadb079bbbd498ed9bbdc71a03280e124c3034",
           "one_per_sentence_upper_bound": 3,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 2,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 24,
+            "no_suggestion": 6
+          },
           "stock": {
             "empty_gold": 12,
             "gold": 99,
@@ -2163,6 +2427,14 @@
         "flat_overlap_suppression": 67,
         "predicate_below_threshold": 288,
         "predicate_outside_schema": 4
+      },
+      "paired_review_slots": {
+        "both_correct_different_relation": 1,
+        "both_correct_same_relation": 19,
+        "both_margins_only_correct": 4,
+        "confidence_only_correct": 0,
+        "neither_correct": 136,
+        "no_suggestion": 32
       },
       "reference_structure": {
         "directed_pairs": 603,
@@ -2370,10 +2642,28 @@
           "unmatched_with_inexact_endpoint": 1253
         }
       },
+      "confidence_by_stock_pair": {
+        "stock_pair_absent": {
+          "correct": 191,
+          "suggestions": 1633
+        },
+        "stock_pair_present": {
+          "correct": 43,
+          "suggestions": 389
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "020a1887ce7a144270a5732523a633322629c68b1e97e5561dd2d11638a6136d",
           "one_per_sentence_upper_bound": 64,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 29,
+            "both_margins_only_correct": 3,
+            "confidence_only_correct": 6,
+            "neither_correct": 263,
+            "no_suggestion": 128
+          },
           "stock": {
             "empty_gold": 105,
             "gold": 1164,
@@ -2427,6 +2717,14 @@
         "literature": {
           "index_text_sha256": "493e2d31fcfffa5c065f87bb8619648dfe49ce82604ad77eeedda8d4cce70465",
           "one_per_sentence_upper_bound": 108,
+          "paired_review_slots": {
+            "both_correct_different_relation": 6,
+            "both_correct_same_relation": 22,
+            "both_margins_only_correct": 10,
+            "confidence_only_correct": 10,
+            "neither_correct": 339,
+            "no_suggestion": 29
+          },
           "stock": {
             "empty_gold": 47,
             "gold": 1623,
@@ -2480,6 +2778,14 @@
         "music": {
           "index_text_sha256": "ad87942e8eaa69a995e04839bbce4e62e0a3bf4bf344e3c99e1fe7c5dbf78e04",
           "one_per_sentence_upper_bound": 112,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 39,
+            "both_margins_only_correct": 18,
+            "confidence_only_correct": 5,
+            "neither_correct": 295,
+            "no_suggestion": 40
+          },
           "stock": {
             "empty_gold": 55,
             "gold": 2415,
@@ -2533,6 +2839,14 @@
         "news": {
           "index_text_sha256": "2ff28b915cb86d45fe48e7e1cee742e10dfe2bddcd0a149f74561c4e02874c83",
           "one_per_sentence_upper_bound": 21,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 4,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 3,
+            "neither_correct": 287,
+            "no_suggestion": 106
+          },
           "stock": {
             "empty_gold": 234,
             "gold": 396,
@@ -2586,6 +2900,14 @@
         "politics": {
           "index_text_sha256": "7fc4579128ee20e645cfbd1a4f69482424e728e9227b939626ce5444d0e7cda6",
           "one_per_sentence_upper_bound": 115,
+          "paired_review_slots": {
+            "both_correct_different_relation": 3,
+            "both_correct_same_relation": 46,
+            "both_margins_only_correct": 7,
+            "confidence_only_correct": 9,
+            "neither_correct": 292,
+            "no_suggestion": 43
+          },
           "stock": {
             "empty_gold": 63,
             "gold": 2124,
@@ -2639,6 +2961,14 @@
         "science": {
           "index_text_sha256": "46984176e0589c66806eb608532893286263e681b3ac00f77c57cf03b0cc3cbf",
           "one_per_sentence_upper_bound": 85,
+          "paired_review_slots": {
+            "both_correct_different_relation": 2,
+            "both_correct_same_relation": 37,
+            "both_margins_only_correct": 8,
+            "confidence_only_correct": 9,
+            "neither_correct": 266,
+            "no_suggestion": 78
+          },
           "stock": {
             "empty_gold": 116,
             "gold": 1446,
@@ -2699,6 +3029,14 @@
         "ordered_pair_not_generated": 3,
         "predicate_below_threshold": 4435,
         "predicate_outside_schema": 108
+      },
+      "paired_review_slots": {
+        "both_correct_different_relation": 15,
+        "both_correct_same_relation": 177,
+        "both_margins_only_correct": 46,
+        "confidence_only_correct": 42,
+        "neither_correct": 1742,
+        "no_suggestion": 424
       },
       "reference_structure": {
         "directed_pairs": 8671,
@@ -3041,10 +3379,28 @@
           "unmatched_with_inexact_endpoint": 101
         }
       },
+      "confidence_by_stock_pair": {
+        "stock_pair_absent": {
+          "correct": 15,
+          "suggestions": 130
+        },
+        "stock_pair_present": {
+          "correct": 3,
+          "suggestions": 19
+        }
+      },
       "domains": {
         "ai": {
           "index_text_sha256": "bc9c1bbe7b0ca3a73463b96147b762bd1ac7b05c36b4b9ba3bcacc5d350da28a",
           "one_per_sentence_upper_bound": 21,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 8,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 1,
+            "neither_correct": 81,
+            "no_suggestion": 41
+          },
           "stock": {
             "empty_gold": 34,
             "gold": 331,
@@ -3098,6 +3454,14 @@
         "literature": {
           "index_text_sha256": "ace843c4dcb54f74d3fc60ae216e54f3604dbd0c27de6928f20cb96e036f18f0",
           "one_per_sentence_upper_bound": 1,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 0,
+            "both_margins_only_correct": 1,
+            "confidence_only_correct": 0,
+            "neither_correct": 0,
+            "no_suggestion": 0
+          },
           "stock": {
             "empty_gold": 0,
             "gold": 10,
@@ -3151,6 +3515,14 @@
         "music": {
           "index_text_sha256": "cefafb3ad347a4164a99c5e7953efe355348c2f23548355248b07efa0509b9fc",
           "one_per_sentence_upper_bound": 10,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 7,
+            "both_margins_only_correct": 1,
+            "confidence_only_correct": 0,
+            "neither_correct": 17,
+            "no_suggestion": 1
+          },
           "stock": {
             "empty_gold": 2,
             "gold": 228,
@@ -3204,6 +3576,14 @@
         "news": {
           "index_text_sha256": "099d72a0d1f1418b2d5a6063e992cc57abca938ebf2b8529bc26c1d89b4dbe06",
           "one_per_sentence_upper_bound": 0,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 0,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 15,
+            "no_suggestion": 11
+          },
           "stock": {
             "empty_gold": 24,
             "gold": 2,
@@ -3257,6 +3637,14 @@
         "politics": {
           "index_text_sha256": "881ed148d89cb88cc488b3fef348809a6c6410552123bd5d1b6aa68fd36776e8",
           "one_per_sentence_upper_bound": 2,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 1,
+            "both_margins_only_correct": 0,
+            "confidence_only_correct": 0,
+            "neither_correct": 4,
+            "no_suggestion": 1
+          },
           "stock": {
             "empty_gold": 0,
             "gold": 32,
@@ -3310,6 +3698,14 @@
         "science": {
           "index_text_sha256": "9bcba95977760ec63ebf50d25b08f4366ef645c6732a25d19438307ef548f09c",
           "one_per_sentence_upper_bound": 2,
+          "paired_review_slots": {
+            "both_correct_different_relation": 0,
+            "both_correct_same_relation": 1,
+            "both_margins_only_correct": 1,
+            "confidence_only_correct": 0,
+            "neither_correct": 11,
+            "no_suggestion": 4
+          },
           "stock": {
             "empty_gold": 11,
             "gold": 24,
@@ -3368,6 +3764,14 @@
         "flat_overlap_suppression": 66,
         "predicate_below_threshold": 301,
         "predicate_outside_schema": 5
+      },
+      "paired_review_slots": {
+        "both_correct_different_relation": 0,
+        "both_correct_same_relation": 17,
+        "both_margins_only_correct": 3,
+        "confidence_only_correct": 1,
+        "neither_correct": 128,
+        "no_suggestion": 58
       },
       "reference_structure": {
         "directed_pairs": 612,

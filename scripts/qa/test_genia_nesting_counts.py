@@ -110,6 +110,22 @@ class GeniaAggregateReplayTest(unittest.TestCase):
         empty = {"sentence": 2, "html": "&lt;&amp;&gt;", "jsonl": ""}
         self.assertEqual(self.generator.verify_export(2, ["<&>"], [], empty), (0, 0, 0))
 
+    def test_nested_example_reads_the_offsets_and_each_exporters_records(self):
+        rows = [
+            {"start": 2, "end": 13, "type": "protein", "text": "cyclophilin"},
+            {"start": 2, "end": 18, "type": "DNA", "text": "cyclophilin gene"},
+        ]
+        sample = self.generator.export_example(
+            {
+                "sentence": 12,
+                "html": '🐈 <mark class="entity entity-DNA">cyclophilin gene<sup>DNA</sup></mark>',
+                "jsonl": "\n".join(map(json.dumps, rows)),
+            }
+        )
+        self.assertEqual(
+            sample, {"sentence": 12, "html": [rows[1]], "jsonl": [rows[1], rows[0]]}
+        )
+
     def test_grounded_adapter_retains_unicode_occurrences_and_negative_sentences(self):
         doc = self.overlap.grounded_sentence(
             "test-1",

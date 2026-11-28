@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GENIA gold span overlap across train, dev and test</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 570 721" width="570" height="721" role="img" aria-labelledby="title desc">
+<title id="title">GENIA gold span overlap across train, dev and test</title><desc id="desc">9,652 of 55,740 signals share at least one character. Of 3,103,238 total characters, 47,678 are covered by at least two signals. The depth table and bar report the exact count and share at each overlap depth.</desc>
+<style>text{font:17px "DejaVu Sans",sans-serif;fill:#183541}.title{font-size:25px;font-weight:700}.heading{font-size:20px;font-weight:700}.muted,.col{font-size:15px;fill:#456371}.col{font-weight:700}.value,.num{font-variant-numeric:tabular-nums}.num{text-anchor:end}</style>
+<rect width="570" height="721" fill="white"/><text x="26" y="39" class="title">GENIA gold span overlap across</text>
+<text x="26" y="69" class="title">train, dev and test</text>
+<text x="26" y="106" class="heading">Where signals share a character</text>
+<text x="26" y="129" class="value">3,816 / 18,546 documents (20.6%)</text>
+<text x="26" y="152" class="value">9,652 / 55,740 signals (17.3%)</text>
+<text x="26" y="175" class="value">47,678 / 3,103,238 source characters (1.54%)</text>
+<text x="26" y="216" class="heading">Coverage depth by Unicode character</text>
+<text x="26" y="247" class="col">Depth</text><text x="288" y="247" class="col num">Characters</text><text x="411" y="247" class="col num">Of all text</text><text x="544" y="247" class="col num">Of shared text</text>
+<text x="26" y="273">0 signals</text><text x="288" y="273" class="num">2,357,839</text><text x="411" y="273" class="num">76.0%</text><text x="544" y="273" class="num">—</text>
+<text x="26" y="299">1 signal</text><text x="288" y="299" class="num">697,721</text><text x="411" y="299" class="num">22.5%</text><text x="544" y="299" class="num">—</text>
+<text x="26" y="325">2 signals</text><text x="288" y="325" class="num">46,823</text><text x="411" y="325" class="num">1.51%</text><text x="544" y="325" class="num">98.2%</text>
+<text x="26" y="351">3+ signals</text><text x="288" y="351" class="num">855</text><text x="411" y="351" class="num">0.03%</text><text x="544" y="351" class="num">1.79%</text>
+<text x="26" y="381" class="muted">Within positions shared by two or more signals</text>
+<rect x="26" y="391" width="518" height="12" fill="#805670"/><rect x="26" y="391" width="508.711" height="12" fill="#216f72"/>
+<circle cx="31" cy="419" r="5" fill="#216f72"/><text x="43" y="424" class="muted">2 signals</text><circle cx="159" cy="419" r="5" fill="#805670"/><text x="171" y="424" class="muted">3+ signals</text>
+<text x="26" y="464" class="heading">Overlap by signal label</text>
+<text x="26" y="488" class="muted">Largest affected count · protein · 5,738 of 34,097</text>
+<text x="26" y="508" class="muted">signals (16.8%)</text>
+<text x="26" y="532" class="muted">Ranked by the share of each label’s signals affected.</text>
+<text x="26" y="563" class="col">Label</text><text x="429" y="563" class="col num">Affected / all</text><text x="544" y="563" class="col num">Of label</text>
+<text x="26" y="589" class="">RNA</text>
+<text x="429" y="589" class="num">418 / 933</text><text x="544" y="589" class="num">44.8%</text>
+<text x="26" y="615" class="">DNA</text>
+<text x="429" y="615" class="num">2,219 / 9,933</text><text x="544" y="615" class="num">22.3%</text>
+<text x="26" y="641" class="">protein</text>
+<text x="429" y="641" class="num">5,738 / 34,097</text><text x="544" y="641" class="num">16.8%</text>
+<text x="26" y="667" class="">cell_type</text>
+<text x="429" y="667" class="num">830 / 6,987</text><text x="544" y="667" class="num">11.9%</text>
+<text x="26" y="693" class="">cell_line</text>
+<text x="429" y="693" class="num">447 / 3,790</text><text x="544" y="693" class="num">11.8%</text>
+</svg>
+<div class="scroll"><section class="overlap-report"><h1 class="mobile-intro">GENIA gold span overlap across train, dev and test</h1><table><caption>Population with shared positions</caption><thead><tr><th scope="col">Population</th><th scope="col">Sharing</th><th scope="col">All</th><th scope="col">Share</th></tr></thead><tbody><tr><th scope="row">Documents</th><td data-label="Sharing">3,816</td><td data-label="All">18,546</td><td data-label="Share">20.6%</td></tr><tr><th scope="row">Signals</th><td data-label="Sharing">9,652</td><td data-label="All">55,740</td><td data-label="Share">17.3%</td></tr><tr><th scope="row">Source characters</th><td data-label="Sharing">47,678</td><td data-label="All">3,103,238</td><td data-label="Share">1.54%</td></tr></tbody></table><table><caption>Coverage of all 3,103,238 Unicode scalar positions</caption><thead><tr><th scope="col">Depth</th><th scope="col">Characters</th><th scope="col">Of all text</th><th scope="col">Of shared text</th></tr></thead><tbody><tr><th scope="row">0 signals</th><td data-label="Characters">2,357,839</td><td data-label="Of all text">76.0%</td><td data-label="Of shared text">—</td></tr><tr><th scope="row">1 signal</th><td data-label="Characters">697,721</td><td data-label="Of all text">22.5%</td><td data-label="Of shared text">—</td></tr><tr><th scope="row">2 signals</th><td data-label="Characters">46,823</td><td data-label="Of all text">1.51%</td><td data-label="Of shared text">98.2%</td></tr><tr><th scope="row">3+ signals</th><td data-label="Characters">855</td><td data-label="Of all text">0.03%</td><td data-label="Of shared text">1.79%</td></tr></tbody></table><table><caption>Labels by affected share</caption><thead><tr><th scope="col">Label</th><th scope="col">Sharing</th><th scope="col">All signals</th><th scope="col">Share of label</th></tr></thead><tbody><tr><th scope="row">RNA</th><td data-label="Sharing">418</td><td data-label="All signals">933</td><td data-label="Share of label">44.8%</td></tr><tr><th scope="row">DNA</th><td data-label="Sharing">2,219</td><td data-label="All signals">9,933</td><td data-label="Share of label">22.3%</td></tr><tr><th scope="row">protein</th><td data-label="Sharing">5,738</td><td data-label="All signals">34,097</td><td data-label="Share of label">16.8%</td></tr><tr><th scope="row">cell_type</th><td data-label="Sharing">830</td><td data-label="All signals">6,987</td><td data-label="Share of label">11.9%</td></tr><tr><th scope="row">cell_line</th><td data-label="Sharing">447</td><td data-label="All signals">3,790</td><td data-label="Share of label">11.8%</td></tr></tbody></table><details><summary>Rank all labels by affected count</summary><table><caption>Labels by affected count</caption><thead><tr><th scope="col">Label</th><th scope="col">Sharing</th><th scope="col">All signals</th><th scope="col">Share of label</th></tr></thead><tbody><tr><th scope="row">protein</th><td data-label="Sharing">5,738</td><td data-label="All signals">34,097</td><td data-label="Share of label">16.8%</td></tr><tr><th scope="row">DNA</th><td data-label="Sharing">2,219</td><td data-label="All signals">9,933</td><td data-label="Share of label">22.3%</td></tr><tr><th scope="row">cell_type</th><td data-label="Sharing">830</td><td data-label="All signals">6,987</td><td data-label="Share of label">11.9%</td></tr><tr><th scope="row">cell_line</th><td data-label="Sharing">447</td><td data-label="All signals">3,790</td><td data-label="Share of label">11.8%</td></tr><tr><th scope="row">RNA</th><td data-label="Sharing">418</td><td data-label="All signals">933</td><td data-label="Share of label">44.8%</td></tr></tbody></table></details></section></div></main></body></html>

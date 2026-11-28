@@ -1,14 +1,41 @@
 """Check reconstruction and abstention when the native candidate order matters."""
 
-from copy import deepcopy
 import json
-from pathlib import Path
 import unittest
+from copy import deepcopy
+from pathlib import Path
 
-from native_gap_link_retention import Decision, Observation, chart, select, validate_trace
+from native_gap_link_retention import (
+    Decision,
+    Observation,
+    chart,
+    paired_chart,
+    paired_interval,
+    select,
+    validate_trace,
+)
 
 
 class NativeMarginTest(unittest.TestCase):
+    def test_bootstrap_keeps_excerpts_from_one_article_together(self):
+        rows = [
+            {"ID": str(i), "URL": work, "A-coref": "TRUE", "B-coref": "FALSE"}
+            for i, work in enumerate(
+                ["article-a", "article-a", "article-b", "article-b"]
+            )
+        ]
+        before = ["11110", "11100", "11110", "11100"]
+        after = ["11100", "11110", "11110", "11100"]
+        ci = paired_interval(rows, before, after, "URL", draws=100)
+        self.assertEqual(ci["net_correct_95"], [0, 0])
+        self.assertEqual(ci["retention_percent_95"], [0, 100])
+        empty = ["11100"] * len(rows)
+        self.assertIsNone(
+            paired_interval(rows, empty, empty, "URL", draws=100)[
+                "retention_percent_95"
+            ]
+        )
+
     def test_rival_includes_subthreshold_scores_and_one_candidate_has_no_rival(self):
         two = Decision((8, 11), "pronominal", 0.225, [(1, 0.21), (0, 0.24)], 0)
         self.assertIsNone(two.parent("rival", 0.04))
@@ -90,11 +117,33 @@ class NativeMarginTest(unittest.TestCase):
             chart(receipt["panels"]),
             json.loads((root / "native-gap-margin-tradeoff.json").read_text()),
         )
+        comparison = paired_chart(receipt)
+        self.assertEqual(
+            comparison,
+            json.loads((root / "native-gap-retention-paired.json").read_text()),
+        )
+        for row, group in zip(
+            comparison["rows"], receipt["panels"].values(), strict=True
+        ):
+            flips = group["paired_vs_neutral"]["Threshold margin"]
+            self.assertEqual(row["gained"], flips["correct_gained"])
+            self.assertEqual(row["lost"], flips["correct_lost"])
+            self.assertEqual(
+                row["baseline"]["unmatched"] - row["candidate"]["unmatched"],
+                flips["incorrect_removed"] - flips["incorrect_added"],
+            )
+        self.assertEqual(
+            [r["observations"] for r in comparison["rows"]], [2000, 454, 2000, 720, 720]
+        )
         for group in receipt["panels"].values():
             neutral = group["operating_points"]["Neutral type"]
             for hashes in group["checked_native_margin_partitions_sha256"].values():
-                self.assertEqual(len(hashes), len(receipt["checked_native_margin_grid"]))
-                self.assertEqual(hashes[0], group["native_partitions_sha256"]["neutral"])
+                self.assertEqual(
+                    len(hashes), len(receipt["checked_native_margin_grid"])
+                )
+                self.assertEqual(
+                    hashes[0], group["native_partitions_sha256"]["neutral"]
+                )
             self.assertEqual(
                 sum(group["diagnostic"]["wrong_links_by_target_search"].values()),
                 neutral["fp"],

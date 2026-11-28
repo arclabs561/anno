@@ -120,7 +120,7 @@ CONTROLLED = {
 }
 
 
-def registry_rows():
+def registry_rows(*, include_declared_tasks=False):
     body = REGISTRY.read_text().split("\ndefine_datasets! {", 1)[1]
     rows = []
     task_counts = Counter()
@@ -139,6 +139,8 @@ def registry_rows():
             values = re.findall('"([^"]+)"', values[1]) if values else []
             if name == "tasks":
                 task_counts.update(set(values))
+                if include_declared_tasks:
+                    fields["declared_tasks"] = "|".join(values)
             else:
                 fields["declared_splits"] = "|".join(values)
         rows.append(fields)

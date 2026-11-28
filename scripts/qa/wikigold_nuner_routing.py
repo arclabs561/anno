@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Replay NuNER routing on the WikiGold release whose bytes CI matched to S3."""
+
 import argparse
 from collections import Counter
 import csv
@@ -24,9 +25,10 @@ S3_NATIVE_CASES_SHA256 = (
 )
 
 
-def parse_release(text):
+def parse_release_with_documents(text):
     """Keep sentence occurrences in order, treating document markers as metadata."""
     cases = []
+    document_ids = []
     documents = markers = tokens = tagged = 0
     new_document = True
     for block in text.strip().split("\n\n"):
@@ -40,10 +42,11 @@ def parse_release(text):
         new_document = False
         sentence, gold = replay_wikigold.annotated_sentence(block)
         cases.append((sentence, gold))
+        document_ids.append(documents)
         rows = block.splitlines()
         tokens += len(rows)
         tagged += sum(row.split()[-1] != "O" for row in rows)
-    return cases, {
+    summary = {
         "documents_with_sentences": documents,
         "document_markers_excluded": markers,
         "sentence_occurrences": len(cases),
@@ -54,8 +57,15 @@ def parse_release(text):
         "gold_empty_sentences": sum(not gold for _, gold in cases),
     }
 
+    return cases, summary, document_ids
 
-def load_release(path):
+
+def parse_release(text):
+    cases, summary, _ = parse_release_with_documents(text)
+    return cases, summary
+
+
+def load_release_with_documents(path):
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     if digest != replay_wikigold.WIKIGOLD:
@@ -71,7 +81,7 @@ def load_release(path):
             and row["ledger"] == "dataset-direct-files.csv"
             and row["split_or_subset"] == "complete linked release"
         ]
-    cases, summary = parse_release(raw.decode("utf-8"))
+    cases, summary, document_ids = parse_release_with_documents(raw.decode("utf-8"))
     expected = (len(raw), len(cases), summary["tokens"], summary["tagged_tokens"])
     if not matches or not all(
         tuple(int(r[k]) for k in ("payload_bytes", "records", "tokens", "tagged"))
@@ -112,6 +122,11 @@ def load_release(path):
         cold_s3_artifact=15123052847,
         cold_s3_receipt="wikigold-cold.json",
     )
+    return cases, summary, document_ids
+
+
+def load_release(path):
+    cases, summary, _ = load_release_with_documents(path)
     return cases, summary
 
 
@@ -179,7 +194,7 @@ def replay(args, wnut):
     }
 
 
-def tradeoff(wikigold, wnut):
+def check_measurement_protocol(wikigold, wnut):
     for key in (
         "checkpoint_sha256",
         "bert_sha256",
@@ -189,6 +204,10 @@ def tradeoff(wikigold, wnut):
     ):
         if wikigold[key] != wnut[key]:
             raise ValueError(f"The two routing studies differ on {key}")
+
+
+def tradeoff(wikigold, wnut):
+    check_measurement_protocol(wikigold, wnut)
     series = []
     for dataset, arms in (
         ("WNUT-17 test", wnut["splits"]["Test"]),
@@ -226,6 +245,71 @@ def tradeoff(wikigold, wnut):
     }
 
 
+def paired(wikigold, wnut):
+    check_measurement_protocol(wikigold, wnut)
+    rows = []
+    for corpus, role, arms in (
+        ("WikiGold", "Complete release · 4 scored WikiGold types", wikigold["arms"]),
+        ("WNUT-17 test", "Official test · 5 mapped WNUT types", wnut["splits"]["Test"]),
+        (
+            "WNUT-17 development",
+            "Development · 5 mapped WNUT types",
+            wnut["splits"]["Development"],
+        ),
+    ):
+        for key, label in (
+            ("without_bert", "BERT absent"),
+            ("with_bert", "BERT loaded"),
+        ):
+            arm = arms[key]
+            counts = arm["skipped_subset"]
+            n = arm["stock_skipped"]
+            row = {
+                "label": f"{corpus} · {label}",
+                "role": role,
+                "observations": n,
+                "gained": counts["exact_gained"],
+                "lost": counts["exact_lost"],
+            }
+            for which, prefix, calls in (
+                ("baseline", "stock", 0),
+                ("candidate", "candidate", n),
+            ):
+                timing = arm["warm_skipped_subset_latency"][prefix]
+                if timing["calls"] != n:
+                    raise ValueError(
+                        f"Warm stack timings omit skipped sentences in {row['label']}"
+                    )
+                row[which] = {
+                    "correct": counts[f"{prefix}_exact"],
+                    "unmatched": counts[f"{prefix}_in_schema_unmatched"],
+                    "calls": calls,
+                    "median_ms": timing["median_ms"],
+                }
+            if (
+                row["candidate"]["correct"] - row["baseline"]["correct"]
+                != row["gained"] - row["lost"]
+            ):
+                raise ValueError(
+                    "Paired exact gains and losses disagree with the two arms"
+                )
+            if (
+                row["candidate"]["unmatched"] - row["baseline"]["unmatched"]
+                != counts["in_schema_unmatched_added"]
+                - counts["in_schema_unmatched_removed"]
+            ):
+                raise ValueError("Paired unmatched changes disagree with the two arms")
+            rows.append(row)
+    return {
+        "schema": "anno.paired/v1",
+        "title": "What does a skipped NuNER call buy?",
+        "unit": "stock-skipped sentences",
+        "baseline": "Skip NuNER",
+        "candidate": "Run NuNER",
+        "rows": rows,
+    }
+
+
 def write_json(path, value):
     path.write_text(
         json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
@@ -252,11 +336,15 @@ def main():
     run.add_argument(
         "--chart", type=Path, help="Also write the native tradeoff chart input"
     )
+    run.add_argument(
+        "--paired", type=Path, help="Also write the paired outcomes and costs"
+    )
     chart = modes.add_parser(
         "chart", help="Build the chart from the two recorded studies"
     )
     chart.add_argument("receipt", type=Path)
     chart.add_argument("output", type=Path)
+    chart.add_argument("--view", choices=("tradeoff", "paired"), default="tradeoff")
     args = p.parse_args()
     wnut = json.loads(STUDY.read_text(encoding="utf-8"))
     if args.action == "chart":
@@ -267,13 +355,15 @@ def main():
             )
         write_json(
             args.output,
-            tradeoff(receipt, wnut),
+            paired(receipt, wnut) if args.view == "paired" else tradeoff(receipt, wnut),
         )
         return
     result = replay(args, wnut)
     write_json(args.output, result)
     if args.chart:
         write_json(args.chart, tradeoff(result, wnut))
+    if args.paired:
+        write_json(args.paired, paired(result, wnut))
 
 
 if __name__ == "__main__":

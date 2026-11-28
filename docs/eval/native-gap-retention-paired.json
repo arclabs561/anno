@@ -1,0 +1,109 @@
+{
+  "schema": "anno.paired/v1",
+  "title": "GAP validation retained 62.2% of correct links (target 80%)",
+  "unit": "supplied-span examples",
+  "baseline": "Neutral mention type",
+  "candidate": "Threshold margin 0.025",
+  "rows": [
+    {
+      "label": "GAP development",
+      "role": "Cutoff selection",
+      "observations": 2000,
+      "baseline": {
+        "correct": 123,
+        "unmatched": 138
+      },
+      "candidate": {
+        "correct": 103,
+        "unmatched": 103
+      },
+      "gained": 0,
+      "lost": 20,
+      "interval": {
+        "lower": -29,
+        "upper": -12,
+        "method": "95% paired bootstrap by article URL, within cluster size"
+      }
+    },
+    {
+      "label": "GAP validation",
+      "role": "Fixed cutoff",
+      "observations": 454,
+      "baseline": {
+        "correct": 37,
+        "unmatched": 39
+      },
+      "candidate": {
+        "correct": 23,
+        "unmatched": 34
+      },
+      "gained": 0,
+      "lost": 14,
+      "interval": {
+        "lower": -22,
+        "upper": -7,
+        "method": "95% paired bootstrap by article URL, within cluster size"
+      }
+    },
+    {
+      "label": "GAP test",
+      "role": "Fixed cutoff",
+      "observations": 2000,
+      "baseline": {
+        "correct": 131,
+        "unmatched": 141
+      },
+      "candidate": {
+        "correct": 108,
+        "unmatched": 108
+      },
+      "gained": 0,
+      "lost": 23,
+      "interval": {
+        "lower": -33,
+        "upper": -14,
+        "method": "95% paired bootstrap by article URL, within cluster size"
+      }
+    },
+    {
+      "label": "Full role phrases",
+      "role": "Winogender · same sentences",
+      "observations": 720,
+      "baseline": {
+        "correct": 65,
+        "unmatched": 57
+      },
+      "candidate": {
+        "correct": 52,
+        "unmatched": 48
+      },
+      "gained": 0,
+      "lost": 13,
+      "interval": {
+        "lower": -21,
+        "upper": -6,
+        "method": "95% paired bootstrap by Winogender template, within cluster size"
+      }
+    },
+    {
+      "label": "Bare role heads",
+      "role": "Winogender · same sentences",
+      "observations": 720,
+      "baseline": {
+        "correct": 3,
+        "unmatched": 3
+      },
+      "candidate": {
+        "correct": 2,
+        "unmatched": 2
+      },
+      "gained": 0,
+      "lost": 1,
+      "interval": {
+        "lower": -3,
+        "upper": 0,
+        "method": "95% paired bootstrap by Winogender template, within cluster size"
+      }
+    }
+  ]
+}

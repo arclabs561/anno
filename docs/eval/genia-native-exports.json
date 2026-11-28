@@ -56,7 +56,32 @@
       "html_marks": 4883,
       "hidden_mentions": 591,
       "sentences_with_hidden_mentions": 428,
-      "sentences_without_gold_mentions": 236
+      "sentences_without_gold_mentions": 236,
+      "export_example": {
+        "sentence": 600,
+        "jsonl": [
+          {
+            "text": "cyclophilin gene",
+            "type": "DNA",
+            "start": 67,
+            "end": 83
+          },
+          {
+            "text": "cyclophilin",
+            "type": "protein",
+            "start": 67,
+            "end": 78
+          }
+        ],
+        "html": [
+          {
+            "text": "cyclophilin gene",
+            "type": "DNA",
+            "start": 67,
+            "end": 83
+          }
+        ]
+      }
     }
   }
 }

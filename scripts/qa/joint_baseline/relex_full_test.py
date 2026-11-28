@@ -320,6 +320,88 @@ def panel_report(rows):
     }
 
 
+def paired_review_slots(rows):
+    """Count sentence-level outcomes separately from changes in correct relation identity."""
+    counts = Counter(dict.fromkeys((
+        "no_suggestion", "neither_correct", "confidence_only_correct",
+        "both_margins_only_correct", "both_correct_same_relation", "both_correct_different_relation",
+    ), 0))
+    for row in rows:
+        baseline, candidate = row["score"], row["both_margins"]
+        budget = baseline["added"]
+        if budget not in (0, 1) or candidate["added"] != budget:
+            raise ValueError("The paired sentence comparison requires one shared review slot")
+        correct = baseline["correct_added"], candidate["correct_added"]
+        changed = candidate["different_from_score_only"]
+        gained = candidate["correct_gained_vs_score_only"]
+        lost = candidate["correct_lost_vs_score_only"]
+        if (any(value not in (0, 1) or value > budget for value in (*correct, changed))
+                or (not changed and correct[0] != correct[1])
+                or gained != changed * correct[1] or lost != changed * correct[0]):
+            raise ValueError("Paired review counts disagree with the change in relation identity")
+        if budget == 0:
+            key = "no_suggestion"
+        elif correct == (1, 1):
+            key = "both_correct_different_relation" if changed else "both_correct_same_relation"
+        else:
+            key = {(0, 0): "neither_correct", (1, 0): "confidence_only_correct",
+                   (0, 1): "both_margins_only_correct"}[correct]
+        counts[key] += 1
+    return dict(counts)
+
+
+def paired_interval(strata, *, alpha=0.05):
+    """Paired percentile interval for net matches, resampling review slots within each domain.
+
+    The contribution of a paired sentence is -1, 0 or +1. Convolving these empirical
+    distributions gives the ordinary stratified bootstrap without a random seed.
+    """
+    if not 0 < alpha < 1:
+        raise ValueError("Bootstrap alpha must be between zero and one")
+    probabilities = [1.0]
+    observations = 0
+    for counts in strata:
+        slots = sum(counts.values()) - counts["no_suggestion"]
+        if not slots:
+            continue
+        plus = counts["both_margins_only_correct"] / slots
+        minus = counts["confidence_only_correct"] / slots
+        zero = 1 - plus - minus
+        for _ in range(slots):
+            updated = [0.0] * (len(probabilities) + 2)
+            for i, probability in enumerate(probabilities):
+                updated[i] += minus * probability
+                updated[i + 1] += zero * probability
+                updated[i + 2] += plus * probability
+            probabilities = updated
+        observations += slots
+    if not observations:
+        return None
+    total = sum(probabilities)
+    quantiles = [alpha / 2 * total, (1 - alpha / 2) * total]
+    endpoints = []
+    cumulative = 0.0
+    for i, probability in enumerate(probabilities):
+        cumulative += probability
+        while len(endpoints) < 2 and cumulative >= quantiles[len(endpoints)]:
+            endpoints.append(i - observations)
+    lower, upper = endpoints
+    return {"lower": lower, "upper": upper,
+            "method": f"{100 * (1 - alpha):.5g}% paired bootstrap within domains at fixed review slots"}
+
+
+def confidence_pair_support(rows):
+    """Can another stock predicate on the same directed span pair identify better suggestions?"""
+    strata = {key: {"suggestions": 0, "correct": 0} for key in ("stock_pair_present", "stock_pair_absent")}
+    for row in rows:
+        arm = row["score"]
+        if arm["added"]:
+            key = "stock_pair_present" if arm["on_already_emitted_pair"] else "stock_pair_absent"
+            strata[key]["suggestions"] += arm["added"]
+            strata[key]["correct"] += arm["correct_added"]
+    return strata
+
+
 def summarize(directory, cache):
     baseline = json.loads(BASELINE.read_text())
     baseline_sha = study.digest(BASELINE.read_bytes())
@@ -377,6 +459,7 @@ def summarize(directory, cache):
             indices = [i for d, i, _ in cells if d == domain]
             sub = panel_report(rows[domain, i] for i in indices)
             domains[domain] = {
+                "paired_review_slots": paired_review_slots(rows[domain, i] for i in indices),
                 "index_text_sha256": study.digest(
                     "".join(
                         f"{i}\t{study.text_id(data[domain, 'test'][i])}\n" for i in indices
@@ -402,7 +485,19 @@ def summarize(directory, cache):
                     for arm, counts in sub["additional_edges"].items()
                 },
             }
-        panels[name] = {**group, "domains": domains}
+        panels[name] = {
+            **group, "domains": domains,
+            "paired_review_slots": paired_review_slots(rows[d, i] for d, i, _ in cells),
+            "confidence_by_stock_pair": confidence_pair_support(rows[d, i] for d, i, _ in cells),
+        }
+    # Each domain was inspected. Record both pointwise intervals and the wider
+    # percentile intervals at alpha / six for familywise comparison.
+    additional = panels["additional_test"]
+    additional["domain_net_match_intervals"] = {
+        domain: {"pointwise_95": paired_interval([entry["paired_review_slots"]]),
+                 "bonferroni_family_95": paired_interval([entry["paired_review_slots"]], alpha=0.05 / len(study.DOMAINS))}
+        for domain, entry in additional["domains"].items()
+    }
     prior_native = study.ROOT / "docs/eval/crossre-full-prompt-comparison.json"
     prior = json.loads(prior_native.read_text())
     if (

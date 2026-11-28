@@ -23,13 +23,15 @@ The external SauerkrautLM-GLiNEREL-72m checkpoint ran on CPU with FP32, glinerel
 
 Compared on the same 120 test paragraphs, the external checkpoint recovered **175** reference mentions missed by the heuristic and lost **13** that the heuristic got right. Swapping backends would therefore introduce real regressions even on this favorable comparison.
 
-On this panel, long paragraphs had lower external checkpoint F1 in three languages and higher F1 in two. Topics, entity mixes and annotation density also differ between cells. RED-FM was assembled for relation extraction. Its entity boundaries and types are the scoring reference and can omit real mentions or label them differently. The sample uses European languages with whitespace word boundaries. It gives no estimate for Cyrillic, unspaced scripts, other domains, or languages absent from the panel. We therefore ran a separate English and Russian experiment on MultiNERD.
+**Do not choose an Anno backend by paragraph length from this panel.** Each test cell contains 12 paragraphs. Long paragraphs had lower external checkpoint F1 in three languages and higher F1 in two. Topics, entity mixes and annotation density also differ between cells. RED-FM was assembled for relation extraction. Its entity boundaries and types are the scoring reference and can omit real mentions or label them differently. The sample uses European languages with whitespace word boundaries. It gives no estimate for Cyrillic, unspaced scripts, other domains, or languages absent from the panel. We therefore ran a separate English and Russian experiment on MultiNERD.
 
 ### Paired GLiNEREL and heuristic results
 
 ![Paired change in exact-span F1 when switching from Anno heuristic to GLiNEREL-72m. The 95% intervals lie above zero in all ten RED-FM groups and in one of the four MultiNERD groups. Each row gives gold mentions and matches gained or lost.](../figures/ner-language-length.png)
 
 With 12 test inputs per group, the paired 95% interval favors GLiNEREL in all ten RED-FM groups (436 gold mentions altogether). On MultiNERD (48 test sentences, 68 gold mentions), only long English has an interval wholly above zero, from +24.4 to +68.0 F1 points. On long Russian sentences the checkpoint gained two matches and lost four among nine references. The estimate was −18.1 points, with an interval from −67.5 to +40.0. Each interval compares the two models by resampling whole inputs within one language and length group. [Paired counts and intervals](ner-language-length.json)
+
+The measured advantage of switching backends was 8.1 F1 points smaller in long English RED-FM paragraphs than in short ones. In Italian it was 23.9 points larger. Each difference compares two sets of 12 different paragraphs. To decide whether to shorten an input for a particular backend, score the same reference mentions with and without their surrounding context, keep their offsets aligned, and count the exact matches gained and lost. [Source panels and backend identities](ner-language-length.json)
 
 ### Smaller ONNX panel
 

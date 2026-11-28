@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="1190" viewBox="0 0 520 1190" role="img" aria-labelledby="paired-title paired-desc">
+<title id="paired-title">GAP validation retained 62.2% of correct links (target 80%)</title><desc id="paired-desc">Baseline Neutral mention type compared with candidate Threshold margin 0.025 on the same inputs. Total suggestions include exact and unmatched predictions. GAP development. Cutoff selection · 2,000 supplied-span examples. −20 net exact matches · 123 → 103. Gained 0 · lost 20. Retained 103 of 123 baseline matches (83.7%). Interval -29 to -12 net matches · 95% paired bootstrap by article URL, within cluster size. Change in total suggestions is −55 (261 to 206). Change in unmatched is −35 (138 to 103). GAP validation. Fixed cutoff · 454 supplied-span examples. −14 net exact matches · 37 → 23. Gained 0 · lost 14. Retained 23 of 37 baseline matches (62.2%). Interval -22 to -7 net matches · 95% paired bootstrap by article URL, within cluster size. Change in total suggestions is −19 (76 to 57). Change in unmatched is −5 (39 to 34). GAP test. Fixed cutoff · 2,000 supplied-span examples. −23 net exact matches · 131 → 108. Gained 0 · lost 23. Retained 108 of 131 baseline matches (82.4%). Interval -33 to -14 net matches · 95% paired bootstrap by article URL, within cluster size. Change in total suggestions is −56 (272 to 216). Change in unmatched is −33 (141 to 108). Full role phrases. Winogender · same sentences · 720 supplied-span examples. −13 net exact matches · 65 → 52. Gained 0 · lost 13. Retained 52 of 65 baseline matches (80.0%). Interval -21 to -6 net matches · 95% paired bootstrap by Winogender template, within cluster size. Change in total suggestions is −22 (122 to 100). Change in unmatched is −9 (57 to 48). Bare role heads. Winogender · same sentences · 720 supplied-span examples. −1 net exact match · 3 → 2. Gained 0 · lost 1. Retained 2 of 3 baseline matches (66.7%). Interval -3 to 0 net matches · 95% paired bootstrap by Winogender template, within cluster size. Change in total suggestions is −2 (6 to 4). Change in unmatched is −1 (3 to 2).</desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:17px}.heading{font-size:25px;font-weight:700}.cohort{font-size:20px;font-weight:700}.score{font-size:17px;font-weight:700;fill:#00675c}.measure{font-size:17px;font-weight:600}.tick,.scope{font-size:17px;fill:#415e66}</style>
+<rect width="100%" height="100%" fill="white"/><text x="18" y="32" class="heading">GAP validation retained 62.2%</text>
+<text x="18" y="61" class="heading">of correct links (target 80%)</text>
+<text x="18" y="90" class="scope">Baseline · Neutral mention type → Candidate ·</text>
+<text x="18" y="110" class="scope">Threshold margin 0.025</text>
+<text x="18" y="130" class="scope">Net exact matches · −33 to +33 · center is zero</text>
+<path d="M18 150H502" stroke="#bdcec9"/>
+<text x="18" y="175" class="cohort">GAP development</text>
+<text x="18" y="199" class="scope">Cutoff selection · 2,000 supplied-span examples</text>
+<path d="M390 216H494" stroke="#d2deda"/><path d="M442 206v20" stroke="#688079"/>
+<path d="M396.30 210v12M396.30 216H423.09M423.09 210v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="410.48" cy="216" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="221" class="score">−20 net exact matches · 123 → 103</text>
+<text x="18" y="243" class="scope">Interval -29 to -12 net matches · 95% paired</text>
+<text x="18" y="263" class="scope">bootstrap by article URL, within cluster size</text>
+<text x="18" y="283" class="scope">Gained 0 · lost 20 · retained 103/123 (83.7%)</text>
+<text x="18" y="303" class="measure">Total suggestions</text>
+<text x="18" y="322" class="scope">261 → 206 (change −55)</text>
+<text x="267" y="303" class="measure">Unmatched</text>
+<text x="267" y="322" class="scope">138 → 103 (change −35)</text>
+<path d="M18 346H502" stroke="#bdcec9"/>
+<text x="18" y="371" class="cohort">GAP validation</text>
+<text x="18" y="395" class="scope">Fixed cutoff · 454 supplied-span examples</text>
+<path d="M390 412H494" stroke="#d2deda"/><path d="M442 402v20" stroke="#688079"/>
+<path d="M407.33 406v12M407.33 412H430.97M430.97 406v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="419.94" cy="412" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="417" class="score">−14 net exact matches · 37 → 23</text>
+<text x="18" y="439" class="scope">Interval -22 to -7 net matches · 95% paired</text>
+<text x="18" y="459" class="scope">bootstrap by article URL, within cluster size</text>
+<text x="18" y="479" class="scope">Gained 0 · lost 14 · retained 23/37 (62.2%)</text>
+<text x="18" y="499" class="measure">Total suggestions</text>
+<text x="18" y="518" class="scope">76 → 57 (change −19)</text>
+<text x="267" y="499" class="measure">Unmatched</text>
+<text x="267" y="518" class="scope">39 → 34 (change −5)</text>
+<path d="M18 542H502" stroke="#bdcec9"/>
+<text x="18" y="567" class="cohort">GAP test</text>
+<text x="18" y="591" class="scope">Fixed cutoff · 2,000 supplied-span examples</text>
+<path d="M390 608H494" stroke="#d2deda"/><path d="M442 598v20" stroke="#688079"/>
+<path d="M390.00 602v12M390.00 608H419.94M419.94 602v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="405.76" cy="608" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="613" class="score">−23 net exact matches · 131 → 108</text>
+<text x="18" y="635" class="scope">Interval -33 to -14 net matches · 95% paired</text>
+<text x="18" y="655" class="scope">bootstrap by article URL, within cluster size</text>
+<text x="18" y="675" class="scope">Gained 0 · lost 23 · retained 108/131 (82.4%)</text>
+<text x="18" y="695" class="measure">Total suggestions</text>
+<text x="18" y="714" class="scope">272 → 216 (change −56)</text>
+<text x="267" y="695" class="measure">Unmatched</text>
+<text x="267" y="714" class="scope">141 → 108 (change −33)</text>
+<path d="M18 738H502" stroke="#bdcec9"/>
+<text x="18" y="763" class="cohort">Full role phrases</text>
+<text x="18" y="787" class="scope">Winogender · same sentences · 720 supplied-span</text>
+<text x="18" y="807" class="scope">examples</text>
+<path d="M390 824H494" stroke="#d2deda"/><path d="M442 814v20" stroke="#688079"/>
+<path d="M408.91 818v12M408.91 824H432.55M432.55 818v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="421.52" cy="824" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="829" class="score">−13 net exact matches · 65 → 52</text>
+<text x="18" y="851" class="scope">Interval -21 to -6 net matches · 95% paired</text>
+<text x="18" y="871" class="scope">bootstrap by Winogender template, within cluster</text>
+<text x="18" y="891" class="scope">size</text>
+<text x="18" y="911" class="scope">Gained 0 · lost 13 · retained 52/65 (80.0%)</text>
+<text x="18" y="931" class="measure">Total suggestions</text>
+<text x="18" y="950" class="scope">122 → 100 (change −22)</text>
+<text x="267" y="931" class="measure">Unmatched</text>
+<text x="267" y="950" class="scope">57 → 48 (change −9)</text>
+<path d="M18 974H502" stroke="#bdcec9"/>
+<text x="18" y="999" class="cohort">Bare role heads</text>
+<text x="18" y="1023" class="scope">Winogender · same sentences · 720 supplied-span</text>
+<text x="18" y="1043" class="scope">examples</text>
+<path d="M390 1060H494" stroke="#d2deda"/><path d="M442 1050v20" stroke="#688079"/>
+<path d="M437.27 1054v12M437.27 1060H442.00M442.00 1054v12" fill="none" stroke="#356784" stroke-width="2.5"/>
+<circle cx="440.42" cy="1060" r="6" fill="#00675c" stroke="white" stroke-width="1.2"/>
+<text x="18" y="1065" class="score">−1 net exact match · 3 → 2</text>
+<text x="18" y="1087" class="scope">Interval -3 to 0 net matches · 95% paired bootstrap</text>
+<text x="18" y="1107" class="scope">by Winogender template, within cluster size</text>
+<text x="18" y="1127" class="scope">Gained 0 · lost 1 · retained 2/3 (66.7%)</text>
+<text x="18" y="1147" class="measure">Total suggestions</text>
+<text x="18" y="1166" class="scope">6 → 4 (change −2)</text>
+<text x="267" y="1147" class="measure">Unmatched</text>
+<text x="267" y="1166" class="scope">3 → 2 (change −1)</text>
+</svg>

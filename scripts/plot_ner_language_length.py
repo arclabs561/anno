@@ -127,32 +127,34 @@ def plot(panels):
     fig, axes = plt.subplots(
         len(panels),
         3,
-        figsize=(8.7, 6.6),
+        figsize=(4.9, 7.9),
         gridspec_kw={
-            "width_ratios": [1.55, 3.9, 2.65],
+            "width_ratios": [1.62, 2.43, 2.58],
             "height_ratios": [len(rows) for *_, rows in panels],
         },
     )
     fig.subplots_adjust(
-        left=0.035, right=0.976, bottom=0.137, top=0.814, hspace=0.40, wspace=0.05
+        left=0.042, right=0.975, bottom=0.158, top=0.80, hspace=0.65, wspace=0.09
     )
     fig.text(
-        0.035,
-        0.952,
-        "How does GLiNEREL change exact-span F1?",
-        fontsize=19,
-        fontweight="semibold",
-        color=INK,
+        0.04, 0.964, "Change in exact-span F1", fontsize=16, weight="bold", color=INK
     )
     fig.text(
-        0.035,
-        0.910,
-        f"FP32 GLiNEREL-72m versus Anno heuristic on the same {PER_CELL} test inputs per row",
+        0.04,
+        0.924,
+        "GLiNEREL-72m (FP32) versus Anno heuristic",
+        fontsize=11.6,
+        color=MUTED,
+    )
+    fig.text(
+        0.04,
+        0.895,
+        f"The same {PER_CELL} test inputs per row go to both models.",
         fontsize=11,
         color=MUTED,
     )
 
-    number_cols = [0.16, 0.48, 0.75, 0.99]
+    number_cols = [0.23, 0.52, 0.76, 1]
     for i, (name, unit, short, long, rows) in enumerate(panels):
         labels, effect, numbers = axes[i]
         for ax in axes[i]:
@@ -163,33 +165,38 @@ def plot(panels):
             ax.set_xlim(0, 1)
             ax.set_xticks([])
         effect.set_xlim(-100, 100)
-        effect.set_xticks([-100, -50, 0, 50, 100])
+        effect.set_xticks([-100, 0, 100])
         effect.xaxis.set_major_formatter(
             FuncFormatter(lambda x, _: f"{x:+.0f}" if x else "0")
         )
-        effect.tick_params(axis="x", length=0, colors=MUTED, labelsize=9, pad=5)
+        effect.tick_params(axis="x", length=0, colors=MUTED, labelsize=10.3, pad=5)
         effect.set_axisbelow(True)
         effect.grid(axis="x", color=RULE, lw=0.7)
         effect.axvline(0, color="#798e94", lw=1.15, zorder=1)
+        top = labels.get_position().y1
         fig.text(
-            0.035,
-            labels.get_position().y1 + 0.031,
-            f"{name}   ·   {PER_CELL * len(rows)} {unit}, {sum(row.gold for row in rows)} gold mentions"
-            f"   ·   short {short} words, long {long} words",
-            fontsize=11,
+            0.04,
+            top + 0.058,
+            f"{name}  ·  {PER_CELL * len(rows)} {unit}, {sum(row.gold for row in rows)} gold",
+            fontsize=12.7,
             color=INK,
-            fontweight="semibold",
+            weight="bold",
         )
-        effect.set_title(
-            "F1 change (points)", loc="center", fontsize=9, color=MUTED, pad=3
+        fig.text(
+            0.04,
+            top + 0.032,
+            f"Short {short} words  ·  long {long} words",
+            fontsize=10.8,
+            color=MUTED,
         )
-        for x, heading in zip(number_cols, ("Δ F1", "Gold", "Gained", "Lost")):
+        effect.set_title("F1 change (points)", fontsize=10.3, color=MUTED, pad=2)
+        for x, heading in zip(number_cols, ("Δ F1", "Gold", "Gain", "Loss")):
             numbers.text(
                 x,
                 1.005,
                 heading,
                 transform=numbers.transAxes,
-                fontsize=9,
+                fontsize=10,
                 ha="right",
                 va="bottom",
                 color=MUTED,
@@ -203,32 +210,34 @@ def plot(panels):
                     for ax in axes[i]:
                         ax.axhline(y - 0.5, color=RULE, lw=0.6, zorder=0)
             labels.text(
-                0.97,
+                1,
                 y,
                 length.title(),
-                fontsize=9.5,
+                fontsize=10.3,
                 color=MUTED,
                 ha="right",
                 va="center",
             )
-            effect.hlines(y, low, high, color=TEAL, lw=1.6, zorder=2)
-            effect.plot(delta, y, "o", ms=5.5, color=TEAL, zorder=3)
+            effect.hlines(y, low, high, color=TEAL, lw=1.8, zorder=2)
+            effect.plot(delta, y, "o", ms=5.3, color=TEAL, zorder=3)
             for x, value in zip(number_cols, (f"{delta:+.1f}", gold, gained, lost)):
                 numbers.text(
-                    x, y, str(value), fontsize=10, color=INK, ha="right", va="center"
+                    x, y, str(value), fontsize=10.4, color=INK, ha="right", va="center"
                 )
     fig.text(
-        0.035,
-        0.046,
-        "Lines show 95% paired bootstrap intervals within each cell (2,000 resamples).",
-        fontsize=9.4,
+        0.04,
+        0.087,
+        "Intervals resample whole inputs within each row\n"
+        "(95% paired bootstrap, 2,000 draws).",
+        fontsize=10.4,
         color=MUTED,
     )
     fig.text(
-        0.035,
-        0.019,
-        "Gained and lost count reference mentions matched by only GLiNEREL or only the heuristic, respectively.",
-        fontsize=9.4,
+        0.04,
+        0.025,
+        "Gain and loss count gold mentions recovered by only one\n"
+        "backend. Short and long rows use different texts.",
+        fontsize=10.4,
         color=MUTED,
     )
     return fig

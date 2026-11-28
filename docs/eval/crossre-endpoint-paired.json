@@ -1,0 +1,74 @@
+{
+  "baseline": "Predicate confidence",
+  "candidate": "Endpoint-weighted confidence",
+  "rows": [
+    {
+      "baseline": {
+        "correct": 123,
+        "unmatched": 702
+      },
+      "candidate": {
+        "correct": 139,
+        "unmatched": 686
+      },
+      "gained": 25,
+      "interval": {
+        "lower": 5,
+        "method": "95% paired bootstrap with both global review queues reselected",
+        "upper": 26
+      },
+      "label": "Unused development texts",
+      "lost": 9,
+      "observations": 1989,
+      "role": "Independent confirmation · 1,651 eligible"
+    },
+    {
+      "baseline": {
+        "correct": 108,
+        "unmatched": 748
+      },
+      "candidate": {
+        "correct": 144,
+        "unmatched": 712
+      },
+      "gained": 46,
+      "label": "Additional official test texts",
+      "lost": 10,
+      "observations": 2047,
+      "role": "Previously examined for other rules · 1,713 eligible"
+    },
+    {
+      "baseline": {
+        "correct": 4,
+        "unmatched": 36
+      },
+      "candidate": {
+        "correct": 7,
+        "unmatched": 33
+      },
+      "gained": 3,
+      "label": "Original development panel",
+      "lost": 0,
+      "observations": 96,
+      "role": "Selection · 80 eligible"
+    },
+    {
+      "baseline": {
+        "correct": 131,
+        "unmatched": 880
+      },
+      "candidate": {
+        "correct": 173,
+        "unmatched": 838
+      },
+      "gained": 52,
+      "label": "Complete official test release",
+      "lost": 10,
+      "observations": 2446,
+      "role": "Includes the official test subsets · 2,022 eligible"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "CrossRE reviews at 50% of eligible sentences",
+  "unit": "sentences"
+}

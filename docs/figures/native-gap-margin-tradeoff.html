@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choosing when to link a pronoun on GAP</title>
+<style>body {
+  max-width: 76rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+  color: #183541;
+  background: white;
+  font: 1rem/1.45 "DejaVu Sans", sans-serif;
+}
+svg { display: block; width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+td, th { padding: .45rem .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5e0e2; }
+thead th { color: #456371; }
+.scroll { overflow-x: auto; overflow-wrap: anywhere; }
+.operating-points .mobile-intro { display: none; }
+.operating-points caption span { font-size: .95rem; font-weight: normal; }
+main:has(.operating-points) > svg { max-width: 44rem; }
+@media (max-width: 56rem) {
+  main:has(.operating-points) > svg { display: none; }
+  .operating-points .mobile-intro { display: block; }
+  .operating-points h1 { font-size: 1.6rem; line-height: 1.2; }
+  .operating-points table, .operating-points tbody, .operating-points caption { display: block; }
+  .operating-points thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .operating-points tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .5rem 0; border-top: 1px solid #cddada;
+  }
+  .operating-points td, .operating-points th { border: 0; padding: .25rem .2rem; overflow-wrap: anywhere; }
+  .operating-points th[scope=row] { grid-column: 1 / -1; color: #005f57; font-size: 1.05rem; }
+  .operating-points td::before { content: attr(data-label); display: block; font-size: .85rem; color: #405963; }
+}
+
+.overlap-report .mobile-intro { display: none; }
+.overlap-report summary { cursor: pointer; font-weight: bold; }
+.overlap-report td { white-space: nowrap; }
+.overlap-report thead th { overflow-wrap: normal; }
+main:has(.overlap-report) > svg { max-width: 42rem; }
+@media (max-width: 48rem) {
+  main:has(.overlap-report) > svg { display: none; }
+  .overlap-report .mobile-intro { display: block; font-size: 1.4rem; line-height: 1.2; }
+  .overlap-report table, .overlap-report tbody, .overlap-report caption { display: block; }
+  .overlap-report caption { font-size: 1.1rem; }
+  .overlap-report thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .overlap-report tbody tr { display: block; padding: .45rem 0; border-top: 1px solid #cddada; }
+  .overlap-report th[scope=row] {
+    display: block; padding: .1rem .2rem .25rem; border: 0; color: #005f57; overflow-wrap: anywhere;
+  }
+  .overlap-report td {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    column-gap: .5rem; padding: .12rem .2rem; border: 0;
+  }
+  .overlap-report td::before {
+    content: attr(data-label); flex: 1 0 6rem; color: #405963; font-size: .9rem; white-space: normal;
+  }
+}
+
+@media (min-width: 36rem) and (max-width: 48rem) {
+  .overlap-report tbody {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+  }
+}
+
+.errors-report { overflow-wrap: anywhere; }
+.errors-report table { table-layout: fixed; }
+.errors-report .mobile-intro { display: none; }
+main:has(.errors-report) > svg { max-width: 36rem; }
+@media (max-width: 40rem) {
+  main:has(.errors-report) > svg { display: none; }
+  .errors-report .mobile-intro { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .errors-report td, .errors-report th { padding: .4rem .2rem; overflow-wrap: anywhere; }
+  .errors-report caption { font-size: 1.15rem; }
+  .errors-report .gold-labels, .errors-report .gold-labels tbody, .errors-report .gold-labels caption { display: block; }
+  .errors-report .gold-labels thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .errors-report .gold-labels tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid #cddada; padding: .3rem 0;
+  }
+  .errors-report .gold-labels td, .errors-report .gold-labels th { border: 0; }
+  .errors-report .gold-labels th[scope=row] { color: #005f57; font-size: 1.1rem; }
+  .errors-report .gold-labels td::before { display: block; content: attr(data-label); color: #456371; font-size: .85rem; }
+}
+</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" width="560" height="1210" viewBox="0 0 560 1210" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Choosing when to link a pronoun on GAP</title><desc id="chart-desc">Horizontal position counts predictions without a reference match. Rates are per 100 excerpts. Settings with identical counts share a mark. GAP test, supplied mentions has 2,000 excerpts and 1,773 gold items. Stock has 3 correct, 14 unmatched, and 17 total suggestions. Neutral type has 131 correct, 141 unmatched, and 272 total suggestions. Classified mentions has 142 correct, 218 unmatched, and 360 total suggestions. Rival 0.15 (dev choice) has 106 correct, 128 unmatched, and 234 total suggestions. Rival 0.1 has 128 correct, 138 unmatched, and 266 total suggestions. Rival 0.3 has 47 correct, 59 unmatched, and 106 total suggestions. Threshold 0.025 (dev choice) has 108 correct, 108 unmatched, and 216 total suggestions. Threshold 0.1 has 44 correct, 37 unmatched, and 81 total suggestions. Threshold 0.3 has 0 correct, 0 unmatched, and 0 total suggestions. </desc>
+<style>text{font-family:"DejaVu Sans",sans-serif;fill:#183541;font-size:15px}.heading{font-size:24px;font-weight:700}.cohort{font-size:20px;font-weight:700}.scope,.counts,.axis{fill:#405963}.label,.axis-title{font-weight:700}.axis{font-size:16px}.grid,.rule{fill:none;stroke:#d8e2e3}.frontier{fill:none;stroke:#41877f;stroke-width:2}.optimal{fill:#006867;stroke:white;stroke-width:1.4}.dominated{fill:white;stroke:#425b63;stroke-width:1.6}.leader{fill:none;stroke:#9aaeb0;stroke-width:.9}</style>
+<rect width="560" height="1210" fill="white"/><text x="18" y="31" class="heading">Choosing when to link a pronoun</text>
+<text x="18" y="59" class="heading">on GAP</text>
+<text x="18" y="87" class="scope">Horizontal position counts predictions without a reference</text>
+<text x="18" y="106" class="scope">match. Rates are per 100 excerpts.</text>
+<text x="18" y="125" class="scope">Filled points give the most correct matches at or below the</text>
+<text x="18" y="144" class="scope">stated budget.</text>
+<path d="M18 170H542" class="rule"/>
+<text x="18" y="196" class="cohort">GAP test, supplied mentions</text>
+<text x="18" y="219" class="scope">2,000 excerpts · 1,773 gold</text>
+<text x="69" y="250" class="axis-title">Correct / 100</text>
+<path d="M69 1146.00H299" class="grid"/><text x="62" y="1151.00" text-anchor="end" class="axis">0</text>
+<path d="M69 925.50H299" class="grid"/><text x="62" y="930.50" text-anchor="end" class="axis">2</text>
+<path d="M69 705.00H299" class="grid"/><text x="62" y="710.00" text-anchor="end" class="axis">4</text>
+<path d="M69 484.50H299" class="grid"/><text x="62" y="489.50" text-anchor="end" class="axis">6</text>
+<path d="M69 264.00H299" class="grid"/><text x="62" y="269.00" text-anchor="end" class="axis">8</text>
+<path d="M69.00 264V1146" class="grid"/><text x="69.00" y="1165" text-anchor="middle" class="axis">0</text>
+<path d="M145.67 264V1146" class="grid"/><text x="145.67" y="1165" text-anchor="middle" class="axis">5</text>
+<path d="M222.33 264V1146" class="grid"/><text x="222.33" y="1165" text-anchor="middle" class="axis">10</text>
+<path d="M299.00 264V1146" class="grid"/><text x="299.00" y="1165" text-anchor="middle" class="axis">15</text>
+<text x="299" y="1186" text-anchor="end" class="axis-title">Unmatched / 100</text>
+<path d="M69.00 1146.00H79.73V1129.46H97.37V903.45H114.23V886.91H151.80V550.65H174.80V440.40H177.10V423.86H236.13V363.23H299" class="frontier"/>
+<path d="M236.13 363.23L320 273" class="leader"/>
+<text x="325" y="277" class="label">Classified mentions</text>
+<text x="325" y="295" class="counts">142 correct · 218</text>
+<text x="325" y="313" class="counts">unmatched</text>
+<text x="325" y="331" class="counts">360 suggestions · 8.0%</text>
+<text x="325" y="349" class="counts">recall</text>
+<path d="M177.10 423.86L320 373" class="leader"/>
+<text x="325" y="377" class="label">Neutral type</text>
+<text x="325" y="395" class="counts">131 correct · 141</text>
+<text x="325" y="413" class="counts">unmatched</text>
+<text x="325" y="431" class="counts">272 suggestions · 7.4%</text>
+<text x="325" y="449" class="counts">recall</text>
+<path d="M174.80 440.40L320 473" class="leader"/>
+<text x="325" y="477" class="label">Rival 0.1</text>
+<text x="325" y="495" class="counts">128 correct · 138</text>
+<text x="325" y="513" class="counts">unmatched</text>
+<text x="325" y="531" class="counts">266 suggestions · 7.2%</text>
+<text x="325" y="549" class="counts">recall</text>
+<path d="M151.80 550.65L320 573" class="leader"/>
+<text x="325" y="577" class="label">Threshold 0.025 (dev</text>
+<text x="325" y="595" class="label">choice)</text>
+<text x="325" y="613" class="counts">108 correct · 108</text>
+<text x="325" y="631" class="counts">unmatched</text>
+<text x="325" y="649" class="counts">216 suggestions · 6.1%</text>
+<text x="325" y="667" class="counts">recall</text>
+<path d="M167.13 561.68L320 691" class="leader"/>
+<text x="325" y="695" class="label">Rival 0.15 (dev choice)</text>
+<text x="325" y="713" class="counts">106 correct · 128</text>
+<text x="325" y="731" class="counts">unmatched</text>
+<text x="325" y="749" class="counts">234 suggestions · 6.0%</text>
+<text x="325" y="767" class="counts">recall</text>
+<path d="M114.23 886.91L320 791" class="leader"/>
+<text x="325" y="795" class="label">Rival 0.3</text>
+<text x="325" y="813" class="counts">47 correct · 59</text>
+<text x="325" y="831" class="counts">unmatched</text>
+<text x="325" y="849" class="counts">106 suggestions · 2.7%</text>
+<text x="325" y="867" class="counts">recall</text>
+<path d="M97.37 903.45L320 891" class="leader"/>
+<text x="325" y="895" class="label">Threshold 0.1</text>
+<text x="325" y="913" class="counts">44 correct · 37</text>
+<text x="325" y="931" class="counts">unmatched</text>
+<text x="325" y="949" class="counts">81 suggestions · 2.5%</text>
+<text x="325" y="967" class="counts">recall</text>
+<path d="M79.73 1129.46L320 991" class="leader"/>
+<text x="325" y="995" class="label">Stock</text>
+<text x="325" y="1013" class="counts">3 correct · 14 unmatched</text>
+<text x="325" y="1031" class="counts">17 suggestions · 0.2%</text>
+<text x="325" y="1049" class="counts">recall</text>
+<path d="M69.00 1146.00L320 1073" class="leader"/>
+<text x="325" y="1077" class="label">Threshold 0.3</text>
+<text x="325" y="1095" class="counts">0 correct · 0 unmatched</text>
+<text x="325" y="1113" class="counts">0 suggestions · 0.0%</text>
+<text x="325" y="1131" class="counts">recall</text>
+<g><title>Classified mentions · 142 correct · 218 unmatched</title><circle cx="236.13" cy="363.23" r="4.5" class="optimal"/></g>
+<g><title>Neutral type · 131 correct · 141 unmatched</title><circle cx="177.10" cy="423.86" r="4.5" class="optimal"/></g>
+<g><title>Rival 0.1 · 128 correct · 138 unmatched</title><circle cx="174.80" cy="440.40" r="4.5" class="optimal"/></g>
+<g><title>Threshold 0.025 (dev choice) · 108 correct · 108 unmatched</title><circle cx="151.80" cy="550.65" r="4.5" class="optimal"/></g>
+<g><title>Rival 0.15 (dev choice) · 106 correct · 128 unmatched</title><circle cx="167.13" cy="561.68" r="4.5" class="dominated"/></g>
+<g><title>Rival 0.3 · 47 correct · 59 unmatched</title><circle cx="114.23" cy="886.91" r="4.5" class="optimal"/></g>
+<g><title>Threshold 0.1 · 44 correct · 37 unmatched</title><circle cx="97.37" cy="903.45" r="4.5" class="optimal"/></g>
+<g><title>Stock · 3 correct · 14 unmatched</title><circle cx="79.73" cy="1129.46" r="4.5" class="optimal"/></g>
+<g><title>Threshold 0.3 · 0 correct · 0 unmatched</title><circle cx="69.00" cy="1146.00" r="4.5" class="optimal"/></g>
+</svg>
+<div class="scroll"><section class="operating-points"><header class="mobile-intro"><h1>Choosing when to link a pronoun on GAP</h1><p>Horizontal position counts predictions without a reference match. Filled points identify the greatest correct count observed at or below that budget.</p></header><table><caption>GAP test, supplied mentions <span>· 2,000 excerpts · 1,773 gold</span></caption><thead><tr><th scope="col">Setting</th><th scope="col">Suggestions</th><th scope="col">Correct</th><th scope="col">Unmatched</th><th scope="col">Correct / 100</th><th scope="col">Unmatched / 100</th><th scope="col">Recall</th><th scope="col">On frontier</th></tr></thead><tbody><tr><th scope="row">Stock</th><td data-label="Suggestions">17</td><td data-label="Correct">3</td><td data-label="Unmatched">14</td><td data-label="Correct / 100">0.150</td><td data-label="Unmatched / 100">0.700</td><td data-label="Recall">0.2%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Neutral type</th><td data-label="Suggestions">272</td><td data-label="Correct">131</td><td data-label="Unmatched">141</td><td data-label="Correct / 100">6.550</td><td data-label="Unmatched / 100">7.050</td><td data-label="Recall">7.4%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Classified mentions</th><td data-label="Suggestions">360</td><td data-label="Correct">142</td><td data-label="Unmatched">218</td><td data-label="Correct / 100">7.100</td><td data-label="Unmatched / 100">10.900</td><td data-label="Recall">8.0%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Rival 0.15 (dev choice)</th><td data-label="Suggestions">234</td><td data-label="Correct">106</td><td data-label="Unmatched">128</td><td data-label="Correct / 100">5.300</td><td data-label="Unmatched / 100">6.400</td><td data-label="Recall">6.0%</td><td data-label="On frontier">No</td></tr><tr><th scope="row">Rival 0.1</th><td data-label="Suggestions">266</td><td data-label="Correct">128</td><td data-label="Unmatched">138</td><td data-label="Correct / 100">6.400</td><td data-label="Unmatched / 100">6.900</td><td data-label="Recall">7.2%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Rival 0.3</th><td data-label="Suggestions">106</td><td data-label="Correct">47</td><td data-label="Unmatched">59</td><td data-label="Correct / 100">2.350</td><td data-label="Unmatched / 100">2.950</td><td data-label="Recall">2.7%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Threshold 0.025 (dev choice)</th><td data-label="Suggestions">216</td><td data-label="Correct">108</td><td data-label="Unmatched">108</td><td data-label="Correct / 100">5.400</td><td data-label="Unmatched / 100">5.400</td><td data-label="Recall">6.1%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Threshold 0.1</th><td data-label="Suggestions">81</td><td data-label="Correct">44</td><td data-label="Unmatched">37</td><td data-label="Correct / 100">2.200</td><td data-label="Unmatched / 100">1.850</td><td data-label="Recall">2.5%</td><td data-label="On frontier">Yes</td></tr><tr><th scope="row">Threshold 0.3</th><td data-label="Suggestions">0</td><td data-label="Correct">0</td><td data-label="Unmatched">0</td><td data-label="Correct / 100">0.000</td><td data-label="Unmatched / 100">0.000</td><td data-label="Recall">0.0%</td><td data-label="On frontier">Yes</td></tr></tbody></table></section></div></main></body></html>

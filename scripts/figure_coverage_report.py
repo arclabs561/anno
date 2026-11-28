@@ -35,6 +35,7 @@ def coverage_text(evidence, rendered, report):
     repo_ids = {r["id"] for r in repo}
     direct_ids = {r["id"] for r in direct}
     git_ids = [r for r in coverage if int(r["github_measured_files"])]
+    direct_tagged = sum("direct" in r["tagged_routes"].split(" | ") for r in coverage)
     direct_files = len({(r["source"], r["sha256"]) for r in direct})
     actions = Counter(r["coverage_action"] for r in coverage if r["measured"] == "0")
     day = max(
@@ -58,7 +59,8 @@ def coverage_text(evidence, rendered, report):
         f"The readers measured {domain_count('news')} news entries, {domain_count('biomedical')} biomedical entries and "
         f"{domain_count('wikipedia')} Wikipedia entries. Clinical coverage is **{domain_count('clinical')}**, including "
         f"{clinical['tagged_tokens_measured']} with a verified token-label denominator. The chart shows the eight largest "
-        f"domains. The domain table includes all {len(domains)} registry labels. [Counts by domain](dataset-coverage-by-domain.csv) · "
+        f"domains. The domain table includes all {len(domains)} registry labels. Open the explorer, choose a domain and select a scored outcome to see the backend and split. "
+        "[Dataset explorer](dataset-explorer.html) · [Counts by domain](dataset-coverage-by-domain.csv) · "
         "[Source terms and measured layers for every clinical entry](dataset-clinical-access.csv)"
     )
     sections["routes"] = "\n".join(
@@ -71,13 +73,56 @@ def coverage_text(evidence, rendered, report):
             f"| GitHub release survey | {len(git_ids)} IDs with reviewed corpus counts. A single ZIP can contain several measured partitions. | [Publisher paths, measured units, byte hashes and exclusions](dataset-github-sources.csv) |",
         ]
     )
+    sections["routes"] += (
+        f"\n\nThe direct reader measured files for **{len(direct_ids)} of {len(coverage)} registry IDs**. "
+        f"It obtained tagged-token counts for **{direct_tagged} IDs**. Combining all four routes gives **{tagged} IDs** "
+        "with a tagged-token denominator. The format and language panels describe selection by the direct reader. "
+        "[Declared format, language and direct-reader result for each ID](dataset-figure-inventory.csv)"
+    )
+    evaluation = rows(rendered / "dataset-evaluation-coverage.csv")
+    survey = json.loads(
+        (evidence / "dataset-ci-survey.json").read_text(encoding="utf-8")
+    )
+    ci = rows(evidence / "dataset-ci-outcomes.csv")
+    scored = [r for r in evaluation if r["status"] == "Scored"]
+    scored_ids = {r["id"] for r in scored}
+    states = Counter(r["status"] for r in ci)
+    read_sources = Counter(
+        r["read_source"] or "unreported source" for r in ci if r["status"] == "Scored"
+    )
+    reads = ", ".join(f"{n} from {name}" for name, n in sorted(read_sources.items()))
+    split_sources = Counter(
+        r["split_evidence"]
+        for r in scored
+        if r["source"].startswith("https://github.com/arclabs561/anno/actions/")
+    )
+    runs = survey["runs"]
+    unknown = sum(r["status"] == "No indexed evaluation" for r in evaluation)
+    sections["evaluations"] = (
+        f"**{len(scored_ids)} of {len(coverage)} registry IDs have a completed score in these sources**. "
+        f"{len({r['id'] for r in scored if r['measurement'] == 'Tagged-token counts'})} of those IDs also have tagged-token counts. "
+        f"{unknown} IDs have no outcome in the indexed sources. The remaining IDs have a loader rejection, backend failure or exporter replay only. "
+        "[Search by domain, backend and split](dataset-explorer.html) · [All outcomes with source receipts](dataset-evaluation-coverage.csv)\n\n"
+        f"On **{survey['day_utc']} UTC**, `{survey['workflow']}` recorded {len(runs)} push runs on `{survey['branch']}`. "
+        f"{sum(r['conclusion'] == 'success' for r in runs)} succeeded and {sum(r['conclusion'] == 'cancelled' for r in runs)} were cancelled. "
+        f"The {sum(len(r['artifacts']) for r in runs)} sanity and matrix archives contain {states['Scored']} scored attempts, "
+        f"{states['Failed evaluation']} failed evaluations, {states['Passed load check']} named loader selections and {states['Load rejected']} named pre-scoring load rejections. "
+        f"The scored attempts reported {reads}. A local read can follow an S3 staging step. "
+        f"A same-ID publisher-file digest identifies the input split or release for {split_sources['same-ID publisher file SHA-256']} scored attempts. "
+        f"{split_sources['explicit checkout fixture']} used named checkout fixtures and {split_sources['unreported'] + split_sources['ambiguous same-ID file scopes']} had no established split. "
+        "The same examples can recur across pushes. "
+        "[Run and artifact digests](dataset-ci-survey.json) · [Normalized CI records](dataset-ci-outcomes.csv)"
+    )
     units = [int(r["n_observation_units"]) for r in density]
     sections["density"] = (
-        f"The chart covers **{len(density)} registry IDs and {sum(units):,} observed files or partitions** after collapsing known "
-        f"duplicates within each ID. Each partition contributes one percentage. The dot gives its ID’s median, the thin line "
-        f"gives the observed range and the thick line gives the middle half for IDs with at least four observations. "
-        f"For **{units.count(1)} IDs**, a single observation supplies the entire estimate. "
-        "[Quartiles, endpoints, denominators and sources](dataset-density-ranges.csv)"
+        "The guide compares four biomedical term-annotation corpora. Each dot represents one source file or partition, "
+        "with the number of labeled token positions divided by all token positions in that unit. The line spans the observed files. "
+        "The releases label different term types and use their own tokenization.\n\n"
+        f"The full reference covers **{len(density)} registry IDs and {sum(units):,} observed files or partitions** after collapsing known "
+        f"duplicates within each ID. Each unit contributes one percentage. For **{units.count(1)} IDs**, a single unit supplies the entire estimate. "
+        "Filter by annotation unit before comparing entity tags, slot tags, silver labels, entity links or subword PII labels. "
+        "[Search partitions and denominators](dataset-explorer.html) · [Full distribution chart](../figures/dataset-density.png) · "
+        "[Quartiles and endpoints](dataset-density-ranges.csv) · [Every numerator, denominator and source](dataset-density-units.csv)"
     )
     sections["exclusions"] = "\n".join(
         [
@@ -93,24 +138,36 @@ def coverage_text(evidence, rendered, report):
             ),
         ]
     )
-    cached = json.loads((evidence / "s3-source-coverage.json").read_text(encoding="utf-8"))
+    cached = json.loads(
+        (evidence / "s3-source-coverage.json").read_text(encoding="utf-8")
+    )
     matches = rows(evidence / "s3-publisher-file-matches.csv")
     own_ids = {r["cache_id"] for r in matches if r["cache_id"] == r["publisher_id"]}
     if len(own_ids) != cached["registry_ids_with_own_publisher_match"] or (
-        len({r["sha256"] for r in matches}) != cached["distinct_matched_publisher_digests"]
+        len({r["sha256"] for r in matches})
+        != cached["distinct_matched_publisher_digests"]
     ):
         raise ValueError("The S3 file matches must agree with the aggregate receipt")
     kinds = cached["objects_by_kind"]
-    outcomes = cached["payload_objects_by_outcome"]
+    from plot_s3_source_evidence import summary_counts
+
+    totals, _ = summary_counts(cached)
+    matched_elsewhere = cached["payload_objects_by_outcome"].get(
+        "matches_other_registry_file_only", 0
+    )
+    unmatched = totals["read"] - totals["own"] - matched_elsewhere
     sections["s3"] = (
         f"On **{cached['listing_started_utc'][:10]} UTC**, trusted CI listed **{cached['objects_listed']} objects** "
-        f"under `datasets/`. It recognized {kinds.get('legacy', 0) + kinds.get('snapshot', 0)} payload objects "
-        f"for **{cached['registry_ids_with_payload']} registry IDs**. Comparing the eligible bytes with "
-        f"{cached['publisher_digests_compared']:,} independently measured publisher digests identified "
-        f"**{outcomes.get('matches_own_publisher_file', 0)} payload objects for {len(own_ids)} IDs** that matched "
-        "a file recorded for their own dataset. Each match identifies a particular file or split. "
+        f"under `datasets/`. Its **{totals['payload']} recognized payload objects** yielded **{totals['read']} successful reads**. "
+        f"Of those, {totals['own']} matched an independently measured publisher file for the same ID, {matched_elsewhere} matched only another ID "
+        f"and {unmatched} lacked a verified match. The comparator skipped {totals['skipped']} objects and recorded {totals['failed']} read failures. "
+        f"The {kinds.get('unrecognized', 0)} unrecognized keys contribute only to the inventory.\n\n"
+        f"Of **{cached['registry_ids_with_payload']} distinct registry IDs** with a payload, **{len(own_ids)}** had an own-publisher match. "
+        f"The comparison used {cached['publisher_digests_compared']:,} independently measured publisher digests. "
+        "A match identifies the file or split whose bytes agree. The evaluation index records which inputs each backend scored. "
         f"[Trusted run](https://github.com/arclabs561/anno/actions/runs/{cached['workflow_run_id']}) · "
-        "[Counts and exclusions](s3-source-coverage.json) · [File matches and measured units](s3-publisher-file-matches.csv)"
+        "[Counts and exclusions](s3-source-coverage.json) · [File matches and measured units](s3-publisher-file-matches.csv) · "
+        "[Backend and split outcomes](dataset-evaluation-coverage.csv)"
     )
     for key, replacement in sections.items():
         start = f"<!-- coverage-{key} -->"

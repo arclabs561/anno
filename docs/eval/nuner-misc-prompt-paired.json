@@ -1,0 +1,97 @@
+{
+  "baseline": "Three prompts",
+  "candidate": "Add miscellaneous",
+  "rows": [
+    {
+      "baseline": {
+        "calls": 1383,
+        "correct": 2034,
+        "unmatched": 1404
+      },
+      "candidate": {
+        "calls": 1383,
+        "correct": 2040,
+        "unmatched": 1398
+      },
+      "gained": 37,
+      "interval": {
+        "lower": -13.24,
+        "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+        "upper": 26.04
+      },
+      "label": "WikiGold · all four mapped types",
+      "lost": 31,
+      "observations": 1696,
+      "role": "Complete English release"
+    },
+    {
+      "baseline": {
+        "calls": 1383,
+        "correct": 0,
+        "unmatched": 0
+      },
+      "candidate": {
+        "calls": 1383,
+        "correct": 20,
+        "unmatched": 14
+      },
+      "gained": 20,
+      "interval": {
+        "lower": 10.13,
+        "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+        "upper": 32.13
+      },
+      "label": "WikiGold · MISC only",
+      "lost": 0,
+      "observations": 1696,
+      "role": "Type subset of the same release"
+    },
+    {
+      "baseline": {
+        "calls": 1383,
+        "correct": 2034,
+        "unmatched": 1404
+      },
+      "candidate": {
+        "calls": 1383,
+        "correct": 2020,
+        "unmatched": 1384
+      },
+      "gained": 17,
+      "interval": {
+        "lower": -30.38,
+        "method": "95% paired bootstrap by WikiGold document, scaled to 1,696 sentences",
+        "upper": 2.2
+      },
+      "label": "WikiGold · PER, ORG and LOC",
+      "lost": 31,
+      "observations": 1696,
+      "role": "Type subset of the same release"
+    },
+    {
+      "baseline": {
+        "calls": 992,
+        "correct": 476,
+        "unmatched": 1151
+      },
+      "candidate": {
+        "calls": 992,
+        "correct": 474,
+        "unmatched": 1117
+      },
+      "gained": 5,
+      "interval": {
+        "lower": -8.0,
+        "method": "95% paired bootstrap by sentence occurrence, scaled to 1,287 sentences",
+        "upper": 3.0
+      },
+      "label": "WNUT-17 · five mapped types",
+      "lost": 7,
+      "observations": 1287,
+      "role": "Official test · MISC has no gold class"
+    }
+  ],
+  "schema": "anno.paired/v1",
+  "title": "What did a fourth NuNER prompt change?",
+  "unit": "sentences"
+}

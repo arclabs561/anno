@@ -254,12 +254,26 @@ impl Overlap {
         Ok(())
     }
 
-    fn sorted_labels(&self) -> Vec<(&String, &LabelCounts)> {
+    fn labels_by_count(&self) -> Vec<(&String, &LabelCounts)> {
         let mut rows: Vec<_> = self.labels.iter().collect();
         rows.sort_unstable_by(|(a, x), (b, y)| {
             y.signals_with_overlap
                 .cmp(&x.signals_with_overlap)
                 .then_with(|| y.signals.cmp(&x.signals))
+                .then_with(|| a.cmp(b))
+        });
+        rows
+    }
+
+    fn labels_by_share(&self) -> Vec<(&String, &LabelCounts)> {
+        let mut rows: Vec<_> = self.labels.iter().collect();
+        rows.sort_unstable_by(|(a, x), (b, y)| {
+            // Compare ratios exactly, including large u64 denominators and ties.
+            let left = u128::from(x.signals_with_overlap) * u128::from(y.signals);
+            let right = u128::from(y.signals_with_overlap) * u128::from(x.signals);
+            right
+                .cmp(&left)
+                .then_with(|| y.signals_with_overlap.cmp(&x.signals_with_overlap))
                 .then_with(|| a.cmp(b))
         });
         rows
@@ -317,7 +331,9 @@ fn percent(count: u64, total: u64) -> String {
     let value = 100.0 * count as f64 / total as f64;
     if count > 0 && value < 0.005 {
         "under 0.01%".into()
-    } else if count > 0 && value < 0.1 {
+    } else if count < total && value >= 99.95 {
+        "over 99.9%".into()
+    } else if count > 0 && value < 10.0 {
         format!("{value:.2}%")
     } else {
         format!("{value:.1}%")
@@ -325,132 +341,235 @@ fn percent(count: u64, total: u64) -> String {
 }
 
 impl Overlap {
-    /// Render an accessible standalone SVG. The label panel shows up to eight rows.
+    /// Render an accessible SVG with exact depth counts and the most exposed labels.
     pub fn render_svg(&self) -> Result<String, String> {
         self.validate()?;
         let mut body = String::new();
-        let title = wrap(&self.title, 42);
-        lines(&mut body, &title, 34, 49, 34, "title");
-        let mut y = 49 + (title.len() as i32 - 1) * 34;
-        let documents = integer(self.documents);
-        let signals = integer(self.signals);
-        let characters = integer(self.characters);
-        let shared_docs = integer(self.documents_with_overlap);
-        let shared_signals = integer(self.signals_with_overlap);
-        let doc_pct = percent(self.documents_with_overlap, self.documents);
-        let signal_pct = percent(self.signals_with_overlap, self.signals);
+        // Reserve room for long aggregate counts while keeping typical reports narrow.
+        let count_width = (integer(self.characters.max(self.signals)).len() as i32 * 11).max(84);
+        let ratio_width = (integer(self.signals).len() as i32 * 22 + 25).max(170);
+        let width = (420 + count_width).max(340 + ratio_width).max(570);
+        let end = width - 26;
+        let title = wrap(&self.title, ((width - 52) / 13) as usize);
+        lines(&mut body, &title, 26, 39, 30, "title");
+        let mut y = 39 + (title.len() as i32 - 1) * 30 + 37;
+        let shared_chars = self.coverage.two + self.coverage.three_or_more;
+        writeln!(
+            body,
+            r#"<text x="26" y="{y}" class="heading">Where signals share a character</text>"#
+        )
+        .unwrap();
+        for (shared, total, noun) in [
+            (self.documents_with_overlap, self.documents, "documents"),
+            (self.signals_with_overlap, self.signals, "signals"),
+            (shared_chars, self.characters, "source characters"),
+        ] {
+            let value = format!(
+                "{} / {} {noun} ({})",
+                integer(shared),
+                integer(total),
+                percent(shared, total)
+            );
+            let wrapped = wrap(&value, ((width - 52) / 9) as usize);
+            y += 23;
+            lines(&mut body, &wrapped, 26, y, 22, "value");
+            y += (wrapped.len() as i32 - 1) * 22;
+        }
+
+        y += 41;
+        writeln!(
+            body,
+            r#"<text x="26" y="{y}" class="heading">Coverage depth by Unicode character</text>"#
+        )
+        .unwrap();
+        y += 31;
+        let count_x = width - 282;
+        let all_x = width - 159;
+        writeln!(body, r#"<text x="26" y="{y}" class="col">Depth</text><text x="{count_x}" y="{y}" class="col num">Characters</text><text x="{all_x}" y="{y}" class="col num">Of all text</text><text x="{end}" y="{y}" class="col num">Of shared text</text>"#).unwrap();
+        for (depth, (label, count)) in DEPTH_LABELS.iter().zip(self.coverage.counts()).enumerate() {
+            y += 26;
+            let within_shared = if depth >= 2 {
+                percent(count, shared_chars)
+            } else {
+                "—".into()
+            };
+            writeln!(body, r#"<text x="26" y="{y}">{label}</text><text x="{count_x}" y="{y}" class="num">{}</text><text x="{all_x}" y="{y}" class="num">{}</text><text x="{end}" y="{y}" class="num">{within_shared}</text>"#, integer(count), percent(count, self.characters)).unwrap();
+        }
+        if shared_chars > 0 {
+            y += 30;
+            writeln!(body, r#"<text x="26" y="{y}" class="muted">Within positions shared by two or more signals</text>"#).unwrap();
+            y += 10;
+            let bar = width - 52;
+            let two = bar as f64 * self.coverage.two as f64 / shared_chars as f64;
+            writeln!(body, r##"<rect x="26" y="{y}" width="{bar}" height="12" fill="#805670"/><rect x="26" y="{y}" width="{two:.3}" height="12" fill="#216f72"/>"##).unwrap();
+            y += 33;
+            writeln!(body, r##"<circle cx="31" cy="{}" r="5" fill="#216f72"/><text x="43" y="{y}" class="muted">2 signals</text><circle cx="159" cy="{}" r="5" fill="#805670"/><text x="171" y="{y}" class="muted">3+ signals</text>"##, y-5, y-5).unwrap();
+        }
         y += 40;
         writeln!(
             body,
-            r#"<text x="34" y="{y}" class="heading">Signals that share a source character</text>"#
+            r#"<text x="26" y="{y}" class="heading">Overlap by signal label</text>"#
         )
         .unwrap();
-        y += 27;
-        writeln!(body, r#"<text x="34" y="{y}" class="value">{shared_docs} / {documents} documents ({doc_pct})</text><text x="420" y="{y}" class="value">{shared_signals} / {signals} signals ({signal_pct})</text>"#).unwrap();
-        y += 50;
-        writeln!(
-            body,
-            r#"<text x="34" y="{y}" class="heading">How many signals cover each character?</text>"#
-        )
-        .unwrap();
-        y += 24;
-        writeln!(body, r#"<text x="34" y="{y}" class="muted">Share of all {characters} Unicode scalar positions across {documents} documents.</text>"#).unwrap();
-        let colors = ["#8299a3", "#327c93", "#b86232", "#773e71"];
-        for ((label, count), color) in DEPTH_LABELS.iter().zip(self.coverage.counts()).zip(colors) {
-            y += 32;
-            let bar_y = y - 12;
-            let width = if self.characters == 0 {
-                0.0
-            } else {
-                400.0 * count as f64 / self.characters as f64
-            };
-            writeln!(body, r##"<text x="34" y="{y}">{label}</text><rect x="160" y="{bar_y}" width="400" height="12" rx="2" fill="#edf1f2"/><rect x="160" y="{bar_y}" width="{width:.3}" height="12" rx="2" fill="{color}"/><text x="766" y="{y}" text-anchor="end" class="value">{} ({})</text>"##, integer(count), percent(count, self.characters)).unwrap();
-        }
-        y += 52;
-        writeln!(
-            body,
-            r#"<text x="34" y="{y}" class="heading">Overlap by signal label</text>"#
-        )
-        .unwrap();
-        y += 25;
-        let sorted = self.sorted_labels();
-        if sorted.is_empty() {
+        let by_share = self.labels_by_share();
+        if by_share.is_empty() {
+            y += 25;
             writeln!(
                 body,
-                r#"<text x="34" y="{y}" class="muted">No signals in these documents.</text>"#
+                r#"<text x="26" y="{y}" class="muted">No signals in these documents.</text>"#
             )
             .unwrap();
         } else {
-            let note = if sorted.len() > 8 {
-                format!("Top 8 of {} labels by signals sharing a character. JSON and HTML include every label.", sorted.len())
+            if self.signals_with_overlap > 0 {
+                let by_count = self.labels_by_count();
+                let (label, counts) = by_count[0];
+                let note = format!(
+                    "Largest affected count · {label} · {} of {} signals ({})",
+                    integer(counts.signals_with_overlap),
+                    integer(counts.signals),
+                    percent(counts.signals_with_overlap, counts.signals)
+                );
+                let wrapped = wrap(&note, ((width - 52) / 8) as usize);
+                y += 24;
+                lines(&mut body, &wrapped, 26, y, 20, "muted");
+                y += (wrapped.len() as i32 - 1) * 20;
+            }
+            y += 24;
+            let note = if by_share.len() > 8 {
+                format!(
+                    "Top 8 of {} labels by affected share. Full rankings in HTML.",
+                    by_share.len()
+                )
             } else {
-                "Ranked by the number of signals sharing a character with another signal.".into()
+                "Ranked by the share of each label’s signals affected.".into()
             };
-            writeln!(body, r#"<text x="34" y="{y}" class="muted">{note}</text>"#).unwrap();
-            y += 30;
-            writeln!(body, r#"<text x="34" y="{y}" class="muted">Label</text><text x="556" y="{y}" text-anchor="end" class="muted">Sharing / all signals</text><text x="766" y="{y}" text-anchor="end" class="muted">Share of label</text>"#).unwrap();
-            for (label, counts) in sorted.into_iter().take(8) {
+            writeln!(body, r#"<text x="26" y="{y}" class="muted">{note}</text>"#).unwrap();
+            y += 31;
+            let ratio_x = width - 141;
+            writeln!(body, r#"<text x="26" y="{y}" class="col">Label</text><text x="{ratio_x}" y="{y}" class="col num">Affected / all</text><text x="{end}" y="{y}" class="col num">Of label</text>"#).unwrap();
+            for (label, counts) in by_share.into_iter().take(8) {
                 y += 26;
-                let names = wrap(label, 38);
-                lines(&mut body, &names, 34, y, 20, "row");
-                writeln!(body, r#"<text x="556" y="{y}" text-anchor="end" class="value">{} / {}</text><text x="766" y="{y}" text-anchor="end" class="value">{}</text>"#, integer(counts.signals_with_overlap), integer(counts.signals), percent(counts.signals_with_overlap, counts.signals)).unwrap();
+                let names = wrap(label, ((ratio_x - ratio_width - 48) / 9).max(8) as usize);
+                lines(&mut body, &names, 26, y, 20, "");
+                writeln!(body, r#"<text x="{ratio_x}" y="{y}" class="num">{} / {}</text><text x="{end}" y="{y}" class="num">{}</text>"#, integer(counts.signals_with_overlap), integer(counts.signals), percent(counts.signals_with_overlap, counts.signals)).unwrap();
                 y += (names.len() as i32 - 1) * 20;
             }
         }
-        let height = y + 32;
+        let height = y + 28;
         Ok(format!(
-            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 {height}" width="800" height="{height}" role="img" aria-labelledby="title desc">
-<title id="title">{}</title><desc id="desc">{shared_docs} of {documents} documents and {shared_signals} of {signals} signals have overlapping annotations. Character coverage includes all {characters} Unicode scalar positions.</desc>
-<style>text{{font:16px "DejaVu Sans",sans-serif;fill:#183541}}.title{{font-size:29px;font-weight:700}}.heading{{font-size:20px;font-weight:700}}.muted{{font-size:14px;fill:#456371}}.value{{font-variant-numeric:tabular-nums}}.row{{font-size:16px}}</style>
-<rect width="800" height="{height}" fill="white"/>{body}</svg>
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-labelledby="title desc">
+<title id="title">{}</title><desc id="desc">{} of {} signals share at least one character. Of {} total characters, {} are covered by at least two signals. The depth table and bar report the exact count and share at each overlap depth.</desc>
+<style>text{{font:17px "DejaVu Sans",sans-serif;fill:#183541}}.title{{font-size:25px;font-weight:700}}.heading{{font-size:20px;font-weight:700}}.muted,.col{{font-size:15px;fill:#456371}}.col{{font-weight:700}}.value,.num{{font-variant-numeric:tabular-nums}}.num{{text-anchor:end}}</style>
+<rect width="{width}" height="{height}" fill="white"/>{body}</svg>
 "##,
-            escape(&self.title)
+            escape(&self.title),
+            integer(self.signals_with_overlap),
+            integer(self.signals),
+            integer(self.characters),
+            integer(shared_chars)
         ))
     }
 
     /// Render the chart and complete count tables as a standalone HTML document.
     pub fn render_html(&self) -> Result<String, String> {
         let svg = self.render_svg()?;
-        let mut table = String::from("<table><caption>Signals sharing a source character</caption><thead><tr><th>Population</th><th>Sharing</th><th>All</th><th>Share</th></tr></thead><tbody>");
+        let shared_chars = self.coverage.two + self.coverage.three_or_more;
+        let mut table = format!(
+            r#"<section class="overlap-report"><h1 class="mobile-intro">{}</h1>"#,
+            escape(&self.title)
+        );
+        // Column headers serve the desktop table and label each numeric value
+        // when the same row reflows into a card on a narrow screen.
+        fn table_header(table: &mut String, caption: &str, heads: [&str; 4]) {
+            write!(table, "<table><caption>{caption}</caption><thead><tr>").unwrap();
+            for head in heads {
+                write!(table, r#"<th scope="col">{head}</th>"#).unwrap();
+            }
+            table.push_str("</tr></thead><tbody>");
+        }
+        fn table_row(table: &mut String, label: &str, heads: [&str; 4], values: [String; 3]) {
+            write!(table, r#"<tr><th scope="row">{}</th>"#, escape(label)).unwrap();
+            for (head, value) in heads[1..].iter().zip(values) {
+                write!(table, r#"<td data-label="{head}">{value}</td>"#).unwrap();
+            }
+            table.push_str("</tr>");
+        }
+
+        let population = ["Population", "Sharing", "All", "Share"];
+        table_header(&mut table, "Population with shared positions", population);
         for (label, shared, total) in [
             ("Documents", self.documents_with_overlap, self.documents),
             ("Signals", self.signals_with_overlap, self.signals),
+            ("Source characters", shared_chars, self.characters),
         ] {
-            write!(
-                table,
-                "<tr><th>{label}</th><td>{}</td><td>{}</td><td>{}</td></tr>",
-                integer(shared),
-                integer(total),
-                percent(shared, total)
-            )
-            .unwrap();
+            table_row(
+                &mut table,
+                label,
+                population,
+                [integer(shared), integer(total), percent(shared, total)],
+            );
         }
-        write!(table, "</tbody></table><table><caption>Coverage of all {} Unicode scalar positions</caption><thead><tr><th>Depth</th><th>Characters</th><th>Share</th></tr></thead><tbody>", integer(self.characters)).unwrap();
-        for (label, count) in DEPTH_LABELS.iter().zip(self.coverage.counts()) {
-            write!(
-                table,
-                "<tr><th>{label}</th><td>{}</td><td>{}</td></tr>",
-                integer(count),
-                percent(count, self.characters)
-            )
-            .unwrap();
+        table.push_str("</tbody></table>");
+
+        let depths = ["Depth", "Characters", "Of all text", "Of shared text"];
+        table_header(
+            &mut table,
+            &format!(
+                "Coverage of all {} Unicode scalar positions",
+                integer(self.characters)
+            ),
+            depths,
+        );
+        for (depth, (label, count)) in DEPTH_LABELS.iter().zip(self.coverage.counts()).enumerate() {
+            let within_shared = if depth >= 2 {
+                percent(count, shared_chars)
+            } else {
+                "—".into()
+            };
+            table_row(
+                &mut table,
+                label,
+                depths,
+                [
+                    integer(count),
+                    percent(count, self.characters),
+                    within_shared,
+                ],
+            );
         }
         table.push_str("</tbody></table>");
         if !self.labels.is_empty() {
-            table.push_str("<table><caption>All labels ranked by overlapping signals</caption><thead><tr><th>Label</th><th>Sharing</th><th>All signals</th><th>Share of label</th></tr></thead><tbody>");
-            for (label, counts) in self.sorted_labels() {
-                write!(
-                    table,
-                    "<tr><th>{}</th><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    escape(label),
-                    integer(counts.signals_with_overlap),
-                    integer(counts.signals),
-                    percent(counts.signals_with_overlap, counts.signals)
-                )
-                .unwrap();
+            let ranked = ["Label", "Sharing", "All signals", "Share of label"];
+            for (i, (caption, rows)) in [
+                ("Labels by affected share", self.labels_by_share()),
+                ("Labels by affected count", self.labels_by_count()),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                if i == 1 {
+                    table.push_str("<details><summary>Rank all labels by affected count</summary>");
+                }
+                table_header(&mut table, caption, ranked);
+                for (label, counts) in rows {
+                    table_row(
+                        &mut table,
+                        label,
+                        ranked,
+                        [
+                            integer(counts.signals_with_overlap),
+                            integer(counts.signals),
+                            percent(counts.signals_with_overlap, counts.signals),
+                        ],
+                    );
+                }
+                table.push_str("</tbody></table>");
+                if i == 1 {
+                    table.push_str("</details>");
+                }
             }
-            table.push_str("</tbody></table>");
         }
+        table.push_str("</section>");
         Ok(html_document(&self.title, &svg, &table))
     }
 }
@@ -463,6 +582,8 @@ mod tests {
     fn distinguish_small_covered_groups_from_zero_or_missing_denominators() {
         assert_eq!(percent(855, 3_103_238), "0.03%");
         assert_eq!(percent(1, 10_000_000), "under 0.01%");
+        assert_eq!(percent(999_999, 1_000_000), "over 99.9%");
+        assert_eq!(percent(1, 1), "100.0%");
         assert_eq!(percent(0, 3_103_238), "0.0%");
         assert_eq!(percent(0, 0), "—");
     }

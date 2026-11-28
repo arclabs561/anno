@@ -1,6 +1,11 @@
 name: Held-out native relation extraction
 on:
   workflow_dispatch:
+    inputs:
+      endpoint_budget:
+        description: Run the pinned endpoint-confidence study over the confirmation and official test cohorts
+        type: boolean
+        default: false
   pull_request:
     paths:
       - '.github/workflows/relex-crossre.yml'
@@ -22,10 +27,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: relex-crossre-${{ github.ref }}
+  group: relex-crossre-${{ github.ref }}-${{ inputs.endpoint_budget || false }}
   cancel-in-progress: true
 jobs:
   native:
+    if: ${{ !inputs.endpoint_budget }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -109,4 +115,94 @@ jobs:
         with:
           name: relex-parity
           path: relex-receipt.json
+          if-no-files-found: error
+
+  endpoint-cohort:
+    name: Endpoint review budgets (${{ matrix.part }})
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.endpoint_budget }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [confirmation, test]
+    env:
+      TOKENIZERS_PARALLELISM: 'false'
+      OMP_NUM_THREADS: 2
+      MKL_NUM_THREADS: 2
+      PART: ${{ matrix.part }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Install the pinned public CPU model stack
+        run: |
+          python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.15.0+cpu
+          python -m pip install --no-cache-dir gliner==0.2.30 transformers==5.22.2 tokenizers==0.23.3 onnxruntime==1.32.0 sentencepiece==0.2.3
+      - name: Fetch the pinned release and model files
+        run: |
+          mkdir -p "$RUNNER_TEMP/crossre"
+          for domain in ai literature music news politics science; do
+            for split in train dev test; do
+              name="$domain-$split.json"
+              curl -fsSL --retry 3 "https://raw.githubusercontent.com/mainlp/CrossRE/a58885fa760559d2dc9e176e730fe731f020d6f3/crossre_data/$name" -o "$RUNNER_TEMP/crossre/$name"
+            done
+          done
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          from huggingface_hub import snapshot_download
+          sys.path.insert(0, "scripts/qa/joint_baseline")
+          import relex_predicate_ranking as ranking
+          expected = json.loads(Path("docs/eval/crossre-predicate-ranking.json").read_bytes())
+          weights = snapshot_download(expected["checkpoint"], revision=ranking.MODEL_REVISION,
+                                      allow_patterns=list(ranking.MODEL_FILES))
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              print("RELEX_WEIGHTS=" + weights, file=env)
+              print("HF_HUB_OFFLINE=1", file=env)
+          PY
+      - name: Freeze the ranking on calibration
+        run: |
+          runner=scripts/qa/joint_baseline/relex_endpoint_budget.py
+          python "$runner" collect "$RUNNER_TEMP/crossre" "$RELEX_WEIGHTS" "$RUNNER_TEMP/model-rows" --scope calibration
+          python "$runner" select "$RUNNER_TEMP/crossre" "$RUNNER_TEMP/model-rows" "$RUNNER_TEMP/selection.json"
+      - name: Measure the complete six-domain review queue
+        run: |
+          runner=scripts/qa/joint_baseline/relex_endpoint_budget.py
+          python "$runner" collect "$RUNNER_TEMP/crossre" "$RELEX_WEIGHTS" "$RUNNER_TEMP/model-rows" --scope "$PART"
+          python "$runner" measure "$RUNNER_TEMP/crossre" "$RUNNER_TEMP/model-rows" "$RUNNER_TEMP/selection.json" --part "$PART" --output "$RUNNER_TEMP/$PART.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: crossre-endpoint-${{ matrix.part }}
+          path: ${{ runner.temp }}/${{ matrix.part }}.json
+          retention-days: 7
+          if-no-files-found: error
+
+  endpoint-result:
+    name: Reconcile endpoint budgets and publish aggregate measurements
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.endpoint_budget }}
+    needs: endpoint-cohort
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: crossre-endpoint-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/parts
+      - name: Combine the independent calibration and coverage checks
+        run: |
+          result="$RUNNER_TEMP/crossre-endpoint-result"
+          mkdir -p "$result"
+          python3 scripts/qa/joint_baseline/relex_endpoint_budget.py assemble "$RUNNER_TEMP/parts/confirmation.json" "$RUNNER_TEMP/parts/test.json" --output "$result/crossre-endpoint-budget.json" --paired-output "$result/crossre-endpoint-paired.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: crossre-endpoint-study
+          path: ${{ runner.temp }}/crossre-endpoint-result
+          retention-days: 30
           if-no-files-found: error

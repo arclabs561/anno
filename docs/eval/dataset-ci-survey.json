@@ -1,0 +1,315 @@
+{
+  "repository": "arclabs561/anno",
+  "workflow": "ci.yml",
+  "event": "push",
+  "branch": "main",
+  "day_utc": "2026-11-27",
+  "artifact_names": [
+    "eval-sanity-report",
+    "matrix-muxer-decisions"
+  ],
+  "runs": [
+    {
+      "run": 45929075593,
+      "commit": "d2d652565db8769a66a46286b8ed72d9345b16f4",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15167289993,
+          "name": "eval-sanity-report",
+          "sha256": "bf7b8f75c4776153ca710e6f2b02d5d1cc43185ab3d99a9216b56489d87a7bbb"
+        },
+        {
+          "id": 15167826643,
+          "name": "matrix-muxer-decisions",
+          "sha256": "1f59afdd3bb40db62a018b1c82ed9ea65151d66b75543f839efda7cd0451800c"
+        }
+      ],
+      "created_utc": "2026-11-27T02:33:57Z"
+    },
+    {
+      "run": 45930069623,
+      "commit": "c71cad8e3b9ba1b38bc5969f4643d39ab349b053",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15168990438,
+          "name": "eval-sanity-report",
+          "sha256": "ab8324d32d9283dec3bb5f7592f21235e96e1d4842208fdf9ef833fbbf505b4f"
+        },
+        {
+          "id": 15168522278,
+          "name": "matrix-muxer-decisions",
+          "sha256": "089bb1c7918cb932c8a19b1754e191ac78a83e76f6e9b4edd614c211676111e0"
+        }
+      ],
+      "created_utc": "2026-11-27T02:44:10Z"
+    },
+    {
+      "run": 45931373955,
+      "commit": "8246e0826ba87ada3c0c34392135c347780f41c4",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15168738699,
+          "name": "eval-sanity-report",
+          "sha256": "8d3f370df962898123da1f433b04affa712a1785716e7b3b8ece2d8a55ae021d"
+        },
+        {
+          "id": 15168853545,
+          "name": "matrix-muxer-decisions",
+          "sha256": "c675aeade6a0362cb04952105ffc0b5c45d7d2e84a4f55b46136ed8cafc13315"
+        }
+      ],
+      "created_utc": "2026-11-27T02:57:54Z"
+    },
+    {
+      "run": 45932680060,
+      "commit": "674d2bf94cdd0357549ed9b112d01b7c4bb1c125",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15169246649,
+          "name": "eval-sanity-report",
+          "sha256": "4acfa828987376746fa7c2face80775a09dccd7db1c2294b74f22dd77d043ca8"
+        },
+        {
+          "id": 15169521534,
+          "name": "matrix-muxer-decisions",
+          "sha256": "dfeee005fc813237bb42d966b81a01e77d89d18a9afd872b76adecb6778eda22"
+        }
+      ],
+      "created_utc": "2026-11-27T03:11:14Z"
+    },
+    {
+      "run": 45935952203,
+      "commit": "3d2667cf3a2e028ca3004d2ee8c91ba3a6c0d2e2",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15169794693,
+          "name": "eval-sanity-report",
+          "sha256": "3014b77f23051c374110b32dcd644f2415c8f09756537ef6ffe334f9780c46d6"
+        },
+        {
+          "id": 15170627601,
+          "name": "matrix-muxer-decisions",
+          "sha256": "c36b2e4803514761ecf55e144ca367e4c163d3f7e35a9cc1071acedada8816a9"
+        }
+      ],
+      "created_utc": "2026-11-27T03:44:54Z"
+    },
+    {
+      "run": 45936882498,
+      "commit": "75f961e54631774b4e74547a383eaf8fc79a772d",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15171515583,
+          "name": "eval-sanity-report",
+          "sha256": "49b35ae7fb2f7beb2902e33d3f8e464578acb0692af569085d12e58c98686578"
+        },
+        {
+          "id": 15170529883,
+          "name": "matrix-muxer-decisions",
+          "sha256": "814a89f12f4e6c20ed1d64ec9dc862c211ad36599c176a3bf8d5f6fc7b21da77"
+        }
+      ],
+      "created_utc": "2026-11-27T03:54:53Z"
+    },
+    {
+      "run": 45968392283,
+      "commit": "54515b4d8f221c0cbd6c1de4c8b154bde07c4383",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15185720986,
+          "name": "eval-sanity-report",
+          "sha256": "26bbda7a60d5eb53102b4c69c305bfd344f28f80f7ca4f05da76022d5f668068"
+        },
+        {
+          "id": 15183878363,
+          "name": "matrix-muxer-decisions",
+          "sha256": "834d0d0846bbb7c9f468d1430d7e9f3a25d4dcd262f4049094f22b84665149a3"
+        }
+      ],
+      "created_utc": "2026-11-27T08:47:22Z"
+    },
+    {
+      "run": 45971349964,
+      "commit": "a71cc3e35b737fa74bd6295923b3b83b25636396",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15184683361,
+          "name": "eval-sanity-report",
+          "sha256": "92bc4fb22af091984c61dd3d4c5bdde911b49ebc31f5db9b34588a007e23185d"
+        },
+        {
+          "id": 15186636398,
+          "name": "matrix-muxer-decisions",
+          "sha256": "042bcba24fd02eb8c4377e23bc9b12cb220879fd69643c577e6db0147d907e6a"
+        }
+      ],
+      "created_utc": "2026-11-27T09:09:30Z"
+    },
+    {
+      "run": 45974811587,
+      "commit": "7ae41248c346da15b301ccc79a5fe3666af8d4b9",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15187274269,
+          "name": "eval-sanity-report",
+          "sha256": "2eb42c91db3bb59ea43e620d259a16b912a2f40d8b9e4a32758b96948ae25572"
+        },
+        {
+          "id": 15187708959,
+          "name": "matrix-muxer-decisions",
+          "sha256": "5b23f3ac98a8c9cad886060c38e67ee0fee883cb7893213f84ac50086ba5380e"
+        }
+      ],
+      "created_utc": "2026-11-27T09:34:17Z"
+    },
+    {
+      "run": 45978149098,
+      "commit": "8350cc585ec11a4e43752a1b379fc4f8a881ae80",
+      "conclusion": "cancelled",
+      "artifacts": [],
+      "created_utc": "2026-11-27T09:58:34Z"
+    },
+    {
+      "run": 45978329867,
+      "commit": "a2bf2e16b65298c48d4daa6df2924ed0309f630a",
+      "conclusion": "cancelled",
+      "artifacts": [],
+      "created_utc": "2026-11-27T09:59:55Z"
+    },
+    {
+      "run": 45978426766,
+      "commit": "413861d6f3f75866d6624d602a52b82c5cd58316",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15188498729,
+          "name": "eval-sanity-report",
+          "sha256": "90b6822fa9e57d10194f46f3bcbbb32a02a1ec78386ba0e7b169a9c3cd569165"
+        },
+        {
+          "id": 15189071326,
+          "name": "matrix-muxer-decisions",
+          "sha256": "789fb09d4f4fb68a8e651017e1bdf96d41d634e70e038f6f231063a306cd5d23"
+        }
+      ],
+      "created_utc": "2026-11-27T10:00:33Z"
+    },
+    {
+      "run": 45979656583,
+      "commit": "89c5acc28dd9be18c86f026c5729c8c394344c91",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15189242132,
+          "name": "eval-sanity-report",
+          "sha256": "41d0d3e5310b51dd4725771ed0116fd2f6440089596b658efd8187f558ee9d8a"
+        },
+        {
+          "id": 15189287696,
+          "name": "matrix-muxer-decisions",
+          "sha256": "728bce9f37526dd016cc44f49f680dea833aca0ef20c49f4536fab32887fb83c"
+        }
+      ],
+      "created_utc": "2026-11-27T10:09:07Z"
+    },
+    {
+      "run": 46035625338,
+      "commit": "01370e52ba97d5a094c3a3a0e9d3b038ef7063f9",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15216153005,
+          "name": "eval-sanity-report",
+          "sha256": "cc5d1e176ada89f02f3d35a8123f7b1cc8fe927fb8575cd26f08dce69a19da6a"
+        },
+        {
+          "id": 15216971325,
+          "name": "matrix-muxer-decisions",
+          "sha256": "73478333fd9ca11bb1c2a2c5e210538142460f89aa47e47f2697a3e3c52e9efb"
+        }
+      ],
+      "created_utc": "2026-11-27T16:40:44Z"
+    },
+    {
+      "run": 46059650769,
+      "commit": "5ee1aabbd76fba14978c126baad2b4582935bac0",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15228342406,
+          "name": "eval-sanity-report",
+          "sha256": "3838bfa3cea6fe807d004544984d6278fa9d63a3c96ba8e9ba462d1e3015674f"
+        },
+        {
+          "id": 15229116406,
+          "name": "matrix-muxer-decisions",
+          "sha256": "2862b1769bb4c21211d772d033b693dd69b6a565213aeb53e5a27f5575d22ee3"
+        }
+      ],
+      "created_utc": "2026-11-27T19:51:53Z"
+    },
+    {
+      "run": 46061644342,
+      "commit": "c5138dbf21dba477bc58fdd3f28c2b353ced3064",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15229271534,
+          "name": "eval-sanity-report",
+          "sha256": "c23b6a7dbbb3739ecb0552463ebe2e81d393b8b5b4911f066279a58065acd736"
+        },
+        {
+          "id": 15228709417,
+          "name": "matrix-muxer-decisions",
+          "sha256": "b55f90f80cb24bf116d11e8a357d07069f95cc23a4373f95b1167a2207e4e8ac"
+        }
+      ],
+      "created_utc": "2026-11-27T20:09:13Z"
+    },
+    {
+      "run": 46063499272,
+      "commit": "fbb059806420aa3c0293a097c5240fa62b92232d",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15230715550,
+          "name": "eval-sanity-report",
+          "sha256": "3048289a490ab55bdd60c75e92ff27c6e22eacd94d2242f441a15d33ff3d96a3"
+        },
+        {
+          "id": 15229408543,
+          "name": "matrix-muxer-decisions",
+          "sha256": "38e76d9c948a1c6bfa8251926c2dd26b25b6e20605e98c3a6810e9ffee624a82"
+        }
+      ],
+      "created_utc": "2026-11-27T20:25:09Z"
+    },
+    {
+      "run": 46065374740,
+      "commit": "0874e0689bb270bf67d88dd0b16c596dfaf24640",
+      "conclusion": "success",
+      "artifacts": [
+        {
+          "id": 15229953415,
+          "name": "eval-sanity-report",
+          "sha256": "b6456d019379f2eb139fdbd02f6f03cc1cf078947fc601f2b2ad07840de86741"
+        },
+        {
+          "id": 15230851393,
+          "name": "matrix-muxer-decisions",
+          "sha256": "0deb6600a8408054028187e7bd25b9bb4fb9b1d0599db15675cdc36596b4e000"
+        }
+      ],
+      "created_utc": "2026-11-27T20:41:47Z"
+    }
+  ]
+}

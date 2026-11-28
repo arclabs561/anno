@@ -8,7 +8,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 
 INK = "#213945"
 MUTED = "#4a626d"
@@ -16,9 +15,13 @@ RULE = "#dce4e5"
 
 
 def draw(receipt):
-    rows = []
-    for group, y in (("without_bert", 4.0), ("with_bert", 1.4)):
-        for offset, split in enumerate(("Development", "Test")):
+    groups = {}
+    for split in ("Test", "Development"):
+        groups[split] = {}
+        for name, group in (
+            ("BERT absent", "without_bert"),
+            ("BERT loaded", "with_bert"),
+        ):
             arm = receipt["splits"][split][group]
             n = arm["stock_skipped"]
             counts = arm["skipped_subset"]
@@ -29,93 +32,93 @@ def draw(receipt):
             )
             if n <= 0:
                 raise ValueError(f"No skipped sentences in {split}, {group}")
-            if exact != counts["candidate_exact"] - counts[
-                "stock_exact"
-            ] or unmatched != (
-                counts["candidate_in_schema_unmatched"]
+            if (
+                exact != counts["candidate_exact"] - counts["stock_exact"]
+                or unmatched
+                != counts["candidate_in_schema_unmatched"]
                 - counts["stock_in_schema_unmatched"]
             ):
                 raise ValueError(
                     f"Paired changes disagree with totals in {split}, {group}"
                 )
-            rows.append(
-                (y - offset * 0.83, split, n, 100 * exact / n, 100 * unmatched / n)
+            timing = arm["warm_skipped_subset_latency"]
+            if any(timing[name]["calls"] != n for name in ("stock", "candidate")):
+                raise ValueError(
+                    "Timed stack calls must cover the same skipped sentences"
+                )
+            groups[split][name] = dict(
+                n=n,
+                rates=(100 * exact / n, 100 * unmatched / n),
+                suggestions=exact + unmatched,
+                before=timing["stock"]["median_ms"],
+                after=timing["candidate"]["median_ms"],
             )
 
-    fig, (labels, exact_ax, unmatched_ax) = plt.subplots(
-        1, 3, figsize=(8.8, 4.85), sharey=True, width_ratios=(0.84, 1, 1)
-    )
-    fig.subplots_adjust(left=0.036, right=0.975, bottom=0.24, top=0.736, wspace=0.13)
-    fig.text(
-        0.036,
-        0.93,
-        "What does an extra NuNER call recover?",
-        size=18,
-        weight="bold",
-        color=INK,
-    )
-    fig.text(
-        0.036,
-        0.869,
-        "Paired WNUT-17 predictions when Anno runs NuNER on sentences where the stock stack skipped that layer.",
-        size=10.6,
-        color=MUTED,
-    )
+    width, height = 374, 674
+    fig, ax = plt.subplots(figsize=(width / 72, height / 72))
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.set(xlim=(0, width), ylim=(height, 0))
+    ax.axis("off")
 
-    labels.set_ylim(0.05, 5.2)
-    labels.axis("off")
-    for y, title in ((4.64, "BERT unavailable"), (2.04, "BERT loaded")):
-        labels.text(0, y, title, weight="bold", color=INK, size=11, va="center")
-    for y, split, n, _, _ in rows:
-        labels.text(
-            0.04, y, f"{split} · {n:,} skipped", va="center", size=9.5, color=MUTED
+    def label(x, y, value, size=14.0, bold=False, color=INK, align="left"):
+        ax.text(
+            x,
+            y,
+            value,
+            fontsize=size,
+            color=color,
+            ha=align,
+            va="baseline",
+            fontweight="bold" if bold else "normal",
         )
 
-    all_rates = [0, *(rate for row in rows for rate in row[3:])]
-    low, high = min(all_rates), max(all_rates)
-    # Leave room for the signed value at either end, including a zero result.
-    pad = max(high - low, 10) * 0.23
-    for ax, title, column, color in (
-        (exact_ax, "Exact matches", 3, "#146e70"),
-        (unmatched_ax, "Unmatched predictions", 4, "#9b5e21"),
-    ):
-        ax.set_title(title, loc="left", size=11.3, color=INK, weight="bold", pad=5)
-        ax.set_xlim(low - pad, high + pad)
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
-        ax.grid(axis="x", color=RULE, linewidth=0.7)
-        ax.axvline(0, color=MUTED, linewidth=1.1)
-        ax.spines[:].set_visible(False)
-        ax.tick_params(axis="both", length=0, labelcolor=MUTED, labelsize=8.7)
-        ax.set_yticks([])
-        for row in rows:
-            y, value = row[0], row[column]
-            ax.hlines(y, 0, value, color=color, linewidth=2.3)
-            ax.plot(value, y, "o", color=color, markersize=6)
-            ax.annotate(
-                f"{value:+.1f}" if value else "0",
-                (value, y),
-                xytext=(6 if value >= 0 else -6, 0),
-                textcoords="offset points",
-                ha="left" if value >= 0 else "right",
-                va="center",
-                color=INK,
-                size=9.2,
+    label(13, 26, "What does a skipped NuNER", 19.5, True)
+    label(13, 50, "call buy on WNUT-17?", 19.5, True)
+    label(13, 78, "Net change per 100 skipped sentences.")
+    label(13, 98, "Both outcomes share the same scale.")
+    rates = [v for g in groups.values() for arm in g.values() for v in arm["rates"]]
+    low, high = min(0, *rates), max(0, *rates)
+    span = max(high - low, 1)
+
+    def x_rate(value):
+        return 117 + (value - low) * 163 / span
+
+    y = 134
+    for split, arms in groups.items():
+        samples = {arm["n"] for arm in arms.values()}
+        if len(samples) != 1:
+            raise ValueError(
+                f"Compared BERT conditions used different populations on {split}"
             )
-    fig.text(
-        0.036,
-        0.122,
-        "Change per 100 skipped sentences. Positive values mean more predictions of that kind.",
-        weight="bold",
-        color=INK,
-        size=9.5,
-    )
-    fig.text(
-        0.036,
-        0.062,
-        "Negative values mean fewer. Both columns use mapped WNUT labels. Exact matches require the reference span and type.",
-        color=MUTED,
-        size=8.8,
-    )
+        n = samples.pop()
+        ax.hlines(y - 17, 13, width - 13, color="#70868c", lw=1)
+        label(13, y + 3, f"{split} · {n:,} skipped sentences", 15, True)
+        y += 32
+        for name, arm in arms.items():
+            label(13, y, name, 14, True)
+            y += 23
+            for (outcome, color), rate in zip(
+                (("Exact", "#14736c"), ("Unmatched", "#9b5e21")),
+                arm["rates"],
+                strict=True,
+            ):
+                label(13, y, outcome)
+                ax.hlines(y - 5, x_rate(low), x_rate(low + span), color=RULE, lw=2)
+                ax.hlines(y - 5, x_rate(0), x_rate(rate), color=color, lw=4)
+                ax.plot(x_rate(rate), y - 5, "o", color=color, ms=6)
+                label(width - 13, y, f"{rate:+.1f}", 14, True, align="right")
+                y += 20
+            label(
+                13,
+                y + 2,
+                f"{arm['suggestions']:+,} suggestions · {arm['before']:,.1f} → {arm['after']:,.1f} ms",
+                color=MUTED,
+            )
+            y += 39
+        y += 2
+    label(13, y + 1, "Suggestions count net outputs in WNUT’s five")
+    label(13, y + 21, "mapped types. Times are warm median stack")
+    label(13, y + 41, "latency, stock → one extra call per sentence.")
     return fig
 
 
