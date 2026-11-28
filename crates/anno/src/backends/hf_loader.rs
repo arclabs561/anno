@@ -190,7 +190,7 @@ pub(crate) fn candle_files_available(
 }
 
 #[cfg(feature = "candle")]
-fn cached_candle_files(
+pub(crate) fn cached_candle_files(
     repo: &hf_hub::CacheRepo,
     config: &[&str],
     tokenizer: &[&str],

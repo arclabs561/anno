@@ -93,9 +93,7 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
         return Err("No input provided. Use --input or --text".into());
     };
 
-    let contact_only =
-        !args.types.is_empty() && args.types.iter().all(|t| t.eq_ignore_ascii_case("CONTACT"));
-    let pii_entities = if args.model.is_none() && contact_only {
+    let pii_entities = if super::model_routing::automatic_contact_rules(args.model, &args.types) {
         default_contacts(&text, args.quiet)?
     } else {
         let model = args.model.unwrap_or_default().create_model()?;

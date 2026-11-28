@@ -137,6 +137,18 @@ impl GLiNERCandle {
     #[cfg(not(target_arch = "wasm32"))]
     const NATIVE_WEIGHTS: &[&str] = &["model.safetensors", "gliner_model.safetensors"];
 
+    /// Whether the required assets already exist in the local Hub cache.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn cached_assets_available(model: &str) -> bool {
+        let repo = hf_hub::Cache::from_env().model(model.to_string());
+        crate::backends::hf_loader::cached_candle_files(
+            &repo,
+            Self::CONFIG_FILES,
+            Self::TOKENIZER_FILES,
+            Self::NATIVE_WEIGHTS,
+        )
+    }
+
     /// Check prerequisites for this Hub constructor without reading weights.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn hub_assets_available(model: &str) -> bool {

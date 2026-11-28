@@ -721,9 +721,9 @@ impl BackendFactory {
             .or_else(|| dirs::home_dir().map(|home| home.join(".cache/anno/models/biomedical-ner")))
     }
 
-    // Cheap preflight for optional local runtimes. Constructors still validate the
-    // snapshot, graph and interpreter when the backend is explicitly requested.
-    fn optional_model_files_available(name: &str) -> Option<bool> {
+    /// Check the local files for an optional backend using its canonical underscore name.
+    /// Constructors validate the snapshot, graph and interpreter separately.
+    pub fn optional_model_files_available(name: &str) -> Option<bool> {
         let contains_files =
             |dir: &Path, names: &[&str]| names.iter().all(|file| dir.join(file).is_file());
         match name {

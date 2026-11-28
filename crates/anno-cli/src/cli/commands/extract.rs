@@ -154,28 +154,6 @@ pub struct ExtractArgs {
     pub positional: Vec<String>,
 }
 
-fn schema_model_ready(backend: ModelBackend) -> bool {
-    use anno::backends::{glinerel::GLiNEREL, otter::OtterVariant};
-    match backend {
-        ModelBackend::OtterCross => OtterVariant::Cross.model_files_available(),
-        ModelBackend::OtterBi => OtterVariant::Bi.model_files_available(),
-        ModelBackend::Glinerel72m => backend
-            .checkpoint_override()
-            .is_some_and(|dir| GLiNEREL::model_files_available(std::path::Path::new(&dir))),
-        #[cfg(feature = "onnx")]
-        ModelBackend::GlinerRelex => anno::GLiNEROnnx::relex_joint_export_available(),
-        #[cfg(feature = "onnx")]
-        ModelBackend::Gliner => anno::GLiNEROnnx::hub_assets_available(anno::DEFAULT_GLINER_MODEL),
-        #[cfg(feature = "candle")]
-        ModelBackend::GlinerCandle => {
-            anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
-                anno::DEFAULT_GLINER_CANDLE_MODEL,
-            )
-        }
-        _ => true,
-    }
-}
-
 // Construct a candidate once. A partially configured optional worker can fail to
 // initialize even with a complete checkpoint (for example, a missing interpreter).
 fn load_extract_model<T>(
@@ -185,29 +163,10 @@ fn load_extract_model<T>(
     ready: impl Fn(ModelBackend) -> bool,
     mut load: impl FnMut(ModelBackend) -> Result<T, String>,
 ) -> Result<(ModelBackend, T), String> {
-    use ModelBackend::*;
     if let Some(model) = requested {
         return load(model).map(|loaded| (model, loaded));
     }
-    let mut candidates = Vec::new();
-    if relations {
-        candidates.push(Glinerel72m);
-        #[cfg(feature = "onnx")]
-        candidates.push(GlinerRelex);
-    }
-    if custom_schema {
-        candidates.push(OtterCross);
-        if !relations {
-            candidates.push(Glinerel72m);
-        }
-        candidates.push(OtterBi);
-        #[cfg(feature = "onnx")]
-        candidates.push(Gliner);
-        #[cfg(feature = "candle")]
-        candidates.push(GlinerCandle);
-    } else {
-        candidates.push(Stacked);
-    }
+    let candidates = super::model_routing::extract_candidates(custom_schema, relations);
     let mut failures = Vec::new();
     for model in candidates {
         if !ready(model) {
@@ -456,7 +415,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .as_ref()
             .is_some_and(|labels| !labels.is_empty()),
         args.extract_relations,
-        schema_model_ready,
+        |model| super::model_routing::preflight(model, false, args.extract_relations).eligible,
         ModelBackend::create_model,
     )
     .map_err(CliError::from)?;

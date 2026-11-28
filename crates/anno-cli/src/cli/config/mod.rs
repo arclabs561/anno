@@ -97,6 +97,9 @@ fn apply_selected(
         }};
     }
     match command {
+        Some(Commands::Models(crate::cli::commands::models::ModelsArgs {
+            action: crate::cli::commands::models::ModelsAction::Explain(args),
+        })) => args.inherit_model(config.model),
         Some(Commands::Extract(a)) => inherit!(a, model, format, threshold),
         Some(Commands::Debug(a)) => inherit!(a, model, coref, link_kb),
         Some(Commands::Batch(a)) => inherit!(a, model, format, coref, link_kb),

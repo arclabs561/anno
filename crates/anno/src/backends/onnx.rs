@@ -217,9 +217,11 @@ impl BertNEROnnx {
     /// local exports support the built-in CoNLL label map when it is absent.
     pub fn model_files_available(model_name: &str) -> bool {
         use crate::backends::hf_loader;
-        if !hf_loader::no_downloads() {
-            return true;
-        }
+        !hf_loader::no_downloads() || Self::cached_assets_available(model_name)
+    }
+
+    /// Check the local export or cache without loading weights or allowing a download.
+    pub fn cached_assets_available(model_name: &str) -> bool {
         let quantized = BertNERConfig::default().prefer_quantized;
         match local_model_dir(model_name) {
             Ok(Some(dir)) => {
@@ -227,7 +229,9 @@ impl BertNEROnnx {
                     && (dir.join("model.onnx").is_file()
                         || quantized && dir.join("model_quantized.onnx").is_file())
             }
-            Ok(None) => hf_loader::hub_onnx_files_available(model_name, quantized, true),
+            Ok(None) => {
+                crate::backends::hf_loader::cached_hub_onnx_files(model_name, quantized, true)
+            }
             Err(_) => false,
         }
     }
