@@ -244,7 +244,7 @@ impl BackendRegistry {
     }
 
     /// Register ONNX backends if feature enabled.
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub fn register_onnx(&mut self) {
         use crate::{BertNEROnnx, GLiNEROnnx, DEFAULT_BERT_ONNX_MODEL, DEFAULT_GLINER_MODEL};
 
@@ -302,7 +302,7 @@ impl BackendRegistry {
     /// (different special tokens, different head structure). See issue #17.
     ///
     /// Requires either `onnx` or `candle` feature.
-    #[cfg(any(feature = "onnx", feature = "candle"))]
+    #[cfg(any(feature = "onnx-local", feature = "candle"))]
     pub fn register_gliner_multitask(&mut self, model_id: &str) {
         use crate::backends::gliner_multitask::GLiNERMultitask;
 
@@ -322,7 +322,7 @@ impl BackendRegistry {
 
     /// Register GLiNER multi-task with the default model
     /// (`onnx-community/gliner-multitask-large-v0.5`).
-    #[cfg(any(feature = "onnx", feature = "candle"))]
+    #[cfg(any(feature = "onnx-local", feature = "candle"))]
     pub fn register_gliner_multitask_default(&mut self) {
         self.register_gliner_multitask(anno::DEFAULT_GLINER_MULTITASK_MODEL);
     }
@@ -419,7 +419,7 @@ impl Default for BackendRegistry {
         let mut registry = Self::new();
         registry.register_defaults();
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         registry.register_onnx();
 
         #[cfg(feature = "candle")]

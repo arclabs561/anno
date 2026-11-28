@@ -446,7 +446,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner25" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         "gliner_relex" | "relex" if anno::GLiNEROnnx::relex_joint_export_available() => {
             &[Task::NER, Task::RelationExtraction]
         }
@@ -706,9 +706,9 @@ mod tests {
 
     #[test]
     fn relex_relation_capability_tracks_joint_export() {
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         let has_joint_export = anno::GLiNEROnnx::relex_joint_export_available();
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         let has_joint_export = false;
         for alias in ["gliner_relex", "relex"] {
             assert!(backend_tasks(alias).contains(&Task::NER));

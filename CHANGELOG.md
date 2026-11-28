@@ -8,6 +8,8 @@
 
 ### Rust and grounded JSON migration
 
+- The CLI and evaluator also support `onnx-local`. A default CLI can prefetch BERT with `anno models download bert-onnx` and share its cache with a lightweight build. Native ONNX model loading now honors both `HF_HUB_OFFLINE` and `ANNO_NO_DOWNLOADS`.
+
 - The Rust library supports local ONNX inference with `default-features = false, features = ["onnx-local"]`. This configuration omits the Hub client and can load prepared model directories and cached snapshots.
 
 - Model and dataset downloads now use `hf-hub` 1.0. Pass a typed blocking repository handle to `anno::download_model_file`. To pin a branch or commit, use `anno::download_model_file_at_revision(&repo, Some(revision), candidates)`. Both helpers honor `ANNO_NO_DOWNLOADS` and read existing Hub snapshots.

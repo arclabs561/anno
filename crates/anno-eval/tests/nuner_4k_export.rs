@@ -1,4 +1,4 @@
-#![cfg(all(feature = "eval", feature = "onnx"))]
+#![cfg(all(feature = "eval", feature = "onnx-local"))]
 
 use anno_eval::eval::backend_factory::BackendFactory;
 use std::{fs, path::Path};

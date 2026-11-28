@@ -963,7 +963,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 String,
                                 Box<dyn RelationExtractor>,
                             )> = match model {
-                                #[cfg(feature = "onnx")]
+                                #[cfg(feature = "onnx-local")]
                                 ModelBackend::GlinerMultitask => {
                                     anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
                                         "onnx-community/gliner-multitask-large-v0.5",
@@ -1032,11 +1032,11 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                     .unwrap_or(true);
 
                                             let is_gliner_multitask = {
-                                                #[cfg(feature = "onnx")]
+                                                #[cfg(feature = "onnx-local")]
                                                 {
                                                     matches!(model, ModelBackend::GlinerMultitask)
                                                 }
-                                                #[cfg(not(feature = "onnx"))]
+                                                #[cfg(not(feature = "onnx-local"))]
                                                 {
                                                     false
                                                 }

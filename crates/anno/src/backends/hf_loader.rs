@@ -4,14 +4,16 @@
 
 use crate::{Error, Result};
 
-/// Returns `true` in a local-only build or when `ANNO_NO_DOWNLOADS` is truthy.
+/// Returns `true` in a local-only build or when `ANNO_NO_DOWNLOADS` or `HF_HUB_OFFLINE` is truthy.
 ///
 /// The flag blocks *new* network fetches; cached models still load via
 /// [`download_model_file`]. Backends constructed from local paths bypass
 /// this layer entirely.
 pub fn no_downloads() -> bool {
     !cfg!(feature = "hub-downloads")
-        || no_downloads_from(std::env::var("ANNO_NO_DOWNLOADS").ok().as_deref())
+        || ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"]
+            .iter()
+            .any(|key| no_downloads_from(std::env::var(key).ok().as_deref()))
 }
 
 fn no_downloads_from(value: Option<&str>) -> bool {
@@ -226,13 +228,17 @@ mod tests {
         // Isolate environment flags from tests running concurrently in this process.
         const CHILD: &str = "ANNO_TEST_OFFLINE_HF_CHILD";
         if std::env::var_os(CHILD).is_none() {
-            let home = tempfile::tempdir().unwrap();
-            let status = std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", "backends::hf_loader::tests::offline_candidate_lookup_preserves_revision_without_network", "--nocapture"])
-                .env(CHILD, "1").env("ANNO_NO_DOWNLOADS", "1")
-                .env_remove("HF_HUB_CACHE").env_remove("HUGGINGFACE_HUB_CACHE")
-                .env("HF_HOME", home.path()).status().unwrap();
-            assert!(status.success());
+            for flag in ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"] {
+                let home = tempfile::tempdir().unwrap();
+                let status = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "backends::hf_loader::tests::offline_candidate_lookup_preserves_revision_without_network", "--nocapture"])
+                    .env(CHILD, "1")
+                    .env_remove("ANNO_NO_DOWNLOADS").env_remove("HF_HUB_OFFLINE")
+                    .env(flag, "1")
+                    .env_remove("HF_HUB_CACHE").env_remove("HUGGINGFACE_HUB_CACHE")
+                    .env("HF_HOME", home.path()).status().unwrap();
+                assert!(status.success(), "{flag}");
+            }
             return;
         }
         // A live local listener makes any unintended network access observable.

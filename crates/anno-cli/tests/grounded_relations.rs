@@ -132,7 +132,7 @@ fn unmatched_relation_returns_entities_and_an_empty_list() {
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 #[test]
 fn missing_explicit_relex_export_fails_without_emitting_predictions() {
     let cache = tempfile::tempdir().unwrap();

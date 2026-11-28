@@ -411,7 +411,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             relation_provenance = producer;
             (out.entities, out.relations, backend.runtime_name())
         } else {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             if matches!(model, ModelBackend::GlinerRelex) {
                 return Err(CliError::from("GLiNER-Relex relations require the joint export. Run uv run scripts/export_gliner_relex_onnx.py --joint"));
             }
@@ -466,7 +466,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     }
 
     // GLiNER UX: hint when zero entities returned without custom types
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     if entities.is_empty()
         && extract_types.is_none()
         && matches!(model, ModelBackend::Gliner | ModelBackend::GlinerMultitask)
@@ -1009,11 +1009,11 @@ fn extract_with_custom_types(
     use super::super::output::color;
 
     // When ONNX is not enabled, `--extract-types` is unsupported and these become unused.
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     let _ = (custom_types, threshold);
 
     // Try to use zero-shot capable backends
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     {
         use super::super::parser::ModelBackend;
         use anno::backends::inference::ZeroShotNER;

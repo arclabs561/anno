@@ -504,12 +504,12 @@ pub fn load_gold_from_file(
 ///
 /// Tries neural f-coref (ONNX) first, falls back to heuristic mention-ranking.
 pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: &[SignalId]) {
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     let mut failures = Vec::new();
-    #[cfg(not(feature = "onnx"))]
+    #[cfg(not(feature = "onnx-local"))]
     let failures = Vec::new();
     // Try f-coref (neural) if ONNX model is available
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     {
         use anno::backends::coref::fcoref::FCoref;
 
@@ -563,7 +563,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
     }
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-local")]
 fn try_neural_coref(
     doc: &mut GroundedDocument,
     text: &str,

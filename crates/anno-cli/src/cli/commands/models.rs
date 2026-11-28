@@ -39,7 +39,9 @@ pub enum ModelsAction {
     /// “download if missing” paths (HF Hub / local cache) used by the rest of the CLI.
     ///
     /// Notes:
-    /// - If `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` is set, downloads will likely fail.
+    /// - The default ONNX build fetches missing weights. In an onnx-local build, populate the
+    ///   cache first with `hf download REPO_ID` or supply a prepared model directory.
+    /// - ANNO_NO_DOWNLOADS=1 or HF_HUB_OFFLINE=1 restricts ONNX model lookup to disk.
     /// - For some backends (e.g. `deberta-v3`, `albert`) you must provide local ONNX exports
     ///   via env vars (`DEBERTA_MODEL_PATH`, `ALBERT_MODEL_PATH`).
     #[command(visible_alias = "dl")]
@@ -204,7 +206,15 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             }
 
             println!();
-            println!("{}", color("1;36", "Downloading models"));
+            let heading = if cfg!(all(
+                feature = "onnx-local",
+                not(any(feature = "onnx", feature = "candle"))
+            )) {
+                "Checking locally provisioned models"
+            } else {
+                "Downloading models"
+            };
+            println!("{}", color("1;36", heading));
             println!();
 
             let mut any_err = false;
@@ -228,7 +238,7 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
                 }
 
                 // Optional: prefetch relation-capable GLiNER multi-task weights as well.
-                #[cfg(feature = "onnx")]
+                #[cfg(feature = "onnx-local")]
                 {
                     use super::super::parser::ModelBackend;
 
@@ -274,7 +284,7 @@ mod tests {
             resolve_backend_metadata("heuristic-crf").map(|info| info.name),
             Some("heuristic_crf")
         );
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         assert_eq!(
             resolve_backend_metadata("bert").map(|info| info.name),
             Some("bert_onnx")

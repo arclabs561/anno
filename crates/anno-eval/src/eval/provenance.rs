@@ -309,7 +309,7 @@ pub(crate) fn current_build_provenance() -> EvalBuildProvenance {
         ("eval", cfg!(feature = "eval")),
         ("parallel", cfg!(feature = "parallel")),
         ("eval-parallel", cfg!(feature = "eval-parallel")),
-        ("onnx", cfg!(feature = "onnx")),
+        ("onnx", cfg!(feature = "onnx-local")),
         ("gliner2-fastino", cfg!(feature = "gliner2-fastino")),
         ("candle", cfg!(feature = "candle")),
         ("llm", cfg!(feature = "llm")),

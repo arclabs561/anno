@@ -136,7 +136,7 @@ pub(crate) fn gliner25_receipt(
 }
 
 // Keep true capability skips while retaining context for broken or unreadable models.
-#[cfg(any(feature = "onnx", feature = "candle", test))]
+#[cfg(any(feature = "onnx-local", feature = "candle", test))]
 fn model_load_error(cause: &anno::Error, message: String) -> anno::Error {
     if matches!(cause, anno::Error::FeatureNotAvailable(_)) {
         anno::Error::FeatureNotAvailable(message)
@@ -166,7 +166,7 @@ impl BackendFactory {
         backend_name: &str,
     ) -> Result<(Box<dyn Model>, BackendConstructionReceipt)> {
         match backend_name.to_lowercase().as_str() {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "bert_onnx" | "bertneronnx" => {
                 use crate::DEFAULT_BERT_ONNX_MODEL;
                 use anno::backends::onnx::BertNEROnnx;
@@ -190,7 +190,7 @@ impl BackendFactory {
                     },
                 ))
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             name @ ("gliner" | "gliner_onnx" | "glineronnx" | "gliner_relex" | "relex") => {
                 use crate::DEFAULT_GLINER_MODEL;
                 use anno::backends::gliner_onnx::GLiNEROnnx;
@@ -313,7 +313,7 @@ impl BackendFactory {
             }
 
             // ONNX backends
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "bert_onnx" | "bertneronnx" => {
                 use anno::backends::onnx::BertNEROnnx;
                 use crate::DEFAULT_BERT_ONNX_MODEL;
@@ -326,12 +326,12 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "bert_onnx" | "bertneronnx" => Err(anno::Error::FeatureNotAvailable(
                 "BertNEROnnx requires 'onnx' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner" => {
                 // First-class alias: prefer ONNX when available.
                 use anno::backends::gliner_onnx::GLiNEROnnx;
@@ -345,7 +345,7 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(all(not(feature = "onnx"), feature = "candle"))]
+            #[cfg(all(not(feature = "onnx-local"), feature = "candle"))]
             "gliner" => {
                 // Fallback alias: Candle implementation when ONNX isn't enabled.
                 Self::load_gliner_candle()
@@ -357,12 +357,12 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(all(not(feature = "onnx"), not(feature = "candle")))]
+            #[cfg(all(not(feature = "onnx-local"), not(feature = "candle")))]
             "gliner" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER requires 'onnx' (preferred) or 'candle' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_onnx" | "glineronnx" => {
                 use crate::backends::gliner_onnx::GLiNEROnnx;
                 use crate::DEFAULT_GLINER_MODEL;
@@ -375,7 +375,7 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_onnx" | "glineronnx" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNEROnnx requires 'onnx' feature".to_string(),
             )),
@@ -390,7 +390,7 @@ impl BackendFactory {
             )),
 
             // GLiNER PII Edge (60+ PII categories, zero-shot)
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_pii" | "pii_ml" => {
                 use crate::backends::gliner_onnx::GLiNEROnnx;
                 GLiNEROnnx::new(anno::models::GLINER_PII)
@@ -402,13 +402,13 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_pii" | "pii_ml" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER PII requires 'onnx' feature".to_string(),
             )),
 
             // The GLiNER-RelEx local export exposes entity logits.
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_relex" | "relex" => {
                 use crate::backends::gliner_onnx::GLiNEROnnx;
                 GLiNEROnnx::new(anno::models::GLINER_RELEX)
@@ -417,12 +417,12 @@ impl BackendFactory {
                         model_load_error(&e, format!("Failed to load GLiNER-RelEx entity export: {e}"))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_relex" | "relex" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER-RelEx requires 'onnx' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "nuner" | "nunerzero" => {
                 Self::load_nuner()
                     .map(|m| Box::new(m) as Box<dyn Model>)
@@ -430,12 +430,12 @@ impl BackendFactory {
                         model_load_error(&e, format!("Failed to create NuNER: {}", e))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "nuner" | "nunerzero" => Err(crate::Error::FeatureNotAvailable(
                 "NuNER requires 'onnx' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "nuner_4k" | "nunerzero4k" => {
                 use crate::backends::nuner::NuNER;
                 NuNER::from_pretrained(anno::models::NUNER_ZERO_4K)
@@ -447,12 +447,12 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "nuner_4k" | "nunerzero4k" => Err(crate::Error::FeatureNotAvailable(
                 "NuNER 4k requires 'onnx' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "w2ner" => {
                 use crate::backends::w2ner::W2NER;
                 use crate::DEFAULT_W2NER_MODEL;
@@ -472,12 +472,12 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "w2ner" => Err(crate::Error::FeatureNotAvailable(
                 "W2NER requires 'onnx' feature".to_string(),
             )),
 
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_multitask" | "gliner_multitask_onnx" => {
                 use crate::backends::gliner_multitask::GLiNERMultitaskOnnx;
                 use crate::DEFAULT_GLINER_MULTITASK_MODEL;
@@ -490,7 +490,7 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_multitask" | "gliner_multitask_onnx" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER multi-task (ONNX) requires 'onnx' feature".to_string(),
             )),
@@ -550,7 +550,7 @@ impl BackendFactory {
                 "GLiNERCandle requires 'candle' feature".to_string(),
             )),
 
-            #[cfg(all(feature = "candle", feature = "onnx"))]
+            #[cfg(all(feature = "candle", feature = "onnx-local"))]
             "gliner_multitask_candle" => {
                 use crate::backends::gliner_multitask::GLiNERMultitaskCandle;
                 use crate::DEFAULT_GLINER_MULTITASK_MODEL;
@@ -563,7 +563,7 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(all(feature = "candle", feature = "onnx")))]
+            #[cfg(not(all(feature = "candle", feature = "onnx-local")))]
             "gliner_multitask_candle" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER multi-task (Candle) requires both 'candle' and 'onnx' features".to_string(),
             )),
@@ -575,7 +575,7 @@ impl BackendFactory {
             }
 
             // Poly-Encoder GLiNER (requires onnx)
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_poly" | "gliner-poly" | "poly_gliner" => {
                 use anno::backends::gliner_poly::GLiNERPoly;
                 use anno::DEFAULT_GLINER_POLY_MODEL;
@@ -583,13 +583,13 @@ impl BackendFactory {
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| crate::Error::model_init(e.to_string()))
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "gliner_poly" | "gliner-poly" | "poly_gliner" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNERPoly requires 'onnx' feature".to_string(),
             )),
 
             // DeBERTa-v3 NER (requires onnx) -- uses BertNEROnnx (same ONNX interface)
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "deberta_v3" | "deberta-v3" | "deberta" => {
                 use anno::backends::onnx::BertNEROnnx;
                 let Ok(model_path) = std::env::var("DEBERTA_MODEL_PATH") else {
@@ -610,13 +610,13 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "deberta_v3" | "deberta-v3" | "deberta" => Err(crate::Error::FeatureNotAvailable(
                 "DeBERTa-v3 NER requires 'onnx' feature".to_string(),
             )),
 
             // ALBERT NER (requires onnx) -- uses BertNEROnnx (same ONNX interface)
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "albert" | "albert_ner" => {
                 use anno::backends::onnx::BertNEROnnx;
                 let Ok(model_path) = std::env::var("ALBERT_MODEL_PATH") else {
@@ -637,7 +637,7 @@ impl BackendFactory {
                         ))
                     })
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "albert" | "albert_ner" => Err(crate::Error::FeatureNotAvailable(
                 "ALBERT NER requires 'onnx' feature".to_string(),
             )),
@@ -659,7 +659,7 @@ impl BackendFactory {
             _ => Err(crate::Error::InvalidInput(format!(
                 "Unknown backend: '{}'. Available: pattern, heuristic, stacked, crf, hmm, ensemble, heuristic_crf, tplinker{}",
                 backend_name,
-                if cfg!(feature = "onnx") {
+                if cfg!(feature = "onnx-local") {
                     ", bert_onnx, gliner_onnx, nuner, w2ner, gliner_multitask"
                 } else {
                     ""
@@ -676,12 +676,12 @@ impl BackendFactory {
         )
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     pub(super) fn load_nuner() -> anno::Result<anno::NuNER> {
         anno::NuNER::from_pretrained(&Self::nuner_checkpoint())
     }
 
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     fn nuner_checkpoint() -> String {
         std::env::var("NUNER_MODEL_PATH").unwrap_or_else(|_| crate::DEFAULT_NUNER_MODEL.to_owned())
     }
@@ -691,9 +691,9 @@ impl BackendFactory {
     #[cfg(feature = "eval")]
     pub(crate) fn automatic_files_available(name: &str, has_hf_token: bool) -> bool {
         match name {
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "bert_onnx" => anno::BertNEROnnx::model_files_available(anno::DEFAULT_BERT_ONNX_MODEL),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "deberta_v3" | "albert" => {
                 let key = if name == "albert" {
                     "ALBERT_MODEL_PATH"
@@ -703,21 +703,21 @@ impl BackendFactory {
                 std::env::var(key)
                     .is_ok_and(|model| anno::BertNEROnnx::model_files_available(&model))
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "nuner" => anno::NuNER::model_files_available(&Self::nuner_checkpoint()),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_multitask" => {
                 anno::backends::gliner_multitask::GLiNERMultitaskOnnx::hub_assets_available(
                     anno::DEFAULT_GLINER_MULTITASK_MODEL,
                 )
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner" | "gliner_onnx" => {
                 anno::GLiNEROnnx::hub_assets_available(anno::DEFAULT_GLINER_MODEL)
             }
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "gliner_pii" => anno::GLiNEROnnx::hub_assets_available(anno::models::GLINER_PII),
-            #[cfg(feature = "onnx")]
+            #[cfg(feature = "onnx-local")]
             "w2ner" => {
                 let model = std::env::var("W2NER_MODEL_PATH")
                     .unwrap_or_else(|_| anno::DEFAULT_W2NER_MODEL.into());
@@ -731,7 +731,7 @@ impl BackendFactory {
             "gliner_candle" => anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
                 crate::DEFAULT_GLINER_CANDLE_MODEL,
             ),
-            #[cfg(all(feature = "candle", not(feature = "onnx")))]
+            #[cfg(all(feature = "candle", not(feature = "onnx-local")))]
             "gliner" => anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
                 crate::DEFAULT_GLINER_CANDLE_MODEL,
             ),
@@ -745,7 +745,7 @@ impl BackendFactory {
             "gliner2_fastino" => {
                 anno::backends::gliner2_fastino::GLiNER2Fastino::default_assets_available()
             }
-            #[cfg(not(feature = "onnx"))]
+            #[cfg(not(feature = "onnx-local"))]
             "w2ner" => has_hf_token,
             _ => true,
         }
@@ -775,7 +775,7 @@ impl BackendFactory {
             }
         }
 
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         {
             backends.extend(&[
                 "bert_onnx",
@@ -818,12 +818,12 @@ impl BackendFactory {
             backends.extend(&["candle_ner", "gliner_candle"]);
             // `gliner` is also available as an alias when candle is enabled
             // (and onnx is not required).
-            if !cfg!(feature = "onnx") {
+            if !cfg!(feature = "onnx-local") {
                 backends.push("gliner");
             }
         }
 
-        #[cfg(all(feature = "candle", feature = "onnx"))]
+        #[cfg(all(feature = "candle", feature = "onnx-local"))]
         {
             backends.push("gliner_multitask_candle");
         }
@@ -891,7 +891,7 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
                 python, checkpoint, false,
             )?))
         }
-        #[cfg(feature = "onnx")]
+        #[cfg(feature = "onnx-local")]
         "fcoref" | "f-coref" | "fastcoref" => {
             use anno::backends::coref::fcoref::FCoref;
             let model_path = std::env::var("FCOREF_MODEL_PATH").ok();
@@ -902,7 +902,7 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
             };
             Ok(Box::new(fcoref))
         }
-        #[cfg(not(feature = "onnx"))]
+        #[cfg(not(feature = "onnx-local"))]
         "fcoref" | "f-coref" | "fastcoref" => Err(crate::Error::FeatureNotAvailable(
             "FCoref requires 'onnx' feature. Export: uv run scripts/export_fcoref.py".to_string(),
         )),
@@ -920,7 +920,7 @@ pub fn available_coref_backends() -> Vec<&'static str> {
     if std::env::var_os("MAVERICK_MODEL_PATH").is_some() {
         backends.push("maverick");
     }
-    #[cfg(feature = "onnx")]
+    #[cfg(feature = "onnx-local")]
     {
         backends.push("fcoref");
     }

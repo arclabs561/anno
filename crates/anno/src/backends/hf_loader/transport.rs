@@ -90,7 +90,7 @@ pub fn download_model_file_at_revision<T: hf_hub::RepoType>(
         }
     }
     let mode = if offline {
-        "ANNO_NO_DOWNLOADS is set; cache lookup failed"
+        "cache lookup failed in offline mode (ANNO_NO_DOWNLOADS or HF_HUB_OFFLINE)"
     } else {
         "Hub download failed"
     };
