@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 /// Batch processing
 #[derive(Parser, Debug)]
 pub struct BatchArgs {
-    /// Process directory of text files (.txt, .md, .html, .htm, .pdf)
+    /// Process supported text and document files recursively under DIR
     #[arg(short, long, value_name = "DIR")]
     pub dir: Option<String>,
 
@@ -325,6 +325,73 @@ fn finalize_document(
     }
 }
 
+/// Use root-relative IDs so two subdirectories can contain the same filename.
+fn read_directory_inputs(
+    root: &Path,
+    output: Option<&Path>,
+) -> Result<Vec<(String, String)>, String> {
+    let root = root
+        .canonicalize()
+        .map_err(|e| format!("Cannot open '{}': {e}", root.display()))?;
+    let output = output.and_then(|p| p.canonicalize().ok());
+    let mut dirs = vec![root.clone()];
+    let mut files = std::collections::BTreeMap::new();
+    while let Some(dir) = dirs.pop() {
+        let entries =
+            std::fs::read_dir(&dir).map_err(|e| format!("Cannot read '{}': {e}", dir.display()))?;
+        for entry in entries {
+            let entry =
+                entry.map_err(|e| format!("Cannot read entry in '{}': {e}", dir.display()))?;
+            let path = entry.path();
+            let kind = entry
+                .file_type()
+                .map_err(|e| format!("Cannot inspect '{}': {e}", path.display()))?;
+            if kind.is_dir() {
+                if output.as_ref() != Some(&path) {
+                    dirs.push(path);
+                }
+                continue;
+            }
+            // Preserve file symlinks accepted by flat batches. Never descend through a directory symlink.
+            if !path.is_file()
+                || !matches!(
+                    path.extension().and_then(|s| s.to_str()),
+                    Some("txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text")
+                )
+            {
+                continue;
+            }
+            let relative = path.strip_prefix(&root).expect("entry beneath input root");
+            let relative = relative
+                .to_str()
+                .ok_or_else(|| format!("Non-UTF-8 input path '{}'", path.display()))?;
+            let (stem, _) = relative.rsplit_once('.').expect("supported extension");
+            let id = stem.replace(std::path::MAIN_SEPARATOR, "/");
+            if let Some(other) = files.insert(id.clone(), path.clone()) {
+                return Err(format!(
+                    "Duplicate document id '{id}' for '{}' and '{}'",
+                    other.display(),
+                    path.display()
+                ));
+            }
+        }
+    }
+    if files.is_empty() {
+        return Err(format!("No input files found under '{}'", root.display()));
+    }
+    files
+        .into_iter()
+        .map(|(id, path)| {
+            let text = crate::cli::utils::read_input_file(
+                path.to_str()
+                    .ok_or_else(|| format!("Non-UTF-8 input path {}", path.display()))?,
+            )
+            .map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+            Ok((id, text))
+        })
+        .collect()
+}
+
 // Main entry point
 
 /// Execute the batch processing command.
@@ -408,50 +475,8 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
         }
         out
     } else {
-        let dir = args.dir.as_ref().expect("validated above");
-        let dir_path = Path::new(dir);
-        let entries = std::fs::read_dir(dir_path)
-            .map_err(|e| format!("Failed to read directory '{}': {}", dir, e))?;
-
-        let mut out = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let ext_ok = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| {
-                    matches!(
-                        e,
-                        "txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text"
-                    )
-                })
-                .unwrap_or(false);
-            if !ext_ok {
-                continue;
-            }
-            let path_str = path.to_string_lossy();
-            let text = crate::cli::utils::read_input_file(&path_str)
-                .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
-            let doc_id = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("doc{}", out.len() + 1));
-            out.push((doc_id, text));
-        }
-
-        if out.is_empty() {
-            return Err(format!(
-                "No input files found under '{}' (expected .txt, .md, .html, .htm, .pdf, .rst)",
-                args.dir.as_deref().unwrap_or("")
-            ));
-        }
-        out.sort_by(|a, b| a.0.cmp(&b.0));
-        out
+        let dir = Path::new(args.dir.as_deref().expect("validated above"));
+        read_directory_inputs(dir, args.output.as_deref().map(Path::new))?
     };
 
     if !args.quiet {
@@ -781,7 +806,35 @@ fn write_outputs(
         .map_err(|e| format!("Failed to create output dir '{}': {}", out_dir.display(), e))?;
 
     for doc in documents {
-        validate_path_component(doc.id(), "document id")?;
+        if args.dir.is_some() {
+            let mut parent = out_dir.clone();
+            let mut parts = doc.id().split('/').peekable();
+            while let Some(part) = parts.next() {
+                validate_path_component(part, "document path component")?;
+                if parts.peek().is_some() {
+                    parent.push(part);
+                    if parent.is_symlink() {
+                        return Err(format!(
+                            "Refusing symlink output directory '{}'",
+                            parent.display()
+                        ));
+                    }
+                    std::fs::create_dir_all(&parent)
+                        .map_err(|e| format!("Cannot create '{}': {e}", parent.display()))?;
+                }
+            }
+            let suffix = if matches!(args.format, OutputFormat::Jsonl) {
+                "jsonl"
+            } else {
+                "json"
+            };
+            let dest = out_dir.join(format!("{}.{suffix}", doc.id()));
+            if dest.is_symlink() {
+                return Err(format!("Refusing symlink output file '{}'", dest.display()));
+            }
+        } else {
+            validate_path_component(doc.id(), "document id")?;
+        }
     }
 
     for doc in documents {

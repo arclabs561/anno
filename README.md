@@ -43,8 +43,9 @@ anno batch --model heuristic \
   --dir notes --output results
 ```
 
-`anno batch` reads files directly inside `notes/`. Each document gets a JSON
-file containing its text and annotations. If `notes/bio.txt` contains the
+The checkout CLI also descends into subdirectories: `notes/letters/bio.txt`
+becomes `results/letters/bio.json`. The published 0.15 CLI reads the top level.
+Each JSON file keeps the text and its annotations. If `notes/bio.txt` contains the
 Lynn Conway sentence above, who appears in `results/bio.json`?
 
 ```sh
