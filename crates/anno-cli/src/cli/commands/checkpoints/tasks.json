@@ -1,0 +1,74 @@
+[
+  {
+    "id": "corpipe",
+    "command": "anno corpipe",
+    "source": "https://huggingface.co/ufal/corpipe26-onestage-corefud1.4-base-260702/tree/cb62351dd97b58c95bb7e12258a669e471cb577d",
+    "preparation": "",
+    "guide": "docs/models/corpipe.md",
+    "notes": "The base release was tested. Supply a local one-stage checkpoint, its predictor and a UDPipe model for the input language."
+  },
+  {
+    "id": "fcoref",
+    "command": "anno pipeline --coref",
+    "source": "https://huggingface.co/biu-nlp/f-coref/tree/e91dfff12879495d882ba9460d0c5d5dd44ade59",
+    "preparation": "scripts/export_fcoref.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "ONNX builds try FCoref first. Check coref_run for the resolver used if the pipeline falls back to mention-ranking."
+  },
+  {
+    "id": "glidre",
+    "command": "anno glidre",
+    "source": "https://huggingface.co/cea-list-ia/glidre_multi_v2/tree/1881f8126342d47ac4b9b1c7049d4af99424d8f3",
+    "preparation": "",
+    "guide": "docs/models/glidre.md",
+    "notes": "Supply a compatible local checkpoint, text with grouped entity mentions, and predicate prompts. The link identifies the multilingual v2 release."
+  },
+  {
+    "id": "jerex",
+    "command": "python3 crates/anno-eval/examples/docred/predict_jerex.py",
+    "source": "https://lavis.cs.hs-rm.de/storage/jerex/public/models/docred_joint/joint_multi_instance/",
+    "preparation": "",
+    "guide": "docs/QA.md",
+    "notes": "The source-checkout runner accepts UTF-8 text or tokenized JSON. Use --input-format text to recover source character offsets. The local checkpoint supplies the entity and relation labels."
+  },
+  {
+    "id": "jointie",
+    "command": "anno joint",
+    "source": "https://huggingface.co/fastino/gliner2.5-small-v1/tree/b5d42bf7dc7d01c40304ae4ed43c2f13c325a75b",
+    "preparation": "",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The small checkpoint was tested. Supply a compatible PyTorch boundary checkpoint and a typed schema. Direct relation scores require co-window endpoints."
+  },
+  {
+    "id": "maverick",
+    "command": "anno pipeline --coref --maverick-model CHECKPOINT",
+    "source": "https://huggingface.co/sapienzanlp/maverick-mes-ontonotes/tree/087a90f0380ec1f20ed19732b657f53fd3542c81",
+    "preparation": "scripts/download_maverick_weights.py",
+    "guide": "docs/BACKENDS.md",
+    "notes": "The link identifies OntoNotes. Select OntoNotes, LitBank or PreCo with the preparation script, then supply the prepared MES weights."
+  },
+  {
+    "id": "mhel-rerank",
+    "command": "anno mhel rerank",
+    "source": "https://github.com/sntcristian/MHEL-LLAMO/tree/b262dfb77285ea00993af8d453387fd7bf81228b",
+    "preparation": "",
+    "guide": "docs/models/mhel.md",
+    "notes": "The source pins the reranking code. Supply a local Transformers chat checkpoint and a candidate file."
+  },
+  {
+    "id": "mhel-wikibela",
+    "command": "anno mhel retrieve",
+    "source": "https://huggingface.co/sntcristian/WikiBELA/tree/82b71b08c596b821e4a44c29a23d1c5fecd8165c",
+    "preparation": "",
+    "guide": "docs/models/mhel.md",
+    "notes": "Requires the upstream retrieval environment and 25.3 GB of WikiBELA artifacts. Full retrieval remains unverified."
+  },
+  {
+    "id": "relik",
+    "command": "anno relik",
+    "source": "https://huggingface.co/sapienzanlp/relik-reader-deberta-v3-base-aida/tree/3bed88483cabb40188d7a3f8e79ec895c45b3a28",
+    "preparation": "scripts/prepare_relik.py",
+    "guide": "docs/models/relik.md",
+    "notes": "The local AIDA reader links text against caller-supplied entity candidates."
+  }
+]

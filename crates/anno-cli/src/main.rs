@@ -92,6 +92,7 @@ fn main() -> ExitCode {
         Some(Commands::Viz(args)) => viz::run(args).map_err(CliError::from),
         Some(Commands::Eval(args)) => eval::run(args).map_err(CliError::from),
         Some(Commands::Relik(args)) => relik::run(args),
+        Some(Commands::Glidre(args)) => glidre::run(args),
         Some(Commands::Mhel(args)) => mhel::run(args),
         Some(Commands::Corpipe(args)) => corpipe::run(args),
         Some(Commands::Joint(args)) => joint::run(args),

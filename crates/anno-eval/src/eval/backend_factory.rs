@@ -604,6 +604,18 @@ impl BackendFactory {
                 "GLiNERPoly requires 'onnx' feature".to_string(),
             )),
 
+            #[cfg(feature = "onnx")]
+            "biomedical" | "biomedical-ner" | "biomedical_ner" => {
+                let dir = Self::biomedical_dir().filter(|path| path.join("model.onnx").is_file())
+                    .ok_or_else(|| crate::Error::FeatureNotAvailable(
+                        "Biomedical NER requires a local ONNX export. Run uv run scripts/export_biomedical_ner_to_onnx.py or set BIOMEDICAL_MODEL_PATH to the export directory.".into()
+                    ))?;
+                let path = dir.to_str().ok_or_else(|| crate::Error::InvalidInput("Biomedical model path must be valid UTF-8".into()))?;
+                Ok(Box::new(anno::BertNEROnnx::new(path)?))
+            }
+            #[cfg(not(feature = "onnx"))]
+            "biomedical" | "biomedical-ner" | "biomedical_ner" => Err(crate::Error::FeatureNotAvailable("Biomedical NER requires the onnx feature.".into())),
+
             // DeBERTa-v3 NER (requires onnx) -- uses BertNEROnnx (same ONNX interface)
             #[cfg(feature = "onnx")]
             "deberta_v3" | "deberta-v3" | "deberta" => {
@@ -702,12 +714,26 @@ impl BackendFactory {
         std::env::var("NUNER_MODEL_PATH").unwrap_or_else(|_| crate::DEFAULT_NUNER_MODEL.to_owned())
     }
 
+    #[cfg(feature = "onnx")]
+    fn biomedical_dir() -> Option<PathBuf> {
+        std::env::var_os("BIOMEDICAL_MODEL_PATH")
+            .map(PathBuf::from)
+            .or_else(|| dirs::home_dir().map(|home| home.join(".cache/anno/models/biomedical-ner")))
+    }
+
     // Cheap preflight for optional local runtimes. Constructors still validate the
     // snapshot, graph and interpreter when the backend is explicitly requested.
     fn optional_model_files_available(name: &str) -> Option<bool> {
         let contains_files =
             |dir: &Path, names: &[&str]| names.iter().all(|file| dir.join(file).is_file());
         match name {
+            #[cfg(feature = "onnx")]
+            "biomedical" | "biomedical_ner" => Some(
+                Self::biomedical_dir()
+                    .is_some_and(|dir| contains_files(&dir, &["model.onnx", "tokenizer.json"])),
+            ),
+            #[cfg(not(feature = "onnx"))]
+            "biomedical" | "biomedical_ner" => Some(false),
             "otter_cross" => {
                 Some(anno::backends::otter::OtterVariant::Cross.model_files_available())
             }
@@ -743,15 +769,7 @@ impl BackendFactory {
                     Some(hub.join("models--VAGOsolutions--SauerkrautLM-GLiNEREL-72m/snapshots/34c024bb2ea85326526f6c5d150b9afe8bbe4808"))
                 });
                 Some(directory.is_some_and(|dir| {
-                    contains_files(
-                        &dir,
-                        &[
-                            "config.json",
-                            "encoder_config/config.json",
-                            "tokenizer.json",
-                            "model.safetensors",
-                        ],
-                    )
+                    anno::backends::glinerel::GLiNEREL::model_files_available(&dir)
                 }))
             }
             #[cfg(feature = "onnx")]
@@ -854,6 +872,7 @@ impl BackendFactory {
         ];
 
         for name in [
+            "biomedical",
             "otter_cross",
             "otter_bi",
             "kniv",
@@ -943,8 +962,12 @@ impl BackendFactory {
     /// Check if a backend is available (feature-enabled).
     #[must_use]
     pub fn is_available(backend_name: &str) -> bool {
-        Self::available_backends()
-            .contains(&backend_name.to_ascii_lowercase().replace('-', "_").as_str())
+        let name = backend_name.to_ascii_lowercase().replace('-', "_");
+        let canonical = super::backend_name::BackendName::try_parse(&name)
+            .map(|backend| backend.as_str())
+            .unwrap_or(&name);
+        let available = Self::available_backends();
+        available.contains(&name.as_str()) || available.contains(&canonical)
     }
 }
 

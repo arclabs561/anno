@@ -429,7 +429,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "candle_ner" | "CandleNER" => &[Task::NER],
         "nuner" | "NuNER" | "nuner_4k" | "nunerzero4k" => &[Task::NER], // Also implements ZeroShotNER
         "b2ner" | "B2NER" => &[Task::NER],
-        "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
+        "biomedical" | "biomedical-ner" | "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
         "albert" | "ALBERTNER" => &[Task::NER],
 
         // Zero-shot NER backends (implement Model + ZeroShotNER)
@@ -576,6 +576,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // New backends
         "tplinker",
         "gliner_poly",
+        "biomedical",
         "deberta_v3",
         "albert",
         "universal_ner",
@@ -649,6 +650,7 @@ impl TaskMapping {
             "bert_onnx",
             "candle_ner",
             "nuner",
+            "biomedical",
             "deberta_v3",
             "albert",
             "gliner_onnx",

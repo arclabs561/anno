@@ -152,20 +152,32 @@ fn snapshot_assets_available(snapshot: &Path) -> bool {
     local_assets_available(snapshot)
 }
 
-fn cached_assets_available(model_id: &str, revision: &str) -> bool {
+fn cached_snapshot(model_id: &str, revision: &str) -> std::path::PathBuf {
     let repo = hf_hub::Repo::with_revision(
         model_id.to_owned(),
         hf_hub::RepoType::Model,
         revision.to_owned(),
     );
     let cache = hf_hub::Cache::from_env().repo(repo);
-    snapshot_assets_available(&cache.pointer_path(revision))
+    cache.pointer_path(revision)
+}
+
+fn cached_assets_available(model_id: &str, revision: &str) -> bool {
+    snapshot_assets_available(&cached_snapshot(model_id, revision))
 }
 
 fn pii_model_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("GLINER2_PII_MODEL_DIR")
         .filter(|path| !path.is_empty())
         .map(std::path::PathBuf::from)
+}
+
+fn prepared_pii_snapshot() -> Option<std::path::PathBuf> {
+    if let Some(path) = pii_model_dir() {
+        return local_assets_available(&path).then_some(path);
+    }
+    let path = cached_snapshot(GLINER2_PII_MODEL, GLINER2_PII_REVISION);
+    snapshot_assets_available(&path).then_some(path)
 }
 
 fn local_assets_available(snapshot: &Path) -> bool {
@@ -338,10 +350,16 @@ impl GLiNER2Fastino {
     /// path or in the pinned Hugging Face cache. Performs no network requests.
     #[must_use]
     pub fn pii_assets_available() -> bool {
-        match pii_model_dir() {
-            Some(path) => local_assets_available(&path),
-            None => cached_assets_available(GLINER2_PII_MODEL, GLINER2_PII_REVISION),
-        }
+        prepared_pii_snapshot().is_some()
+    }
+
+    /// Open an already prepared PII export without contacting the Hub. An explicit
+    /// directory takes precedence over the pinned Hugging Face cache snapshot.
+    /// Returns `None` for absent or incomplete assets and an error for a load failure.
+    pub fn from_prepared_pii() -> crate::Result<Option<Self>> {
+        prepared_pii_snapshot()
+            .map(|path| Self::from_pii_local(&path))
+            .transpose()
     }
 
     /// Load with full configuration including execution mode.

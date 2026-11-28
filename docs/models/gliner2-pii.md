@@ -63,3 +63,35 @@ GLINER2_PII_MODEL_DIR=models/gliner2-pii ANNO_NO_DOWNLOADS=1 \
   cargo test --locked -p anno --features gliner2-fastino --test gliner2_fastino_integration \
   pii_checkpoint_extracts_contacts_and_honors_a_narrower_schema -- --ignored
 ```
+
+## Contact-only privacy requests
+
+`anno privacy --types CONTACT` reports emails and phone numbers. With the
+`gliner2-fastino` build feature, it adds GLiNER2-PII when a complete export
+already exists in `GLINER2_PII_MODEL_DIR` or in the pinned Hub cache. The
+automatic selector opens local files directly. When the checkpoint is
+unavailable, regular expressions and the structured PII scanner supply the
+contacts. A model inference failure also falls back to those rules.
+
+When sources detect overlapping pieces of the same contact, the report spans
+their union. Both redaction and pseudonymization replace the entire union,
+including a rule-detected prefix or suffix that a model missed.
+
+```sh
+anno privacy --types CONTACT --action redact --text 'Email kim@example.org.'
+```
+
+An explicit `--model` selects that backend. Requests for all PII types or
+a mixture of types use the general stacked model by default.
+
+On a separate REDACT sample of 50 synthetic documents across 25 locales, the
+previous default and the local fallback each matched 44 of 55 disclosed
+contacts exactly, with 13 extra spans. Adding the prepared checkpoint matched
+53 exactly, with 14 extras. Both remaining contacts were partially masked.
+Previously 5 contacts were partially masked and 6 were entirely missed.
+Unmasked characters inside annotated contacts fell from 121 to 12. Masked
+characters outside annotated contacts rose from 147 to 203. Every character
+the previous default masked remained covered on this sample. Selection used
+two documents per locale, excluded the earlier 75-record panel, and limited
+source texts to 900 Unicode characters. These measurements concern email and
+phone only. [REDACT sample and license](https://github.com/guneeshvats/REDACT-PII-Benchmark/tree/252232ac29669beeb99cb6474eeb2736761be508)

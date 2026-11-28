@@ -4,7 +4,6 @@
 //! can de-anonymize documents. This command helps identify and manage PII.
 
 use clap::{Parser, ValueEnum};
-use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
@@ -13,9 +12,15 @@ use std::path::{Path, PathBuf};
 use super::super::output::color;
 use super::super::parser::ModelBackend;
 use anno::pii::{
-    looks_like_address, looks_like_id_number, PiiEntity as PIIEntity, PiiReport as PIIReport,
+    classify_entity as classify_pii, scan_patterns as scan_structured_pii, PiiEntity as PIIEntity,
+    PiiReport as PIIReport,
 };
-use anno::Entity;
+use anno::Model;
+#[cfg(test)]
+use anno::{
+    pii::{looks_like_address, looks_like_id_number},
+    Entity,
+};
 
 /// Privacy analysis and redaction
 #[derive(Parser, Debug)]
@@ -37,9 +42,10 @@ pub struct PrivacyArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Model backend
-    #[arg(short, long, default_value = "stacked")]
-    pub model: ModelBackend,
+    /// Model backend. Defaults to stacked, or prepared GLiNER2-PII plus
+    /// local contact rules for an explicit CONTACT-only request.
+    #[arg(short, long)]
+    pub model: Option<ModelBackend>,
 
     /// Export PII map for re-identification (with pseudonymize).
     /// The map must be separate from both the input and the pseudonymized output.
@@ -87,46 +93,34 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
         return Err("No input provided. Use --input or --text".into());
     };
 
-    // Create model and extract entities
-    let model = args.model.create_model()?;
-    let entities = model
-        .extract_entities(&text, None)
-        .map_err(|e| format!("Extraction failed: {}", e))?;
-
-    // Pre-NER pattern scan: detect structured PII directly via regex,
-    // independent of the NER backend. This catches SSN, credit card, phone,
-    // and IBAN patterns even when no NER entity covers them.
-    let mut pii_entities: Vec<PIIEntity> = scan_structured_pii(&text);
-
-    // Classify NER entities as PII
-    let ner_pii: Vec<PIIEntity> = entities.iter().filter_map(classify_pii).collect();
-
-    // Merge, avoiding duplicates (overlapping spans -- not just exact match).
-    // An NER entity is "dominated" if any existing regex-detected PII covers
-    // the same or a superset of its span.
-    for pii in ner_pii {
-        let dominated = pii_entities
-            .iter()
-            .any(|existing| existing.start <= pii.start && existing.end >= pii.end);
-        if !dominated {
-            pii_entities.push(pii);
+    let contact_only =
+        !args.types.is_empty() && args.types.iter().all(|t| t.eq_ignore_ascii_case("CONTACT"));
+    let pii_entities = if args.model.is_none() && contact_only {
+        default_contacts(&text, args.quiet)?
+    } else {
+        let model = args.model.unwrap_or_default().create_model()?;
+        let entities = model
+            .extract_entities(&text, None)
+            .map_err(|e| format!("Extraction failed: {e}"))?;
+        let mut pii = scan_structured_pii(&text);
+        for entity in entities.iter().filter_map(classify_pii) {
+            if !pii
+                .iter()
+                .any(|existing| existing.start <= entity.start && existing.end >= entity.end)
+            {
+                pii.push(entity);
+            }
         }
-    }
-
-    // Sort by position
-    pii_entities.sort_by_key(|e| e.start);
-
-    // Filter by requested types
-    let pii_entities: Vec<PIIEntity> = pii_entities
-        .into_iter()
-        .filter(|pii| {
+        pii.sort_by_key(|entity| entity.start);
+        pii.retain(|entity| {
             args.types.is_empty()
                 || args
                     .types
                     .iter()
-                    .any(|t| t.eq_ignore_ascii_case(&pii.pii_type))
-        })
-        .collect();
+                    .any(|t| t.eq_ignore_ascii_case(&entity.pii_type))
+        });
+        pii
+    };
 
     // Generate report
     let report = anno::pii::report(&pii_entities);
@@ -278,89 +272,42 @@ fn write_pii_map(mut file: fs::File, content: &str) -> std::io::Result<()> {
     file.write_all(content.as_bytes())
 }
 
-/// Classify an entity as PII
-fn classify_pii(entity: &Entity) -> Option<PIIEntity> {
-    let label = entity.entity_type.as_label();
-    let text = &entity.text;
-
-    let (pii_type, risk_level) = match label {
-        "PER" | "PERSON" => ("PERSON", assess_person_risk(text)),
-        "DATE" => {
-            // DOB patterns are high risk
-            if looks_like_dob(text) {
-                ("DOB", "HIGH")
-            } else {
-                return None; // Regular dates aren't PII
+/// Contact-only defaults combine local rule protections with any prepared
+/// specialist. Unioning overlapping spans preserves all source characters
+/// protected by the rules when the model predicts a shorter or partial span.
+fn default_contacts(text: &str, quiet: bool) -> Result<Vec<PIIEntity>, String> {
+    #[cfg(not(feature = "gliner2-fastino"))]
+    let _ = quiet;
+    let rule_entities = anno::RegexNER::new()
+        .extract_entities(text, None)
+        .map_err(|e| format!("Contact extraction failed: {e}"))?;
+    let mut contacts = scan_structured_pii(text);
+    contacts.extend(rule_entities.iter().filter_map(classify_pii));
+    contacts.retain(|entity| entity.pii_type == "CONTACT");
+    #[cfg(feature = "gliner2-fastino")]
+    {
+        use anno::backends::gliner2_fastino::GLiNER2Fastino;
+        let extracted = GLiNER2Fastino::from_prepared_pii()
+            .and_then(|model| model.map(|m| m.extract_entities(text, None)).transpose());
+        match extracted {
+            Ok(Some(entities)) => {
+                contacts.extend(
+                    entities
+                        .iter()
+                        .filter_map(classify_pii)
+                        .filter(|entity| entity.pii_type == "CONTACT"),
+                );
             }
-        }
-        "LOC" | "GPE" | "LOCATION" => {
-            // Addresses are PII, general locations are not
-            if looks_like_address(text) {
-                ("ADDRESS", "HIGH")
-            } else {
-                return None;
+            Ok(None) => {}
+            Err(error) if !quiet => {
+                eprintln!(
+                    "warning: prepared GLiNER2-PII failed; using local contact rules: {error}"
+                );
             }
+            Err(_) => {}
         }
-        "EMAIL" => ("CONTACT", "HIGH"),
-        "PHONE" => ("CONTACT", "HIGH"),
-        "URL" => return None,   // URLs generally not PII
-        "MONEY" => return None, // Money amounts generally not PII
-        _ => {
-            // Check for ID patterns
-            if looks_like_id_number(text) {
-                ("ID_NUMBER", "CRITICAL")
-            } else {
-                return None;
-            }
-        }
-    };
-
-    Some(PIIEntity {
-        text: text.clone(),
-        pii_type: pii_type.to_string(),
-        start: entity.start(),
-        end: entity.end(),
-        risk_level: risk_level.to_string(),
-    })
-}
-
-fn assess_person_risk(text: &str) -> &'static str {
-    // Full names with titles are higher risk
-    let words: Vec<&str> = text.split_whitespace().collect();
-    if words.len() >= 3 {
-        "HIGH"
-    } else if words.len() == 2 {
-        "MEDIUM"
-    } else {
-        "LOW"
     }
-}
-
-fn looks_like_dob(text: &str) -> bool {
-    // Simple heuristic: dates with year in 1900-2010 range could be DOBs
-    if let Ok(year_pattern) = Regex::new(r"19[0-9]{2}|20[0-1][0-9]") {
-        year_pattern.is_match(text)
-    } else {
-        false
-    }
-}
-
-/// Pre-NER scan for structured PII patterns directly on input text.
-///
-/// Catches SSN, credit card, phone, and IBAN even when no NER entity covers them.
-/// Delegates to [`anno::pii::scan_patterns`], which also validates SSN
-/// structure, card Luhn digits and IBAN mod-97 checksums.
-fn scan_structured_pii(text: &str) -> Vec<PIIEntity> {
-    anno::pii::scan_patterns(text)
-        .into_iter()
-        .map(|p| PIIEntity {
-            text: p.text,
-            pii_type: p.pii_type,
-            start: p.start,
-            end: p.end,
-            risk_level: p.risk_level,
-        })
-        .collect()
+    Ok(replacement_spans(text, &contacts))
 }
 
 /// Convert a character-offset span to byte offsets suitable for string slicing.
@@ -618,6 +565,25 @@ mod tests {
         assert_eq!(pseudonymized, "éé John Smith!");
         assert_eq!(mapping.len(), 1);
         assert_eq!(mapping["Alice Smith"], "John Smith");
+    }
+
+    #[test]
+    fn intersecting_contact_detections_protect_the_whole_original_number() {
+        let text = "📞 +49 1234567!";
+        let contacts = [(2, 10), (3, 13), (4, 8)].map(|(start, end)| PIIEntity {
+            pii_type: "CONTACT".into(),
+            text: text.chars().skip(start).take(end - start).collect(),
+            start,
+            end,
+            risk_level: "HIGH".into(),
+        });
+        let merged = replacement_spans(text, &contacts);
+        assert_eq!(merged.len(), 1);
+        assert_eq!((merged[0].start, merged[0].end), (2, 13));
+        assert_eq!(redact_text(text, merged.clone()), "📞 [CONTACT_1]!");
+        let (pseudonymized, mapping) = pseudonymize_text(text, &merged);
+        assert_eq!(pseudonymized, "📞 555-000-1001!");
+        assert_eq!(mapping["+49 1234567"], "555-000-1001");
     }
 
     #[test]

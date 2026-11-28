@@ -1,6 +1,6 @@
-# Evidence for three outstanding model families
+# Outstanding model artifacts
 
-Reviewed 25 November 2026. The evidence that would make a text-to-prediction replay possible differs by family.
+The following three families were reviewed on 25 November 2026. The evidence that would make a text-to-prediction replay possible differs by family.
 
 | Model | Public material inspected | Executable path in Anno | Remaining dependency |
 |---|---|---|---|
@@ -11,3 +11,7 @@ Reviewed 25 November 2026. The evidence that would make a text-to-prediction rep
 **Community TPLinker candidates have different coverage.** JunnYu's PyTorch DuIE project reports trained TPLinkerPlus relation results and describes differences from the original architecture. Its README documents training from a base encoder. The Chinese NER implementation by taishan1994 links a model/data bundle and demonstrates **entities only**. Luozhouyang's Apache-2.0 reimplementation links processed NYT data. These projects establish additional training paths, but this review did not verify a retrievable, licensed, joint Plus checkpoint with tokenizer, label IDs and matching reference predictions. A public text-to-entity example from another head cannot validate directed relations. [DuIE training and results](https://github.com/JunnYu/GPLinker_pytorch) · [Chinese NER-only model/data](https://github.com/taishan1994/pytorch_TPLinker_Plus_Ner) · [TPLinker NYT reimplementation](https://github.com/luozhouyang/TPLinker)
 
 The search covered the linked papers, author repositories, the original issue tracker, Hugging Face model names containing `tplinker`, `tp-linker`, `mgrenander` or `seq2seq-coref`, and community implementation READMEs. A similarly named checkpoint, missing search result, or paper license alone cannot identify a weight file and its inference contract. These are bounded search results as of the review date.
+
+## SegDRE
+
+On 28 November 2026, the repository linked by the authors contained a README. The repository, its releases, and a Hugging Face model search yielded no trained state or runnable predictor. Replaying SegDRE requires its weights and matching inference code. [Authors’ repository at the reviewed commit](https://github.com/Patrick-Rud/SegDRE-code/tree/09212b7397da9353e3ee21d0b829698c5a792bc3)

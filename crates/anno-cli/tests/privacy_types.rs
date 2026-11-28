@@ -248,3 +248,32 @@ fn explicit_stdout_pipe_receives_pseudonymized_text() {
         "case@example.invalid\tcontact@example.com"
     );
 }
+
+#[test]
+fn implicit_contact_without_prepared_weights_keeps_rules_and_context() {
+    let dir = tempfile::tempdir().unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_anno"))
+        .args([
+            "privacy",
+            "--types",
+            "contact",
+            "--action",
+            "redact",
+            "--text",
+            "✉ 123-45-6789@example.org END, reference 123-45-6789",
+        ])
+        .env("HF_HOME", dir.path().join("empty-cache"))
+        .env("GLINER2_PII_MODEL_DIR", dir.path().join("missing"))
+        .env("ANNO_NO_DOWNLOADS", "1")
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(result.stdout).unwrap().trim_end(),
+        "✉ [CONTACT_1] END, reference 123-45-6789"
+    );
+}

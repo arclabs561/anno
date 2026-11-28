@@ -169,8 +169,7 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
                 return None;
             }
         }
-        "EMAIL" => ("CONTACT", "HIGH"),
-        "PHONE" => ("CONTACT", "HIGH"),
+        "EMAIL" | "PHONE" | "PHONE_NUMBER" => ("CONTACT", "HIGH"),
         "URL" | "MONEY" => return None,
         _ => {
             if looks_like_id_number(text) {
@@ -1583,6 +1582,15 @@ mod tests {
         let pii = classify_entity(&phone).expect("phone entity is PII");
         assert_eq!(pii.pii_type, "CONTACT");
         assert_eq!((pii.start, pii.end), (3, 3 + phone_text.chars().count()));
+
+        let neural_phone = Entity::new(
+            phone_text,
+            crate::schema::map_to_canonical("phone_number", None),
+            3,
+            3 + phone_text.chars().count(),
+            0.99,
+        );
+        assert_eq!(classify_entity(&neural_phone).unwrap().pii_type, "CONTACT");
     }
 
     /// An IBAN-valued extractor entity maps to one ID_NUMBER span.

@@ -19,13 +19,15 @@
 
 use crate::{Error, Result};
 
-/// Returns `true` when `ANNO_NO_DOWNLOADS` is set to a truthy value.
+/// Returns `true` when Anno or the Hub is configured for offline use.
 ///
 /// The flag blocks *new* network fetches; cached models still load via
 /// [`download_model_file`]. Backends constructed from local paths bypass
 /// this layer entirely.
 pub fn no_downloads() -> bool {
-    no_downloads_from(std::env::var("ANNO_NO_DOWNLOADS").ok().as_deref())
+    ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"]
+        .iter()
+        .any(|key| no_downloads_from(std::env::var(key).ok().as_deref()))
 }
 
 fn no_downloads_from(value: Option<&str>) -> bool {
@@ -85,9 +87,7 @@ pub fn download_model_file(
             }
         }
         return Err(Error::Retrieval(format!(
-            "ANNO_NO_DOWNLOADS is set and none of [{}] are present in the \
-             HuggingFace cache. Pre-fetch the model (unset ANNO_NO_DOWNLOADS \
-             and re-run once), or skip this backend.",
+            "Offline mode (ANNO_NO_DOWNLOADS or HF_HUB_OFFLINE): none of [{}] are present in the Hugging Face cache. Pre-fetch the model with network access or select a cached backend.",
             candidates.join(", "),
         )));
     }
@@ -321,12 +321,15 @@ mod tests {
         // Isolate environment flags from tests running concurrently in this process.
         const CHILD: &str = "ANNO_TEST_OFFLINE_HF_CHILD";
         if std::env::var_os(CHILD).is_none() {
-            let home = tempfile::tempdir().unwrap();
-            let status = std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", "backends::hf_loader::tests::offline_quantized_lookup_preserves_revision_without_network", "--nocapture"])
-                .env(CHILD, "1").env("ANNO_NO_DOWNLOADS", "1")
-                .env("HF_HOME", home.path()).status().unwrap();
-            assert!(status.success());
+            for flag in ["ANNO_NO_DOWNLOADS", "HF_HUB_OFFLINE"] {
+                let home = tempfile::tempdir().unwrap();
+                let status = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "backends::hf_loader::tests::offline_quantized_lookup_preserves_revision_without_network", "--nocapture"])
+                    .env(CHILD, "1")
+                    .env_remove("ANNO_NO_DOWNLOADS").env_remove("HF_HUB_OFFLINE")
+                    .env(flag, "1").env("HF_HOME", home.path()).status().unwrap();
+                assert!(status.success(), "offline lookup with {flag}");
+            }
             return;
         }
         // A live local listener makes any unintended network access observable.

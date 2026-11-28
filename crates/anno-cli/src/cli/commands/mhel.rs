@@ -15,6 +15,27 @@ pub struct MhelArgs {
     stage: Stage,
 }
 
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+struct LinkInput {
+    /// JSON array of source documents with language, text and typed mention spans.
+    #[arg(long)]
+    documents: Option<PathBuf>,
+    /// Source directory in the authors' CSV format.
+    #[arg(long)]
+    dataset: Option<PathBuf>,
+}
+
+impl LinkInput {
+    fn append(self, cmd: &mut Command) {
+        if let Some(path) = self.documents {
+            cmd.arg(path).arg("--documents");
+        } else if let Some(path) = self.dataset {
+            cmd.arg(path);
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Stage {
     /// Retrieve WikiBELA candidates for supplied mentions. Writes the candidate array to stdout.
@@ -23,9 +44,8 @@ enum Stage {
         upstream: PathBuf,
         #[arg(long)]
         model_dir: PathBuf,
-        /// HIPE directory with paragraphs_test.csv and annotations_test.csv.
-        #[arg(long)]
-        dataset: PathBuf,
+        #[command(flatten)]
+        input: LinkInput,
         #[arg(long, default_value_t = 50)]
         top_k: usize,
         #[arg(long, default_value = "cpu")]
@@ -38,8 +58,8 @@ enum Stage {
         /// Local Transformers chat checkpoint directory.
         #[arg(long)]
         model_dir: PathBuf,
-        #[arg(long)]
-        dataset: PathBuf,
+        #[command(flatten)]
+        input: LinkInput,
         #[arg(long)]
         candidates: PathBuf,
         #[arg(long, default_value_t = 20)]
@@ -64,30 +84,25 @@ pub fn run(args: MhelArgs) -> Result<(), CliError> {
         Stage::Retrieve {
             upstream,
             model_dir,
-            dataset,
+            input,
             top_k,
             device,
         } => {
-            cmd.arg("retrieve")
-                .arg(upstream)
-                .arg(model_dir)
-                .arg(dataset)
-                .arg(top_k.to_string())
-                .arg(device);
+            cmd.arg("retrieve").arg(upstream).arg(model_dir);
+            input.append(&mut cmd);
+            cmd.arg(top_k.to_string()).arg(device);
         }
         Stage::Rerank {
             upstream,
             model_dir,
-            dataset,
+            input,
             candidates,
             top_k,
             threshold,
         } => {
-            cmd.arg("rerank")
-                .arg(upstream)
-                .arg(model_dir)
-                .arg(dataset)
-                .arg(candidates)
+            cmd.arg("rerank").arg(upstream).arg(model_dir);
+            input.append(&mut cmd);
+            cmd.arg(candidates)
                 .arg(top_k.to_string())
                 .arg(threshold.to_string());
         }

@@ -21,6 +21,18 @@ pub struct GLiNEREL {
 impl crate::sealed::Sealed for GLiNEREL {}
 
 impl GLiNEREL {
+    /// Check the published files in a local checkpoint before starting the worker.
+    pub fn model_files_available(dir: &Path) -> bool {
+        [
+            "config.json",
+            "encoder_config/config.json",
+            "tokenizer.json",
+            "model.safetensors",
+        ]
+        .iter()
+        .all(|name| dir.join(name).is_file())
+    }
+
     /// Reads `ANNO_GLINEREL_PYTHON` and `ANNO_GLINEREL_MODEL_DIR`.
     /// By default Python loads the pinned Hub snapshot or its cached copy.
     pub fn from_env() -> Result<Self> {

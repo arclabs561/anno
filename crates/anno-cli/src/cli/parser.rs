@@ -138,6 +138,9 @@ pub enum Commands {
     /// Link mentions against supplied catalog candidates with the ReLiK reader
     Relik(commands::relik::RelikArgs),
 
+    /// Score directed relations between supplied entity clusters in a document
+    Glidre(commands::glidre::GlidreArgs),
+
     /// Retrieve, rerank or import multilingual historical Wikidata links
     Mhel(commands::mhel::MhelArgs),
 

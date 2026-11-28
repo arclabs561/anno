@@ -68,6 +68,9 @@ pub enum BackendName {
     /// GLiNER with polynomial attention via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERPoly,
+    /// Biomedical token classifier from a local ONNX export.
+    #[cfg(feature = "onnx")]
+    Biomedical,
     /// DeBERTa v3 NER via ONNX runtime.
     #[cfg(feature = "onnx")]
     DeBERTaV3,
@@ -133,6 +136,8 @@ impl BackendName {
             #[cfg(feature = "onnx")]
             BackendName::GLiNERPoly => "gliner_poly",
             #[cfg(feature = "onnx")]
+            BackendName::Biomedical => "biomedical",
+            #[cfg(feature = "onnx")]
             BackendName::DeBERTaV3 => "deberta_v3",
             #[cfg(feature = "onnx")]
             BackendName::ALBERT => "albert",
@@ -187,6 +192,8 @@ impl BackendName {
             #[cfg(feature = "onnx")]
             "gliner_poly" | "glinerpoly" => Some(BackendName::GLiNERPoly),
             #[cfg(feature = "onnx")]
+            "biomedical" | "biomedical-ner" | "biomedical_ner" => Some(BackendName::Biomedical),
+            #[cfg(feature = "onnx")]
             "deberta_v3" | "debertav3" => Some(BackendName::DeBERTaV3),
             #[cfg(feature = "onnx")]
             "albert" | "albert_ner" => Some(BackendName::ALBERT),
@@ -238,6 +245,7 @@ impl BackendName {
                 BackendName::W2NER,
                 BackendName::GLiNERMultitask,
                 BackendName::GLiNERPoly,
+                BackendName::Biomedical,
                 BackendName::DeBERTaV3,
                 BackendName::ALBERT,
                 BackendName::TPLinker,

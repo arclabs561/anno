@@ -13,9 +13,24 @@ The [backend error analysis](eval/backend-residuals.md) counts missing and extra
 | Rank candidate directed relations with a fixed budget | [JointIE argument and ranking trial](eval/jointie-role-trial.md) |
 | Separate a clustering error from a relation threshold or annotation gap | [JEREX controls on two annotation editions](eval/jerex-controls.md) |
 
-### Additional model runtimes
+### Find a checkpoint
 
-Use `anno models list` to see extraction backends and their build status. `anno models info <name>` shows capabilities and recommended checkpoints. A “compiled” entry can still require local weights or a Python environment. The [backend catalog](../crates/anno/src/backends/catalog.rs) supplies the CLI metadata. The [checkpoint replay manifest](../scripts/qa/checkpoint_replay/models.json) pins exact files and expected predictions for a subset of checkpoints. Task-specific commands and preparation recipes are listed below.
+Use `anno models list` to see extraction backends and their build status. A “compiled” entry can still require local weights or a Python environment. To choose a checkpoint, run `anno models checkpoints`. This offline inventory covers extraction backends and task-specific commands. For example, `anno models checkpoints relik` prints the reader's source, preparation script, and guide. `anno models info otter-bi` shows both the backend capabilities and checkpoint setup.
+
+Use `anno models checkpoints --json` to read the inventory programmatically. Preparation and guide paths are relative to the repository root. Each recipe points to the script or manifest that owns the preparation details when one exists. The [backend catalog](../crates/anno/src/backends/catalog.rs) supplies build metadata, and the [checkpoint replay manifest](../scripts/qa/checkpoint_replay/models.json) pins files and expected predictions for selected checkpoints.
+
+### Defaults by task
+
+| Request | Selection when you omit `--model` |
+|---|---|
+| `anno extract` with ordinary text or an output filter such as `--types PER` | Uses the Stacked backend. Compiled features and available weights determine which layers run. |
+| `anno extract --extract-types 'musician,instrument'` | Tries prepared Otter Cross, configured GLiNEREL, then prepared Otter Bi. Next it tries native GLiNER when the build and download settings allow it. If none can run, the command explains how to prepare a schema-capable model. |
+| `anno extract --extract-relations` | Prefers configured GLiNEREL or a prepared joint GLiNER-RelEx export. Otherwise uses the normal extraction and relation fallback. JSON output identifies the selected model and relation producer. |
+| `anno privacy --types CONTACT` | Uses a prepared GLiNER2-PII with local contact rules. A build or installation without that checkpoint uses the local rules. This route does no model downloads. [Contact masking results](models/gliner2-pii.md) |
+
+Passing `--model` selects that backend explicitly. An extraction model specified by the active profile also takes precedence over automatic selection.
+
+### Model entry points
 
 | Entry point | Suitable inputs and outputs | Model preparation |
 |---|---|---|
@@ -26,6 +41,7 @@ Use `anno models list` to see extraction backends and their build status. `anno 
 | `anno extract --model gliner2-pii` | Multilingual PII spans with a caller-selected schema | Load the pinned eight-graph ONNX export or regenerate it from PyTorch. [GLiNER2-PII](models/gliner2-pii.md) |
 | `anno corpipe` | Multilingual within-document mention clusters or predicted CorefUD | Supply the one-stage checkpoint, predictor and a tokenizer for the input language. [CorPipe](models/corpipe.md) |
 | `anno relik` | English mention spans and IDs from a supplied candidate catalog | Pinned AIDA reader and caller-supplied IDs and titles. [ReLiK](models/relik.md) |
+| `anno glidre` | Directed relations between supplied entity clusters in your own text | GLiDRE v2 weights, the authors' predictor, and a predicate schema. Also accepts DocRED-format JSON. [GLiDRE](models/glidre.md) |
 | `anno mhel` | Wikidata candidates or links for mentions with known boundaries | Separate WikiBELA retrieval, local chat reranking and prediction import. [MHEL-LLaMo](models/mhel.md) |
 
 To review label definitions offline, use the authors' DiZiNER disagreement analyzer on an unlabeled development sample. [Schema-review pilot](models/diziner.md)
@@ -41,7 +57,7 @@ To review label definitions offline, use the authors' DiZiNER disagreement analy
 | Text, known entity occurrences and predicate labels | Directed edges among those occurrences | Rust `GLiREL::extract_relations(text, entities, relation_types, threshold)` | Give each occurrence its source span. Missed or misaligned upstream mentions affect which pairs can be scored. [GLiREL API](../crates/anno/src/backends/glirel/onnx.rs) |
 | Text and entity/predicate vocabularies | Mentions and directed relations from a trained joint export | `anno extract --model gliner-relex --extract-types person,organization --extract-relations --relation-types founded` | The entity-only export serves NER. A relation request requires the `--joint` export and a compatible relation head. The prompt’s label inventory materially affects scores. [Export and replay](#architecture-specific-gotchas) · [CrossRE experiments](eval/crossre-full-prompt-comparison.md) |
 | Text and a typed relation schema with graph constraints | Mention IDs and a constrained document graph | `anno joint --checkpoint CHECKPOINT --schema schema.json --text 'Ada founded Acme.'` | The upstream Python JointIE provider scores overlapping windows, then decodes one graph. Only co-window candidates have direct model scores. Output exposes scored windows, feasibility and derived edges. [Schema, example and runtime](#fastino-gliner25) |
-| DocRED sentences in token order | Mention detections, coreference clusters and directed **concept** edges | JEREX Python prediction, then the Rust `import_jerex` example | The predictor takes tokens with a closed label set. The importer aligns them against your exact source and retains endpoint memberships. Upstream supplies no relation probability or mention-pair witness. [Real checkpoint and import commands](eval/joint-stage-baseline.md) |
+| UTF-8 text or your document’s sentences in token order | Mention detections, coreference clusters and directed **concept** edges | JEREX Python prediction, then the Rust `import_jerex` example | Pass `--input-format text` for character offsets. The checkpoint supplies the label set. The importer retains endpoint memberships. [Text input and offsets](QA.md) · [Checkpoint and import commands](eval/joint-stage-baseline.md) |
 
 The GLiNER name covers several interfaces. When labels repeat across many documents, `gliner-poly` can use a split text encoder, label encoder and fusion head. When the desired output is a document category or structured fields, the Fastino GLiNER2 Rust backend exposes `classify` and `extract_structure`. Those return different output types from the GLiNER2.5 boundary NER and JointIE routes above. [Split encoder setup](#selecting-ner-checkpoints) · [Fastino API](../crates/anno/src/backends/gliner2_fastino/mod.rs)
 

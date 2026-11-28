@@ -154,13 +154,88 @@ pub struct ExtractArgs {
     pub positional: Vec<String>,
 }
 
+fn schema_model_ready(backend: ModelBackend) -> bool {
+    use anno::backends::{glinerel::GLiNEREL, otter::OtterVariant};
+    match backend {
+        ModelBackend::OtterCross => OtterVariant::Cross.model_files_available(),
+        ModelBackend::OtterBi => OtterVariant::Bi.model_files_available(),
+        ModelBackend::Glinerel72m => backend
+            .checkpoint_override()
+            .is_some_and(|dir| GLiNEREL::model_files_available(std::path::Path::new(&dir))),
+        #[cfg(feature = "onnx")]
+        ModelBackend::GlinerRelex => anno::GLiNEROnnx::relex_joint_export_available(),
+        #[cfg(feature = "onnx")]
+        ModelBackend::Gliner => anno::GLiNEROnnx::hub_assets_available(anno::DEFAULT_GLINER_MODEL),
+        #[cfg(feature = "candle")]
+        ModelBackend::GlinerCandle => {
+            anno::backends::gliner_candle::GLiNERCandle::hub_assets_available(
+                anno::DEFAULT_GLINER_CANDLE_MODEL,
+            )
+        }
+        _ => true,
+    }
+}
+
+// Construct a candidate once. A partially configured optional worker can fail to
+// initialize even with a complete checkpoint (for example, a missing interpreter).
+fn load_extract_model<T>(
+    requested: Option<ModelBackend>,
+    custom_schema: bool,
+    relations: bool,
+    ready: impl Fn(ModelBackend) -> bool,
+    mut load: impl FnMut(ModelBackend) -> Result<T, String>,
+) -> Result<(ModelBackend, T), String> {
+    use ModelBackend::*;
+    if let Some(model) = requested {
+        return load(model).map(|loaded| (model, loaded));
+    }
+    let mut candidates = Vec::new();
+    if relations {
+        candidates.push(Glinerel72m);
+        #[cfg(feature = "onnx")]
+        candidates.push(GlinerRelex);
+    }
+    if custom_schema {
+        candidates.push(OtterCross);
+        if !relations {
+            candidates.push(Glinerel72m);
+        }
+        candidates.push(OtterBi);
+        #[cfg(feature = "onnx")]
+        candidates.push(Gliner);
+        #[cfg(feature = "candle")]
+        candidates.push(GlinerCandle);
+    } else {
+        candidates.push(Stacked);
+    }
+    let mut failures = Vec::new();
+    for model in candidates {
+        if !ready(model) {
+            continue;
+        }
+        match load(model) {
+            Ok(loaded) => return Ok((model, loaded)),
+            Err(error) => {
+                log::warn!(
+                    "Could not initialize automatic model {}: {error}",
+                    model.name()
+                );
+                failures.push(format!("{}: {error}", model.name()));
+            }
+        }
+    }
+    if custom_schema {
+        failures.push("Custom entity labels require a zero-shot model. Prepare an Otter or GLiNEREL checkpoint using 'anno models checkpoints', or enable ONNX and cache GLiNER with 'anno models download gliner' before running offline.".into());
+    }
+    Err(failures.join("\n"))
+}
+
 /// Execute the extract command.
 pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     validate_confidence_threshold("--threshold", args.threshold)?;
     let relation_threshold = args.relation_threshold.or(args.threshold);
     validate_confidence_threshold("--relation-threshold", relation_threshold)?;
 
-    let model = args.model.unwrap_or_default();
     let format = if args.html_source_spans {
         if args.format.is_some_and(|format| {
             !matches!(
@@ -375,11 +450,26 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
     // path so entity/relation indices remain consistent.
+    let (model, backend) = load_extract_model(
+        args.model,
+        extract_types
+            .as_ref()
+            .is_some_and(|labels| !labels.is_empty()),
+        args.extract_relations,
+        schema_model_ready,
+        ModelBackend::create_model,
+    )
+    .map_err(CliError::from)?;
     let mut ran_joint = false;
     let mut relation_provenance = None;
     let (mut entities, mut relation_triples, runtime_model) = if args.extract_relations {
-        let backend = model.create_model().map_err(CliError::from)?;
-        let entity_schema: Vec<&str> = extract_types.iter().flatten().map(String::as_str).collect();
+        let entity_schema: Vec<&str> = match (&extract_types, args.model, model) {
+            (None, None, ModelBackend::Glinerel72m) => backend
+                .as_zero_shot()
+                .map(|ner| ner.default_types().to_vec())
+                .unwrap_or_default(),
+            _ => extract_types.iter().flatten().map(String::as_str).collect(),
+        };
         if let Some(extractor) = backend.as_relation_extractor() {
             let rel_schema: Vec<&str> = relation_types.iter().map(String::as_str).collect();
             let (out, producer) = extractor
@@ -409,7 +499,6 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             (entities, Vec::new(), backend.runtime_name())
         }
     } else {
-        let backend = model.create_model().map_err(CliError::from)?;
         let entities = extract_mentions(
             backend.as_ref(),
             &text,
@@ -1348,6 +1437,94 @@ fn propagate_quantifiers_across_lists(text: &str, signals: &mut [Signal]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extract_model_selection_preserves_explicit_models_and_ordinary_defaults() {
+        let model = load_extract_model(
+            Some(ModelBackend::Pattern),
+            true,
+            true,
+            |_| panic!("explicit models bypass automatic preflight"),
+            |backend| Ok(backend.name()),
+        )
+        .unwrap();
+        assert_eq!(model.1, "pattern");
+        let (_, model) = load_extract_model(
+            None,
+            false,
+            true,
+            |b| matches!(b, ModelBackend::Stacked),
+            |backend| Ok(backend.name()),
+        )
+        .unwrap();
+        assert_eq!(model, "stacked");
+        assert!(load_extract_model(None, true, true, |_| false, |_| Ok(()))
+            .unwrap_err()
+            .contains("Custom entity labels require a zero-shot model"));
+    }
+
+    #[test]
+    fn extract_model_selection_uses_ready_workers_and_retries_initialization_failures() {
+        use ModelBackend::*;
+        let load = |backend: ModelBackend| Ok(backend.name());
+        assert_eq!(
+            load_extract_model(None, true, false, |_| true, load)
+                .unwrap()
+                .1,
+            "otter-cross"
+        );
+        assert_eq!(
+            load_extract_model(None, true, true, |_| true, load)
+                .unwrap()
+                .1,
+            "glinerel-72m"
+        );
+        assert_eq!(
+            load_extract_model(None, false, true, |_| true, load)
+                .unwrap()
+                .1,
+            "glinerel-72m"
+        );
+        let mut attempts = Vec::new();
+        let (_, result) = load_extract_model(
+            None,
+            true,
+            false,
+            |_| true,
+            |backend| {
+                attempts.push(backend.name());
+                if matches!(backend, OtterBi) {
+                    Ok(backend.name())
+                } else {
+                    Err("fixture worker unavailable".into())
+                }
+            },
+        )
+        .unwrap();
+        assert_eq!(result, "otter-bi");
+        assert_eq!(attempts, ["otter-cross", "glinerel-72m", "otter-bi"]);
+        #[cfg(feature = "onnx")]
+        {
+            assert_eq!(
+                load_extract_model(
+                    None,
+                    true,
+                    true,
+                    |b| matches!(b, GlinerRelex | OtterCross),
+                    load
+                )
+                .unwrap()
+                .1,
+                "gliner-relex"
+            );
+            assert_eq!(
+                load_extract_model(None, true, false, |b| matches!(b, Gliner), load)
+                    .unwrap()
+                    .1,
+                "gliner"
+            );
+        }
+    }
 
     #[test]
     fn literal_output_label_precedes_legacy_alias() {
