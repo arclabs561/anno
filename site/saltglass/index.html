@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101114"><link rel="icon" href="data:,"><title>Saltglass Reach · Anno</title><link rel="prefetch" as="image" href="assets/catalog.webp"><link rel="stylesheet" href="port.css"></head>
+<body><main>
+<section id="port" aria-label="Docked at Saltglass Reach">
+<img class="vista" src="assets/saltglass.webp" alt="Three moons above a bronze observatory, a skiff and violet salt flats.">
+<div class="harbor-strip"><span>Harbor radio</span><span id="harbor-call">Mail road flooded</span></div>
+<div class="console metal">
+<nav aria-label="Port services"><button data-screen="log">Port log</button><button data-screen="lab">Reader lab</button><button data-screen="board">Mission BBS</button></nav>
+<article><h1 id="heading" tabindex="-1">Saltglass Reach</h1><div id="content"></div></article>
+<nav aria-label="Ship services"><button id="shop">Outfitter</button><button id="export">Export log</button><button id="leave">Leave port</button></nav>
+</div></section>
+<section id="orbit" class="metal" hidden><img class="vista" src="assets/saltglass.webp" alt="Saltglass Reach on approach"><h1>Saltglass Reach approach</h1><p id="orbit-message"></p><button id="land">Request landing</button></section>
+<footer><span id="signal" role="status">Starting Anno reader…</span><a href="https://github.com/arclabs561/anno">anno ↗</a></footer>
+</main>
+<dialog id="outfitter" class="metal" aria-labelledby="out-title"><h2 id="out-title">Saltglass Reach Outfitter</h2><div class="shop-body"><div id="inventory" aria-label="Outfits"></div><div class="details"><h3 id="item-name"></h3><p id="description"></p><div id="preview"></div></div><div class="stats"><div id="large-icon" class="sprite"></div><p id="equipment"></p></div></div><div class="actions"><button id="fit">Fit</button><button id="remove">Remove</button><button id="done">Done</button></div></dialog>
+<noscript>The port reader requires JavaScript and WebAssembly.</noscript><script type="module" src="port.js"></script></body></html>

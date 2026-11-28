@@ -105,6 +105,7 @@ function showAnalysis(result,text,report){
 function draw() {
   const content=$('#content');content.replaceChildren();
   $('#port').hidden=state.away;$('#orbit').hidden=!state.away;
+  $('#harbor-call').textContent = {open:'Mail road flooded · use west berth', accepted:'West berth · Kestrel awaiting dispatch', delivered:'Channel clear · Kestrel outbound'}[state.mission];
   $('#orbit-message').textContent=state.mission==='delivered'?'The Kestrel clears the flats with the corrected tide tables.':'A lamp burns above the mail shed. The port is accepting arrivals.';
   $('#heading').textContent=({log:'Saltglass Reach',lab:'Reader lab',board:'Mission BBS'})[screen];
   document.querySelectorAll('[data-screen]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.screen===screen)));
