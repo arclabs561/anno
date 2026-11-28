@@ -1,0 +1,19 @@
+{
+  "model": "knowledgator/gliner-bi-edge-v2.0",
+  "model_revision": "3a401e4902d93df04971c795fb1f42f37801aced",
+  "anno_commit": "1ac5507868dd4e5ba3b2698a85f0cc749da9b912",
+  "result": {
+    "dataset": "WikiGold",
+    "backend": "gliner_poly",
+    "seed": 42,
+    "num_examples": 100,
+    "dataset_sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+    "metrics": {
+      "num_gold": 224.0,
+      "num_predicted": 191.0,
+      "precision": 0.7486910994764397,
+      "recall": 0.6383928571428571,
+      "f1": 0.6891566265060242
+    }
+  }
+}

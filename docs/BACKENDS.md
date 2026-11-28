@@ -172,6 +172,13 @@ GLINER_POLY_MODEL_PATH=/tmp/gliner-bi-edge anno extract --model gliner-poly \
     --extract-types person,location 'Marie Curie worked in Paris.'
 ```
 
+Run `bash scripts/qa/bench_gliner_edge.sh NEW_OUTPUT_DIRECTORY` from the checkout to
+score the pinned pretrained Edge v2.0 checkpoint on a 100-sentence WikiGold panel (seed 42). The runner prepares
+a fresh export and writes the native benchmark report, JSON metrics and source revisions.
+At threshold 0.5, 143 of 191 predicted entities matched the span and type of one of
+224 reference entities (74.9% precision, 63.8% recall, 68.9% micro F1).
+[Measured checkpoint and corpus](eval/gliner-edge-wikigold.json)
+
 #### Span-width exports (`max_width`)
 
 `gliner`, `gliner_poly`, and `gliner_multitask` score a fixed grid of word
@@ -663,7 +670,7 @@ Notes:
   snapshot. For an older self-contained export, run the same script with
   `--inventory-only --output DIRECTORY`. Explicit loading supports older exports
   without an inventory. The native ONNX fixture checks label-sensitive
-  decoding and source offsets. Pretrained accuracy requires separate measurement.
+  decoding and source offsets. For the pretrained Edge v2.0 result, see the [WikiGold panel](eval/gliner-edge-wikigold.json).
 - `tplinker` exports with random weights if no `--checkpoint` is provided;
   the runtime falls back to a heuristic mode when no ONNX is present.
 - `gliner_onnx` runs `export_gliner_poly_onnx.py` automatically on first
