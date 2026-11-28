@@ -158,7 +158,7 @@ jobs:
         with:
           toolchain: 'stable'
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
       - name: Reconcile paired studies with their source counts
         run: |
           python3 -m unittest discover -s scripts/qa/joint_baseline -p 'test_relex_*.py'
