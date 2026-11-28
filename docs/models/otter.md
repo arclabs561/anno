@@ -33,3 +33,16 @@ At threshold 0.5, both checkpoints identified *Angela Merkel* at Unicode scalar 
 In Rust, use `anno::backends::otter::Otter::from_env(OtterVariant::Cross)` or pass the Python executable, checkpoint directory and variant to `Otter::new`. Holding the model open keeps the checkpoint resident across requests. The bi-encoder uses the publisher's standard inference path, which recomputes type representations per request. [Rust API and checkpoint test](../../crates/anno/src/backends/otter/mod.rs)
 
 On Anno's 120-paragraph RED-FM test panel, cross at 0.5 recovered 316 of 436 reference mentions with 191 unmatched predictions (67.02 exact micro F1). Bi at 0.2 recovered 178 with 93 unmatched predictions (50.35). Raising bi's threshold to 0.5 reduced its micro F1 to 26.06. The panel has 12 paragraphs per language and length group. [Corpus, selection and scoring](../eval/ner-language-length.md)
+
+
+Replay the three RED-FM results from the checkout using the prepared checkpoints above. The runner verifies the source files, reconstructs the development and test cohorts, and checks their combined fingerprint `4674bec42630b2093a1c8f7b9ff1d767afade0aa5706eb04e35bb4cf6018c7e3`. It scores the 120 test paragraphs with the shipped Otter worker and the three English labels in the same order for every language. Each command prints exact span counts and micro F1 as JSON. [Replay code](../../scripts/qa/ner_language_length.py) · [Published cohort fingerprints](../eval/ner-language-length.json)
+
+```sh
+panel_cache="$(mktemp -d)"
+"$ANNO_OTTER_PYTHON" scripts/qa/ner_language_length.py --backend otter-cross \
+  --checkpoint "$OTTER_CROSS_MODEL_DIR" --corpus redfm --data-dir "$panel_cache" --fetch
+for threshold in 0.2 0.5; do
+  "$ANNO_OTTER_PYTHON" scripts/qa/ner_language_length.py --backend otter-bi \
+    --checkpoint "$OTTER_BI_MODEL_DIR" --threshold "$threshold" --corpus redfm --data-dir "$panel_cache"
+done
+```
